@@ -1,0 +1,8 @@
+{
+    "OSType": "UnknownOS",
+    "OSVersion": "1.0",
+    "packages": [],
+    "immutability": false,
+    "output": ["exe"],
+    "kernel": {}
+  }

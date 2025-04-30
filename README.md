@@ -13,6 +13,10 @@ and WindRiver Linux.
 
 ## Get Started
 
+Run the sample JSON files against the defined [schema](schema/os-image-composer.schema.json).
+There are two sample JSON files, one [valid](/testdata/valid.json) and one with
+[invalid](testdata/invalid.json) content.
+
 ## Getting Help
 
 ## Contributing

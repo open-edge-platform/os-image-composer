@@ -1,0 +1,8 @@
+{
+    "OSType": "EMT",
+    "OSVersion": "3.1",
+    "packages": ["cloud-init", "rsyslog"],
+    "immutability": true,
+    "output": ["iso"],
+    "kernel": { "version": "6.12", "cmdline": "quiet splash" }
+  }
