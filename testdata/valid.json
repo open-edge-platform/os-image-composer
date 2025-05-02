@@ -1,6 +1,6 @@
 {
-    "OSType": "EMT",
-    "OSVersion": "3.1",
+    "OSType": "AzureLinux",
+    "OSVersion": "3.0",
     "packages": ["cloud-init", "rsyslog"],
     "immutability": true,
     "output": ["iso"],
