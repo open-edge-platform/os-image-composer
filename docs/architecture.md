@@ -21,7 +21,7 @@ Drive).
 ## Architecture Overview
 
 The following diagram outlines the high level architectural breakdown of the
-image composer ![Architecture Overview](assets/architecture.svg.drawio)
+image composer ![Architecture Overview](assets/architecture.drawio.svg)
 
 The host system should be running a validated and supported Linux distribution
 such as Ubuntu 24.04. The image-composer implements all of the common business
