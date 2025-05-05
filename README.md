@@ -13,6 +13,28 @@ and WindRiver Linux.
 
 ## Get Started
 
+### Building
+
+Build the image-composer
+
+```bash
+go build ./cmd/image-composer
+```
+
+Run `go test` for the validator
+
+```bash
+go test ./internal/validate
+```
+
+Run the image composer with the AzureLinux provider. The testdata/valid.json file
+is composed to use AzureLinux v3. The provider name is created by `name`+`version`,
+so the provider name is `azurelinux3`.
+
+```bash
+go run ./cmd/image-composer testdata/valid.json
+```
+
 ### User Input Json
 
 This section provides an explanation of the JSON input used to configure the
