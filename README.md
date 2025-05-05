@@ -21,7 +21,7 @@ Build the image-composer
 go build ./cmd/image-composer
 ```
 
-Run `go test` for the validator
+Run `go test` to validate a given JSON file against the schema
 
 ```bash
 go test ./internal/validate
