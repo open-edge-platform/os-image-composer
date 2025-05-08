@@ -1,4 +1,4 @@
-# Image-Composer CLI Documentation
+# Image-Composer CLI Specification
 
 `image-composer` is a command-line tool for generating custom OS images for different operating systems including Edge Microvisor toolkit, Azure, Ubuntu, and Red Hat. It provides a flexible, configurability-first approach to creating production-ready OS images with precise customization.
 
@@ -120,7 +120,7 @@ Options:
 
 ### Cache Command
 
-Manage the image and package caches to optimize build performance and storage usage.
+Manage the image and package caches to optimize build performance and storage usage. Detailed documentation at [Understanding Caching in Image-Composer](https://github.com/intel-innersource/os.linux.tiberos.os-curation-tool/tree/main/docs/image-composer-caching.md)
 
 ```bash
 image-composer cache SUBCOMMAND
