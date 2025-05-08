@@ -363,25 +363,13 @@ The tool provides consistent exit codes that can be used in scripting and automa
 
 ### Common Issues
 
-1. **Missing Dependencies**: Ensure that the required tools for your target OS are installed (e.g., debootstrap for Ubuntu).
-   ```bash
-   # For Ubuntu targets
-   sudo apt-get install debootstrap
-   ```
-
-2. **Permission Errors**: The tool may require elevated privileges for certain operations.
-   ```bash
-   # Run with sudo for system-level operations
-   sudo image-composer build my-image-spec.yml
-   ```
-
-3. **Disk Space**: Building images requires significant temporary disk space.
+1. **Disk Space**: Building images requires significant temporary disk space.
    ```bash
    # Check free space
    df -h /var/tmp/image-composer
    ```
 
-4. **Cache Corruption**: If you experience unexplained failures, try clearing the cache.
+1. **Cache Corruption**: If you experience unexplained failures, try clearing the cache.
    ```bash
    image-composer cache clean --all
    ```
