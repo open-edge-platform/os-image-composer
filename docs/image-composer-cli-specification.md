@@ -118,7 +118,7 @@ Options:
 
 ### Cache Command
 
-Manage the image and package caches to optimize build performance and storage usage. Detailed documentation at [Understanding Caching in Image-Composer](https://github.com/intel-innersource/os.linux.tiberos.os-curation-tool/tree/main/docs/image-composer-caching.md)
+Manage the image and package caches to optimize build performance and storage usage. Detailed documentation at [Understanding Caching in Image-Composer](./image-composer-caching.md)
 
 ```bash
 image-composer cache SUBCOMMAND
@@ -136,7 +136,7 @@ Subcommands:
 
 ### Template Command
 
-Manage image templates that serve as starting points for customized images.
+Manage image templates that serve as starting points for customized images. Detailed documentation at [Understanding Templates in Image-Composer](./image-composer-templates.md)
 
 ```bash
 image-composer template SUBCOMMAND
