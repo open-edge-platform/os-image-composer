@@ -78,7 +78,7 @@ Image-Composer uses a layered configuration approach, with command-line options 
 
 ### Build Command
 
-Build an OS image from a specification file. This is the primary command for creating custom OS images according to your requirements.
+Build an OS image from a specification file. This is the primary command for creating custom OS images according to your requirements. [Understanding Caching in Image-Composer](./image-composer-build-process.md)
 
 ```bash
 image-composer build [options] SPEC_FILE
