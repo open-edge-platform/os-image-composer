@@ -140,7 +140,7 @@ sequenceDiagram
 
     IC->>P: 5) Resolve(initialPkgList, allPackages)
     P->>P:     Resolve all direct and indirect dependencies
-    p-->>IC:  requiredPkgList
+    P-->>IC:  requiredPkgList
     
     IC->>P: 6) FetchPackages(requiredPkgList)
     P->>RR:    GET each URL
