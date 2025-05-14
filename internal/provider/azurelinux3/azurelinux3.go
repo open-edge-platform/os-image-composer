@@ -2,31 +2,33 @@ package azurelinux3
 
 import (
 	"bufio"
+	"encoding/xml"
 	"fmt"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/config"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/rpmutils"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
-	"encoding/xml"
-	"sort"
+
+	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/config"
+	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider"
+	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/rpmutils"
+	"go.uber.org/zap"
 )
 
 const (
-	baseURL = "https://packages.microsoft.com/azurelinux/3.0/prod/base/"
+	baseURL    = "https://packages.microsoft.com/azurelinux/3.0/prod/base/"
 	configName = "config.repo"
-	repodata = "repodata/repomd.xml"
+	repodata   = "repodata/repomd.xml"
 )
+
 // repoConfig holds .repo file values
 type repoConfig struct {
 	Section      string // raw section header
 	Name         string // human-readable name from name=
-	URL      	 string
+	URL          string
 	GPGCheck     bool
 	RepoGPGCheck bool
 	Enabled      bool
@@ -35,12 +37,12 @@ type repoConfig struct {
 
 // AzureLinux3 implements provider.Provider
 type AzureLinux3 struct {
-	repoURL     string
-	repoCfg		repoConfig
-	repomd		string
-	primaryURL	string
-	gzHref		string
-	spec 		*config.BuildSpec
+	repoURL string
+	repoCfg repoConfig
+	//repomd		string
+	//primaryURL	string
+	gzHref string
+	spec   *config.BuildSpec
 }
 
 func init() {
@@ -68,17 +70,17 @@ func (p *AzureLinux3) Init(spec *config.BuildSpec) error {
 		logger.Errorf("parsing repo config failed: %v", err)
 		return err
 	}
-	
-	repoDataURL := baseURL + spec.Arch + "/" + repodata 
+
+	repoDataURL := baseURL + spec.Arch + "/" + repodata
 	href, err := fetchPrimaryURL(repoDataURL)
 	if err != nil {
-    	logger.Errorf("fetch primary.xml.gz failed: %v", err)
+		logger.Errorf("fetch primary.xml.gz failed: %v", err)
 	}
 
 	p.repoCfg = cfg
 	p.spec = spec
-	p.gzHref = href	
-	
+	p.gzHref = href
+
 	logger.Infof("initialized AzureLinux3 provider repo section=%s", cfg.Section)
 	logger.Infof("name=%s", cfg.Name)
 	logger.Infof("url=%s", cfg.URL)
@@ -89,53 +91,53 @@ func (p *AzureLinux3) Packages() ([]provider.PackageInfo, error) {
 	// get sugar logger from zap
 	logger := zap.L().Sugar()
 	logger.Infof("fetching packages from %s", p.repoCfg.URL)
-	
+
 	packages, err := rpmutils.ParsePrimary(p.repoCfg.URL, p.gzHref)
 	if err != nil {
 		logger.Errorf("parsing primary.xml.gz failed: %v", err)
 	}
 
 	logger.Infof("found %d packages in AzureLinux3 repo", len(packages))
-    return packages, nil
+	return packages, nil
 }
 
 func (p *AzureLinux3) MatchRequested(requests []string, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
-    var out []provider.PackageInfo
+	var out []provider.PackageInfo
 
-    for _, want := range requests {
-        var candidates []provider.PackageInfo
-        for _, pi := range all {
-            // 1) exact name match
-            if pi.Name == want || pi.Name == want+".rpm" {
-                candidates = append(candidates, pi)
-                break
-            }
-            // 2) prefix by want-version (“acl-”)
-            if strings.HasPrefix(pi.Name, want+"-") {
-                candidates = append(candidates, pi)
-                continue
-            }
-            // 3) prefix by want.release (“acl-2.3.1-2.”)
-            if strings.HasPrefix(pi.Name, want+".") {
-                candidates = append(candidates, pi)
-            }
-        }
+	for _, want := range requests {
+		var candidates []provider.PackageInfo
+		for _, pi := range all {
+			// 1) exact name match
+			if pi.Name == want || pi.Name == want+".rpm" {
+				candidates = append(candidates, pi)
+				break
+			}
+			// 2) prefix by want-version (“acl-”)
+			if strings.HasPrefix(pi.Name, want+"-") {
+				candidates = append(candidates, pi)
+				continue
+			}
+			// 3) prefix by want.release (“acl-2.3.1-2.”)
+			if strings.HasPrefix(pi.Name, want+".") {
+				candidates = append(candidates, pi)
+			}
+		}
 
-        if len(candidates) == 0 {
-            return nil, fmt.Errorf("requested package %q not found in repo", want)
-        }
-        // If we got an exact match in step (1), it's the only candidate
-        if len(candidates) == 1 && (candidates[0].Name == want || candidates[0].Name == want+".rpm") {
-            out = append(out, candidates[0])
-            continue
-        }
-        // Otherwise pick the “highest” by lex sort
-        sort.Slice(candidates, func(i, j int) bool {
-            return candidates[i].Name > candidates[j].Name
-        })
-        out = append(out, candidates[0])
-    }
-    return out, nil
+		if len(candidates) == 0 {
+			return nil, fmt.Errorf("requested package %q not found in repo", want)
+		}
+		// If we got an exact match in step (1), it's the only candidate
+		if len(candidates) == 1 && (candidates[0].Name == want || candidates[0].Name == want+".rpm") {
+			out = append(out, candidates[0])
+			continue
+		}
+		// Otherwise pick the “highest” by lex sort
+		sort.Slice(candidates, func(i, j int) bool {
+			return candidates[i].Name > candidates[j].Name
+		})
+		out = append(out, candidates[0])
+	}
+	return out, nil
 }
 func (p *AzureLinux3) Validate(destDir string) error {
 	// get sugar logger from zap
@@ -212,7 +214,7 @@ func (p *AzureLinux3) Resolve(req []provider.PackageInfo, all []provider.Package
 	for _, pkg := range needed {
 		logger.Debugf("-> %s", pkg.Name)
 	}
-	
+
 	return needed, nil
 }
 
@@ -261,65 +263,72 @@ func loadRepoConfig(r io.Reader) (repoConfig, error) {
 
 // fetchPrimaryURL downloads repomd.xml and returns the href of the primary metadata.
 func fetchPrimaryURL(repomdURL string) (string, error) {
-    resp, err := http.Get(repomdURL)
-    if err != nil {
-        return "", fmt.Errorf("GET %s: %w", repomdURL, err)
-    }
-    defer resp.Body.Close()
+	resp, err := http.Get(repomdURL)
+	if err != nil {
+		return "", fmt.Errorf("GET %s: %w", repomdURL, err)
+	}
+	defer resp.Body.Close()
 
-    dec := xml.NewDecoder(resp.Body)
+	dec := xml.NewDecoder(resp.Body)
 
-    // Walk the tokens looking for <data type="primary">
-    for {
-        tok, err := dec.Token()
-        if err != nil {
-            if err == io.EOF {
-                break
-            }
-            return "", err
-        }
-        se, ok := tok.(xml.StartElement)
-        if !ok || se.Name.Local != "data" {
-            continue
-        }
-        // Check its type attribute
-        var isPrimary bool
-        for _, attr := range se.Attr {
-            if attr.Name.Local == "type" && attr.Value == "primary" {
-                isPrimary = true
-                break
-            }
-        }
-        if !isPrimary {
-            // skip this <data> section
-            dec.Skip()
-            continue
-        }
+	// Walk the tokens looking for <data type="primary">
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return "", err
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok || se.Name.Local != "data" {
+			continue
+		}
+		// Check its type attribute
+		var isPrimary bool
+		for _, attr := range se.Attr {
+			if attr.Name.Local == "type" && attr.Value == "primary" {
+				isPrimary = true
+				break
+			}
+		}
+		if !isPrimary {
+			// Skip this <data> section
+			if err := dec.Skip(); err != nil {
+				return "", fmt.Errorf("error skipping token: %w", err)
+			}
+			continue
+		}
 
-        // Inside <data type="primary">, look for <location href="..."/>
-        for {
-            tok2, err := dec.Token()
-            if err != nil {
-                return "", err
-            }
-            // If we hit the end of this <data> element, bail out
-            if ee, ok := tok2.(xml.EndElement); ok && ee.Name.Local == "data" {
-                break
-            }
-            if le, ok := tok2.(xml.StartElement); ok && le.Name.Local == "location" {
-                // Pull the href attribute
-                for _, attr := range le.Attr {
-                    if attr.Name.Local == "href" {
-                        return attr.Value, nil
-                    }
-                }
-            }
-        }
-    }
-    return "", fmt.Errorf("primary location not found in %s", repomdURL)
+		// Inside <data type="primary">, look for <location href="..."/>
+		for {
+			tok2, err := dec.Token()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				return "", err
+			}
+			// If we hit the end of this <data> element, bail out
+			if ee, ok := tok2.(xml.EndElement); ok && ee.Name.Local == "data" {
+				break
+			}
+			if le, ok := tok2.(xml.StartElement); ok && le.Name.Local == "location" {
+				// Pull the href attribute
+				for _, attr := range le.Attr {
+					if attr.Name.Local == "href" {
+						return attr.Value, nil
+					}
+				}
+			}
+		}
+	}
+	return "", fmt.Errorf("primary location not found in %s", repomdURL)
 }
 
 // crawlDirectory fetches a directory listing and appends RPM entries
+// Commenting to avoid lint errors as its not used
+/*
 func crawlDirectory(url string, pkgs *[]provider.PackageInfo) error {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -345,3 +354,4 @@ func crawlDirectory(url string, pkgs *[]provider.PackageInfo) error {
 
 	return s.Err()
 }
+*/

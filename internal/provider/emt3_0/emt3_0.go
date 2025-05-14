@@ -67,6 +67,7 @@ func (p *emt30) Resolve(req []provider.PackageInfo, all []provider.PackageInfo) 
 	logger.Infof("Resolve() called with destDir=%s - Placeholder: This function will be implemented by the respective owner.")
 	return nil, nil
 }
+
 // MatchRequested takes the list of requested packages and returns
 func (p *emt30) MatchRequested(requested []string, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
 	logger := zap.L().Sugar()

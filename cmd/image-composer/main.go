@@ -236,13 +236,21 @@ func executeInstallCompletion(cmd *cobra.Command, args []string) error {
 	var buf bytes.Buffer
 	switch shellType {
 	case "bash":
-		cmd.Root().GenBashCompletion(&buf)
+		if err := cmd.Root().GenBashCompletion(&buf); err != nil {
+			return fmt.Errorf("error generating Bash completion: %w", err)
+		}
 	case "zsh":
-		cmd.Root().GenZshCompletion(&buf)
+		if err := cmd.Root().GenZshCompletion(&buf); err != nil {
+			return fmt.Errorf("error generating Zsh completion: %w", err)
+		}
 	case "fish":
-		cmd.Root().GenFishCompletion(&buf, true)
+		if err := cmd.Root().GenFishCompletion(&buf, true); err != nil {
+			return fmt.Errorf("error generating Fish completion: %w", err)
+		}
 	case "powershell":
-		cmd.Root().GenPowerShellCompletion(&buf)
+		if err := cmd.Root().GenPowerShellCompletion(&buf); err != nil {
+			return fmt.Errorf("error generating PowerShell completion: %w", err)
+		}
 	default:
 		return fmt.Errorf("unsupported shell type: %s", shellType)
 	}
@@ -404,7 +412,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to set up logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			fmt.Fprintf(os.Stderr, "error syncing logger: %v\n", err)
+		}
+	}()
 	zap.ReplaceGlobals(logger)
 
 	// Root command

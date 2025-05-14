@@ -1,11 +1,11 @@
-package rpmutils
+package rpmutils_test
 
 import (
+	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider"
+	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/rpmutils"
 	"reflect"
 	"sort"
 	"testing"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/rpmutils"
 )
 
 // helper to extract and sort names from PackageInfo slice

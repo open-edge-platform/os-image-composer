@@ -1,18 +1,18 @@
 package rpmutils
 
 import (
-	"fmt"
-	"path/filepath"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider"
-	"github.com/cavaliergopher/rpm"
-	"go.uber.org/zap"
 	"compress/gzip"
 	"encoding/xml"
-	"net/http"
+	"fmt"
+	"github.com/cavaliergopher/rpm"
+	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider"
+	"go.uber.org/zap"
 	"io"
+	"net/http"
 	"path"
+	"path/filepath"
 	"sort"
-)	
+)
 
 // Index maps provided capabilities to RPM paths and RPM paths to their requirements.
 type Index struct {
@@ -100,146 +100,146 @@ func ResolveDependencies(roots []string, idx *Index) []string {
 // matched) and the full list of all PackageInfos from the repo, and
 // returns the minimal closure of PackageInfos needed to satisfy all Requires.
 func ResolvePackageInfos(
-    requested []provider.PackageInfo,
-    all       []provider.PackageInfo,
+	requested []provider.PackageInfo,
+	all []provider.PackageInfo,
 ) ([]provider.PackageInfo, error) {
-    // Build helper maps:
-    byName := make(map[string]provider.PackageInfo, len(all))
-    provides := make(map[string][]string) // cap -> pkgNames
-    requires := make(map[string][]string) // pkgName -> caps
+	// Build helper maps:
+	byName := make(map[string]provider.PackageInfo, len(all))
+	provides := make(map[string][]string) // cap -> pkgNames
+	requires := make(map[string][]string) // pkgName -> caps
 
-    for _, pi := range all {
-        byName[pi.Name] = pi
-        for _, cap := range pi.Provides {
-            provides[cap] = append(provides[cap], pi.Name)
-        }
-        requires[pi.Name] = append([]string{}, pi.Requires...)
-    }
+	for _, pi := range all {
+		byName[pi.Name] = pi
+		for _, cap := range pi.Provides {
+			provides[cap] = append(provides[cap], pi.Name)
+		}
+		requires[pi.Name] = append([]string{}, pi.Requires...)
+	}
 
-    // Seed the queue with the user‐requested package names:
-    queue := make([]string, 0, len(requested))
-    for _, pi := range requested {
-        if _, ok := byName[pi.Name]; !ok {
-            return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
-        }
-        queue = append(queue, pi.Name)
-    }
+	// Seed the queue with the user‐requested package names:
+	queue := make([]string, 0, len(requested))
+	for _, pi := range requested {
+		if _, ok := byName[pi.Name]; !ok {
+			return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
+		}
+		queue = append(queue, pi.Name)
+	}
 
-    // BFS over the require→provide graph:
-    neededSet := make(map[string]struct{})
-    for len(queue) > 0 {
-        cur := queue[0]
-        queue = queue[1:]
-        if _, seen := neededSet[cur]; seen {
-            continue
-        }
-        neededSet[cur] = struct{}{}
+	// BFS over the require→provide graph:
+	neededSet := make(map[string]struct{})
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if _, seen := neededSet[cur]; seen {
+			continue
+		}
+		neededSet[cur] = struct{}{}
 
-        for _, cap := range requires[cur] {
-            for _, providerName := range provides[cap] {
-                if _, seen := neededSet[providerName]; !seen {
-                    queue = append(queue, providerName)
-                }
-            }
-        }
-    }
+		for _, cap := range requires[cur] {
+			for _, providerName := range provides[cap] {
+				if _, seen := neededSet[providerName]; !seen {
+					queue = append(queue, providerName)
+				}
+			}
+		}
+	}
 
-    // Build the result slice in deterministic order:
-    result := make([]provider.PackageInfo, 0, len(neededSet))
-    for name := range neededSet {
-        result = append(result, byName[name])
-    }
-    sort.Slice(result, func(i, j int) bool {
-        return result[i].Name < result[j].Name
-    })
-    return result, nil
+	// Build the result slice in deterministic order:
+	result := make([]provider.PackageInfo, 0, len(neededSet))
+	for name := range neededSet {
+		result = append(result, byName[name])
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
+	return result, nil
 }
 
 // ParsePrimary parses the repodata/primary.xml.gz file from a given base URL.
 func ParsePrimary(baseURL, gzHref string) ([]provider.PackageInfo, error) {
-    
-    resp, err := http.Get(baseURL + gzHref)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-    gr, err := gzip.NewReader(resp.Body)
-    if err != nil {
-        return nil, err
-    }
-    defer gr.Close()
+
+	resp, err := http.Get(baseURL + gzHref)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	gr, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	defer gr.Close()
 
 	dec := xml.NewDecoder(gr)
 
-    var (
-        infos          []provider.PackageInfo
-        currentSection string  // "provides", "requires", or ""
-        curInfo        *provider.PackageInfo
-    )
+	var (
+		infos          []provider.PackageInfo
+		currentSection string // "provides", "requires", or ""
+		curInfo        *provider.PackageInfo
+	)
 
-    for {
-        tok, err := dec.Token()
-        if err == io.EOF {
-            break
-        } else if err != nil {
-            return nil, err
-        }
+	for {
+		tok, err := dec.Token()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
 
-        switch elem := tok.(type) {
-        case xml.StartElement:
-            switch elem.Name.Local {
-            case "package":
-                // start a new PackageInfo
-                curInfo = &provider.PackageInfo{}
+		switch elem := tok.(type) {
+		case xml.StartElement:
+			switch elem.Name.Local {
+			case "package":
+				// start a new PackageInfo
+				curInfo = &provider.PackageInfo{}
 
-            case "location":
-                // read the href and build full URL + infer Name
-                for _, a := range elem.Attr {
-                    if a.Name.Local == "href" {
-                        curInfo.URL = baseURL + a.Value
-                        curInfo.Name = path.Base(a.Value)
-                        break
-                    }
-                }
+			case "location":
+				// read the href and build full URL + infer Name
+				for _, a := range elem.Attr {
+					if a.Name.Local == "href" {
+						curInfo.URL = baseURL + a.Value
+						curInfo.Name = path.Base(a.Value)
+						break
+					}
+				}
 
-            case "checksum":
-                // grab the checksum text
-                tok2, err2 := dec.Token()
-    			if err2 == nil {
-        		if charData, ok := tok2.(xml.CharData); ok {
-            		curInfo.Checksum = string(charData)
-        		}
-    		}
-            case "provides":
-                currentSection = "provides"
-            case "requires":
-                currentSection = "requires"
+			case "checksum":
+				// grab the checksum text
+				tok2, err2 := dec.Token()
+				if err2 == nil {
+					if charData, ok := tok2.(xml.CharData); ok {
+						curInfo.Checksum = string(charData)
+					}
+				}
+			case "provides":
+				currentSection = "provides"
+			case "requires":
+				currentSection = "requires"
 
-            case "entry":
-                // grab the name attribute
-                var name string
-                for _, a := range elem.Attr {
-                    if a.Name.Local == "name" {
-                        name = a.Value
-                        break
-                    }
-                }
-                if currentSection == "provides" {
-                    curInfo.Provides = append(curInfo.Provides, name)
-                } else if currentSection == "requires" {
-                    curInfo.Requires = append(curInfo.Requires, name)
-                }
-            }
+			case "entry":
+				// grab the name attribute
+				var name string
+				for _, a := range elem.Attr {
+					if a.Name.Local == "name" {
+						name = a.Value
+						break
+					}
+				}
+				if currentSection == "provides" {
+					curInfo.Provides = append(curInfo.Provides, name)
+				} else if currentSection == "requires" {
+					curInfo.Requires = append(curInfo.Requires, name)
+				}
+			}
 
-        case xml.EndElement:
-            switch elem.Name.Local {
-            case "provides", "requires":
-                currentSection = ""
-            case "package":
-                // finish this package
-                infos = append(infos, *curInfo)
-            }
-        }
-    }
+		case xml.EndElement:
+			switch elem.Name.Local {
+			case "provides", "requires":
+				currentSection = ""
+			case "package":
+				// finish this package
+				infos = append(infos, *curInfo)
+			}
+		}
+	}
 	return infos, nil
 }

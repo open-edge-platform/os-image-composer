@@ -6,11 +6,11 @@ import (
 
 // PackageInfo holds everything you need to fetch + verify one artifact.
 type PackageInfo struct {
-	Name     	string 		// e.g. "abseil-cpp"
-	URL      	string 		// download URL
-	Checksum 	string 		// optional pre-known digest
-	Provides  	[]string 	// capabilities this package provides (rpm:entry names)
-    Requires  	[]string 	// capabilities this package requires
+	Name     string   // e.g. "abseil-cpp"
+	URL      string   // download URL
+	Checksum string   // optional pre-known digest
+	Provides []string // capabilities this package provides (rpm:entry names)
+	Requires []string // capabilities this package requires
 }
 
 // Provider is the interface every OSV plugin must implement.
@@ -33,7 +33,6 @@ type Provider interface {
 
 	// Resolve walks your local cache in destDir and returns the full
 	Resolve(req []PackageInfo, all []PackageInfo) ([]PackageInfo, error)
-
 }
 
 var (
