@@ -1,21 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/config"
 	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/pkgfetcher"
 	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/validate"
 	_ "github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider/azurelinux3" // register provider
 	_ "github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider/elxr12"      // register provider
 	_ "github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider/emt3_0"      // register provider
+	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/validate"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"io"
 )
 
 // Version information
@@ -34,32 +36,38 @@ var (
 
 // nopSyncer wraps an io.Writer but its Sync() does nothing.
 type nopSyncer struct{ io.Writer }
+
 func (n nopSyncer) Sync() error { return nil }
 
 // setupLogger initializes a zap logger with development config,
 // but replaces the usual fsyncing writer with one whose Sync() is a no-op.
 func setupLogger() (*zap.Logger, error) {
-    // start from DevConfig so we get console output, color, ISO8601 time, etc.
-    cfg := zap.NewDevelopmentConfig()
-    cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-    cfg.EncoderConfig.EncodeTime  = zapcore.ISO8601TimeEncoder
-    cfg.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	// start from DevConfig so we get console output, color, ISO8601 time, etc.
+	cfg := zap.NewDevelopmentConfig()
+	cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	cfg.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
 
-    // create a console encoder using your EncoderConfig
-    encoder := zapcore.NewConsoleEncoder(cfg.EncoderConfig)
-    // wrap stderr in our nopSyncer
-    writer  := nopSyncer{os.Stderr}
-    // build a core that writes to that writer
-    core    := zapcore.NewCore(encoder, writer, cfg.Level)
+	// create a console encoder using your EncoderConfig
+	encoder := zapcore.NewConsoleEncoder(cfg.EncoderConfig)
+	// wrap stderr in our nopSyncer
+	writer := nopSyncer{os.Stderr}
+	// build a core that writes to that writer
+	core := zapcore.NewCore(encoder, writer, cfg.Level)
 
-    // mirror the options NewDevelopmentConfig() would have added
-    opts := []zap.Option{
-        zap.AddCaller(),
-        zap.Development(),
-        zap.AddStacktrace(zapcore.ErrorLevel),
-    }
+	// mirror the options NewDevelopmentConfig() would have added
+	opts := []zap.Option{
+		zap.AddCaller(),
+		zap.Development(),
+		zap.AddStacktrace(zapcore.ErrorLevel),
+	}
 
-    return zap.New(core, opts...), nil
+	return zap.New(core, opts...), nil
+}
+
+// jsonFileCompletion helps with suggesting JSON files for spec file argument
+func jsonFileCompletion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return []string{"*.json"}, cobra.ShellCompDirectiveFilterFileExt
 }
 
 // executeBuild handles the build command execution logic
@@ -109,7 +117,7 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 			sugar.Infof("-> %s", pkg.Name)
 		}
 	}
-	
+
 	// Resolve the dependencies of the requested packages
 	needed, err := p.Resolve(req, all)
 	if err != nil {
@@ -155,18 +163,18 @@ func executeValidate(cmd *cobra.Command, args []string) error {
 	specFile := args[0]
 
 	sugar.Infof("Validating spec file: %s", specFile)
-	
+
 	// Read the file
 	data, err := os.ReadFile(specFile)
 	if err != nil {
 		return fmt.Errorf("reading spec file: %v", err)
 	}
-	
+
 	// Validate the JSON against schema
 	if err := validate.ValidateJSON(data); err != nil {
 		return fmt.Errorf("validation failed: %v", err)
 	}
-	
+
 	sugar.Info("Spec file is valid")
 	return nil
 }
@@ -176,6 +184,217 @@ func executeVersion(cmd *cobra.Command, args []string) {
 	fmt.Printf("Image Composer Tool v%s\n", Version)
 	fmt.Printf("Build Date: %s\n", BuildDate)
 	fmt.Printf("Commit: %s\n", CommitSHA)
+}
+
+// executeInstallCompletion handles installation of shell completion scripts
+func executeInstallCompletion(cmd *cobra.Command, args []string) error {
+	shellType := ""
+	userForce := false
+
+	// Process flags
+	if cmd.Flags().Changed("shell") {
+		var err error
+		shellType, err = cmd.Flags().GetString("shell")
+		if err != nil {
+			return err
+		}
+	}
+
+	if cmd.Flags().Changed("force") {
+		var err error
+		userForce, err = cmd.Flags().GetBool("force")
+		if err != nil {
+			return err
+		}
+	}
+
+	// If no shell specified, detect current shell
+	if shellType == "" {
+		shellEnv := os.Getenv("SHELL")
+		if shellEnv != "" {
+			switch {
+			case strings.Contains(shellEnv, "bash"):
+				shellType = "bash"
+			case strings.Contains(shellEnv, "zsh"):
+				shellType = "zsh"
+			case strings.Contains(shellEnv, "fish"):
+				shellType = "fish"
+			default:
+				return fmt.Errorf("unsupported shell: %s. Please specify shell with --shell flag", shellEnv)
+			}
+		} else {
+			// On Windows, we may not have $SHELL
+			if os.Getenv("PSModulePath") != "" {
+				shellType = "powershell"
+			} else {
+				return fmt.Errorf("could not detect shell. Please specify with --shell flag")
+			}
+		}
+	}
+
+	// Generate completion script
+	var buf bytes.Buffer
+	switch shellType {
+	case "bash":
+		cmd.Root().GenBashCompletion(&buf)
+	case "zsh":
+		cmd.Root().GenZshCompletion(&buf)
+	case "fish":
+		cmd.Root().GenFishCompletion(&buf, true)
+	case "powershell":
+		cmd.Root().GenPowerShellCompletion(&buf)
+	default:
+		return fmt.Errorf("unsupported shell type: %s", shellType)
+	}
+
+	// Determine where to save the completion script
+	var targetPath string
+	var sourceCmd string
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("could not determine home directory: %v", err)
+	}
+
+	switch shellType {
+	case "bash":
+		// Try to detect if bash-completion is installed
+		completionDir := "/etc/bash_completion.d"
+		if _, err := os.Stat(completionDir); os.IsNotExist(err) {
+			// Fallback to user's directory
+			completionDir = filepath.Join(homeDir, ".bash_completion.d")
+			if _, err := os.Stat(completionDir); os.IsNotExist(err) {
+				if err := os.MkdirAll(completionDir, 0755); err != nil {
+					return fmt.Errorf("could not create directory %s: %v", completionDir, err)
+				}
+			}
+		}
+		targetPath = filepath.Join(completionDir, "image-composer.bash")
+
+		// If we're using home directory version, we need to source it in .bashrc
+		if strings.HasPrefix(completionDir, homeDir) {
+			sourceCmd = fmt.Sprintf("source %s", targetPath)
+
+			// Check if it's already in .bashrc
+			bashrcPath := filepath.Join(homeDir, ".bashrc")
+			if _, err := os.Stat(bashrcPath); err == nil {
+				content, err := os.ReadFile(bashrcPath)
+				if err == nil && !strings.Contains(string(content), sourceCmd) {
+					fmt.Printf("Adding completion source to %s\n", bashrcPath)
+					f, err := os.OpenFile(bashrcPath, os.O_APPEND|os.O_WRONLY, 0644)
+					if err == nil {
+						defer f.Close()
+						if _, err := f.WriteString("\n# Image Composer Tool completion\n" + sourceCmd + "\n"); err != nil {
+							fmt.Printf("Warning: Could not update %s: %v\n", bashrcPath, err)
+						}
+					}
+				}
+			}
+		}
+
+	case "zsh":
+		// Check for common zsh completion paths
+		completionDir := "/usr/local/share/zsh/site-functions"
+		if _, err := os.Stat(completionDir); os.IsNotExist(err) {
+			completionDir = filepath.Join(homeDir, ".zsh/completion")
+			if _, err := os.Stat(completionDir); os.IsNotExist(err) {
+				if err := os.MkdirAll(completionDir, 0755); err != nil {
+					return fmt.Errorf("could not create directory %s: %v", completionDir, err)
+				}
+			}
+
+			// Add to .zshrc if needed
+			sourceCmd = fmt.Sprintf("fpath=(%s $fpath)", completionDir)
+			zshrcPath := filepath.Join(homeDir, ".zshrc")
+			if _, err := os.Stat(zshrcPath); err == nil {
+				content, err := os.ReadFile(zshrcPath)
+				if err == nil && !strings.Contains(string(content), sourceCmd) {
+					fmt.Printf("Adding completion directory to $fpath in %s\n", zshrcPath)
+					f, err := os.OpenFile(zshrcPath, os.O_APPEND|os.O_WRONLY, 0644)
+					if err == nil {
+						defer f.Close()
+						if _, err := f.WriteString("\n# Image Composer Tool completion\n" + sourceCmd + "\nautoload -Uz compinit && compinit\n"); err != nil {
+							fmt.Printf("Warning: Could not update %s: %v\n", zshrcPath, err)
+						}
+					}
+				}
+			}
+		}
+		targetPath = filepath.Join(completionDir, "_image-composer")
+
+	case "fish":
+		completionDir := filepath.Join(homeDir, ".config/fish/completions")
+		if _, err := os.Stat(completionDir); os.IsNotExist(err) {
+			if err := os.MkdirAll(completionDir, 0755); err != nil {
+				return fmt.Errorf("could not create directory %s: %v", completionDir, err)
+			}
+		}
+		targetPath = filepath.Join(completionDir, "image-composer.fish")
+
+	case "powershell":
+		// Check if PowerShell profile exists
+		psPath := os.Getenv("PSMODULEPATH")
+		if psPath == "" {
+			psPath = filepath.Join(homeDir, "Documents/WindowsPowerShell/Modules")
+			if _, err := os.Stat(psPath); os.IsNotExist(err) {
+				if err := os.MkdirAll(psPath, 0755); err != nil {
+					return fmt.Errorf("could not create directory %s: %v", psPath, err)
+				}
+			}
+		}
+
+		completionDir := filepath.Join(psPath, "image-composer")
+		if _, err := os.Stat(completionDir); os.IsNotExist(err) {
+			if err := os.MkdirAll(completionDir, 0755); err != nil {
+				return fmt.Errorf("could not create directory %s: %v", completionDir, err)
+			}
+		}
+
+		targetPath = filepath.Join(completionDir, "image-composer-completion.ps1")
+
+		// We may need to add module to profile
+		profilePath := os.Getenv("PROFILE")
+		if profilePath == "" {
+			fmt.Println("PowerShell profile not found. You may need to manually import the module.")
+		} else {
+			moduleCmd := fmt.Sprintf("Import-Module %s", completionDir)
+			if _, err := os.Stat(profilePath); err == nil {
+				content, err := os.ReadFile(profilePath)
+				if err == nil && !strings.Contains(string(content), moduleCmd) {
+					fmt.Printf("Adding module import to PowerShell profile at %s\n", profilePath)
+					f, err := os.OpenFile(profilePath, os.O_APPEND|os.O_WRONLY, 0644)
+					if err == nil {
+						defer f.Close()
+						if _, err := f.WriteString("\n# Image Composer Tool completion\n" + moduleCmd + "\n"); err != nil {
+							fmt.Printf("Warning: Could not update profile: %v\n", err)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(targetPath); err == nil && !userForce {
+		return fmt.Errorf("completion file already exists at %s. Use --force to overwrite", targetPath)
+	}
+
+	// Write completion script to file
+	if err := os.WriteFile(targetPath, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("could not write completion file: %v", err)
+	}
+
+	fmt.Printf("Shell completion installed for %s at %s\n", shellType, targetPath)
+
+	if sourceCmd != "" {
+		fmt.Printf("\nTo enable completion in your current shell, run:\n  %s\n", sourceCmd)
+	}
+
+	if shellType == "powershell" {
+		fmt.Printf("\nTo enable completion in your current PowerShell session, run:\n  Import-Module %s\n", filepath.Dir(targetPath))
+	}
+
+	return nil
 }
 
 func main() {
@@ -203,17 +422,19 @@ from different Operating System Vendors (OSVs).`,
 		Short: "Build a Linux distribution image",
 		Long: `Build a Linux distribution image based on the specified spec file.
 The spec file should be in JSON format according to the schema.`,
-		Args: cobra.ExactArgs(1),
-		RunE: executeBuild,
+		Args:              cobra.ExactArgs(1),
+		RunE:              executeBuild,
+		ValidArgsFunction: jsonFileCompletion,
 	}
 
 	// Validate command
 	validateCmd := &cobra.Command{
-		Use:   "validate SPEC_FILE",
-		Short: "Validate a spec file against the schema",
-		Long:  `Validate that the given JSON spec file conforms to the schema.`,
-		Args:  cobra.ExactArgs(1),
-		RunE:  executeValidate,
+		Use:               "validate SPEC_FILE",
+		Short:             "Validate a spec file against the schema",
+		Long:              `Validate that the given JSON spec file conforms to the schema.`,
+		Args:              cobra.ExactArgs(1),
+		RunE:              executeValidate,
+		ValidArgsFunction: jsonFileCompletion,
 	}
 
 	// Version command
@@ -222,6 +443,20 @@ The spec file should be in JSON format according to the schema.`,
 		Short: "Display version information",
 		Run:   executeVersion,
 	}
+
+	// Install completion command
+	installCompletionCmd := &cobra.Command{
+		Use:   "install-completion",
+		Short: "Install shell completion script",
+		Long: `Install shell completion script for Bash, Zsh, Fish, or PowerShell.
+Automatically detects your shell and installs the appropriate completion script.
+If needed, it will also update your shell profile to load the completions.`,
+		RunE: executeInstallCompletion,
+	}
+
+	// Add flags to install-completion command
+	installCompletionCmd.Flags().String("shell", "", "Specify shell type (bash, zsh, fish, powershell)")
+	installCompletionCmd.Flags().Bool("force", false, "Force overwrite existing completion files")
 
 	// Add flags to build command
 	buildCmd.Flags().IntVarP(&workers, "workers", "w", workers, "Number of concurrent download workers")
@@ -232,6 +467,7 @@ The spec file should be in JSON format according to the schema.`,
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(installCompletionCmd)
 
 	// Add global flags
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")

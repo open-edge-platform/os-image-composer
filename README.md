@@ -29,7 +29,6 @@ earthly +build
 
 # Build with specific version
 earthly +build --version=1.0.0
-
 ```
 
 The Earthly build automatically includes:
@@ -53,12 +52,24 @@ The Image Composer Tool uses a command-line interface with various commands:
 
 # Display version information
 ./image-composer version
+
+# Install shell completion for your current shell
+./image-composer install-completion
 ```
 
-#### Build Command Options
+### Commands
 
-The `build` command now takes a spec file as a positional argument and supports the following flags:
+The Image Composer Tool provides the following commands:
 
+#### build
+
+Builds a Linux distribution image based on the specified spec file:
+
+```bash
+./image-composer build [flags] SPEC_FILE
+```
+
+Flags:
 - `--workers, -w`: Number of concurrent download workers (default: 8)
 - `--cache-dir, -d`: Package cache directory (default: "./downloads")
 - `--verbose, -v`: Enable verbose output
@@ -69,15 +80,70 @@ Example:
 ./image-composer build --workers 12 --cache-dir ./package-cache testdata/valid.json
 ```
 
-#### Validate Command
+#### validate
 
-The `validate` command allows you to check if a JSON spec file conforms to the schema without actually building an image:
+Validates a JSON spec file against the schema without building an image:
 
 ```bash
-./image-composer validate testdata/valid.json
+./image-composer validate SPEC_FILE
 ```
 
 This is useful for verifying configurations before starting the potentially time-consuming build process.
+
+#### version
+
+Displays version information about the tool:
+
+```bash
+./image-composer version
+```
+
+This shows the version number, build date, and Git commit SHA.
+
+#### install-completion
+
+Installs shell completion for your current shell or a specified shell:
+
+```bash
+# Auto-detect shell
+./image-composer install-completion
+
+# Specify shell type
+./image-composer install-completion --shell zsh
+
+# Force overwrite existing completion
+./image-composer install-completion --force
+```
+
+Reload your shell configuration:
+Depending on which shell you're using:
+
+Bash:
+```bash
+source ~/.bashrc
+```
+
+Zsh:
+```bash
+source ~/.zshrc
+```
+
+Fish: (Nothing needed, it should work immediately)
+PowerShell:
+```powershell
+. $PROFILE
+```
+
+Test the completion:
+```bash
+image-composer [TAB]
+image-composer b[TAB]
+image-composer build --[TAB]
+```
+
+
+
+See the [Shell Completion](#shell-completion) section for more details.
 
 ### User Input JSON
 
@@ -172,6 +238,80 @@ This section provides a detailed explanation of the JSON input structure used to
 Run the sample JSON files against the defined [schema](schema/os-image-composer.schema.json).
 There are two sample JSON files, one [valid](/testdata/valid.json) and one with
 [invalid](testdata/invalid.json) content.
+
+### Shell Completion
+
+The image-composer CLI supports shell auto-completion for Bash, Zsh, Fish, and PowerShell. This feature helps users discover and use commands and flags more efficiently.
+
+#### Generating Completion Scripts
+
+```bash
+# Bash
+./image-composer completion bash > image-composer_completion.bash
+
+# Zsh
+./image-composer completion zsh > image-composer_completion.zsh
+
+# Fish
+./image-composer completion fish > image-composer_completion.fish
+
+# PowerShell
+./image-composer completion powershell > image-composer_completion.ps1
+```
+
+#### Installing Completion Scripts
+
+**Bash**:
+```bash
+# Temporary use
+source image-composer_completion.bash
+
+# Permanent installation (Linux)
+sudo cp image-composer_completion.bash /etc/bash_completion.d/
+# or add to your ~/.bashrc
+echo "source /path/to/image-composer_completion.bash" >> ~/.bashrc
+```
+
+**Zsh**:
+```bash
+# Add to your .zshrc
+echo "source /path/to/image-composer_completion.zsh" >> ~/.zshrc
+# Or copy to a directory in your fpath
+cp image-composer_completion.zsh ~/.zfunc/_image-composer
+```
+
+**Fish**:
+```bash
+cp image-composer_completion.fish ~/.config/fish/completions/image-composer.fish
+```
+
+**PowerShell**:
+```powershell
+# Add to your PowerShell profile
+echo ". /path/to/image-composer_completion.ps1" >> $PROFILE
+```
+
+After installing, you can use tab completion to navigate commands, flags, and arguments when using the image-composer tool.
+
+#### Examples of Completion in Action
+
+Once completion is installed:
+
+```bash
+# Tab-complete commands
+./image-composer <TAB>
+build      completion  help       validate    version
+
+# Tab-complete flags
+./image-composer build --<TAB>
+--cache-dir  --help       --verbose    --workers
+
+# Tab-complete JSON files for spec file argument
+./image-composer build <TAB>
+# Will show JSON files in the current directory
+```
+
+The tool is specifically configured to suggest JSON files when completing the spec file argument for the build and validate commands.
 
 ## Getting Help
 
