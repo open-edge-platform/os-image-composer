@@ -15,6 +15,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y curl ca-certificates
+          update-ca-certificates
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
