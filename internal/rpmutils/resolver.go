@@ -103,6 +103,7 @@ func ResolvePackageInfos(
 	requested []provider.PackageInfo,
 	all []provider.PackageInfo,
 ) ([]provider.PackageInfo, error) {
+
 	// Build helper maps:
 	byName := make(map[string]provider.PackageInfo, len(all))
 	provides := make(map[string][]string) // cap -> pkgNames
@@ -125,6 +126,15 @@ func ResolvePackageInfos(
 		queue = append(queue, pi.Name)
 	}
 
+	// bestProvider maps cap -> the single “best” pkgName
+	bestProvider := make(map[string]string, len(provides))
+	for cap, provs := range provides {
+		// pick the lexically greatest filename;
+		// for real RPM semver we might want to check rpmutils.VersionCompare()
+		sort.Strings(provs)
+		bestProvider[cap] = provs[len(provs)-1]
+	}
+
 	// BFS over the require→provide graph:
 	neededSet := make(map[string]struct{})
 	for len(queue) > 0 {
@@ -136,9 +146,9 @@ func ResolvePackageInfos(
 		neededSet[cur] = struct{}{}
 
 		for _, cap := range requires[cur] {
-			for _, providerName := range provides[cap] {
-				if _, seen := neededSet[providerName]; !seen {
-					queue = append(queue, providerName)
+			if best, ok := bestProvider[cap]; ok {
+				if _, seen := neededSet[best]; !seen {
+					queue = append(queue, best)
 				}
 			}
 		}
