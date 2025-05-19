@@ -8,7 +8,7 @@ The following are the details of those objectives:
 
  ### 1. Reduced Attack Surface:
 
-Image Composer Tool allows customization, enabling the inclusion of only necessary kernel features and executables, reducing the overall attack surface as per the specific distribution permits. 
+Image Composer Tool allows customization, enabling the inclusion of only necessary kernel features and executables, reducing the overall attack surface as defined by the user. 
 
 ### 2. Secure Image Generation:
 Image Composer Tool optionally supports the following aspects to generate secure images
