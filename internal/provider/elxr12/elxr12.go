@@ -13,10 +13,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// ref: https://packages.microsoft.com/azurelinux/3.0/prod/base/
-// example: https://deb.debian.org/debian/pool/main/0/0ad/0ad_0.0.26-3_amd64.deb
+// DEB: https://deb.debian.org/debian/dists/bookworm/main/binary-amd64/Packages.gz
+// DEB Download Path: https://deb.debian.org/debian/pool/main/0/0ad/0ad_0.0.26-3_amd64.deb
+// eLxr: https://mirror.elxr.dev/elxr/dists/aria/main/binary-amd64/Packages.gz
+// eLxr Donwload Path: https://mirror.elxr.dev/elxr/pool/main/p/python3-defaults/2to3_3.11.2-1_all.deb
 const (
-	baseURL    = "https://deb.debian.org/debian/dists/bookworm/main/"
+	baseURL    = "https://mirror.elxr.dev/elxr/dists/aria/main/"
 	configName = "Packages.gz"
 	repodata   = ""
 )
