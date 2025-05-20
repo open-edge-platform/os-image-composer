@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-func Decompress(inFile string) ([]string, error) {
+func Decompress(inFile string, outFile string) ([]string, error) {
 
 	gzFile, err := os.Open(inFile)
 	if err != nil {
@@ -15,7 +15,7 @@ func Decompress(inFile string) ([]string, error) {
 	}
 	defer gzFile.Close()
 
-	decompressedFile := "/tmp/Packages"
+	decompressedFile := outFile
 	outDecompressed, err := os.Create(decompressedFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create decompressed file: %v", err)

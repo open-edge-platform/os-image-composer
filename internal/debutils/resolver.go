@@ -20,8 +20,13 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 
 	// Build a map for fast lookup by package name
 	byName := make(map[string]provider.PackageInfo, len(all))
+	// Build a map for lookup by provided virtual package name
+	byProvides := make(map[string]provider.PackageInfo)
 	for _, pi := range all {
 		byName[pi.Name] = pi
+		for _, prov := range pi.Provides {
+			byProvides[prov] = pi
+		}
 	}
 
 	// Track which packages we've already added
@@ -30,6 +35,11 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 	queue := make([]provider.PackageInfo, 0, len(requested))
 	for _, pi := range requested {
 		if _, ok := byName[pi.Name]; !ok {
+			// Try to resolve via Provides
+			if provPkg, ok := byProvides[pi.Name]; ok {
+				queue = append(queue, provPkg)
+				continue
+			}
 			return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
 		}
 		queue = append(queue, pi)
@@ -67,6 +77,8 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 			}
 			if depPkg, ok := byName[depName]; ok {
 				queue = append(queue, depPkg)
+			} else if provPkg, ok := byProvides[depName]; ok {
+				queue = append(queue, provPkg)
 			} else {
 				return nil, fmt.Errorf("dependency %q required by %q not found in repo", depName, cur.Name)
 			}
@@ -85,14 +97,16 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 func ParsePrimary(baseURL, gzHref string) ([]provider.PackageInfo, error) {
 
 	// Download the debian repo .gz file with all components meta data
-	PkgMetaFile := "./builds/elxr12/Packages.gz"
 	pkgMetaDir := "./builds"
+	PkgMetaFile := "./builds/elxr12/Packages.gz"
 	if dir := os.DirFS(PkgMetaFile); dir != nil {
 		pkgMetaDir = filepath.Dir(PkgMetaFile)
 	}
 	pkgfetcher.FetchPackages([]string{gzHref}, pkgMetaDir, 1)
 
-	files, err := Decompress(PkgMetaFile)
+	pkgMetaFileNoExt := filepath.Join(filepath.Dir(PkgMetaFile), strings.TrimSuffix(filepath.Base(PkgMetaFile), filepath.Ext(PkgMetaFile)))
+
+	files, err := Decompress(PkgMetaFile, pkgMetaFileNoExt)
 	if err != nil {
 		return []provider.PackageInfo{}, err
 	}
@@ -148,6 +162,18 @@ func ParsePrimary(baseURL, gzHref string) ([]provider.PackageInfo, error) {
 				deps[i] = strings.TrimSpace(deps[i])
 			}
 			pkg.Requires = deps
+		case "Provides":
+			// Split provides by comma and trim spaces, remove version constraints
+			deps := strings.Split(val, ",")
+			for i := range deps {
+				dep := strings.TrimSpace(deps[i])
+				// Remove version constraints, e.g. "foo (= 1.2)" -> "foo"
+				if idx := strings.Index(dep, " "); idx > 0 {
+					dep = dep[:idx]
+				}
+				deps[i] = dep
+			}
+			pkg.Provides = deps
 		case "Filename":
 			pkg.URL, _ = getFullUrl(val, baseURL)
 		case "SHA256":
