@@ -1,6 +1,7 @@
 # Image Composer Tool
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Go Lint Status](https://github.com/open-edge-platform/image-composer/actions/workflows/go-lint.yml/badge.svg?branch=main)](https://github.com/open-edge-platform/image-composer/actions/workflows/go-lint.yml)
 
 The Image Composer Tool (ICT) is a toolchain that enables building immutable
 Linux distributions using a simple toolchain from pre-built packages emanating
@@ -32,6 +33,7 @@ earthly +build --version=1.0.0
 ```
 
 The Earthly build automatically includes:
+
 - Version number (from --version parameter)
 - Build date (current UTC date)
 - Git commit SHA (current repository commit)
@@ -70,11 +72,12 @@ Builds a Linux distribution image based on the specified spec file:
 ```
 
 Flags:
+
 - `--workers, -w`: Number of concurrent download workers (default: 8)
 - `--cache-dir, -d`: Package cache directory (default: "./downloads")
 - `--verbose, -v`: Enable verbose output
 - `--dotfile, -f': Generate dependency graph as a dot file
- 
+
 Example:
 
 ```bash
@@ -120,29 +123,31 @@ Reload your shell configuration:
 Depending on which shell you're using:
 
 Bash:
+
 ```bash
 source ~/.bashrc
 ```
 
 Zsh:
+
 ```bash
 source ~/.zshrc
 ```
 
 Fish: (Nothing needed, it should work immediately)
 PowerShell:
+
 ```powershell
 . $PROFILE
 ```
 
 Test the completion:
+
 ```bash
 image-composer [TAB]
 image-composer b[TAB]
 image-composer build --[TAB]
 ```
-
-
 
 See the [Shell Completion](#shell-completion) section for more details.
 
@@ -263,6 +268,7 @@ The image-composer CLI supports shell auto-completion for Bash, Zsh, Fish, and P
 #### Installing Completion Scripts
 
 **Bash**:
+
 ```bash
 # Temporary use
 source image-composer_completion.bash
@@ -274,6 +280,7 @@ echo "source /path/to/image-composer_completion.bash" >> ~/.bashrc
 ```
 
 **Zsh**:
+
 ```bash
 # Add to your .zshrc
 echo "source /path/to/image-composer_completion.zsh" >> ~/.zshrc
@@ -282,11 +289,13 @@ cp image-composer_completion.zsh ~/.zfunc/_image-composer
 ```
 
 **Fish**:
+
 ```bash
 cp image-composer_completion.fish ~/.config/fish/completions/image-composer.fish
 ```
 
 **PowerShell**:
+
 ```powershell
 # Add to your PowerShell profile
 echo ". /path/to/image-composer_completion.ps1" >> $PROFILE
