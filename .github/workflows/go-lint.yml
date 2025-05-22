@@ -12,7 +12,7 @@ on:
 jobs:
   lint:
     name: Linting
-    runs-on: ["innersource.prod.amr.dind"]
+    runs-on: ["ubuntu-latest"]
     container: ubuntu:24.04
 
     steps:
