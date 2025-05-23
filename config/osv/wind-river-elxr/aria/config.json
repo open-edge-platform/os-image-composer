@@ -1,0 +1,9 @@
+{
+	"x86_64": {
+		"dist": "aria",
+		"arch": "x86_64",
+		"pkgType": "deb",
+		"chrootPkgListFile": "chrootenv_x86_64.txt",
+		"releaseMajor": "12.9"
+	}
+}

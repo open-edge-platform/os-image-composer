@@ -1,0 +1,16 @@
+{
+	"x86_64": {
+		"dist": "target-dist",
+		"arch": "x86_64",
+		"pkgType": "rpm",
+		"chrootPkgListFile": "chrootenv_x86_64.txt",
+		"releaseMajor": "1.0"
+	},
+	"aarch64": {
+		"dist": "target-dist",
+		"arch": "aarch64",
+		"pkgType": "rpm",
+		"chrootPkgListFile": "chrootenv_aarch64.txt",
+		"releaseMajor": "1.0"
+	}
+}

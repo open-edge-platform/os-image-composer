@@ -1,0 +1,8 @@
+target:
+  os: target-os  # Target OS name
+  dist: target-dist # Target OS distribution
+  imageType: raw # Image type, valid value: [rootfs, raw, iso].
+
+systemConfigs: # Required
+  - name: Minimal
+    description: Minimal yml configuration example

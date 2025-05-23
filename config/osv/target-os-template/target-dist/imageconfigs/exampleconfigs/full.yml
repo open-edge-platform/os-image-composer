@@ -1,0 +1,174 @@
+target:
+  os: target-os  # Target OS name
+  dist: target-dist # Target OS distribution
+  arch: x86_64  # optional, default to host arch
+  imageType: raw # Image type, valid value: [rootfs, raw, iso].
+
+disk: # Optional
+  - name: Standard # Disk name 1:1 mapping to the System config name
+    artifacts:
+      - name: compressed_raw_image # generated image name prefix
+        type: raw  # image file format
+        compression: gz # image compression format (optional)
+      - name: vhd_image
+        type: vhd
+    size: 4GiB # 4G, 4GB, 4096 MiB also valid. (Required for raw)
+    partitionTableType: gpt # Partition table type, valid value: [gpt, mbr]
+    partitions: # Required for raw, optional for ISO, not needed for rootfs.
+      - id: boot
+        type: esp
+        flags:
+          - esp
+          - boot
+        start: 1MiB
+        end: 513MiB
+        fsType: fat32
+        mountPoint: /boot/efi
+
+      - id: rootfs
+        type: linux-root-amd64
+        start: 513MiB
+        end: 0  # 0 means use the rest of the disk space
+        fsType: ext4
+        mountPoint: /
+
+systemConfigs: # Required
+  - name: Standard
+    description: full yml configuration example
+    hostname: Target-os # optional
+    timezone: UTC # optional, default to UTC
+    locale: en_US.UTF-8 # optional, default to en_US.UTF-8
+    keyboard: us # optional, default to us
+
+    bootloader: # optional, but have default settings from default json config file.
+      type: grub
+      grub:
+        bootType: efi
+        efiProvider: systemd-boot
+
+    packageLists: # optional
+      - ../packagelists/feature_a_packages.json
+      - ../packagelists/feature_b_packages.json
+
+    packages: # optional
+      - package_e
+      - package_f
+
+    additionalFiles: # optional
+      - local: ../additionalfiles/additionalfile_a.sh
+        final: /final/system/path
+        permissions: 0644 # optional, default to 0644
+      - local: ../additionalfiles/additionalfile_b.txt
+        final: /etc/
+      - local: ../additionalfiles/additionalfile_c.bin
+        final: /usr/bin/
+
+    kernel: # optional, but have default settings from default json config file.
+      name: kernel
+      uki: true
+      version: 6.8.0-59-generic
+      cmdline: |
+      quiet splash sysctl.vm.overcommit_memory=1
+      sysctl.kernel.panic=10 sysctl.kernel.panic_on_oops=1
+      sysctl.fs.inotify.max_user_instances=8192 rd.shell=0
+      rd.timeout=200 rd.emergency=reboot
+
+    groups: # optional
+      - name: groupa
+      - name: groupb
+      - name: groupc
+        gid: 109
+
+    users: # optional
+      - name: basicuser
+        password: abc
+      - name: advancedSecureUser
+        password: $6$h06k1YSGP1nz$TVrHZZQS/rf2xo3.gb80GJKkkUzaylHPz/Ofvl/L5seczLeM98man/0zZoY4m.OEuvE2znG2jo909xvIv3FrL1
+        passwordHash: sha512
+      - name: root
+        password: $6$7oFZAqiJ$EqnWLXsSLwX.wrIHDH8iDGou3BgFXxx0NgMJgJ5LSYjGA09BIUwjTNO31LrS2C9890P8SzYkyU6FYsYNihEgp0
+        passwordHash: sha512
+        passwordExpiresDays: 99999
+        uid: 105
+        primaryGroup: groupa
+        secondaryGroups:
+          - groupb
+          - groupc
+        startupScript: usr/bin/somescript.sh
+        sshpublickeypaths:
+          - firstsshkey.pub
+          - secondsshkey.pub
+
+    preinstallscripts: # optional
+      - path: ../installscripts/pre-install/argless_preinstall.sh
+      - path: ../installscripts/pre-install/preinstall.sh
+        args: --input abc --output cba
+
+    postinstallscripts: # optional
+      - path: ../installscripts/post-install/argless_postinstall.sh
+      - path: ../installscripts/post-install/postinstall.sh
+        args: --input abc --output cba
+
+    finalizeImageScripts: # optional
+      - path: ../installscripts/finalize/argless_finalize.sh
+      - path: ../installscripts/finalize/finalize.sh
+        args: --input abc --output cba
+
+    networks: # optional
+      - device: eth0
+        bootProto: dhcp
+        gateway: 192.168.0.1
+        IP: 192.168.0.3
+        netMask: 255.255.255.0
+        onBoot: true
+        NameServers:
+          - 192.168.0.2
+
+    security: # optional
+      secPolicy:
+        - name: secPolicy1
+          type: selinux
+          policy: targeted
+          state: enabled
+          enforce: true
+          mountPoint: /var/lib/selinux
+          additionalFiles:
+            - local: local/path/file1
+              final: /final/system/path
+              permissions: 0644
+
+        - name: secPolicy2
+          type: apparmor
+          policy: default
+          state: enabled
+          enforce: true
+
+      encryption:
+        - name: encryption1
+          type: luks
+          device: /dev/sda2
+          passphrase: abc
+          keyFile: /etc/keys/keyfile1
+          mountPoint: /mnt/encrypted
+          fsType: ext4
+
+      immutability:
+        - name: immutability1
+          type: dm-verity
+          device: /dev/sda2
+          hashAlgorithm: sha256
+          hashFile: /etc/keys/hashfile1
+          mountPoint: /mnt/immutable
+          fsType: ext4
+
+
+# validation points of the config file
+# 1. Check if the target OS is supported
+# 2. Check if the target OS distribution is supported
+# 3. Check if the target OS architecture is supported (same as the host arch)
+# 4. Check if the image type is supported
+# 5. Check if the disk configs maps the systemConfigs
+# 6. Check if the params have set to the correct type and values.
+# 7. Check if the packages are all available in the target OS distribution
+# 8. Check if the configuration has no conflicts, and all the required fields are set.
+# 9. Check if the additional files/scripts are existing.

@@ -1,0 +1,7 @@
+{
+    "3.0_release": [
+        {
+            "base": "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0"
+        }
+    ]
+}

@@ -1,0 +1,8 @@
+{
+    "aria_release": [
+        {
+            "base": "http://mirror.elxr.dev/elxr/dists/aria",
+            "metadata" : "http://mirror.elxr.dev/elxr/dists/aria/main/binary-amd64/Packages.gz"
+        }
+    ]
+}

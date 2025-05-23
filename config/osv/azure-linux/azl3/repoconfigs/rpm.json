@@ -1,0 +1,22 @@
+{
+    "3.0_prod": [
+        {
+            "base": "https://packages.microsoft.com/azurelinux/3.0/prod/base"
+        },
+        {
+            "base_debuginfo": "https://packages.microsoft.com/azurelinux/3.0/prod/base/debuginfo"
+        },
+        {
+            "extended": "https://packages.microsoft.com/azurelinux/3.0/prod/extended"
+        },
+        {
+            "extended_debuginfo":"https://packages.microsoft.com/azurelinux/3.0/prod/extended/debuginfo"
+        },
+        {
+            "ms-oss": "https://packages.microsoft.com/azurelinux/3.0/prod/ms-oss"
+        },
+        {
+            "ms-non-oss": "https://packages.microsoft.com/azurelinux/3.0/prod/ms-non-oss"
+        }
+    ]
+}
