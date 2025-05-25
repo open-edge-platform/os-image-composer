@@ -20,19 +20,20 @@ import (
 const (
 	baseURL    = "https://mirror.elxr.dev/elxr/dists/aria/main/"
 	configName = "Packages.gz"
-	repodata   = ""
 )
 
 // repoConfig hold repo related info
 type repoConfig struct {
 	Section      string // raw section header
 	Name         string // human-readable name from name=
-	CfgURL       string
-	PkgPrefixUrl string
+	PkgList      string
+	PkgPrefix    string
 	GPGCheck     bool
 	RepoGPGCheck bool
 	Enabled      bool
-	GPGKey       string
+	PbGPGKey     string
+	ReleaseFile  string
+	ReleaseSign  string
 }
 
 type pkgChecksum struct {
@@ -44,7 +45,7 @@ type pkgChecksum struct {
 type eLxr12 struct {
 	repoURL     string
 	repoCfg     repoConfig
-	pkgChecksum []pkgChecksum
+	pkgChecksum []pkgChecksum //this is not using for debian
 	gzHref      string
 	spec        *config.BuildSpec
 }
@@ -54,11 +55,7 @@ func init() {
 }
 
 // Name returns the unique name of the provider
-func (p *eLxr12) Name() string {
-	logger := zap.L().Sugar()
-	logger.Infof("Name() called - Placeholder: This function will return the provider's unique name.")
-	return "eLxr12"
-}
+func (p *eLxr12) Name() string { return "eLxr12" }
 
 // Init will initialize the provider, fetching repo configuration
 func (p *eLxr12) Init(spec *config.BuildSpec) error {
@@ -77,14 +74,13 @@ func (p *eLxr12) Init(spec *config.BuildSpec) error {
 		return err
 	}
 	p.repoCfg = cfg
-	p.gzHref = cfg.CfgURL
+	p.gzHref = cfg.PkgList
 	p.spec = spec
 
 	logger.Infof("initialized eLxr provider repo section=%s", cfg.Section)
 	logger.Infof("name=%s", cfg.Name)
-	logger.Infof("config url=%s", cfg.CfgURL)
-	logger.Infof("package download url=%s", cfg.PkgPrefixUrl)
-	logger.Infof("primary.xml.gz=%s", p.gzHref)
+	logger.Infof("package list url=%s", cfg.PkgList)
+	logger.Infof("package download url=%s", cfg.PkgPrefix)
 	return nil
 
 }
@@ -93,9 +89,9 @@ func (p *eLxr12) Init(spec *config.BuildSpec) error {
 func (p *eLxr12) Packages() ([]provider.PackageInfo, error) {
 
 	logger := zap.L().Sugar()
-	logger.Infof("fetching packages from %s", p.repoCfg.CfgURL)
+	logger.Infof("fetching packages from %s", p.repoCfg.PkgList)
 
-	packages, err := debutils.ParsePrimary(p.repoCfg.PkgPrefixUrl, p.gzHref)
+	packages, err := debutils.ParsePrimary(p.repoCfg.PkgPrefix, p.gzHref, p.repoCfg.ReleaseFile, p.repoCfg.ReleaseSign, p.repoCfg.PbGPGKey)
 	if err != nil {
 		logger.Errorf("parsing %s failed: %v", p.gzHref, err)
 	}
@@ -126,7 +122,7 @@ func (p *eLxr12) Validate(destDir string) error {
 	}
 
 	start := time.Now()
-	results := debutils.VerifyAll(debPaths, checksumMap, p.repoCfg.GPGKey, 4)
+	results := debutils.VerifyDEBs(debPaths, checksumMap, 4)
 	logger.Infof("Debian verification took %s", time.Since(start))
 
 	// Check results
@@ -224,14 +220,16 @@ func loadRepoConfig(repoUrl string) (repoConfig, error) {
 
 	var rc repoConfig
 
-	//example direct download: wget https://deb.debian.org/debian/pool/main/0/0ad/0ad_0.0.26-3_amd64.deb
-	rc.CfgURL = repoUrl
-	rc.PkgPrefixUrl = "https://mirror.elxr.dev/elxr/"
+	rc.PkgList = repoUrl
+	// rc.ReleaseFile = "https://mirror.elxr.dev/elxr/dists/aria/main/binary-amd64/Release" //negative test
+	rc.ReleaseFile = "https://mirror.elxr.dev/elxr/dists/aria/Release"
+	rc.PkgPrefix = "https://mirror.elxr.dev/elxr/"
 	rc.Name = "Wind River eLxr 12"
 	rc.GPGCheck = true
 	rc.RepoGPGCheck = true
 	rc.Enabled = true
-	rc.GPGKey = "https://mirror.elxr.dev/elxr/public.gpg"
+	rc.PbGPGKey = "https://mirror.elxr.dev/elxr/public.gpg"
+	rc.ReleaseSign = "https://mirror.elxr.dev/elxr/dists/aria/Release.gpg"
 	rc.Section = "main"
 
 	logger.Infof("repo config: %+v", rc)

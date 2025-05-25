@@ -1,16 +1,20 @@
 package debutils
 
 import (
+	"bufio"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"bytes"
 	"crypto/sha256"
 	"io"
 	"os"
 
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/schollz/progressbar/v3"
 	"go.uber.org/zap"
 )
@@ -23,9 +27,78 @@ type Result struct {
 	Error    error         // any error (signature fail, I/O, etc)
 }
 
-// VerifyAll takes a slice of RPM file paths, verifies each one in parallel,
+func VerifyPackagegz(relPath string, pkggzPath string) (bool, error) {
+	logger := zap.L().Sugar()
+	logger.Infof("Verifying package %s", pkggzPath)
+
+	// Get expected checksum from Release file
+	checksum, err := findChecksumInRelease(relPath, "SHA256", "main/binary-amd64/Packages.gz")
+	logger.Infof("Checksum from Release file (%s): %s Err:%s", relPath, checksum, err)
+	if err != nil {
+		return false, fmt.Errorf("failed to get checksum from Release: %w", err)
+	}
+
+	// Compute actual checksum of Packages.gz
+	actual, err := computeFileSHA256(pkggzPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to compute checksum for %s: %w", pkggzPath, err)
+	}
+
+	// Compare
+	if !strings.EqualFold(actual, checksum) {
+		logger.Errorf("Checksum mismatch: expected %s, got %s", checksum, actual)
+		return false, fmt.Errorf("checksum mismatch: expected %s, got %s", checksum, actual)
+	}
+
+	logger.Infof("Checksum verified successfully for %s", pkggzPath)
+	return true, nil
+}
+
+func VerifyRelease(relPath string, relSignPath string, pKeyPath string) (bool, error) {
+	logger := zap.L().Sugar()
+
+	// Read the public key
+	keyringBytes, err := os.ReadFile(pKeyPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to read public key: %w", err)
+	}
+
+	// Read the Release file and its signature
+	release, err := os.ReadFile(relPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to read Release file: %w", err)
+	}
+	signature, err := os.ReadFile(relSignPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to read Release signature: %w", err)
+	}
+
+	// Import the public key
+	keyring, err := openpgp.ReadArmoredKeyRing(bytes.NewReader(keyringBytes))
+	if err != nil {
+		return false, fmt.Errorf("failed to parse public key: %w", err)
+	}
+
+	// Verify the signature
+	sigReader := bytes.NewReader(signature)
+	releaseReader := bytes.NewReader(release)
+	_, err = openpgp.CheckArmoredDetachedSignature(
+		openpgp.EntityList(keyring), // cast to KeyRing
+		releaseReader,
+		sigReader,
+		&packet.Config{}, // pass a config, or nil
+	)
+	if err != nil {
+		return false, fmt.Errorf("signature verification failed: %w", err)
+	}
+
+	logger.Infof("Release file verified successfully")
+	return true, nil
+}
+
+// VerifyAll takes a slice of DEB file paths, verifies each one in parallel,
 // and returns a slice of results in the same order.
-func VerifyAll(paths []string, pkgChecksum map[string]string, pubkeyPath string, workers int) []Result {
+func VerifyDEBs(paths []string, pkgChecksum map[string]string, workers int) []Result {
 	logger := zap.L().Sugar()
 
 	logger.Infof("Verifying %d packages with %d workers", len(paths), workers)
@@ -152,4 +225,52 @@ func computeFileSHA256(path string) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
+}
+
+// FindChecksumInRelease parses the Release file and returns the checksum for the given file and checksum type.
+// Example: findChecksumInRelease("Release", "SHA256", "main/binary-amd64/Packages.gz")
+func findChecksumInRelease(releasePath, checksumType, fileName string) (string, error) {
+	f, err := os.Open(releasePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open release file: %v", err)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	inChecksumSection := false
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		line = strings.TrimSpace(line)
+
+		// Check for the start of the checksum section
+		if strings.HasSuffix(line, ":") && strings.EqualFold(strings.TrimSuffix(line, ":"), checksumType) {
+			inChecksumSection = true
+			continue
+		}
+
+		// If we are in the checksum section, look for the file
+		if inChecksumSection {
+			// End of section if we hit a new section header or blank line
+			if line == "" || strings.HasSuffix(line, ":") {
+				break
+			}
+
+			parts := strings.Fields(line)
+			if len(parts) < 3 {
+				continue
+			}
+			if parts[2] == fileName {
+				return parts[0], nil
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("error reading release file: %v", err)
+	}
+
+	logger := zap.L().Sugar()
+	logger.Warnf("Could not find %s in section %s of %s", fileName, checksumType, releasePath)
+	return "", fmt.Errorf("checksum for %s (%s) not found", fileName, checksumType)
 }

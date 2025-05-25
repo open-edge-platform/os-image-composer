@@ -96,20 +96,63 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 }
 
 // ParsePrimary parses the Packages.gz file from gzHref.
-func ParsePrimary(baseURL, gzHref string) ([]provider.PackageInfo, error) {
+func ParsePrimary(baseURL, pkggz string, releaseFile string, releaseSign string, pbGPGKey string) ([]provider.PackageInfo, error) {
 	logger := zap.L().Sugar()
 
-	// Download the debian repo .gz file with all components meta data
-	pkgMetaDir := "./builds"
-	PkgMetaFile := "./builds/elxr12/Packages.gz"
-	if dir := os.DirFS(PkgMetaFile); dir != nil {
-		pkgMetaDir = filepath.Dir(PkgMetaFile)
-	}
-	err := pkgfetcher.FetchPackages([]string{gzHref}, pkgMetaDir, 1)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch packages: %v", err)
+	// Ensure pkgMetaDir exists, create if not
+	pkgMetaDir := "./builds/elxr12"
+	if err := os.MkdirAll(pkgMetaDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create pkgMetaDir: %v", err)
 	}
 
+	//verify release file
+	localPkggzFile := filepath.Join(pkgMetaDir, filepath.Base(pkggz))
+	localReleaseFile := filepath.Join(pkgMetaDir, filepath.Base(releaseFile))
+	localReleaseSign := filepath.Join(pkgMetaDir, filepath.Base(releaseSign))
+	localPBGPGKey := filepath.Join(pkgMetaDir, filepath.Base(pbGPGKey))
+
+	// Remove any existing local files to ensure fresh downloads
+	localFiles := []string{localPkggzFile, localReleaseFile, localReleaseSign, localPBGPGKey}
+	for _, f := range localFiles {
+		if _, err := os.Stat(f); err == nil {
+			if remErr := os.Remove(f); remErr != nil {
+				return nil, fmt.Errorf("failed to remove old file %s: %v", f, remErr)
+			}
+		}
+	}
+
+	// Download the debian repo files
+	err := pkgfetcher.FetchPackages([]string{pkggz, releaseFile, releaseSign, pbGPGKey}, pkgMetaDir, 1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch critical repo config packages: %v", err)
+	}
+	// Verify the release file
+	relVryResult, err := VerifyRelease(localReleaseFile, localReleaseSign, localPBGPGKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify release file: %v", err)
+	}
+	if !relVryResult {
+		return nil, fmt.Errorf("release file verification failed")
+	}
+
+	// verify the sham256 checksum of the Packages.gz file
+	pkggzVryResult, err := VerifyPackagegz(localReleaseFile, localPkggzFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify pkg file: %v", err)
+	}
+	if !pkggzVryResult {
+		return nil, fmt.Errorf("package file verification failed")
+	}
+
+	// Getting sha256sum of the Packages.gz file from the release file
+	// and verifying it with the local Packages.gz file
+	// localPkgMetaFile := filepath.Join(pkgMetaDir, filepath.Base(pkggz))
+	localPkgMetaFile := filepath.Join(pkgMetaDir, "Packages.gz")
+	logger.Infof("localPkgMetaFile: %s", localPkgMetaFile)
+
+	//Decompress the Packages.gz file
+	// The decompressed file will be named Packages (without .gz)
+	PkgMetaFile := pkgMetaDir + "/Packages.gz"
 	pkgMetaFileNoExt := filepath.Join(filepath.Dir(PkgMetaFile), strings.TrimSuffix(filepath.Base(PkgMetaFile), filepath.Ext(PkgMetaFile)))
 
 	files, err := Decompress(PkgMetaFile, pkgMetaFileNoExt)
@@ -118,14 +161,13 @@ func ParsePrimary(baseURL, gzHref string) ([]provider.PackageInfo, error) {
 	}
 	logger.Infof("decompressed files: %v", files)
 
-	// Parse the decompressed file
+	//Parse the decompressed file
 	f, err := os.Open(files[0])
 	if err != nil {
 		return nil, fmt.Errorf("failed to open decompressed file: %v", err)
 	}
 	defer f.Close()
 
-	// packages file parser
 	var pkgs []provider.PackageInfo
 	pkg := provider.PackageInfo{}
 	reader := bufio.NewReader(f)
