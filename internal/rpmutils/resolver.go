@@ -11,8 +11,9 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/open-edge-platform/image-composer/internal/provider"
+
 	"github.com/cavaliergopher/rpm"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider"
 	"go.uber.org/zap"
 )
 
@@ -128,7 +129,7 @@ func ResolvePackageInfos(
 		bestProvider[cap] = provs[len(provs)-1]
 	}
 
-	// BFS over the require→provide graph:
+	// BFS over the require->provide graph:
 	neededSet := make(map[string]struct{})
 	for len(queue) > 0 {
 		cur := queue[0]

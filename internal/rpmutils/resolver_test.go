@@ -3,8 +3,8 @@ package rpmutils_test
 import (
 	"testing"
 
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/resolvertest"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/rpmutils"
+	"github.com/open-edge-platform/image-composer/internal/resolvertest"
+	"github.com/open-edge-platform/image-composer/internal/rpmutils"
 )
 
 func TestRPMResolver(t *testing.T) {

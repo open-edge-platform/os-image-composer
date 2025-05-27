@@ -2,8 +2,6 @@ package pkgfetcher
 
 import (
 	"fmt"
-	"github.com/schollz/progressbar/v3"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"os"
@@ -11,6 +9,9 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/schollz/progressbar/v3"
+	"go.uber.org/zap"
 )
 
 // FetchPackages downloads the given URLs into destDir using a pool of workers.
@@ -62,14 +63,14 @@ func FetchPackages(urls []string, destDir string, workers int) error {
 				destPath := filepath.Join(destDir, name)
 				if fi, err := os.Stat(destPath); err == nil {
 					if fi.Size() > 0 {
-						//logger.Infof("[INFO] skipping existing %s", name)
+						logger.Debugf("skipping existing %s", name)
 						if err := bar.Add(1); err != nil {
 							logger.Errorf("failed to add to progress bar: %v", err)
 						}
 						continue
 					}
 					// file exists but zero size: re-download
-					logger.Warnf("[WARN] re-downloading zero-size %s", name)
+					logger.Warnf("re-downloading zero-size %s", name)
 				}
 				err := func() error {
 					resp, err := http.Get(url)

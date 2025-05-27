@@ -5,7 +5,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider"
+	"github.com/open-edge-platform/image-composer/internal/provider"
 )
 
 // Resolver is interface both rpmutil & debutil satisfy.

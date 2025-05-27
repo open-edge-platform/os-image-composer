@@ -1,7 +1,7 @@
 package provider
 
 import (
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/config"
+	"github.com/open-edge-platform/image-composer/internal/config"
 )
 
 // PackageInfo holds everything you need to fetch + verify one artifact.

@@ -11,8 +11,8 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/pkgfetcher"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider"
+	"github.com/open-edge-platform/image-composer/internal/pkgfetcher"
+	"github.com/open-edge-platform/image-composer/internal/provider"
 )
 
 // ResolvePackageInfos takes a seed list of PackageInfos (the exact versions

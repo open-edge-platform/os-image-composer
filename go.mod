@@ -1,4 +1,4 @@
-module github.com/intel-innersource/os.linux.tiberos.os-curation-tool
+module github.com/open-edge-platform/image-composer
 
 go 1.22.12
 
@@ -10,7 +10,6 @@ require (
 	github.com/spf13/cobra v1.9.1
 	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v3 v3.0.1
-
 )
 
 require (

@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/validate"
+	"github.com/open-edge-platform/image-composer/internal/validate"
+
 	"go.uber.org/zap"
 )
 

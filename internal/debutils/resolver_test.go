@@ -3,8 +3,8 @@ package debutils_test
 import (
 	"testing"
 
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/debutils"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/resolvertest"
+	"github.com/open-edge-platform/image-composer/internal/debutils"
+	"github.com/open-edge-platform/image-composer/internal/resolvertest"
 )
 
 func TestDEBResolver(t *testing.T) {

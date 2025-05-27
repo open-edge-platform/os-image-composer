@@ -12,9 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/config"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/rpmutils"
+	"github.com/open-edge-platform/image-composer/internal/config"
+	"github.com/open-edge-platform/image-composer/internal/provider"
+	"github.com/open-edge-platform/image-composer/internal/rpmutils"
+
 	"go.uber.org/zap"
 )
 

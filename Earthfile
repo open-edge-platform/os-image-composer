@@ -25,6 +25,7 @@ golang-base:
     RUN go mod download # for caching
     COPY cmd/ ./cmd
     COPY internal/ ./internal
+    COPY image-templates/ ./image-templates
     COPY schema/ ./schema
     COPY testdata/ ./testdata
 

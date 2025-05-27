@@ -7,9 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/config"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/debutils"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider"
+	"github.com/open-edge-platform/image-composer/internal/config"
+	"github.com/open-edge-platform/image-composer/internal/debutils"
+	"github.com/open-edge-platform/image-composer/internal/provider"
+
 	"go.uber.org/zap"
 )
 

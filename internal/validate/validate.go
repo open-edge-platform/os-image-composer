@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	schema_pkg "github.com/intel-innersource/os.linux.tiberos.os-curation-tool/schema"
+	schema_pkg "github.com/open-edge-platform/image-composer/schema"
+
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
 

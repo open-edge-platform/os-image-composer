@@ -8,14 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/config"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/pkgfetcher"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider"
-	_ "github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider/azurelinux3" // register provider
-	_ "github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider/elxr12"      // register provider
-	_ "github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/provider/emt3_0"      // register provider
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/rpmutils"
-	"github.com/intel-innersource/os.linux.tiberos.os-curation-tool/internal/validate"
+	"github.com/open-edge-platform/image-composer/internal/config"
+	"github.com/open-edge-platform/image-composer/internal/pkgfetcher"
+	"github.com/open-edge-platform/image-composer/internal/provider"
+	_ "github.com/open-edge-platform/image-composer/internal/provider/azurelinux3" // register provider
+	_ "github.com/open-edge-platform/image-composer/internal/provider/elxr12"      // register provider
+	_ "github.com/open-edge-platform/image-composer/internal/provider/emt3_0"      // register provider
+	"github.com/open-edge-platform/image-composer/internal/rpmutils"
+	"github.com/open-edge-platform/image-composer/internal/validate"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
