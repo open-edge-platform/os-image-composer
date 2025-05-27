@@ -19,7 +19,8 @@ VM deployments with ISO installers, raw image files and VHD (Virtual Hard
 Drive).
 ## Image Composer Tool System Network Context
 
-Image Composer Tool ![network diagram](assets/image-composer-network-diagram.drawio.svg) illustrates how different components of the product's system architecture communicate with each other. This type of diagram is useful for technical documentation, infrastructure planning, security review and troubleshooting.
+Image Composer Tool network context is shown in the following diagram.
+![Image Composer Network Diagram](assets/image-composer-network-diagram.drawio.svg) illustrates how different components of the product's system architecture communicate with each other. This type of diagram is useful for technical documentation, infrastructure planning, security review and troubleshooting.
 
 ### Network Security Considerations
 Image Composer Tool downloads required packages using HTTP requests to the distribution specific package repos over TLS 1.2+ connections. Each of the package repos does server side validation on the package download requests. So it is expected that the system running the image composer tool is provisioned with a CA root chain.
