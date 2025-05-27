@@ -15,8 +15,7 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/config"
 	"github.com/open-edge-platform/image-composer/internal/provider"
 	"github.com/open-edge-platform/image-composer/internal/rpmutils"
-
-	"go.uber.org/zap"
+	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
 )
 
 const (
@@ -55,7 +54,7 @@ func (p *Emt30) Name() string { return "EMT3.0" }
 
 // Init will initialize the provider, fetching repo configuration
 func (p *Emt30) Init(spec *config.BuildSpec) error {
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 	p.repoURL = baseURL + spec.Arch + "/" + configName
 
 	resp, err := http.Get(p.repoURL)
@@ -90,8 +89,7 @@ func (p *Emt30) Init(spec *config.BuildSpec) error {
 
 // Packages returns the list of packages
 func (p *Emt30) Packages() ([]provider.PackageInfo, error) {
-	// get sugar logger from zap
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 	logger.Infof("fetching packages from %s", p.repoCfg.URL)
 
 	packages, err := rpmutils.ParsePrimary(p.repoCfg.URL, p.gzHref)
@@ -145,8 +143,7 @@ func (p *Emt30) MatchRequested(requests []string, all []provider.PackageInfo) ([
 
 // Validate verifies the downloaded files
 func (p *Emt30) Validate(destDir string) error {
-	// get sugar logger from zap
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 
 	// read the GPG key from the repo config
 	resp, err := http.Get(p.repoCfg.GPGKey)
@@ -204,8 +201,7 @@ func (p *Emt30) Validate(destDir string) error {
 
 // Resolve resolves dependencies
 func (p *Emt30) Resolve(req []provider.PackageInfo, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
-	// get sugar logger from zap
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 
 	logger.Infof("resolving dependencies for %d RPMs", len(req))
 

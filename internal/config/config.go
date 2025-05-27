@@ -7,9 +7,8 @@ import (
 	"fmt"
 	"os"
 
+	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/image-composer/internal/validate"
-
-	"go.uber.org/zap"
 )
 
 // BuildSpec represents your JSON schema.
@@ -30,7 +29,7 @@ type KernelConfig struct {
 }
 
 func Load(path string) (*BuildSpec, error) {
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 
 	data, err := os.ReadFile(path)
 	if err != nil {

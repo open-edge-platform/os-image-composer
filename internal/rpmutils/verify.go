@@ -6,10 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cavaliergopher/rpm"
-	"github.com/schollz/progressbar/v3"
-	"go.uber.org/zap"
 	"os"
+
+	"github.com/cavaliergopher/rpm"
+	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/schollz/progressbar/v3"
 )
 
 // Result holds the outcome of verifying one RPM.
@@ -23,7 +24,7 @@ type Result struct {
 // VerifyAll takes a slice of RPM file paths, verifies each one in parallel,
 // and returns a slice of results in the same order.
 func VerifyAll(paths []string, pubkeyPath string, workers int) []Result {
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 
 	total := len(paths)
 	results := make([]Result, total) // allocate up front

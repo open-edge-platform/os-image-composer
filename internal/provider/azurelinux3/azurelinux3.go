@@ -15,8 +15,7 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/config"
 	"github.com/open-edge-platform/image-composer/internal/provider"
 	"github.com/open-edge-platform/image-composer/internal/rpmutils"
-
-	"go.uber.org/zap"
+	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
 )
 
 const (
@@ -56,7 +55,7 @@ func (p *AzureLinux3) Name() string { return "AzureLinux3" }
 // Init will initialize the provider, fetching repo configuration
 func (p *AzureLinux3) Init(spec *config.BuildSpec) error {
 
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 	p.repoURL = baseURL + spec.Arch + "/" + configName
 
 	resp, err := http.Get(p.repoURL)
@@ -89,8 +88,7 @@ func (p *AzureLinux3) Init(spec *config.BuildSpec) error {
 	return nil
 }
 func (p *AzureLinux3) Packages() ([]provider.PackageInfo, error) {
-	// get sugar logger from zap
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 	logger.Infof("fetching packages from %s", p.repoCfg.URL)
 
 	packages, err := rpmutils.ParsePrimary(p.repoCfg.URL, p.gzHref)
@@ -141,8 +139,7 @@ func (p *AzureLinux3) MatchRequested(requests []string, all []provider.PackageIn
 	return out, nil
 }
 func (p *AzureLinux3) Validate(destDir string) error {
-	// get sugar logger from zap
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 
 	// read the GPG key from the repo config
 	resp, err := http.Get(p.repoCfg.GPGKey)
@@ -200,8 +197,7 @@ func (p *AzureLinux3) Validate(destDir string) error {
 
 func (p *AzureLinux3) Resolve(req []provider.PackageInfo, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
 
-	// get sugar logger from zap
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 
 	logger.Infof("resolving dependencies for %d RPMs", len(req))
 

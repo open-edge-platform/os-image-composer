@@ -9,10 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"go.uber.org/zap"
-
 	"github.com/open-edge-platform/image-composer/internal/pkgfetcher"
 	"github.com/open-edge-platform/image-composer/internal/provider"
+	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
 )
 
 // ResolvePackageInfos takes a seed list of PackageInfos (the exact versions
@@ -97,7 +96,7 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 
 // ParsePrimary parses the Packages.gz file from gzHref.
 func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign string, pbGPGKey string, buildPath string) ([]provider.PackageInfo, error) {
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 
 	// Ensure pkgMetaDir exists, create if not
 	// pkgMetaDir := "./builds/elxr12"

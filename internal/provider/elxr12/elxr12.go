@@ -10,8 +10,7 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/config"
 	"github.com/open-edge-platform/image-composer/internal/debutils"
 	"github.com/open-edge-platform/image-composer/internal/provider"
-
-	"go.uber.org/zap"
+	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
 )
 
 // DEB: https://deb.debian.org/debian/dists/bookworm/main/binary-amd64/Packages.gz
@@ -62,7 +61,7 @@ func (p *eLxr12) Name() string { return "eLxr12" }
 // Init will initialize the provider, fetching repo configuration
 func (p *eLxr12) Init(spec *config.BuildSpec) error {
 
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 
 	//todo: need to correct of how to get the arch once finalized
 	if spec.Arch == "x86_64" {
@@ -90,7 +89,7 @@ func (p *eLxr12) Init(spec *config.BuildSpec) error {
 // Packages returns the list of packages
 func (p *eLxr12) Packages() ([]provider.PackageInfo, error) {
 
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 	logger.Infof("fetching packages from %s", p.repoCfg.PkgList)
 
 	packages, err := debutils.ParsePrimary(p.repoCfg.PkgPrefix, p.gzHref, p.repoCfg.ReleaseFile, p.repoCfg.ReleaseSign, p.repoCfg.PbGPGKey, p.repoCfg.BuildPath)
@@ -104,7 +103,7 @@ func (p *eLxr12) Packages() ([]provider.PackageInfo, error) {
 
 // Validate verifies the downloaded files
 func (p *eLxr12) Validate(destDir string) error {
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 
 	// get all DEBs in the destDir
 	debPattern := filepath.Join(destDir, "*.deb")
@@ -140,8 +139,7 @@ func (p *eLxr12) Validate(destDir string) error {
 
 // Resolve resolves dependencies
 func (p *eLxr12) Resolve(req []provider.PackageInfo, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
-	// get sugar logger from zap
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 
 	logger.Infof("resolving dependencies for %d DEBIANs", len(req))
 	// Resolve all the required dependencies for the initial seed of Debian packages
@@ -172,7 +170,7 @@ func (p *eLxr12) Resolve(req []provider.PackageInfo, all []provider.PackageInfo)
 // MatchRequested matches requested packages
 func (p *eLxr12) MatchRequested(requests []string, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
 
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 
 	var out []provider.PackageInfo
 
@@ -218,7 +216,7 @@ func (p *eLxr12) MatchRequested(requests []string, all []provider.PackageInfo) (
 }
 
 func loadRepoConfig(repoUrl string) (repoConfig, error) {
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 
 	var rc repoConfig
 

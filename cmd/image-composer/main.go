@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,10 +14,9 @@ import (
 	_ "github.com/open-edge-platform/image-composer/internal/provider/elxr12"      // register provider
 	_ "github.com/open-edge-platform/image-composer/internal/provider/emt3_0"      // register provider
 	"github.com/open-edge-platform/image-composer/internal/rpmutils"
+	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/image-composer/internal/validate"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 // Version information
@@ -36,37 +34,6 @@ var (
 	dotFile  string
 )
 
-// nopSyncer wraps an io.Writer but its Sync() does nothing.
-type nopSyncer struct{ io.Writer }
-
-func (n nopSyncer) Sync() error { return nil }
-
-// setupLogger initializes a zap logger with development config,
-// but replaces the usual fsyncing writer with one whose Sync() is a no-op.
-func setupLogger() (*zap.Logger, error) {
-	// start from DevConfig so we get console output, color, ISO8601 time, etc.
-	cfg := zap.NewDevelopmentConfig()
-	cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	cfg.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
-
-	// create a console encoder using your EncoderConfig
-	encoder := zapcore.NewConsoleEncoder(cfg.EncoderConfig)
-	// wrap stderr in our nopSyncer
-	writer := nopSyncer{os.Stderr}
-	// build a core that writes to that writer
-	core := zapcore.NewCore(encoder, writer, cfg.Level)
-
-	// mirror the options NewDevelopmentConfig() would have added
-	opts := []zap.Option{
-		zap.AddCaller(),
-		zap.Development(),
-		zap.AddStacktrace(zapcore.ErrorLevel),
-	}
-
-	return zap.New(core, opts...), nil
-}
-
 // jsonFileCompletion helps with suggesting JSON files for spec file argument
 func jsonFileCompletion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	return []string{"*.json"}, cobra.ShellCompDirectiveFilterFileExt
@@ -74,8 +41,7 @@ func jsonFileCompletion(cmd *cobra.Command, args []string, toComplete string) ([
 
 // executeBuild handles the build command execution logic
 func executeBuild(cmd *cobra.Command, args []string) error {
-	logger := zap.L()
-	sugar := logger.Sugar()
+	logger := utils.Logger()
 
 	// Check if spec file is provided as first positional argument
 	if len(args) < 1 {
@@ -113,10 +79,10 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("matching packages: %v", err)
 	}
-	sugar.Infof("matched a total of %d packages", len(req))
+	logger.Infof("matched a total of %d packages", len(req))
 	if verbose {
 		for _, pkg := range req {
-			sugar.Infof("-> %s", pkg.Name)
+			logger.Infof("-> %s", pkg.Name)
 		}
 	}
 
@@ -125,12 +91,12 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("resolving packages: %v", err)
 	}
-	sugar.Infof("resolved %d packages", len(needed))
+	logger.Infof("resolved %d packages", len(needed))
 
 	// If a dot file is specified, generate the dependency graph
 	if dotFile != "" {
 		if err := rpmutils.GenerateDot(needed, dotFile); err != nil {
-			sugar.Errorf("generating dot file: %v", err)
+			logger.Errorf("generating dot file: %v", err)
 		}
 	}
 	// Extract URLs
@@ -144,25 +110,25 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("invalid cache directory: %v", err)
 	}
-	sugar.Infof("downloading %d packages to %s", len(urls), absCacheDir)
+	logger.Infof("downloading %d packages to %s", len(urls), absCacheDir)
 	if err := pkgfetcher.FetchPackages(urls, absCacheDir, workers); err != nil {
 		return fmt.Errorf("fetch failed: %v", err)
 	}
-	sugar.Info("all downloads complete")
+	logger.Info("all downloads complete")
 
 	// Verify downloaded packages
 	if err := p.Validate(cacheDir); err != nil {
 		return fmt.Errorf("verification failed: %v", err)
 	}
 
-	sugar.Info("build completed successfully")
+	logger.Info("build completed successfully")
 	return nil
 }
 
 // executeValidate handles the validate command execution logic
 func executeValidate(cmd *cobra.Command, args []string) error {
-	logger := zap.L()
-	sugar := logger.Sugar()
+
+	logger := utils.Logger()
 
 	// Check if spec file is provided as first positional argument
 	if len(args) < 1 {
@@ -170,7 +136,7 @@ func executeValidate(cmd *cobra.Command, args []string) error {
 	}
 	specFile := args[0]
 
-	sugar.Infof("Validating spec file: %s", specFile)
+	logger.Infof("Validating spec file: %s", specFile)
 
 	// Read the file
 	data, err := os.ReadFile(specFile)
@@ -183,7 +149,7 @@ func executeValidate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("validation failed: %v", err)
 	}
 
-	sugar.Info("Spec file is valid")
+	logger.Info("Spec file is valid")
 	return nil
 }
 
@@ -414,18 +380,10 @@ func executeInstallCompletion(cmd *cobra.Command, args []string) error {
 }
 
 func main() {
-	// Initialize logger
-	logger, err := setupLogger()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to set up logger: %v\n", err)
-		os.Exit(1)
-	}
-	defer func() {
-		if err := logger.Sync(); err != nil {
-			fmt.Fprintf(os.Stderr, "error syncing logger: %v\n", err)
-		}
-	}()
-	zap.ReplaceGlobals(logger)
+
+	// Setup zap logger, and defer the cleanup function
+	_, cleanup := utils.Init()
+	defer cleanup()
 
 	// Root command
 	rootCmd := &cobra.Command{

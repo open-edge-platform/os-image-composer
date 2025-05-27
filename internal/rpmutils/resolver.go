@@ -12,9 +12,9 @@ import (
 	"sort"
 
 	"github.com/open-edge-platform/image-composer/internal/provider"
+	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
 
 	"github.com/cavaliergopher/rpm"
-	"go.uber.org/zap"
 )
 
 // Index maps provided capabilities to RPM paths and RPM paths to their requirements.
@@ -66,7 +66,7 @@ func BuildIndex(dir string) (*Index, error) {
 }
 
 func GenerateDot(pkgs []provider.PackageInfo, file string) error {
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 	logger.Infof("Generating DOT file %s", file)
 
 	outFile, err := os.Create(file)

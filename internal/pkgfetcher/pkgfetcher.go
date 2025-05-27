@@ -10,14 +10,14 @@ import (
 	"sync"
 	"time"
 
+	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
 	"github.com/schollz/progressbar/v3"
-	"go.uber.org/zap"
 )
 
 // FetchPackages downloads the given URLs into destDir using a pool of workers.
 // It shows a single progress bar tracking files completed vs total.
 func FetchPackages(urls []string, destDir string, workers int) error {
-	logger := zap.L().Sugar()
+	logger := utils.Logger()
 
 	total := len(urls)
 	jobs := make(chan string, total)
