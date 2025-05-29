@@ -19,9 +19,8 @@ import (
 )
 
 const (
-	baseURL    = "https://packages.microsoft.com/azurelinux/3.0/prod/base/"
-	configName = "config.repo"
-	repodata   = "repodata/repomd.xml"
+	configURL = "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/edge-base.repo"
+	repomdURL = "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0/repodata/repomd.xml"
 )
 
 // repoConfig holds .repo file values
@@ -41,8 +40,8 @@ type Emt30 struct {
 	repoCfg repoConfig
 	//repomd		string
 	//primaryURL	string
-	gzHref string
-	spec   *config.BuildSpec
+	zstHref string
+	spec    *config.BuildSpec
 }
 
 func init() {
@@ -55,11 +54,10 @@ func (p *Emt30) Name() string { return "EMT3.0" }
 // Init will initialize the provider, fetching repo configuration
 func (p *Emt30) Init(spec *config.BuildSpec) error {
 	logger := utils.Logger()
-	p.repoURL = baseURL + spec.Arch + "/" + configName
 
-	resp, err := http.Get(p.repoURL)
+	resp, err := http.Get(configURL)
 	if err != nil {
-		logger.Errorf("downloading repo config %s failed: %v", p.repoURL, err)
+		logger.Errorf("downloading repo config %s failed: %v", configURL, err)
 		return err
 	}
 	defer resp.Body.Close()
@@ -70,20 +68,21 @@ func (p *Emt30) Init(spec *config.BuildSpec) error {
 		return err
 	}
 
-	repoDataURL := baseURL + spec.Arch + "/" + repodata
-	href, err := fetchPrimaryURL(repoDataURL)
+	href, err := fetchPrimaryURL(repomdURL)
 	if err != nil {
-		logger.Errorf("fetch primary.xml.gz failed: %v", err)
+		logger.Errorf("fetch primary.xml.zst failed: %v", err)
+		return err
 	}
 
+	p.repoURL = configURL
 	p.repoCfg = cfg
 	p.spec = spec
-	p.gzHref = href
+	p.zstHref = href
 
 	logger.Infof("initialized EMT3.0 provider repo section=%s", cfg.Section)
 	logger.Infof("name=%s", cfg.Name)
 	logger.Infof("url=%s", cfg.URL)
-	logger.Infof("primary.xml.gz=%s", p.gzHref)
+	logger.Infof("primary.xml.zst=%s", p.zstHref)
 	return nil
 }
 
@@ -92,9 +91,9 @@ func (p *Emt30) Packages() ([]provider.PackageInfo, error) {
 	logger := utils.Logger()
 	logger.Infof("fetching packages from %s", p.repoCfg.URL)
 
-	packages, err := rpmutils.ParsePrimary(p.repoCfg.URL, p.gzHref)
+	packages, err := rpmutils.ParsePrimary(p.repoCfg.URL, p.zstHref)
 	if err != nil {
-		logger.Errorf("parsing primary.xml.gz failed: %v", err)
+		logger.Errorf("parsing primary.xml.zst failed: %v", err)
 	}
 
 	logger.Infof("found %d packages in EMT30 repo", len(packages))
