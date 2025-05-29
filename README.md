@@ -42,6 +42,53 @@ The Earthly build automatically includes:
 - Build date (current UTC date)
 - Git commit SHA (current repository commit)
 
+## Configuration
+
+### Global Configuration
+
+Image Composer Tool supports global configuration files to set tool-level parameters that apply across all image builds. Image-specific parameters should still be defined in the JSON specification files.
+
+#### Configuration File Locations
+
+The tool searches for configuration files in the following order:
+
+1. `image-composer.yaml` (current directory)
+2. `image-composer.yml` (current directory)
+3. `.image-composer.yaml` (hidden file in current directory)
+4. `~/.image-composer/config.yaml` (user home directory)
+5. `~/.config/image-composer/config.yaml` (XDG config directory)
+6. `/etc/image-composer/config.yaml` (system-wide)
+
+#### Configuration Parameters
+
+```yaml
+# Core tool settings
+workers: 12                              # Number of concurrent download workers (1-100, default: 8)
+cache_dir: "/var/cache/image-composer"   # Package cache directory (default: ./cache)
+work_dir: "/tmp/image-composer"          # Working directory for builds (default: ./workspace)
+temp_dir: ""                             # Temporary directory (empty = system default)
+
+# Logging configuration
+logging:
+  level: "info"                          # Log level: debug, info, warn, error (default: info)
+```
+
+#### Configuration Management Commands
+
+```bash
+# Create a new configuration file
+./image-composer config init
+
+# Create config file at specific location
+./image-composer config init /path/to/config.yaml
+
+# Show current configuration
+./image-composer config show
+
+# Use specific configuration file
+./image-composer --config /path/to/config.yaml build spec.json
+```
+
 ### Usage
 
 The Image Composer Tool uses a command-line interface with various commands:
@@ -52,6 +99,9 @@ The Image Composer Tool uses a command-line interface with various commands:
 
 # Build command with spec file as positional argument
 ./image-composer build testdata/valid.json
+
+# Override config settings with command-line flags
+./image-composer build --workers 16 --cache-dir /tmp/cache testdata/valid.json
 
 # Validate a spec file against the schema
 ./image-composer validate testdata/valid.json
@@ -77,15 +127,30 @@ Builds a Linux distribution image based on the specified spec file:
 
 Flags:
 
-- `--workers, -w`: Number of concurrent download workers (default: 8)
-- `--cache-dir, -d`: Package cache directory (default: "./downloads")
+- `--workers, -w`: Number of concurrent download workers (overrides config file)
+- `--cache-dir, -d`: Package cache directory (overrides config file)
+- `--work-dir`: Working directory for builds (overrides config file)
 - `--verbose, -v`: Enable verbose output
-- `--dotfile, -f': Generate dependency graph as a dot file
+- `--dotfile, -f`: Generate dependency graph as a dot file
+- `--config`: Path to configuration file
+- `--log-level`: Log level (debug, info, warn, error)
 
 Example:
 
 ```bash
 ./image-composer build --workers 12 --cache-dir ./package-cache testdata/valid.json
+```
+
+#### config
+
+Manages global configuration:
+
+```bash
+# Show current configuration
+./image-composer config show
+
+# Initialize new configuration file
+./image-composer config init [config-file]
 ```
 
 #### validate
@@ -314,11 +379,11 @@ Once completion is installed:
 ```bash
 # Tab-complete commands
 ./image-composer <TAB>
-build      completion  help       validate    version
+build      completion  config     help       validate    version
 
 # Tab-complete flags
 ./image-composer build --<TAB>
---cache-dir  --help       --verbose    --workers
+--cache-dir  --config    --help       --log-level  --verbose    --work-dir   --workers
 
 # Tab-complete JSON files for spec file argument
 ./image-composer build <TAB>

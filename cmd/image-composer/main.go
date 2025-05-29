@@ -26,13 +26,45 @@ var (
 	CommitSHA = "unknown"
 )
 
-// Config options with defaults
+// Global configuration
+var globalConfig *config.GlobalConfig
+
+// Command-line flags that can override config file settings
 var (
-	workers  int    = 8
-	cacheDir string = "./downloads"
-	verbose  bool
-	dotFile  string
+	configFile string = "" // Path to config file
+	workers    int    = -1 // -1 means use config file value
+	cacheDir   string = "" // Empty means use config file value
+	workDir    string = "" // Empty means use config file value
+	verbose    bool   = false
+	dotFile    string = ""
+	logLevel   string = "" // Empty means use config file value
 )
+
+// initializeGlobalConfig loads and initializes the global configuration
+func initializeGlobalConfig() error {
+	var err error
+
+	// If no config file specified, try to find one
+	if configFile == "" {
+		configFile = config.FindConfigFile()
+	}
+
+	// Load global configuration
+	globalConfig, err = config.LoadGlobalConfig(configFile)
+	if err != nil {
+		return fmt.Errorf("loading global config: %w", err)
+	}
+
+	// Override config with command-line flags if provided
+	// Note: This logic is now moved to individual command handlers
+	// to ensure flags are properly parsed before override
+
+	// Update the module-level variables for backward compatibility
+	workers = globalConfig.Workers
+	cacheDir = globalConfig.CacheDir
+
+	return nil
+}
 
 // jsonFileCompletion helps with suggesting JSON files for spec file argument
 func jsonFileCompletion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -41,6 +73,17 @@ func jsonFileCompletion(cmd *cobra.Command, args []string, toComplete string) ([
 
 // executeBuild handles the build command execution logic
 func executeBuild(cmd *cobra.Command, args []string) error {
+	// Parse command-line flags and override global config
+	if cmd.Flags().Changed("workers") {
+		globalConfig.Workers = workers
+	}
+	if cmd.Flags().Changed("cache-dir") {
+		globalConfig.CacheDir = cacheDir
+	}
+	if cmd.Flags().Changed("work-dir") {
+		globalConfig.WorkDir = workDir
+	}
+
 	logger := utils.Logger()
 
 	// Check if spec file is provided as first positional argument
@@ -99,25 +142,40 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 			logger.Errorf("generating dot file: %v", err)
 		}
 	}
+
 	// Extract URLs
 	urls := make([]string, len(needed))
 	for i, pkg := range needed {
 		urls[i] = pkg.URL
 	}
 
-	// Populate the cache download
-	absCacheDir, err := filepath.Abs(cacheDir)
+	// Ensure cache directory exists
+	absCacheDir, err := filepath.Abs(globalConfig.CacheDir)
 	if err != nil {
-		return fmt.Errorf("invalid cache directory: %v", err)
+		return fmt.Errorf("resolving cache directory: %v", err)
 	}
-	logger.Infof("downloading %d packages to %s", len(urls), absCacheDir)
-	if err := pkgfetcher.FetchPackages(urls, absCacheDir, workers); err != nil {
+	if err := os.MkdirAll(absCacheDir, 0755); err != nil {
+		return fmt.Errorf("creating cache directory %s: %v", absCacheDir, err)
+	}
+
+	// Ensure work directory exists
+	absWorkDir, err := filepath.Abs(globalConfig.WorkDir)
+	if err != nil {
+		return fmt.Errorf("resolving work directory: %v", err)
+	}
+	if err := os.MkdirAll(absWorkDir, 0755); err != nil {
+		return fmt.Errorf("creating work directory %s: %v", absWorkDir, err)
+	}
+
+	// Download packages using configured workers and cache directory
+	logger.Infof("downloading %d packages to %s using %d workers", len(urls), absCacheDir, globalConfig.Workers)
+	if err := pkgfetcher.FetchPackages(urls, absCacheDir, globalConfig.Workers); err != nil {
 		return fmt.Errorf("fetch failed: %v", err)
 	}
 	logger.Info("all downloads complete")
 
 	// Verify downloaded packages
-	if err := p.Validate(cacheDir); err != nil {
+	if err := p.Validate(globalConfig.CacheDir); err != nil {
 		return fmt.Errorf("verification failed: %v", err)
 	}
 
@@ -127,7 +185,6 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 
 // executeValidate handles the validate command execution logic
 func executeValidate(cmd *cobra.Command, args []string) error {
-
 	logger := utils.Logger()
 
 	// Check if spec file is provided as first positional argument
@@ -158,6 +215,43 @@ func executeVersion(cmd *cobra.Command, args []string) {
 	fmt.Printf("Image Composer Tool v%s\n", Version)
 	fmt.Printf("Build Date: %s\n", BuildDate)
 	fmt.Printf("Commit: %s\n", CommitSHA)
+}
+
+// executeConfigShow shows the current configuration
+func executeConfigShow(cmd *cobra.Command, args []string) {
+	if configFile != "" {
+		fmt.Printf("Configuration file: %s\n", configFile)
+	} else {
+		fmt.Printf("Configuration file: <using defaults>\n")
+	}
+	fmt.Printf("Workers: %d\n", globalConfig.Workers)
+	fmt.Printf("Cache directory: %s\n", globalConfig.CacheDir)
+	fmt.Printf("Work directory: %s\n", globalConfig.WorkDir)
+	fmt.Printf("Temp directory: %s\n", globalConfig.TempDir)
+	fmt.Printf("Log level: %s\n", globalConfig.Logging.Level)
+}
+
+// executeConfigInit creates a new configuration file
+func executeConfigInit(cmd *cobra.Command, args []string) error {
+	configPath := "image-composer.yml" // Default to image-composer.yml
+	if len(args) > 0 {
+		configPath = args[0]
+	}
+
+	// Check if file already exists
+	if _, err := os.Stat(configPath); err == nil {
+		return fmt.Errorf("configuration file already exists: %s", configPath)
+	}
+
+	// Create default config and save it
+	defaultConfig := config.DefaultGlobalConfig()
+	if err := defaultConfig.SaveGlobalConfig(configPath); err != nil {
+		return fmt.Errorf("creating config file: %w", err)
+	}
+
+	fmt.Printf("Configuration file created: %s\n", configPath)
+	fmt.Printf("Edit the file to customize settings for your environment.\n")
+	return nil
 }
 
 // executeInstallCompletion handles installation of shell completion scripts
@@ -231,8 +325,6 @@ func executeInstallCompletion(cmd *cobra.Command, args []string) error {
 
 	// Determine where to save the completion script
 	var targetPath string
-	var sourceCmd string
-
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("could not determine home directory: %v", err)
@@ -252,58 +344,14 @@ func executeInstallCompletion(cmd *cobra.Command, args []string) error {
 			}
 		}
 		targetPath = filepath.Join(completionDir, "image-composer.bash")
-
-		// If we're using home directory version, we need to source it in .bashrc
-		if strings.HasPrefix(completionDir, homeDir) {
-			sourceCmd = fmt.Sprintf("source %s", targetPath)
-
-			// Check if it's already in .bashrc
-			bashrcPath := filepath.Join(homeDir, ".bashrc")
-			if _, err := os.Stat(bashrcPath); err == nil {
-				content, err := os.ReadFile(bashrcPath)
-				if err == nil && !strings.Contains(string(content), sourceCmd) {
-					fmt.Printf("Adding completion source to %s\n", bashrcPath)
-					f, err := os.OpenFile(bashrcPath, os.O_APPEND|os.O_WRONLY, 0644)
-					if err == nil {
-						defer f.Close()
-						if _, err := f.WriteString("\n# Image Composer Tool completion\n" + sourceCmd + "\n"); err != nil {
-							fmt.Printf("Warning: Could not update %s: %v\n", bashrcPath, err)
-						}
-					}
-				}
-			}
-		}
-
 	case "zsh":
-		// Check for common zsh completion paths
-		completionDir := "/usr/local/share/zsh/site-functions"
+		completionDir := filepath.Join(homeDir, ".zsh/completion")
 		if _, err := os.Stat(completionDir); os.IsNotExist(err) {
-			completionDir = filepath.Join(homeDir, ".zsh/completion")
-			if _, err := os.Stat(completionDir); os.IsNotExist(err) {
-				if err := os.MkdirAll(completionDir, 0755); err != nil {
-					return fmt.Errorf("could not create directory %s: %v", completionDir, err)
-				}
-			}
-
-			// Add to .zshrc if needed
-			sourceCmd = fmt.Sprintf("fpath=(%s $fpath)", completionDir)
-			zshrcPath := filepath.Join(homeDir, ".zshrc")
-			if _, err := os.Stat(zshrcPath); err == nil {
-				content, err := os.ReadFile(zshrcPath)
-				if err == nil && !strings.Contains(string(content), sourceCmd) {
-					fmt.Printf("Adding completion directory to $fpath in %s\n", zshrcPath)
-					f, err := os.OpenFile(zshrcPath, os.O_APPEND|os.O_WRONLY, 0644)
-					if err == nil {
-						defer f.Close()
-						if _, err := f.WriteString("\n# Image Composer Tool completion\n" + sourceCmd + "\nautoload -Uz compinit && compinit\n"); err != nil {
-							fmt.Printf("Warning: Could not update %s: %v\n", zshrcPath, err)
-						}
-					}
-				}
+			if err := os.MkdirAll(completionDir, 0755); err != nil {
+				return fmt.Errorf("could not create directory %s: %v", completionDir, err)
 			}
 		}
 		targetPath = filepath.Join(completionDir, "_image-composer")
-
 	case "fish":
 		completionDir := filepath.Join(homeDir, ".config/fish/completions")
 		if _, err := os.Stat(completionDir); os.IsNotExist(err) {
@@ -312,48 +360,14 @@ func executeInstallCompletion(cmd *cobra.Command, args []string) error {
 			}
 		}
 		targetPath = filepath.Join(completionDir, "image-composer.fish")
-
 	case "powershell":
-		// Check if PowerShell profile exists
-		psPath := os.Getenv("PSMODULEPATH")
-		if psPath == "" {
-			psPath = filepath.Join(homeDir, "Documents/WindowsPowerShell/Modules")
-			if _, err := os.Stat(psPath); os.IsNotExist(err) {
-				if err := os.MkdirAll(psPath, 0755); err != nil {
-					return fmt.Errorf("could not create directory %s: %v", psPath, err)
-				}
+		profilePath := filepath.Join(homeDir, "Documents/WindowsPowerShell")
+		if _, err := os.Stat(profilePath); os.IsNotExist(err) {
+			if err := os.MkdirAll(profilePath, 0755); err != nil {
+				return fmt.Errorf("could not create directory %s: %v", profilePath, err)
 			}
 		}
-
-		completionDir := filepath.Join(psPath, "image-composer")
-		if _, err := os.Stat(completionDir); os.IsNotExist(err) {
-			if err := os.MkdirAll(completionDir, 0755); err != nil {
-				return fmt.Errorf("could not create directory %s: %v", completionDir, err)
-			}
-		}
-
-		targetPath = filepath.Join(completionDir, "image-composer-completion.ps1")
-
-		// We may need to add module to profile
-		profilePath := os.Getenv("PROFILE")
-		if profilePath == "" {
-			fmt.Println("PowerShell profile not found. You may need to manually import the module.")
-		} else {
-			moduleCmd := fmt.Sprintf("Import-Module %s", completionDir)
-			if _, err := os.Stat(profilePath); err == nil {
-				content, err := os.ReadFile(profilePath)
-				if err == nil && !strings.Contains(string(content), moduleCmd) {
-					fmt.Printf("Adding module import to PowerShell profile at %s\n", profilePath)
-					f, err := os.OpenFile(profilePath, os.O_APPEND|os.O_WRONLY, 0644)
-					if err == nil {
-						defer f.Close()
-						if _, err := f.WriteString("\n# Image Composer Tool completion\n" + moduleCmd + "\n"); err != nil {
-							fmt.Printf("Warning: Could not update profile: %v\n", err)
-						}
-					}
-				}
-			}
-		}
+		targetPath = filepath.Join(profilePath, "image-composer-completion.ps1")
 	}
 
 	// Check if file exists
@@ -367,23 +381,36 @@ func executeInstallCompletion(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Shell completion installed for %s at %s\n", shellType, targetPath)
-
-	if sourceCmd != "" {
-		fmt.Printf("\nTo enable completion in your current shell, run:\n  %s\n", sourceCmd)
-	}
-
-	if shellType == "powershell" {
-		fmt.Printf("\nTo enable completion in your current PowerShell session, run:\n  Import-Module %s\n", filepath.Dir(targetPath))
-	}
+	fmt.Printf("Restart your shell or source your profile to enable completion.\n")
 
 	return nil
 }
 
 func main() {
+	// Initialize global configuration first
+	if err := initializeGlobalConfig(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading configuration: %v\n", err)
+		os.Exit(1)
+	}
 
-	// Setup zap logger, and defer the cleanup function
-	_, cleanup := utils.Init()
+	// Handle global log level override
+	if logLevel != "" {
+		globalConfig.Logging.Level = logLevel
+	}
+
+	// Setup logger with configured level
+	_, cleanup := utils.InitWithLevel(globalConfig.Logging.Level)
 	defer cleanup()
+
+	// Log configuration info
+	logger := utils.Logger()
+	if configFile != "" {
+		logger.Infof("Using configuration from: %s", configFile)
+	}
+	if globalConfig.Logging.Level == "debug" {
+		logger.Debugf("Config: workers=%d, cache_dir=%s, work_dir=%s, temp_dir=%s",
+			globalConfig.Workers, globalConfig.CacheDir, globalConfig.WorkDir, globalConfig.TempDir)
+	}
 
 	// Root command
 	rootCmd := &cobra.Command{
@@ -422,34 +449,66 @@ The spec file should be in JSON format according to the schema.`,
 		Run:   executeVersion,
 	}
 
+	// Config command
+	configCmd := &cobra.Command{
+		Use:   "config",
+		Short: "Manage global configuration",
+	}
+
+	// Config show command
+	configShowCmd := &cobra.Command{
+		Use:   "show",
+		Short: "Show current configuration",
+		Run:   executeConfigShow,
+	}
+
+	// Config init command
+	configInitCmd := &cobra.Command{
+		Use:   "init [config-file]",
+		Short: "Initialize a new configuration file",
+		Args:  cobra.MaximumNArgs(1),
+		RunE:  executeConfigInit,
+	}
+
 	// Install completion command
 	installCompletionCmd := &cobra.Command{
 		Use:   "install-completion",
 		Short: "Install shell completion script",
 		Long: `Install shell completion script for Bash, Zsh, Fish, or PowerShell.
-Automatically detects your shell and installs the appropriate completion script.
-If needed, it will also update your shell profile to load the completions.`,
+Automatically detects your shell and installs the appropriate completion script.`,
 		RunE: executeInstallCompletion,
 	}
+
+	// Add flags to commands
+	buildCmd.Flags().IntVarP(&workers, "workers", "w", -1,
+		"Number of concurrent download workers")
+	buildCmd.Flags().StringVarP(&cacheDir, "cache-dir", "d", "",
+		"Package cache directory")
+	buildCmd.Flags().StringVar(&workDir, "work-dir", "",
+		"Working directory for builds")
+	buildCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	buildCmd.Flags().StringVarP(&dotFile, "dotfile", "f", "", "Generate a dot file for the dependency graph")
 
 	// Add flags to install-completion command
 	installCompletionCmd.Flags().String("shell", "", "Specify shell type (bash, zsh, fish, powershell)")
 	installCompletionCmd.Flags().Bool("force", false, "Force overwrite existing completion files")
 
-	// Add flags to build command
-	buildCmd.Flags().IntVarP(&workers, "workers", "w", workers, "Number of concurrent download workers")
-	buildCmd.Flags().StringVarP(&cacheDir, "cache-dir", "d", cacheDir, "Package cache directory")
-	buildCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
-	buildCmd.Flags().StringVarP(&dotFile, "dotfile", "f", "", "Generate a dot file for the dependency graph")
+	// Add global flags
+	rootCmd.PersistentFlags().StringVar(&configFile, "config", "",
+		"Path to configuration file")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", globalConfig.Logging.Level,
+		"Log level (debug, info, warn, error)")
+
+	// Add subcommands to config command
+	configCmd.AddCommand(configShowCmd)
+	configCmd.AddCommand(configInitCmd)
 
 	// Add commands to root command
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(installCompletionCmd)
-
-	// Add global flags
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 
 	// Execute the root command
 	if err := rootCmd.Execute(); err != nil {
