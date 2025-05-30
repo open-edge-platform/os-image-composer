@@ -19,11 +19,17 @@ import (
 // returns the minimal closure of PackageInfos needed to satisfy all Requires.
 func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
 
-	// Build a map for fast lookup by package name
+	// Build a map for fast lookup by package name and version
+	byNameVer := make(map[string]provider.PackageInfo, len(all))
 	byName := make(map[string]provider.PackageInfo, len(all))
-	// Build a map for lookup by provided virtual package name
 	byProvides := make(map[string]provider.PackageInfo)
 	for _, pi := range all {
+		key := pi.Name
+		if pi.Version != "" {
+			// contruct key as "name=version" for exact matches
+			key = fmt.Sprintf("%s=%s", pi.Name, pi.Version)
+			byNameVer[key] = pi
+		}
 		byName[pi.Name] = pi
 		for _, prov := range pi.Provides {
 			byProvides[prov] = pi
@@ -35,15 +41,23 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 	// Start with the requested packages
 	queue := make([]provider.PackageInfo, 0, len(requested))
 	for _, pi := range requested {
-		if _, ok := byName[pi.Name]; !ok {
-			// Try to resolve via Provides
-			if provPkg, ok := byProvides[pi.Name]; ok {
-				queue = append(queue, provPkg)
+		key := pi.Name
+		if pi.Version != "" {
+			key = fmt.Sprintf("%s=%s", pi.Name, pi.Version)
+			if pkg, ok := byNameVer[key]; ok {
+				queue = append(queue, pkg)
 				continue
 			}
-			return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
 		}
-		queue = append(queue, pi)
+		if pkg, ok := byName[pi.Name]; ok {
+			queue = append(queue, pkg)
+			continue
+		}
+		if provPkg, ok := byProvides[pi.Name]; ok {
+			queue = append(queue, provPkg)
+			continue
+		}
+		return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
 	}
 
 	result := make([]provider.PackageInfo, 0)
@@ -60,13 +74,31 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 
 		// Traverse dependencies (Requires)
 		for _, dep := range cur.Requires {
-			// Remove version constraints if present, e.g. "foo (>= 1.2)" -> "foo"
+			// dep may be "foo (>= 1.2)" or "foo (= 1.2)" or just "foo"
 			depName := dep
-			if idx := strings.Index(dep, " "); idx > 0 {
-				depName = dep[:idx]
+			depVersion := ""
+			// handles "|" in package names, e.g. "perl | perl-base"
+			// currently only the first part is used, TODO: handle multiple parts
+			if idx := strings.Index(depName, "|"); idx > 0 {
+				depName = strings.TrimSpace(depName[:idx])
 			}
 			// Remove architecture qualifiers, e.g. "perl:any" -> "perl"
 			if idx := strings.Index(depName, ":"); idx > 0 {
+				depName = depName[:idx]
+			}
+			// Check for version constraint
+			if idx := strings.Index(depName, "("); idx > 0 {
+				name := strings.TrimSpace(depName[:idx])
+				verPart := strings.TrimSpace(depName[idx:])
+				verPart = strings.Trim(verPart, "() ")
+				// Only enforce exact version if constraint is "="
+				if strings.HasPrefix(verPart, "=") {
+					depVersion = strings.TrimSpace(strings.TrimPrefix(verPart, "="))
+					depName = name
+				} else {
+					depName = name
+				}
+			} else if idx := strings.Index(depName, " "); idx > 0 {
 				depName = depName[:idx]
 			}
 			depName = strings.TrimSpace(depName)
@@ -75,6 +107,49 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 			}
 			if _, seen := neededSet[depName]; seen {
 				continue
+			}
+			// If version is enforced, match by name+version
+			if depVersion != "" {
+				// Try exact version first
+				key := fmt.Sprintf("%s=%s", depName, depVersion)
+				if depPkg, ok := byNameVer[key]; ok {
+					// exact version match found
+					queue = append(queue, depPkg)
+					continue
+				}
+				// Try to find any package with higher version using Debian version semantics
+				var found *provider.PackageInfo
+				for _, pi := range all {
+					if pi.Name == depName {
+						// Use Debian version comparison
+						cmp, err := compareDebianVersions(pi.Version, depVersion)
+						if err != nil {
+							return nil, fmt.Errorf("failed to compare versions: %v", err)
+						}
+						if cmp >= 0 {
+							// sorting by version, pick the lowest one that satisfies the constraint
+							if found == nil {
+								tmp := pi
+								found = &tmp
+							} else {
+								// Pick the lowest version that satisfies the constraint
+								cmp2, err := compareDebianVersions(pi.Version, found.Version)
+								if err != nil {
+									return nil, fmt.Errorf("failed to compare versions: %v", err)
+								}
+								if cmp2 < 0 {
+									tmp := pi
+									found = &tmp
+								}
+							}
+						}
+					}
+				}
+				if found != nil {
+					queue = append(queue, *found)
+					continue
+				}
+				return nil, fmt.Errorf("dependency %q (version %q or higher) required by %q not found in repo", depName, depVersion, cur.Name)
 			}
 			if depPkg, ok := byName[depName]; ok {
 				queue = append(queue, depPkg)
@@ -203,6 +278,8 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 		switch key {
 		case "Package":
 			pkg.Name = val
+		case "Version":
+			pkg.Version = val
 		case "Depends":
 			// Split dependencies by comma and trim spaces
 			deps := strings.Split(val, ",")
@@ -250,4 +327,110 @@ func getFullUrl(filePath string, baseUrl string) (string, error) {
 	// If not, construct the full URL using the base URL
 	fullURL := fmt.Sprintf("%s/%s", strings.TrimSuffix(baseUrl, "/"), filePath)
 	return fullURL, nil
+}
+
+// compareDebianVersions compares two Debian version strings.
+// Returns -1 if a < b, 0 if a == b, 1 if a > b.
+func compareDebianVersions(a, b string) (int, error) {
+	// Helper to split epoch
+	splitEpoch := func(ver string) (epoch int, rest string) {
+		parts := strings.SplitN(ver, ":", 2)
+		if len(parts) == 2 {
+			fmt.Sscanf(parts[0], "%d", &epoch)
+			rest = parts[1]
+		} else {
+			epoch = 0
+			rest = ver
+		}
+		return
+	}
+
+	// Helper to get next segment (numeric or non-numeric)
+	nextSegment := func(s string) (seg string, rest string, numeric bool) {
+		if s == "" {
+			return "", "", false
+		}
+		if s[0] >= '0' && s[0] <= '9' {
+			i := 0
+			for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+				i++
+			}
+			return s[:i], s[i:], true
+		}
+		i := 0
+		for i < len(s) && (s[i] < '0' || s[i] > '9') {
+			i++
+		}
+		return s[:i], s[i:], false
+	}
+
+	// Handle epoch
+	epochA, restA := splitEpoch(a)
+	epochB, restB := splitEpoch(b)
+	if epochA < epochB {
+		return -1, nil
+	}
+	if epochA > epochB {
+		return 1, nil
+	}
+
+	// Compare the rest
+	sa, sb := restA, restB
+	for sa != "" || sb != "" {
+		// Handle tilde (~)
+		if len(sa) > 0 && sa[0] == '~' {
+			if len(sb) == 0 || sb[0] != '~' {
+				return -1, nil
+			}
+			sa = sa[1:]
+			sb = sb[1:]
+			continue
+		}
+		if len(sb) > 0 && sb[0] == '~' {
+			return 1, nil
+		}
+
+		segA, restA, numA := nextSegment(sa)
+		segB, restB, numB := nextSegment(sb)
+
+		if segA == "" && segB == "" {
+			sa, sb = restA, restB
+			continue
+		}
+
+		if numA && numB {
+			// Remove leading zeros
+			segA = strings.TrimLeft(segA, "0")
+			segB = strings.TrimLeft(segB, "0")
+			// Compare by length
+			if len(segA) > len(segB) {
+				return 1, nil
+			}
+			if len(segA) < len(segB) {
+				return -1, nil
+			}
+			// Compare lexicographically
+			if segA > segB {
+				return 1, nil
+			}
+			if segA < segB {
+				return -1, nil
+			}
+		} else if !numA && !numB {
+			if segA > segB {
+				return 1, nil
+			}
+			if segA < segB {
+				return -1, nil
+			}
+		} else {
+			// Numeric segments are always less than non-numeric
+			if numA {
+				return -1, nil
+			}
+			return 1, nil
+		}
+		sa, sb = restA, restB
+	}
+	return 0, nil
 }
