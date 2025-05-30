@@ -113,6 +113,18 @@ func LoadGlobalConfig(configPath string) (*GlobalConfig, error) {
 		if err := yaml.Unmarshal(data, config); err != nil {
 			return nil, fmt.Errorf("parsing YAML config: %w", err)
 		}
+
+		// Convert to JSON for schema validation
+		jsonData, err := json.Marshal(config)
+		if err != nil {
+			return nil, fmt.Errorf("converting config to JSON for validation: %w", err)
+		}
+
+		// Validate against schema
+		if err := validate.ValidateConfigJSON(jsonData); err != nil {
+			return nil, fmt.Errorf("schema validation failed: %w", err)
+		}
+
 	default:
 		return nil, fmt.Errorf("unsupported config file format: %s (supported: .yaml, .yml)", ext)
 	}
@@ -135,6 +147,17 @@ func (gc *GlobalConfig) SaveGlobalConfig(configPath string) error {
 		}
 	}
 
+	// Convert to JSON for schema validation before saving
+	jsonData, err := json.Marshal(gc)
+	if err != nil {
+		return fmt.Errorf("converting config to JSON for validation: %w", err)
+	}
+
+	if err := validate.ValidateConfigJSON(jsonData); err != nil {
+		return fmt.Errorf("config validation failed before save: %w", err)
+	}
+
+	// Marshal to YAML
 	data, err := yaml.Marshal(gc)
 	if err != nil {
 		return fmt.Errorf("marshaling config to YAML: %w", err)
