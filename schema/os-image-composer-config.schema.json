@@ -1,0 +1,62 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/open-edge-platform/image-composer/schemas/os-image-composer-config.schema.json",
+	"title": "OS Image Composer Config",
+	"description": "Defines the global configuration file for the Image Composer",
+	"type": "object",
+	"properties": {
+		"workers": {
+			"type": "integer",
+			"description": "Number of concurrent workers for tasks",
+			"default": 8,
+			"minimum": 1,
+			"maximum": 64
+		},
+		"cache_dir": {
+			"type": "string",
+			"description": "Default root package cache directory",
+			"default": ".cache",
+			"pattern": "^[a-zA-Z0-9_./-]+$",
+			"minLength": 0,
+			"maxLength": 255
+		},
+		"work_dir": {
+			"type": "string",
+			"description": "Default root workspace directory",
+			"default": ".workspace",
+			"pattern": "^[a-zA-Z0-9_./-]+$",
+			"minLength": 0,
+			"maxLength": 255
+		},
+		"temp_dir": {
+			"type": "string",
+			"description": "Default temporary directory for short lived files",
+			"default": ".temp",
+			"pattern": "^[a-zA-Z0-9_./-]+$",
+			"minLength": 0,
+			"maxLength": 255
+		},
+		"logging": {
+			"type": "object",
+			"description": "Logging configuration",
+			"properties": {
+				"level": {
+					"type": "string",
+					"description": "Logging level",
+					"enum": [
+						"debug",
+						"info",
+						"warn",
+						"error"
+					],
+					"default": "info"
+				}
+			},
+			"required": [
+				"level"
+			],
+			"additionalProperties": false
+		}
+	},
+	"additionalProperties": false
+}

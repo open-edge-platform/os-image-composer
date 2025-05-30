@@ -50,3 +50,12 @@ func ValidateImageJSON(data []byte) error {
 		data,
 	)
 }
+
+// ValidateConfigJSON runs the config schema against data
+func ValidateConfigJSON(data []byte) error {
+	return ValidateAgainstSchema(
+		"os-image-composer-config.schema.json",
+		schema_pkg.ConfigSchema,
+		data,
+	)
+}

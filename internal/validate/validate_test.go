@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gopkg.in/yaml.v3"
+	"sigs.k8s.io/yaml"
 )
 
 // loadFile reads a test JSON file from the project root testdata directory.
@@ -45,7 +45,7 @@ func TestValidImage(t *testing.T) {
 		t.Errorf("yml parsing error: %v", err)
 	}
 
-	// 3) Re‐marshal to JSON bytes
+	// Re‐marshal to JSON bytes
 	dataJSON, err := json.Marshal(raw)
 	if err != nil {
 		t.Errorf("json marshaling error: %v", err)
@@ -64,7 +64,7 @@ func TestInvalidImage(t *testing.T) {
 		t.Errorf("yml parsing error: %v", err)
 	}
 
-	// 3) Re‐marshal to JSON bytes
+	// Re‐marshal to JSON bytes
 	dataJSON, err := json.Marshal(raw)
 	if err != nil {
 		t.Errorf("json marshaling error: %v", err)
@@ -72,4 +72,43 @@ func TestInvalidImage(t *testing.T) {
 	if err := ValidateImageJSON(dataJSON); err == nil {
 		t.Errorf("expected testdata/invalid-image.yml to pass, but got: %v", err)
 	}
+}
+
+func TestValidConfig(t *testing.T) {
+	v := loadFile(t, "testdata/valid-config.yml")
+
+	if v == nil {
+		t.Fatal("failed to load testdata/valid-config.yml")
+	}
+	dataJSON, err := yaml.YAMLToJSON(v)
+
+	if err != nil {
+		t.Fatalf("YAML→JSON conversion failed: %v", err)
+	}
+	if err := ValidateConfigJSON(dataJSON); err != nil {
+		t.Errorf("validation failed: %v", err)
+	}
+}
+
+func TestInvalidConfig(t *testing.T) {
+	v := loadFile(t, "testdata/invalid-config.yml")
+
+	// Parse to generic JSON interface
+	var raw interface{}
+	if err := yaml.Unmarshal(v, &raw); err != nil {
+		t.Errorf("yml parsing error: %v", err)
+	}
+
+	// Re‐marshal to JSON bytes
+	dataJSON, err := yaml.YAMLToJSON(v)
+	if err != nil {
+		t.Errorf("json marshaling error: %v", err)
+	}
+
+	if err := ValidateConfigJSON(dataJSON); err == nil {
+		t.Errorf("expected invalid-config.json to fail validation: %v", err)
+	} else {
+		t.Logf("expected validation error: %v", err)
+	}
+
 }
