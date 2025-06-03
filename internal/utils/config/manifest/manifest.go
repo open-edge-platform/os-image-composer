@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 )
 
 // SoftwarePackageManifest represents the structure of the manifest file.
@@ -25,7 +25,7 @@ type SoftwarePackageManifest struct {
 
 // WriteManifestToFile writes the manifest to the specified output file.
 func WriteManifestToFile(manifest SoftwarePackageManifest, outputFile string) error {
-	logger := utils.Logger()
+	logger := logger.Logger()
 	logger.Infof("Writing the Image Manifest to the file: %s", outputFile)
 	// Marshal the manifest struct to JSON
 	manifestJSON, err := json.MarshalIndent(manifest, "", "  ")

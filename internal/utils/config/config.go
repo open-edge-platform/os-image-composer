@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
-	"github.com/open-edge-platform/image-composer/internal/validate"
+	"github.com/open-edge-platform/image-composer/internal/utils/config/validate"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -61,7 +61,7 @@ type LoggingConfig struct {
 
 // LoadTemplate loads an ImageTemplate from the specified YAML template path
 func LoadTemplate(path string) (*ImageTemplate, error) {
-	logger := utils.Logger()
+	logger := logger.Logger()
 
 	data, err := os.ReadFile(path)
 	if err != nil {

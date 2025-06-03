@@ -12,7 +12,7 @@ import (
 	"sort"
 
 	"github.com/open-edge-platform/image-composer/internal/provider"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 
 	"github.com/cavaliergopher/rpm"
 )
@@ -66,7 +66,7 @@ func BuildIndex(dir string) (*Index, error) {
 }
 
 func GenerateDot(pkgs []provider.PackageInfo, file string) error {
-	logger := utils.Logger()
+	logger := logger.Logger()
 	logger.Infof("Generating DOT file %s", file)
 
 	outFile, err := os.Create(file)

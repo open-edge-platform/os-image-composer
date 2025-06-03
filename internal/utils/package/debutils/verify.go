@@ -15,7 +15,7 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -28,7 +28,7 @@ type Result struct {
 }
 
 func VerifyPackagegz(relPath string, pkggzPath string) (bool, error) {
-	logger := utils.Logger()
+	logger := logger.Logger()
 	logger.Infof("Verifying package %s", pkggzPath)
 
 	// Get expected checksum from Release file
@@ -55,7 +55,7 @@ func VerifyPackagegz(relPath string, pkggzPath string) (bool, error) {
 }
 
 func VerifyRelease(relPath string, relSignPath string, pKeyPath string) (bool, error) {
-	logger := utils.Logger()
+	logger := logger.Logger()
 
 	// Read the public key
 	keyringBytes, err := os.ReadFile(pKeyPath)
@@ -99,7 +99,7 @@ func VerifyRelease(relPath string, relSignPath string, pKeyPath string) (bool, e
 // VerifyAll takes a slice of DEB file paths, verifies each one in parallel,
 // and returns a slice of results in the same order.
 func VerifyDEBs(paths []string, pkgChecksum map[string]string, workers int) []Result {
-	logger := utils.Logger()
+	logger := logger.Logger()
 
 	logger.Infof("Verifying %d packages with %d workers", len(paths), workers)
 
@@ -270,7 +270,7 @@ func findChecksumInRelease(releasePath, checksumType, fileName string) (string, 
 		return "", fmt.Errorf("error reading release file: %v", err)
 	}
 
-	logger := utils.Logger()
+	logger := logger.Logger()
 	logger.Warnf("Could not find %s in section %s of %s", fileName, checksumType, releasePath)
 	return "", fmt.Errorf("checksum for %s (%s) not found", fileName, checksumType)
 }

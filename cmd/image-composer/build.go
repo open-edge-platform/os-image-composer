@@ -5,14 +5,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/open-edge-platform/image-composer/internal/config"
-	"github.com/open-edge-platform/image-composer/internal/pkgfetcher"
 	"github.com/open-edge-platform/image-composer/internal/provider"
 	_ "github.com/open-edge-platform/image-composer/internal/provider/azurelinux3" // register provider
 	_ "github.com/open-edge-platform/image-composer/internal/provider/elxr12"      // register provider
 	_ "github.com/open-edge-platform/image-composer/internal/provider/emt3_0"      // register provider
-	"github.com/open-edge-platform/image-composer/internal/rpmutils"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/config"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/package/pkgfetcher"
+	"github.com/open-edge-platform/image-composer/internal/utils/package/rpmutils"
 	"github.com/spf13/cobra"
 )
 
@@ -63,7 +63,7 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 		globalConfig.WorkDir = workDir
 	}
 
-	logger := utils.Logger()
+	logger := logger.Logger()
 
 	// Check if template file is provided as first positional argument
 	if len(args) < 1 {

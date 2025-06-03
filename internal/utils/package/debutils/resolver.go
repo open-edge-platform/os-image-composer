@@ -9,14 +9,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/open-edge-platform/image-composer/internal/pkgfetcher"
 	"github.com/open-edge-platform/image-composer/internal/provider"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/package/pkgfetcher"
 )
 
 // ParsePrimary parses the Packages.gz file from gzHref.
 func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign string, pbGPGKey string, buildPath string) ([]provider.PackageInfo, error) {
-	logger := utils.Logger()
+	logger := logger.Logger()
 
 	// Ensure pkgMetaDir exists, create if not
 	// pkgMetaDir := "./builds/elxr12"

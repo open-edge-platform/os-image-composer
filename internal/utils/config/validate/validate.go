@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	schema_pkg "github.com/open-edge-platform/image-composer/schema"
+	"github.com/open-edge-platform/image-composer/internal/utils/config/schema"
 
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
@@ -37,7 +37,7 @@ func ValidateAgainstSchema(name string, schemaBytes, data []byte) error {
 func ValidateImageTemplateJSON(data []byte) error {
 	return ValidateAgainstSchema(
 		"os-image-template.schema.json",
-		schema_pkg.ImageTemplateSchema,
+		schema.ImageTemplateSchema,
 		data,
 	)
 }
@@ -46,7 +46,7 @@ func ValidateImageTemplateJSON(data []byte) error {
 func ValidateConfigJSON(data []byte) error {
 	return ValidateAgainstSchema(
 		"os-image-composer-config.schema.json",
-		schema_pkg.ConfigSchema,
+		schema.ConfigSchema,
 		data,
 	)
 }

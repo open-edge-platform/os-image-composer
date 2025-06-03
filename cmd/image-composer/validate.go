@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/open-edge-platform/image-composer/internal/config"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/config"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +26,7 @@ This allows checking for errors in your template before committing to a full bui
 
 // executeValidate handles the validate command logic
 func executeValidate(cmd *cobra.Command, args []string) error {
-	logger := utils.Logger()
+	logger := logger.Logger()
 
 	// Check if template file is provided as first positional argument
 	if len(args) < 1 {

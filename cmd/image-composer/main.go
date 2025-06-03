@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/open-edge-platform/image-composer/internal/config"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/config"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -40,7 +40,7 @@ func main() {
 	}
 
 	// Setup logger with configured level
-	_, cleanup := utils.InitWithLevel(globalConfig.Logging.Level)
+	_, cleanup := logger.InitWithLevel(globalConfig.Logging.Level)
 	defer cleanup()
 
 	// Create and execute root command
@@ -55,7 +55,7 @@ func main() {
 	}
 
 	// Log configuration info
-	logger := utils.Logger()
+	logger := logger.Logger()
 	if configFilePath != "" {
 		logger.Infof("Using configuration from: %s", configFilePath)
 	}

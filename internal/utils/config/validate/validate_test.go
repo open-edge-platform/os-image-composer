@@ -13,7 +13,7 @@ import (
 func loadFile(t *testing.T, relPath string) []byte {
 	t.Helper()
 	// Determine project root relative to this test file
-	root := filepath.Join("..", "..")
+	root := filepath.Join("..", "..", "..", "..")
 	fullPath := filepath.Join(root, relPath)
 	data, err := os.ReadFile(fullPath)
 	if err != nil {
@@ -45,7 +45,7 @@ func TestValidImageTemplate(t *testing.T) {
 }
 
 func TestInvalidImageTemplate(t *testing.T) {
-	v := loadFile(t, "testdata/invalid-image.yml")
+	v := loadFile(t, "internal/utils/config/testdata/invalid-image.yml")
 
 	// Parse to generic JSON interface
 	var raw interface{}
@@ -68,7 +68,7 @@ func TestInvalidImageTemplate(t *testing.T) {
 
 // Test global config validation
 func TestValidConfig(t *testing.T) {
-	v := loadFile(t, "testdata/valid-config.yml")
+	v := loadFile(t, "internal/utils/config/testdata/valid-config.yml")
 
 	if v == nil {
 		t.Fatal("failed to load testdata/valid-config.yml")
@@ -84,7 +84,7 @@ func TestValidConfig(t *testing.T) {
 }
 
 func TestInvalidConfig(t *testing.T) {
-	v := loadFile(t, "testdata/invalid-config.yml")
+	v := loadFile(t, "internal/utils/config/testdata/invalid-config.yml")
 
 	// Parse to generic JSON interface
 	var raw interface{}
@@ -107,7 +107,7 @@ func TestInvalidConfig(t *testing.T) {
 
 // Test validation of template structure using external test files
 func TestImageTemplateStructure(t *testing.T) {
-	v := loadFile(t, "testdata/complete-valid-template.yml")
+	v := loadFile(t, "internal/utils/config/testdata/complete-valid-template.yml")
 
 	var raw interface{}
 	if err := yaml.Unmarshal(v, &raw); err != nil {
@@ -125,7 +125,7 @@ func TestImageTemplateStructure(t *testing.T) {
 }
 
 func TestImageTemplateMissingFields(t *testing.T) {
-	v := loadFile(t, "testdata/incomplete-template.yml")
+	v := loadFile(t, "internal/utils/config/testdata/incomplete-template.yml")
 
 	var raw interface{}
 	if err := yaml.Unmarshal(v, &raw); err != nil {
@@ -152,31 +152,31 @@ func TestImageTemplateValidation(t *testing.T) {
 	}{
 		{
 			name:        "ValidComplete",
-			file:        "testdata/complete-valid-template.yml",
+			file:        "internal/utils/config/testdata/complete-valid-template.yml",
 			shouldPass:  true,
 			description: "complete template with all optional fields",
 		},
 		{
 			name:        "InvalidMissingImage",
-			file:        "testdata/missing-image-section.yml",
+			file:        "internal/utils/config/testdata/missing-image-section.yml",
 			shouldPass:  false,
 			description: "template missing image section",
 		},
 		{
 			name:        "InvalidMissingTarget",
-			file:        "testdata/missing-target-section.yml",
+			file:        "internal/utils/config/testdata/missing-target-section.yml",
 			shouldPass:  false,
 			description: "template missing target section",
 		},
 		{
 			name:        "InvalidMissingSystemConfigs",
-			file:        "testdata/missing-systemconfigs.yml",
+			file:        "internal/utils/config/testdata/missing-systemconfigs.yml",
 			shouldPass:  false,
 			description: "template missing systemConfigs section",
 		},
 		{
 			name:        "InvalidWrongTypes",
-			file:        "testdata/wrong-field-types.yml",
+			file:        "internal/utils/config/testdata/wrong-field-types.yml",
 			shouldPass:  false,
 			description: "template with incorrect field types",
 		},

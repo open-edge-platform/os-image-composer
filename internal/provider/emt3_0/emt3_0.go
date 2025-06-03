@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/open-edge-platform/image-composer/internal/config"
 	"github.com/open-edge-platform/image-composer/internal/provider"
-	"github.com/open-edge-platform/image-composer/internal/rpmutils"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/config"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/package/rpmutils"
 )
 
 const (
@@ -51,7 +51,7 @@ func (p *Emt30) Name() string { return "EMT3.0" }
 
 // Init will initialize the provider, fetching repo configuration
 func (p *Emt30) Init(template *config.ImageTemplate) error {
-	logger := utils.Logger()
+	logger := logger.Logger()
 
 	resp, err := http.Get(configURL)
 	if err != nil {
@@ -86,7 +86,7 @@ func (p *Emt30) Init(template *config.ImageTemplate) error {
 
 // Packages returns the list of packages
 func (p *Emt30) Packages() ([]provider.PackageInfo, error) {
-	logger := utils.Logger()
+	logger := logger.Logger()
 	logger.Infof("fetching packages from %s", p.repoCfg.URL)
 
 	packages, err := rpmutils.ParsePrimary(p.repoCfg.URL, p.zstHref)
@@ -141,7 +141,7 @@ func (p *Emt30) MatchRequested(requests []string, all []provider.PackageInfo) ([
 
 // Validate verifies the downloaded files
 func (p *Emt30) Validate(destDir string) error {
-	logger := utils.Logger()
+	logger := logger.Logger()
 
 	// read the GPG key from the repo config
 	resp, err := http.Get(p.repoCfg.GPGKey)
@@ -199,7 +199,7 @@ func (p *Emt30) Validate(destDir string) error {
 
 // Resolve resolves dependencies
 func (p *Emt30) Resolve(req []provider.PackageInfo, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
-	logger := utils.Logger()
+	logger := logger.Logger()
 
 	logger.Infof("resolving dependencies for %d RPMs", len(req))
 

@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/cavaliergopher/rpm"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -24,7 +24,7 @@ type Result struct {
 // VerifyAll takes a slice of RPM file paths, verifies each one in parallel,
 // and returns a slice of results in the same order.
 func VerifyAll(paths []string, pubkeyPath string, workers int) []Result {
-	logger := utils.Logger()
+	logger := logger.Logger()
 
 	total := len(paths)
 	results := make([]Result, total) // allocate up front

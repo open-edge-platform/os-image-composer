@@ -3,8 +3,8 @@ package rpmutils_test
 import (
 	"testing"
 
-	"github.com/open-edge-platform/image-composer/internal/resolvertest"
-	"github.com/open-edge-platform/image-composer/internal/rpmutils"
+	"github.com/open-edge-platform/image-composer/internal/utils/package/resolvertest"
+	"github.com/open-edge-platform/image-composer/internal/utils/package/rpmutils"
 )
 
 func TestRPMResolver(t *testing.T) {
