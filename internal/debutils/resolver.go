@@ -14,161 +14,6 @@ import (
 	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
 )
 
-// ResolvePackageInfos takes a seed list of PackageInfos (the exact versions
-// matched) and the full list of all PackageInfos from the repo, and
-// returns the minimal closure of PackageInfos needed to satisfy all Requires.
-func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
-
-	// Build a map for fast lookup by package name and version
-	byNameVer := make(map[string]provider.PackageInfo, len(all))
-	byName := make(map[string]provider.PackageInfo, len(all))
-	byProvides := make(map[string]provider.PackageInfo)
-	for _, pi := range all {
-		key := pi.Name
-		if pi.Version != "" {
-			// contruct key as "name=version" for exact matches
-			key = fmt.Sprintf("%s=%s", pi.Name, pi.Version)
-			byNameVer[key] = pi
-		}
-		byName[pi.Name] = pi
-		for _, prov := range pi.Provides {
-			byProvides[prov] = pi
-		}
-	}
-
-	// Track which packages we've already added
-	neededSet := make(map[string]struct{})
-	// Start with the requested packages
-	queue := make([]provider.PackageInfo, 0, len(requested))
-	for _, pi := range requested {
-		key := pi.Name
-		if pi.Version != "" {
-			key = fmt.Sprintf("%s=%s", pi.Name, pi.Version)
-			if pkg, ok := byNameVer[key]; ok {
-				queue = append(queue, pkg)
-				continue
-			}
-		}
-		if pkg, ok := byName[pi.Name]; ok {
-			queue = append(queue, pkg)
-			continue
-		}
-		if provPkg, ok := byProvides[pi.Name]; ok {
-			queue = append(queue, provPkg)
-			continue
-		}
-		return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
-	}
-
-	result := make([]provider.PackageInfo, 0)
-
-	for len(queue) > 0 {
-		cur := queue[0]
-		queue = queue[1:]
-
-		if _, seen := neededSet[cur.Name]; seen {
-			continue
-		}
-		neededSet[cur.Name] = struct{}{}
-		result = append(result, cur)
-
-		// Traverse dependencies (Requires)
-		for _, dep := range cur.Requires {
-			// dep may be "foo (>= 1.2)" or "foo (= 1.2)" or just "foo"
-			depName := dep
-			depVersion := ""
-			// handles "|" in package names, e.g. "perl | perl-base"
-			// currently only the first part is used, TODO: handle multiple parts
-			if idx := strings.Index(depName, "|"); idx > 0 {
-				depName = strings.TrimSpace(depName[:idx])
-			}
-			// Remove architecture qualifiers, e.g. "perl:any" -> "perl"
-			if idx := strings.Index(depName, ":"); idx > 0 {
-				depName = depName[:idx]
-			}
-			// Check for version constraint
-			if idx := strings.Index(depName, "("); idx > 0 {
-				name := strings.TrimSpace(depName[:idx])
-				verPart := strings.TrimSpace(depName[idx:])
-				verPart = strings.Trim(verPart, "() ")
-				// Only enforce exact version if constraint is "="
-				if strings.HasPrefix(verPart, "=") {
-					depVersion = strings.TrimSpace(strings.TrimPrefix(verPart, "="))
-					depName = name
-				} else {
-					depName = name
-				}
-			} else if idx := strings.Index(depName, " "); idx > 0 {
-				depName = depName[:idx]
-			}
-			depName = strings.TrimSpace(depName)
-			if depName == "" {
-				continue
-			}
-			if _, seen := neededSet[depName]; seen {
-				continue
-			}
-			// If version is enforced, match by name+version
-			if depVersion != "" {
-				// Try exact version first
-				key := fmt.Sprintf("%s=%s", depName, depVersion)
-				if depPkg, ok := byNameVer[key]; ok {
-					// exact version match found
-					queue = append(queue, depPkg)
-					continue
-				}
-				// Try to find any package with higher version using Debian version semantics
-				var found *provider.PackageInfo
-				for _, pi := range all {
-					if pi.Name == depName {
-						// Use Debian version comparison
-						cmp, err := compareDebianVersions(pi.Version, depVersion)
-						if err != nil {
-							return nil, fmt.Errorf("failed to compare versions: %v", err)
-						}
-						if cmp >= 0 {
-							// sorting by version, pick the lowest one that satisfies the constraint
-							if found == nil {
-								tmp := pi
-								found = &tmp
-							} else {
-								// Pick the lowest version that satisfies the constraint
-								cmp2, err := compareDebianVersions(pi.Version, found.Version)
-								if err != nil {
-									return nil, fmt.Errorf("failed to compare versions: %v", err)
-								}
-								if cmp2 < 0 {
-									tmp := pi
-									found = &tmp
-								}
-							}
-						}
-					}
-				}
-				if found != nil {
-					queue = append(queue, *found)
-					continue
-				}
-				return nil, fmt.Errorf("dependency %q (version %q or higher) required by %q not found in repo", depName, depVersion, cur.Name)
-			}
-			if depPkg, ok := byName[depName]; ok {
-				queue = append(queue, depPkg)
-			} else if provPkg, ok := byProvides[depName]; ok {
-				queue = append(queue, provPkg)
-			} else {
-				return nil, fmt.Errorf("dependency %q required by %q not found in repo", depName, cur.Name)
-			}
-		}
-	}
-
-	// Sort result by package name for determinism
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Name < result[j].Name
-	})
-
-	return result, nil
-}
-
 // ParsePrimary parses the Packages.gz file from gzHref.
 func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign string, pbGPGKey string, buildPath string) ([]provider.PackageInfo, error) {
 	logger := utils.Logger()
@@ -316,6 +161,179 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 	}
 
 	return pkgs, nil
+}
+
+// ResolvePackageInfos takes a seed list of PackageInfos (the exact versions
+// matched) and the full list of all PackageInfos from the repo, and
+// returns the minimal closure of PackageInfos needed to satisfy all Requires.
+func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
+	// Build maps for fast lookup
+	byNameVer := make(map[string]provider.PackageInfo, len(all))
+	byProvides := make(map[string]provider.PackageInfo)
+	for _, pi := range all {
+		if pi.Version != "" {
+			key := fmt.Sprintf("%s=%s", pi.Name, pi.Version)
+			byNameVer[key] = pi
+		}
+		for _, prov := range pi.Provides {
+			byProvides[prov] = pi
+		}
+	}
+
+	neededSet := make(map[string]struct{})
+	queue := make([]provider.PackageInfo, 0, len(requested))
+	for _, pi := range requested {
+		if pi.Version != "" {
+			key := fmt.Sprintf("%s=%s", pi.Name, pi.Version)
+			if pkg, ok := byNameVer[key]; ok {
+				queue = append(queue, pkg)
+				continue
+			}
+		}
+		// Always pull the latest version for requested packages
+		var latest *provider.PackageInfo
+		for _, pkg := range all {
+			if pkg.Name == pi.Name {
+				if latest == nil {
+					tmp := pkg
+					latest = &tmp
+				} else {
+					cmp, err := compareDebianVersions(pkg.Version, latest.Version)
+					if err != nil {
+						return nil, fmt.Errorf("failed to compare versions: %v", err)
+					}
+					if cmp > 0 {
+						tmp := pkg
+						latest = &tmp
+					}
+				}
+			}
+		}
+		if latest != nil {
+			queue = append(queue, *latest)
+			continue
+		}
+		if provPkg, ok := byProvides[pi.Name]; ok {
+			queue = append(queue, provPkg)
+			continue
+		}
+		return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
+	}
+
+	result := make([]provider.PackageInfo, 0)
+
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+
+		if _, seen := neededSet[cur.Name]; seen {
+			continue
+		}
+		neededSet[cur.Name] = struct{}{}
+		result = append(result, cur)
+
+		// Traverse dependencies
+		for _, dep := range cur.Requires {
+			depName := dep
+			depVersion := ""
+			// Handle alternatives (|) and arch qualifiers (:)
+			if idx := strings.Index(depName, "|"); idx > 0 {
+				depName = strings.TrimSpace(depName[:idx])
+			}
+			if idx := strings.Index(depName, ":"); idx > 0 {
+				depName = depName[:idx]
+			}
+			// Handle version constraints
+			if idx := strings.Index(depName, "("); idx > 0 {
+				name := strings.TrimSpace(depName[:idx])
+				verPart := strings.TrimSpace(depName[idx:])
+				verPart = strings.Trim(verPart, "() ")
+				if strings.HasPrefix(verPart, "=") {
+					depVersion = strings.TrimSpace(strings.TrimPrefix(verPart, "="))
+				}
+				depName = name
+			} else if idx := strings.Index(depName, " "); idx > 0 {
+				depName = depName[:idx]
+			}
+			depName = strings.TrimSpace(depName)
+			if depName == "" || neededSet[depName] != struct{}{} {
+				continue
+			}
+			if _, seen := neededSet[depName]; seen {
+				continue
+			}
+			// If version is enforced, match by name+version or latest >= version
+			if depVersion != "" {
+				key := fmt.Sprintf("%s=%s", depName, depVersion)
+				if depPkg, ok := byNameVer[key]; ok {
+					queue = append(queue, depPkg)
+					continue
+				}
+				var found *provider.PackageInfo
+				for _, pi := range all {
+					if pi.Name == depName {
+						cmp, err := compareDebianVersions(pi.Version, depVersion)
+						if err != nil {
+							return nil, fmt.Errorf("failed to compare versions: %v", err)
+						}
+						if cmp >= 0 {
+							if found == nil {
+								tmp := pi
+								found = &tmp
+							} else {
+								cmp2, err := compareDebianVersions(pi.Version, found.Version)
+								if err != nil {
+									return nil, fmt.Errorf("failed to compare versions: %v", err)
+								}
+								if cmp2 > 0 {
+									tmp := pi
+									found = &tmp
+								}
+							}
+						}
+					}
+				}
+				if found != nil {
+					queue = append(queue, *found)
+					continue
+				}
+				return nil, fmt.Errorf("dependency %q (version %q or higher) required by %q not found in repo", depName, depVersion, cur.Name)
+			}
+			// Always pull the latest version for unconstrained dependencies
+			var latest *provider.PackageInfo
+			for _, pi := range all {
+				if pi.Name == depName {
+					if latest == nil {
+						tmp := pi
+						latest = &tmp
+					} else {
+						cmp, err := compareDebianVersions(pi.Version, latest.Version)
+						if err != nil {
+							return nil, fmt.Errorf("failed to compare versions: %v", err)
+						}
+						if cmp > 0 {
+							tmp := pi
+							latest = &tmp
+						}
+					}
+				}
+			}
+			if latest != nil {
+				queue = append(queue, *latest)
+			} else if provPkg, ok := byProvides[depName]; ok {
+				queue = append(queue, provPkg)
+			} else {
+				return nil, fmt.Errorf("dependency %q required by %q not found in repo", depName, cur.Name)
+			}
+		}
+	}
+
+	// Sort result by package name for determinism
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
+
+	return result, nil
 }
 
 func getFullUrl(filePath string, baseUrl string) (string, error) {
