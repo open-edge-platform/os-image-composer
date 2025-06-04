@@ -39,14 +39,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Handle global log level override
-	if logLevel != "" {
-		globalConfig.Logging.Level = logLevel
-	}
-
 	// Setup logger with configured level
 	_, cleanup := utils.InitWithLevel(globalConfig.Logging.Level)
 	defer cleanup()
+
+	// Create and execute root command
+	rootCmd := createRootCommand()
+
+	// Handle log level override after flag parsing
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		if logLevel != "" {
+			globalConfig.Logging.Level = logLevel
+			utils.SetLogLevel(logLevel)
+		}
+	}
 
 	// Log configuration info
 	logger := utils.Logger()
@@ -58,8 +64,6 @@ func main() {
 			globalConfig.Workers, globalConfig.CacheDir, globalConfig.WorkDir, globalConfig.TempDir)
 	}
 
-	// Create and execute root command
-	rootCmd := createRootCommand()
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -78,7 +82,7 @@ from different Operating System Vendors (OSVs).`,
 	// Add global flags
 	rootCmd.PersistentFlags().StringVar(&configFile, "config", "",
 		"Path to configuration file")
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", globalConfig.Logging.Level,
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "",
 		"Log level (debug, info, warn, error)")
 
 	// Add all subcommands

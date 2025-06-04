@@ -354,7 +354,9 @@ func compareDebianVersions(a, b string) (int, error) {
 	splitEpoch := func(ver string) (epoch int, rest string) {
 		parts := strings.SplitN(ver, ":", 2)
 		if len(parts) == 2 {
-			fmt.Sscanf(parts[0], "%d", &epoch)
+			if _, err := fmt.Sscanf(parts[0], "%d", &epoch); err != nil {
+				epoch = 0
+			}
 			rest = parts[1]
 		} else {
 			epoch = 0
