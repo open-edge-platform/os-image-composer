@@ -10,14 +10,14 @@ import (
 	"sync"
 	"time"
 
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 	"github.com/schollz/progressbar/v3"
 )
 
 // FetchPackages downloads the given URLs into destDir using a pool of workers.
 // It shows a single progress bar tracking files completed vs total.
 func FetchPackages(urls []string, destDir string, workers int) error {
-	logger := utils.Logger()
+	log := logger.Logger()
 
 	total := len(urls)
 	jobs := make(chan string, total)
@@ -53,9 +53,9 @@ func FetchPackages(urls []string, destDir string, workers int) error {
 
 				// ensure destination directory exists
 				if err := os.MkdirAll(destDir, 0755); err != nil {
-					logger.Errorf("failed to create dest dir %s: %v", destDir, err)
+					log.Errorf("failed to create dest dir %s: %v", destDir, err)
 					if err := bar.Add(1); err != nil {
-						logger.Errorf("failed to add to progress bar: %v", err)
+						log.Errorf("failed to add to progress bar: %v", err)
 					}
 					continue
 				}
@@ -63,14 +63,14 @@ func FetchPackages(urls []string, destDir string, workers int) error {
 				destPath := filepath.Join(destDir, name)
 				if fi, err := os.Stat(destPath); err == nil {
 					if fi.Size() > 0 {
-						logger.Debugf("skipping existing %s", name)
+						log.Debugf("skipping existing %s", name)
 						if err := bar.Add(1); err != nil {
-							logger.Errorf("failed to add to progress bar: %v", err)
+							log.Errorf("failed to add to progress bar: %v", err)
 						}
 						continue
 					}
 					// file exists but zero size: re-download
-					logger.Warnf("re-downloading zero-size %s", name)
+					log.Warnf("re-downloading zero-size %s", name)
 				}
 				err := func() error {
 					resp, err := http.Get(url)
@@ -96,11 +96,11 @@ func FetchPackages(urls []string, destDir string, workers int) error {
 				}()
 
 				if err != nil {
-					logger.Errorf("downloading %s failed: %v", url, err)
+					log.Errorf("downloading %s failed: %v", url, err)
 				}
 				// increment progress bar
 				if err := bar.Add(1); err != nil {
-					logger.Errorf("failed to add to progress bar: %v", err)
+					log.Errorf("failed to add to progress bar: %v", err)
 				}
 			}
 		}()
@@ -114,7 +114,7 @@ func FetchPackages(urls []string, destDir string, workers int) error {
 
 	wg.Wait()
 	if err := bar.Finish(); err != nil {
-		logger.Errorf("failed to finish progress bar: %v", err)
+		log.Errorf("failed to finish progress bar: %v", err)
 	}
 	return nil
 }

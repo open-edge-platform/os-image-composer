@@ -26,8 +26,6 @@ golang-base:
     COPY cmd/ ./cmd
     COPY internal/ ./internal
     COPY image-templates/ ./image-templates
-    COPY schema/ ./schema
-    COPY testdata/ ./testdata
 
 all:
     BUILD +build
@@ -35,7 +33,7 @@ all:
 fetch-golang:
     RUN apk add curl && curl -fsSLO https://go.dev/dl/go1.24.1.linux-amd64.tar.gz
     SAVE ARTIFACT go1.24.1.linux-amd64.tar.gz
-    
+
 build:
     FROM +golang-base
     ARG version='0.0.0-unknown'

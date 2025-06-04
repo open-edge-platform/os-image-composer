@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/open-edge-platform/image-composer/internal/config"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/config"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -40,7 +40,7 @@ func main() {
 	}
 
 	// Setup logger with configured level
-	_, cleanup := utils.InitWithLevel(globalConfig.Logging.Level)
+	_, cleanup := logger.InitWithLevel(globalConfig.Logging.Level)
 	defer cleanup()
 
 	// Create and execute root command
@@ -50,17 +50,17 @@ func main() {
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		if logLevel != "" {
 			globalConfig.Logging.Level = logLevel
-			utils.SetLogLevel(logLevel)
+			logger.SetLogLevel(logLevel)
 		}
 	}
 
 	// Log configuration info
-	logger := utils.Logger()
+	log := logger.Logger()
 	if configFilePath != "" {
-		logger.Infof("Using configuration from: %s", configFilePath)
+		log.Infof("Using configuration from: %s", configFilePath)
 	}
 	if globalConfig.Logging.Level == "debug" {
-		logger.Debugf("Config: workers=%d, cache_dir=%s, work_dir=%s, temp_dir=%s",
+		log.Debugf("Config: workers=%d, cache_dir=%s, work_dir=%s, temp_dir=%s",
 			globalConfig.Workers, globalConfig.CacheDir, globalConfig.WorkDir, globalConfig.TempDir)
 	}
 

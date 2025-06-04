@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/open-edge-platform/image-composer/internal/config"
-	"github.com/open-edge-platform/image-composer/internal/debutils"
 	"github.com/open-edge-platform/image-composer/internal/provider"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/config"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/package/debutils"
 )
 
 // DEB: https://deb.debian.org/debian/dists/bookworm/main/binary-amd64/Packages.gz
@@ -60,7 +60,7 @@ func (p *eLxr12) Name() string { return "eLxr12" }
 
 // Init will initialize the provider, fetching repo configuration
 func (p *eLxr12) Init(template *config.ImageTemplate) error {
-	logger := utils.Logger()
+	log := logger.Logger()
 
 	//todo: need to correct of how to get the arch once finalized
 	arch := template.Target.Arch
@@ -71,38 +71,38 @@ func (p *eLxr12) Init(template *config.ImageTemplate) error {
 
 	cfg, err := loadRepoConfig(p.repoURL)
 	if err != nil {
-		logger.Errorf("parsing repo config failed: %v", err)
+		log.Errorf("parsing repo config failed: %v", err)
 		return err
 	}
 	p.repoCfg = cfg
 	p.gzHref = cfg.PkgList
 	p.template = template
 
-	logger.Infof("initialized eLxr provider repo section=%s", cfg.Section)
-	logger.Infof("name=%s", cfg.Name)
-	logger.Infof("package list url=%s", cfg.PkgList)
-	logger.Infof("package download url=%s", cfg.PkgPrefix)
+	log.Infof("initialized eLxr provider repo section=%s", cfg.Section)
+	log.Infof("name=%s", cfg.Name)
+	log.Infof("package list url=%s", cfg.PkgList)
+	log.Infof("package download url=%s", cfg.PkgPrefix)
 	return nil
 }
 
 // Packages returns the list of packages
 func (p *eLxr12) Packages() ([]provider.PackageInfo, error) {
-	logger := utils.Logger()
-	logger.Infof("fetching packages from %s", p.repoCfg.PkgList)
+	log := logger.Logger()
+	log.Infof("fetching packages from %s", p.repoCfg.PkgList)
 
 	packages, err := debutils.ParsePrimary(p.repoCfg.PkgPrefix, p.gzHref, p.repoCfg.ReleaseFile, p.repoCfg.ReleaseSign, p.repoCfg.PbGPGKey, p.repoCfg.BuildPath)
 	if err != nil {
-		logger.Errorf("parsing %s failed: %v", p.gzHref, err)
+		log.Errorf("parsing %s failed: %v", p.gzHref, err)
 		return nil, err
 	}
 
-	logger.Infof("found %d packages in eLxr repo", len(packages))
+	log.Infof("found %d packages in eLxr repo", len(packages))
 	return packages, nil
 }
 
 // Validate verifies the downloaded files
 func (p *eLxr12) Validate(destDir string) error {
-	logger := utils.Logger()
+	log := logger.Logger()
 
 	// get all DEBs in the destDir
 	debPattern := filepath.Join(destDir, "*.deb")
@@ -111,7 +111,7 @@ func (p *eLxr12) Validate(destDir string) error {
 		return fmt.Errorf("glob %q: %w", debPattern, err)
 	}
 	if len(debPaths) == 0 {
-		logger.Warn("no DEBs found to verify")
+		log.Warn("no DEBs found to verify")
 		return nil
 	}
 
@@ -123,7 +123,7 @@ func (p *eLxr12) Validate(destDir string) error {
 
 	start := time.Now()
 	results := debutils.VerifyDEBs(debPaths, checksumMap, 4)
-	logger.Infof("Debian verification took %s", time.Since(start))
+	log.Infof("Debian verification took %s", time.Since(start))
 
 	// Check results
 	for _, r := range results {
@@ -131,28 +131,28 @@ func (p *eLxr12) Validate(destDir string) error {
 			return fmt.Errorf("deb %s failed verification: %v", r.Path, r.Error)
 		}
 	}
-	logger.Info("all DEBs verified successfully")
+	log.Info("all DEBs verified successfully")
 
 	return nil
 }
 
 // Resolve resolves dependencies
 func (p *eLxr12) Resolve(req []provider.PackageInfo, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
-	logger := utils.Logger()
+	log := logger.Logger()
 
-	logger.Infof("resolving dependencies for %d DEBIANs", len(req))
+	log.Infof("resolving dependencies for %d DEBIANs", len(req))
 	// Resolve all the required dependencies for the initial seed of Debian packages
 	needed, err := debutils.ResolvePackageInfos(req, all)
 	if err != nil {
-		logger.Errorf("resolving dependencies failed: %v", err)
+		log.Errorf("resolving dependencies failed: %v", err)
 		return nil, err
 	}
 
-	logger.Infof("requested %d packages, resolved to %d packages", len(req), len(needed))
-	logger.Infof("need a total of %d DEBs (including dependencies)", len(needed))
+	log.Infof("requested %d packages, resolved to %d packages", len(req), len(needed))
+	log.Infof("need a total of %d DEBs (including dependencies)", len(needed))
 
 	for _, pkg := range needed {
-		logger.Debugf("-> %s", pkg.Name)
+		log.Debugf("-> %s", pkg.Name)
 	}
 
 	// Adding needed packages to the pkgChecksum list
@@ -168,7 +168,7 @@ func (p *eLxr12) Resolve(req []provider.PackageInfo, all []provider.PackageInfo)
 
 // MatchRequested matches requested packages
 func (p *eLxr12) MatchRequested(requests []string, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
-	logger := utils.Logger()
+	log := logger.Logger()
 
 	var out []provider.PackageInfo
 
@@ -192,7 +192,7 @@ func (p *eLxr12) MatchRequested(requests []string, all []provider.PackageInfo) (
 		}
 
 		if len(candidates) == 0 {
-			logger.Infof("requested package %q not found in repo", want)
+			log.Infof("requested package %q not found in repo", want)
 			continue
 		}
 		// If we got an exact match in step (1), it's the only candidate
@@ -207,12 +207,12 @@ func (p *eLxr12) MatchRequested(requests []string, all []provider.PackageInfo) (
 		out = append(out, candidates[0])
 	}
 
-	logger.Infof("found %d packages in request of %d", len(out), len(requests))
+	log.Infof("found %d packages in request of %d", len(out), len(requests))
 	return out, nil
 }
 
 func loadRepoConfig(repoUrl string) (repoConfig, error) {
-	logger := utils.Logger()
+	log := logger.Logger()
 
 	var rc repoConfig
 
@@ -229,7 +229,7 @@ func loadRepoConfig(repoUrl string) (repoConfig, error) {
 	rc.Section = "main"
 	rc.BuildPath = "./builds/elxr12"
 
-	logger.Infof("repo config: %+v", rc)
+	log.Infof("repo config: %+v", rc)
 
 	return rc, nil
 }

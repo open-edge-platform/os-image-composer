@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/open-edge-platform/image-composer/internal/config"
 	"github.com/open-edge-platform/image-composer/internal/provider"
-	"github.com/open-edge-platform/image-composer/internal/rpmutils"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/config"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/package/rpmutils"
 )
 
 const (
@@ -51,24 +51,24 @@ func (p *Emt30) Name() string { return "EMT3.0" }
 
 // Init will initialize the provider, fetching repo configuration
 func (p *Emt30) Init(template *config.ImageTemplate) error {
-	logger := utils.Logger()
+	log := logger.Logger()
 
 	resp, err := http.Get(configURL)
 	if err != nil {
-		logger.Errorf("downloading repo config %s failed: %v", configURL, err)
+		log.Errorf("downloading repo config %s failed: %v", configURL, err)
 		return err
 	}
 	defer resp.Body.Close()
 
 	cfg, err := loadRepoConfig(resp.Body)
 	if err != nil {
-		logger.Errorf("parsing repo config failed: %v", err)
+		log.Errorf("parsing repo config failed: %v", err)
 		return err
 	}
 
 	href, err := fetchPrimaryURL(repomdURL)
 	if err != nil {
-		logger.Errorf("fetch primary.xml.zst failed: %v", err)
+		log.Errorf("fetch primary.xml.zst failed: %v", err)
 		return err
 	}
 
@@ -77,25 +77,25 @@ func (p *Emt30) Init(template *config.ImageTemplate) error {
 	p.template = template
 	p.zstHref = href
 
-	logger.Infof("initialized EMT3.0 provider repo section=%s", cfg.Section)
-	logger.Infof("name=%s", cfg.Name)
-	logger.Infof("url=%s", cfg.URL)
-	logger.Infof("primary.xml.zst=%s", p.zstHref)
+	log.Infof("initialized EMT3.0 provider repo section=%s", cfg.Section)
+	log.Infof("name=%s", cfg.Name)
+	log.Infof("url=%s", cfg.URL)
+	log.Infof("primary.xml.zst=%s", p.zstHref)
 	return nil
 }
 
 // Packages returns the list of packages
 func (p *Emt30) Packages() ([]provider.PackageInfo, error) {
-	logger := utils.Logger()
-	logger.Infof("fetching packages from %s", p.repoCfg.URL)
+	log := logger.Logger()
+	log.Infof("fetching packages from %s", p.repoCfg.URL)
 
 	packages, err := rpmutils.ParsePrimary(p.repoCfg.URL, p.zstHref)
 	if err != nil {
-		logger.Errorf("parsing primary.xml.zst failed: %v", err)
+		log.Errorf("parsing primary.xml.zst failed: %v", err)
 		return nil, err
 	}
 
-	logger.Infof("found %d packages in EMT30 repo", len(packages))
+	log.Infof("found %d packages in EMT30 repo", len(packages))
 	return packages, nil
 }
 
@@ -141,7 +141,7 @@ func (p *Emt30) MatchRequested(requests []string, all []provider.PackageInfo) ([
 
 // Validate verifies the downloaded files
 func (p *Emt30) Validate(destDir string) error {
-	logger := utils.Logger()
+	log := logger.Logger()
 
 	// read the GPG key from the repo config
 	resp, err := http.Get(p.repoCfg.GPGKey)
@@ -154,8 +154,8 @@ func (p *Emt30) Validate(destDir string) error {
 	if err != nil {
 		return fmt.Errorf("read GPG key body: %w", err)
 	}
-	logger.Infof("fetched GPG key (%d bytes)", len(keyBytes))
-	logger.Debugf("GPG key: %s\n", keyBytes)
+	log.Infof("fetched GPG key (%d bytes)", len(keyBytes))
+	log.Debugf("GPG key: %s\n", keyBytes)
 
 	// store in a temp file
 	tmp, err := os.CreateTemp("", "emt-gpg-*.asc")
@@ -178,13 +178,13 @@ func (p *Emt30) Validate(destDir string) error {
 		return fmt.Errorf("glob %q: %w", rpmPattern, err)
 	}
 	if len(rpmPaths) == 0 {
-		logger.Warn("no RPMs found to verify")
+		log.Warn("no RPMs found to verify")
 		return nil
 	}
 
 	start := time.Now()
 	results := rpmutils.VerifyAll(rpmPaths, tmp.Name(), 4)
-	logger.Infof("RPM verification took %s", time.Since(start))
+	log.Infof("RPM verification took %s", time.Since(start))
 
 	// Check results
 	for _, r := range results {
@@ -192,27 +192,27 @@ func (p *Emt30) Validate(destDir string) error {
 			return fmt.Errorf("RPM %s failed verification: %v", r.Path, r.Error)
 		}
 	}
-	logger.Info("all RPMs verified successfully")
+	log.Info("all RPMs verified successfully")
 
 	return nil
 }
 
 // Resolve resolves dependencies
 func (p *Emt30) Resolve(req []provider.PackageInfo, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
-	logger := utils.Logger()
+	log := logger.Logger()
 
-	logger.Infof("resolving dependencies for %d RPMs", len(req))
+	log.Infof("resolving dependencies for %d RPMs", len(req))
 
 	// Resolve all the required dependencies for the initial seed of RPMs
 	needed, err := rpmutils.ResolvePackageInfos(req, all)
 	if err != nil {
-		logger.Errorf("resolving dependencies failed: %v", err)
+		log.Errorf("resolving dependencies failed: %v", err)
 		return nil, err
 	}
-	logger.Infof("need a total of %d RPMs (including dependencies)", len(needed))
+	log.Infof("need a total of %d RPMs (including dependencies)", len(needed))
 
 	for _, pkg := range needed {
-		logger.Debugf("-> %s", pkg.Name)
+		log.Debugf("-> %s", pkg.Name)
 	}
 
 	return needed, nil

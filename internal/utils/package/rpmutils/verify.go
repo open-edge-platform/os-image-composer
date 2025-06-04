@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/cavaliergopher/rpm"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -24,7 +24,7 @@ type Result struct {
 // VerifyAll takes a slice of RPM file paths, verifies each one in parallel,
 // and returns a slice of results in the same order.
 func VerifyAll(paths []string, pubkeyPath string, workers int) []Result {
-	logger := utils.Logger()
+	log := logger.Logger()
 
 	total := len(paths)
 	results := make([]Result, total) // allocate up front
@@ -63,7 +63,7 @@ func VerifyAll(paths []string, pubkeyPath string, workers int) []Result {
 				ok := err == nil
 
 				if err != nil {
-					logger.Errorf("verification %s failed: %v", rpmPath, err)
+					log.Errorf("verification %s failed: %v", rpmPath, err)
 				}
 
 				results[idx] = Result{
@@ -74,7 +74,7 @@ func VerifyAll(paths []string, pubkeyPath string, workers int) []Result {
 				}
 
 				if err := bar.Add(1); err != nil {
-					logger.Errorf("failed to add to progress bar: %v", err)
+					log.Errorf("failed to add to progress bar: %v", err)
 				}
 			}
 		}()
@@ -88,7 +88,7 @@ func VerifyAll(paths []string, pubkeyPath string, workers int) []Result {
 
 	wg.Wait()
 	if err := bar.Finish(); err != nil {
-		logger.Errorf("failed to finish progress bar: %v", err)
+		log.Errorf("failed to finish progress bar: %v", err)
 	}
 
 	return results

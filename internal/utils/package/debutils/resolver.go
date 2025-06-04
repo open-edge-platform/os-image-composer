@@ -9,14 +9,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/open-edge-platform/image-composer/internal/pkgfetcher"
 	"github.com/open-edge-platform/image-composer/internal/provider"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/package/pkgfetcher"
 )
 
 // ParsePrimary parses the Packages.gz file from gzHref.
 func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign string, pbGPGKey string, buildPath string) ([]provider.PackageInfo, error) {
-	logger := utils.Logger()
+	log := logger.Logger()
 
 	// Ensure pkgMetaDir exists, create if not
 	// pkgMetaDir := "./builds/elxr12"
@@ -68,7 +68,7 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 	// and verifying it with the local Packages.gz file
 	// localPkgMetaFile := filepath.Join(pkgMetaDir, filepath.Base(pkggz))
 	localPkgMetaFile := filepath.Join(pkgMetaDir, "Packages.gz")
-	logger.Infof("localPkgMetaFile: %s", localPkgMetaFile)
+	log.Infof("localPkgMetaFile: %s", localPkgMetaFile)
 
 	//Decompress the Packages.gz file
 	// The decompressed file will be named Packages (without .gz)
@@ -79,7 +79,7 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 	if err != nil {
 		return []provider.PackageInfo{}, err
 	}
-	logger.Infof("decompressed files: %v", files)
+	log.Infof("decompressed files: %v", files)
 
 	//Parse the decompressed file
 	f, err := os.Open(files[0])

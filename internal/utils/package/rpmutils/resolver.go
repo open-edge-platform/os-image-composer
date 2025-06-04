@@ -12,7 +12,7 @@ import (
 	"sort"
 
 	"github.com/open-edge-platform/image-composer/internal/provider"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 
 	"github.com/cavaliergopher/rpm"
 )
@@ -49,7 +49,7 @@ func BuildIndex(dir string) (*Index, error) {
 		for _, dep := range provDeps {
 			name := dep.Name() // call method to get string
 			idx.Provides[name] = append(idx.Provides[name], rpmPath)
-			// logger.Debugf("RPM %s provides %s", rpmPath, name)
+			// log.Debugf("RPM %s provides %s", rpmPath, name)
 		}
 
 		// Extract its Requires()
@@ -57,7 +57,7 @@ func BuildIndex(dir string) (*Index, error) {
 		reqNames := make([]string, len(reqDeps))
 		for i, dep := range reqDeps {
 			reqNames[i] = dep.Name() // call method
-			// logger.Debugf("RPM %s requires %s", rpmPath, reqNames[i])
+			// log.Debugf("RPM %s requires %s", rpmPath, reqNames[i])
 		}
 		idx.Requires[rpmPath] = reqNames
 	}
@@ -66,8 +66,8 @@ func BuildIndex(dir string) (*Index, error) {
 }
 
 func GenerateDot(pkgs []provider.PackageInfo, file string) error {
-	logger := utils.Logger()
-	logger.Infof("Generating DOT file %s", file)
+	log := logger.Logger()
+	log.Infof("Generating DOT file %s", file)
 
 	outFile, err := os.Create(file)
 	if err != nil {

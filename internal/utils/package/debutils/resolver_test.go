@@ -3,8 +3,8 @@ package debutils_test
 import (
 	"testing"
 
-	"github.com/open-edge-platform/image-composer/internal/debutils"
-	"github.com/open-edge-platform/image-composer/internal/resolvertest"
+	"github.com/open-edge-platform/image-composer/internal/utils/package/debutils"
+	"github.com/open-edge-platform/image-composer/internal/utils/package/resolvertest"
 )
 
 func TestDEBResolver(t *testing.T) {

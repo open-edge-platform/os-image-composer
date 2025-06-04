@@ -15,7 +15,7 @@ import (
 
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -28,12 +28,12 @@ type Result struct {
 }
 
 func VerifyPackagegz(relPath string, pkggzPath string) (bool, error) {
-	logger := utils.Logger()
-	logger.Infof("Verifying package %s", pkggzPath)
+	log := logger.Logger()
+	log.Infof("Verifying package %s", pkggzPath)
 
 	// Get expected checksum from Release file
 	checksum, err := findChecksumInRelease(relPath, "SHA256", "main/binary-amd64/Packages.gz")
-	logger.Infof("Checksum from Release file (%s): %s Err:%s", relPath, checksum, err)
+	log.Infof("Checksum from Release file (%s): %s Err:%s", relPath, checksum, err)
 	if err != nil {
 		return false, fmt.Errorf("failed to get checksum from Release: %w", err)
 	}
@@ -46,16 +46,16 @@ func VerifyPackagegz(relPath string, pkggzPath string) (bool, error) {
 
 	// Compare
 	if !strings.EqualFold(actual, checksum) {
-		logger.Errorf("Checksum mismatch: expected %s, got %s", checksum, actual)
+		log.Errorf("Checksum mismatch: expected %s, got %s", checksum, actual)
 		return false, fmt.Errorf("checksum mismatch: expected %s, got %s", checksum, actual)
 	}
 
-	logger.Infof("Checksum verified successfully for %s", pkggzPath)
+	log.Infof("Checksum verified successfully for %s", pkggzPath)
 	return true, nil
 }
 
 func VerifyRelease(relPath string, relSignPath string, pKeyPath string) (bool, error) {
-	logger := utils.Logger()
+	log := logger.Logger()
 
 	// Read the public key
 	keyringBytes, err := os.ReadFile(pKeyPath)
@@ -92,16 +92,16 @@ func VerifyRelease(relPath string, relSignPath string, pKeyPath string) (bool, e
 		return false, fmt.Errorf("signature verification failed: %w", err)
 	}
 
-	logger.Infof("Release file verified successfully")
+	log.Infof("Release file verified successfully")
 	return true, nil
 }
 
 // VerifyAll takes a slice of DEB file paths, verifies each one in parallel,
 // and returns a slice of results in the same order.
 func VerifyDEBs(paths []string, pkgChecksum map[string]string, workers int) []Result {
-	logger := utils.Logger()
+	log := logger.Logger()
 
-	logger.Infof("Verifying %d packages with %d workers", len(paths), workers)
+	log.Infof("Verifying %d packages with %d workers", len(paths), workers)
 
 	total := len(paths)
 	results := make([]Result, total) // allocate up front
@@ -140,7 +140,7 @@ func VerifyDEBs(paths []string, pkgChecksum map[string]string, workers int) []Re
 				ok := err == nil
 
 				if err != nil {
-					logger.Errorf("verification %s failed: %v", debPath, err)
+					log.Errorf("verification %s failed: %v", debPath, err)
 				}
 
 				results[idx] = Result{
@@ -151,7 +151,7 @@ func VerifyDEBs(paths []string, pkgChecksum map[string]string, workers int) []Re
 				}
 
 				if err := bar.Add(1); err != nil {
-					logger.Errorf("failed to add to progress bar: %v", err)
+					log.Errorf("failed to add to progress bar: %v", err)
 				}
 			}
 		}(i)
@@ -165,7 +165,7 @@ func VerifyDEBs(paths []string, pkgChecksum map[string]string, workers int) []Re
 
 	wg.Wait()
 	if err := bar.Finish(); err != nil {
-		logger.Errorf("failed to finish progress bar: %v", err)
+		log.Errorf("failed to finish progress bar: %v", err)
 	}
 
 	return results
@@ -270,7 +270,7 @@ func findChecksumInRelease(releasePath, checksumType, fileName string) (string, 
 		return "", fmt.Errorf("error reading release file: %v", err)
 	}
 
-	logger := utils.Logger()
-	logger.Warnf("Could not find %s in section %s of %s", fileName, checksumType, releasePath)
+	log := logger.Logger()
+	log.Warnf("Could not find %s in section %s of %s", fileName, checksumType, releasePath)
 	return "", fmt.Errorf("checksum for %s (%s) not found", fileName, checksumType)
 }

@@ -5,14 +5,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/open-edge-platform/image-composer/internal/config"
-	"github.com/open-edge-platform/image-composer/internal/pkgfetcher"
 	"github.com/open-edge-platform/image-composer/internal/provider"
 	_ "github.com/open-edge-platform/image-composer/internal/provider/azurelinux3" // register provider
 	_ "github.com/open-edge-platform/image-composer/internal/provider/elxr12"      // register provider
 	_ "github.com/open-edge-platform/image-composer/internal/provider/emt3_0"      // register provider
-	"github.com/open-edge-platform/image-composer/internal/rpmutils"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/config"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/package/pkgfetcher"
+	"github.com/open-edge-platform/image-composer/internal/utils/package/rpmutils"
 	"github.com/spf13/cobra"
 )
 
@@ -63,7 +63,7 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 		globalConfig.WorkDir = workDir
 	}
 
-	logger := utils.Logger()
+	log := logger.Logger()
 
 	// Check if template file is provided as first positional argument
 	if len(args) < 1 {
@@ -104,10 +104,10 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("matching packages: %v", err)
 	}
-	logger.Infof("matched a total of %d packages", len(req))
+	log.Infof("matched a total of %d packages", len(req))
 	if verbose {
 		for _, pkg := range req {
-			logger.Infof("-> %s", pkg.Name)
+			log.Infof("-> %s", pkg.Name)
 		}
 	}
 
@@ -116,12 +116,12 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("resolving packages: %v", err)
 	}
-	logger.Infof("resolved %d packages", len(needed))
+	log.Infof("resolved %d packages", len(needed))
 
 	// If a dot file is specified, generate the dependency graph
 	if dotFile != "" {
 		if err := rpmutils.GenerateDot(needed, dotFile); err != nil {
-			logger.Errorf("generating dot file: %v", err)
+			log.Errorf("generating dot file: %v", err)
 		}
 	}
 
@@ -150,18 +150,18 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 	}
 
 	// Download packages using configured workers and cache directory
-	logger.Infof("downloading %d packages to %s using %d workers", len(urls), absCacheDir, globalConfig.Workers)
+	log.Infof("downloading %d packages to %s using %d workers", len(urls), absCacheDir, globalConfig.Workers)
 	if err := pkgfetcher.FetchPackages(urls, absCacheDir, globalConfig.Workers); err != nil {
 		return fmt.Errorf("fetch failed: %v", err)
 	}
-	logger.Info("all downloads complete")
+	log.Info("all downloads complete")
 
 	// Verify downloaded packages
 	if err := p.Validate(globalConfig.CacheDir); err != nil {
 		return fmt.Errorf("verification failed: %v", err)
 	}
 
-	logger.Info("build completed successfully")
+	log.Info("build completed successfully")
 	return nil
 }
 

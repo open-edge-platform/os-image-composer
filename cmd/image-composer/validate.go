@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/open-edge-platform/image-composer/internal/config"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/config"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +26,7 @@ This allows checking for errors in your template before committing to a full bui
 
 // executeValidate handles the validate command logic
 func executeValidate(cmd *cobra.Command, args []string) error {
-	logger := utils.Logger()
+	log := logger.Logger()
 
 	// Check if template file is provided as first positional argument
 	if len(args) < 1 {
@@ -34,7 +34,7 @@ func executeValidate(cmd *cobra.Command, args []string) error {
 	}
 	templateFile := args[0]
 
-	logger.Infof("validating template file: %s", templateFile)
+	log.Infof("validating template file: %s", templateFile)
 
 	// Load and validate the image template
 	template, err := config.LoadTemplate(templateFile)
@@ -42,23 +42,23 @@ func executeValidate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("template validation failed: %v", err)
 	}
 
-	logger.Infof("✓ Template validation successful")
-	logger.Infof("  Image: %s v%s", template.Image.Name, template.Image.Version)
-	logger.Infof("  Target: %s %s (%s)", template.Target.OS, template.Target.Dist, template.Target.Arch)
-	logger.Infof("  Output: %s", template.Target.ImageType)
-	logger.Infof("  Provider: %s", template.GetProviderName())
-	logger.Infof("  System Configs: %d", len(template.SystemConfigs))
+	log.Infof("✓ Template validation successful")
+	log.Infof("  Image: %s v%s", template.Image.Name, template.Image.Version)
+	log.Infof("  Target: %s %s (%s)", template.Target.OS, template.Target.Dist, template.Target.Arch)
+	log.Infof("  Output: %s", template.Target.ImageType)
+	log.Infof("  Provider: %s", template.GetProviderName())
+	log.Infof("  System Configs: %d", len(template.SystemConfigs))
 
 	if len(template.SystemConfigs) > 0 {
 		config := template.SystemConfigs[0]
-		logger.Infof("  Config: %s (%s)", config.Name, config.Description)
-		logger.Infof("  Packages: %d", len(config.Packages))
-		logger.Infof("  Kernel: %s (%s)", config.Kernel.Version, config.Kernel.Cmdline)
+		log.Infof("  Config: %s (%s)", config.Name, config.Description)
+		log.Infof("  Packages: %d", len(config.Packages))
+		log.Infof("  Kernel: %s (%s)", config.Kernel.Version, config.Kernel.Cmdline)
 
 		if verbose && len(config.Packages) > 0 {
-			logger.Infof("  Package list:")
+			log.Infof("  Package list:")
 			for _, pkg := range config.Packages {
-				logger.Infof("    - %s", pkg)
+				log.Infof("    - %s", pkg)
 			}
 		}
 	}
