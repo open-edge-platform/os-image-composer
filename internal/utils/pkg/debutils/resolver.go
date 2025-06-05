@@ -9,13 +9,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/open-edge-platform/image-composer/internal/provider"
 	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
-	"github.com/open-edge-platform/image-composer/internal/utils/package/pkgfetcher"
+	"github.com/open-edge-platform/image-composer/internal/utils/pkg"
+	"github.com/open-edge-platform/image-composer/internal/utils/pkg/pkgfetcher"
 )
 
 // ParsePrimary parses the Packages.gz file from gzHref.
-func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign string, pbGPGKey string, buildPath string) ([]provider.PackageInfo, error) {
+func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign string, pbGPGKey string, buildPath string) ([]pkg.PackageInfo, error) {
 	log := logger.Logger()
 
 	// Ensure pkgMetaDir exists, create if not
@@ -77,7 +77,7 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 
 	files, err := Decompress(PkgMetaFile, pkgMetaFileNoExt)
 	if err != nil {
-		return []provider.PackageInfo{}, err
+		return []pkg.PackageInfo{}, err
 	}
 	log.Infof("decompressed files: %v", files)
 
@@ -88,8 +88,8 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 	}
 	defer f.Close()
 
-	var pkgs []provider.PackageInfo
-	pkg := provider.PackageInfo{}
+	var pkgs []pkg.PackageInfo
+	_pkg := pkg.PackageInfo{}
 	reader := bufio.NewReader(f)
 	for {
 		line, err := reader.ReadString('\n')
@@ -100,9 +100,9 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 
 		if line == "" {
 			// End of one package entry
-			if pkg.Name != "" {
-				pkgs = append(pkgs, pkg)
-				pkg = provider.PackageInfo{}
+			if _pkg.Name != "" {
+				pkgs = append(pkgs, _pkg)
+				_pkg = pkg.PackageInfo{}
 			}
 			if err == io.EOF {
 				break
@@ -122,16 +122,16 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 
 		switch key {
 		case "Package":
-			pkg.Name = val
+			_pkg.Name = val
 		case "Version":
-			pkg.Version = val
+			_pkg.Version = val
 		case "Depends":
 			// Split dependencies by comma and trim spaces
 			deps := strings.Split(val, ",")
 			for i := range deps {
 				deps[i] = strings.TrimSpace(deps[i])
 			}
-			pkg.Requires = deps
+			_pkg.Requires = deps
 		case "Provides":
 			// Split provides by comma and trim spaces, remove version constraints
 			deps := strings.Split(val, ",")
@@ -143,11 +143,11 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 				}
 				deps[i] = dep
 			}
-			pkg.Provides = deps
+			_pkg.Provides = deps
 		case "Filename":
-			pkg.URL, _ = getFullUrl(val, baseURL)
+			_pkg.URL, _ = getFullUrl(val, baseURL)
 		case "SHA256":
-			pkg.Checksum = val
+			_pkg.Checksum = val
 			// Add more fields as needed
 		}
 		if err == io.EOF {
@@ -156,8 +156,8 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 	}
 
 	// Add the last package if file doesn't end with a blank line
-	if pkg.Name != "" {
-		pkgs = append(pkgs, pkg)
+	if _pkg.Name != "" {
+		pkgs = append(pkgs, _pkg)
 	}
 
 	return pkgs, nil
@@ -166,10 +166,10 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 // ResolvePackageInfos takes a seed list of PackageInfos (the exact versions
 // matched) and the full list of all PackageInfos from the repo, and
 // returns the minimal closure of PackageInfos needed to satisfy all Requires.
-func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
+func ResolvePackageInfos(requested []pkg.PackageInfo, all []pkg.PackageInfo) ([]pkg.PackageInfo, error) {
 	// Build maps for fast lookup
-	byNameVer := make(map[string]provider.PackageInfo, len(all))
-	byProvides := make(map[string]provider.PackageInfo)
+	byNameVer := make(map[string]pkg.PackageInfo, len(all))
+	byProvides := make(map[string]pkg.PackageInfo)
 	for _, pi := range all {
 		if pi.Version != "" {
 			key := fmt.Sprintf("%s=%s", pi.Name, pi.Version)
@@ -181,7 +181,7 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 	}
 
 	neededSet := make(map[string]struct{})
-	queue := make([]provider.PackageInfo, 0, len(requested))
+	queue := make([]pkg.PackageInfo, 0, len(requested))
 	for _, pi := range requested {
 		if pi.Version != "" {
 			key := fmt.Sprintf("%s=%s", pi.Name, pi.Version)
@@ -191,7 +191,7 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 			}
 		}
 		// Always pull the latest version for requested packages
-		var latest *provider.PackageInfo
+		var latest *pkg.PackageInfo
 		for _, pkg := range all {
 			if pkg.Name == pi.Name {
 				if latest == nil {
@@ -220,7 +220,7 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 		return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
 	}
 
-	result := make([]provider.PackageInfo, 0)
+	result := make([]pkg.PackageInfo, 0)
 
 	for len(queue) > 0 {
 		cur := queue[0]
@@ -269,7 +269,7 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 					queue = append(queue, depPkg)
 					continue
 				}
-				var found *provider.PackageInfo
+				var found *pkg.PackageInfo
 				for _, pi := range all {
 					if pi.Name == depName {
 						cmp, err := compareDebianVersions(pi.Version, depVersion)
@@ -300,7 +300,7 @@ func ResolvePackageInfos(requested []provider.PackageInfo, all []provider.Packag
 				return nil, fmt.Errorf("dependency %q (version %q or higher) required by %q not found in repo", depName, depVersion, cur.Name)
 			}
 			// Always pull the latest version for unconstrained dependencies
-			var latest *provider.PackageInfo
+			var latest *pkg.PackageInfo
 			for _, pi := range all {
 				if pi.Name == depName {
 					if latest == nil {

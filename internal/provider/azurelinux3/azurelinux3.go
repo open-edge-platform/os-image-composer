@@ -15,7 +15,8 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/provider"
 	"github.com/open-edge-platform/image-composer/internal/utils/config"
 	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
-	"github.com/open-edge-platform/image-composer/internal/utils/package/rpmutils"
+	"github.com/open-edge-platform/image-composer/internal/utils/pkg"
+	"github.com/open-edge-platform/image-composer/internal/utils/pkg/rpmutils"
 )
 
 const (
@@ -86,7 +87,7 @@ func (p *AzureLinux3) Init(template *config.ImageTemplate) error {
 	return nil
 }
 
-func (p *AzureLinux3) Packages() ([]provider.PackageInfo, error) {
+func (p *AzureLinux3) Packages() ([]pkg.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", p.repoCfg.URL)
 
@@ -100,11 +101,11 @@ func (p *AzureLinux3) Packages() ([]provider.PackageInfo, error) {
 	return packages, nil
 }
 
-func (p *AzureLinux3) MatchRequested(requests []string, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
-	var out []provider.PackageInfo
+func (p *AzureLinux3) MatchRequested(requests []string, all []pkg.PackageInfo) ([]pkg.PackageInfo, error) {
+	var out []pkg.PackageInfo
 
 	for _, want := range requests {
-		var candidates []provider.PackageInfo
+		var candidates []pkg.PackageInfo
 		for _, pi := range all {
 			// 1) exact name match
 			if pi.Name == want || pi.Name == want+".rpm" {
@@ -196,7 +197,7 @@ func (p *AzureLinux3) Validate(destDir string) error {
 	return nil
 }
 
-func (p *AzureLinux3) Resolve(req []provider.PackageInfo, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
+func (p *AzureLinux3) Resolve(req []pkg.PackageInfo, all []pkg.PackageInfo) ([]pkg.PackageInfo, error) {
 	log := logger.Logger()
 
 	log.Infof("resolving dependencies for %d RPMs", len(req))

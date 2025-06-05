@@ -5,19 +5,19 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/open-edge-platform/image-composer/internal/provider"
+	"github.com/open-edge-platform/image-composer/internal/utils/pkg"
 )
 
 // Resolver is interface both rpmutil & debutil satisfy.
 type Resolver interface {
 	Resolve(
-		requested []provider.PackageInfo,
-		all []provider.PackageInfo,
-	) ([]provider.PackageInfo, error)
+		requested []pkg.PackageInfo,
+		all []pkg.PackageInfo,
+	) ([]pkg.PackageInfo, error)
 }
 
 // helper to extract and sort names from PackageInfo slice
-func names(ps []provider.PackageInfo) []string {
+func names(ps []pkg.PackageInfo) []string {
 	var outs []string
 	for _, p := range ps {
 		outs = append(outs, p.Name)
@@ -28,19 +28,19 @@ func names(ps []provider.PackageInfo) []string {
 
 var TestCases = []struct {
 	Name      string
-	Requested []provider.PackageInfo
-	All       []provider.PackageInfo
+	Requested []pkg.PackageInfo
+	All       []pkg.PackageInfo
 	Want      []string
 	WantErr   bool
 }{
 	{
 		Name: "SimpleChain",
-		All: []provider.PackageInfo{
+		All: []pkg.PackageInfo{
 			{Name: "C", Provides: []string{"C"}, Requires: []string{}},
 			{Name: "B", Provides: []string{"B"}, Requires: []string{"C"}},
 			{Name: "A", Provides: []string{"A"}, Requires: []string{"B"}},
 		},
-		Requested: []provider.PackageInfo{
+		Requested: []pkg.PackageInfo{
 			{Name: "A", Provides: []string{"A"}, Requires: []string{"B"}},
 		},
 		Want:    []string{"A", "B", "C"},
@@ -48,13 +48,13 @@ var TestCases = []struct {
 	},
 	{
 		Name: "MultipleProviders",
-		All: []provider.PackageInfo{
+		All: []pkg.PackageInfo{
 			{Name: "Y", Provides: []string{"Y"}, Requires: []string{}},
 			{Name: "P1", Provides: []string{"X"}, Requires: []string{}},
 			{Name: "P2", Provides: []string{"X"}, Requires: []string{"Y"}},
 			{Name: "A", Provides: []string{"A"}, Requires: []string{"X"}},
 		},
-		Requested: []provider.PackageInfo{
+		Requested: []pkg.PackageInfo{
 			{Name: "A", Provides: []string{"A"}, Requires: []string{"X"}},
 		},
 		Want:    []string{"A", "P2", "Y"},
@@ -62,10 +62,10 @@ var TestCases = []struct {
 	},
 	{
 		Name: "NoDependencies",
-		All: []provider.PackageInfo{
+		All: []pkg.PackageInfo{
 			{Name: "X", Provides: []string{"X"}, Requires: []string{}},
 		},
-		Requested: []provider.PackageInfo{
+		Requested: []pkg.PackageInfo{
 			{Name: "X", Provides: []string{"A"}, Requires: []string{"X"}},
 		},
 		Want:    []string{"X"},
@@ -73,10 +73,10 @@ var TestCases = []struct {
 	},
 	{
 		Name: "MissingRequested",
-		All: []provider.PackageInfo{
+		All: []pkg.PackageInfo{
 			{Name: "A", Provides: []string{"A"}, Requires: []string{}},
 		},
-		Requested: []provider.PackageInfo{
+		Requested: []pkg.PackageInfo{
 			{Name: "B", Provides: []string{"B"}, Requires: []string{""}},
 		},
 		Want:    []string{},
@@ -88,7 +88,7 @@ var TestCases = []struct {
 func RunResolverTestsFunc(
 	t *testing.T,
 	prefix string,
-	resolverFunc func(requested, all []provider.PackageInfo) ([]provider.PackageInfo, error),
+	resolverFunc func(requested, all []pkg.PackageInfo) ([]pkg.PackageInfo, error),
 ) {
 
 	t.Helper()

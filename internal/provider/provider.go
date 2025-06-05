@@ -2,17 +2,8 @@ package provider
 
 import (
 	"github.com/open-edge-platform/image-composer/internal/utils/config"
+	"github.com/open-edge-platform/image-composer/internal/utils/pkg"
 )
-
-// PackageInfo holds everything you need to fetch + verify one artifact.
-type PackageInfo struct {
-	Name     string   // e.g. "abseil-cpp"
-	Version  string   // e.g. "7.88.1-10+deb12u5"
-	URL      string   // download URL
-	Checksum string   // optional pre-known digest
-	Provides []string // capabilities this package provides (rpm:entry names)
-	Requires []string // capabilities this package requires
-}
 
 // Provider is the interface every OSV plugin must implement.
 type Provider interface {
@@ -23,17 +14,17 @@ type Provider interface {
 	Init(template *config.ImageTemplate) error
 
 	// Packages returns the list of PackageInfo for this image build.
-	Packages() ([]PackageInfo, error)
+	Packages() ([]pkg.PackageInfo, error)
 
 	// Validate walks the destDir and verifies each downloaded file.
 	Validate(destDir string) error
 
 	// MatchRequested takes the list of requested packages and returns
 	// the list of PackageInfo that match.
-	MatchRequested(requested []string, all []PackageInfo) ([]PackageInfo, error)
+	MatchRequested(requested []string, all []pkg.PackageInfo) ([]pkg.PackageInfo, error)
 
 	// Resolve walks dependencies and returns the full list of packages needed.
-	Resolve(req []PackageInfo, all []PackageInfo) ([]PackageInfo, error)
+	Resolve(req []pkg.PackageInfo, all []pkg.PackageInfo) ([]pkg.PackageInfo, error)
 }
 
 var (

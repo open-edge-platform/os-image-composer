@@ -15,7 +15,8 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/provider"
 	"github.com/open-edge-platform/image-composer/internal/utils/config"
 	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
-	"github.com/open-edge-platform/image-composer/internal/utils/package/rpmutils"
+	"github.com/open-edge-platform/image-composer/internal/utils/pkg"
+	"github.com/open-edge-platform/image-composer/internal/utils/pkg/rpmutils"
 )
 
 const (
@@ -85,7 +86,7 @@ func (p *Emt30) Init(template *config.ImageTemplate) error {
 }
 
 // Packages returns the list of packages
-func (p *Emt30) Packages() ([]provider.PackageInfo, error) {
+func (p *Emt30) Packages() ([]pkg.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", p.repoCfg.URL)
 
@@ -100,11 +101,11 @@ func (p *Emt30) Packages() ([]provider.PackageInfo, error) {
 }
 
 // MatchRequested takes the list of requested packages and returns
-func (p *Emt30) MatchRequested(requests []string, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
-	var out []provider.PackageInfo
+func (p *Emt30) MatchRequested(requests []string, all []pkg.PackageInfo) ([]pkg.PackageInfo, error) {
+	var out []pkg.PackageInfo
 
 	for _, want := range requests {
-		var candidates []provider.PackageInfo
+		var candidates []pkg.PackageInfo
 		for _, pi := range all {
 			// 1) exact name match
 			if pi.Name == want || pi.Name == want+".rpm" {
@@ -198,7 +199,7 @@ func (p *Emt30) Validate(destDir string) error {
 }
 
 // Resolve resolves dependencies
-func (p *Emt30) Resolve(req []provider.PackageInfo, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
+func (p *Emt30) Resolve(req []pkg.PackageInfo, all []pkg.PackageInfo) ([]pkg.PackageInfo, error) {
 	log := logger.Logger()
 
 	log.Infof("resolving dependencies for %d RPMs", len(req))

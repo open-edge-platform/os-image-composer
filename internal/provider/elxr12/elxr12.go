@@ -10,7 +10,8 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/provider"
 	"github.com/open-edge-platform/image-composer/internal/utils/config"
 	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
-	"github.com/open-edge-platform/image-composer/internal/utils/package/debutils"
+	"github.com/open-edge-platform/image-composer/internal/utils/pkg"
+	"github.com/open-edge-platform/image-composer/internal/utils/pkg/debutils"
 )
 
 // DEB: https://deb.debian.org/debian/dists/bookworm/main/binary-amd64/Packages.gz
@@ -86,7 +87,7 @@ func (p *eLxr12) Init(template *config.ImageTemplate) error {
 }
 
 // Packages returns the list of packages
-func (p *eLxr12) Packages() ([]provider.PackageInfo, error) {
+func (p *eLxr12) Packages() ([]pkg.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", p.repoCfg.PkgList)
 
@@ -137,7 +138,7 @@ func (p *eLxr12) Validate(destDir string) error {
 }
 
 // Resolve resolves dependencies
-func (p *eLxr12) Resolve(req []provider.PackageInfo, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
+func (p *eLxr12) Resolve(req []pkg.PackageInfo, all []pkg.PackageInfo) ([]pkg.PackageInfo, error) {
 	log := logger.Logger()
 
 	log.Infof("resolving dependencies for %d DEBIANs", len(req))
@@ -167,13 +168,13 @@ func (p *eLxr12) Resolve(req []provider.PackageInfo, all []provider.PackageInfo)
 }
 
 // MatchRequested matches requested packages
-func (p *eLxr12) MatchRequested(requests []string, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
+func (p *eLxr12) MatchRequested(requests []string, all []pkg.PackageInfo) ([]pkg.PackageInfo, error) {
 	log := logger.Logger()
 
-	var out []provider.PackageInfo
+	var out []pkg.PackageInfo
 
 	for _, want := range requests {
-		var candidates []provider.PackageInfo
+		var candidates []pkg.PackageInfo
 		for _, pi := range all {
 			// 1) exact name match
 			if pi.Name == want || pi.Name == want+".deb" {

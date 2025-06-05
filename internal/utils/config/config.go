@@ -59,6 +59,9 @@ type LoggingConfig struct {
 	Level string `yaml:"level" json:"level"` // Log verbosity level: debug (most verbose), info (default), warn (warnings only), error (errors only)
 }
 
+// Global configuration
+var GlConfig *GlobalConfig
+
 // LoadTemplate loads an ImageTemplate from the specified YAML template path
 func LoadTemplate(path string) (*ImageTemplate, error) {
 	log := logger.Logger()

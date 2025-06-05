@@ -11,8 +11,8 @@ import (
 	_ "github.com/open-edge-platform/image-composer/internal/provider/emt3_0"      // register provider
 	"github.com/open-edge-platform/image-composer/internal/utils/config"
 	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
-	"github.com/open-edge-platform/image-composer/internal/utils/package/pkgfetcher"
-	"github.com/open-edge-platform/image-composer/internal/utils/package/rpmutils"
+	"github.com/open-edge-platform/image-composer/internal/utils/pkg/pkgfetcher"
+	"github.com/open-edge-platform/image-composer/internal/utils/pkg/rpmutils"
 	"github.com/spf13/cobra"
 )
 
@@ -54,13 +54,13 @@ The template file must be in YAML format following the image template schema.`,
 func executeBuild(cmd *cobra.Command, args []string) error {
 	// Parse command-line flags and override global config
 	if cmd.Flags().Changed("workers") {
-		globalConfig.Workers = workers
+		config.GlConfig.Workers = workers
 	}
 	if cmd.Flags().Changed("cache-dir") {
-		globalConfig.CacheDir = cacheDir
+		config.GlConfig.CacheDir = cacheDir
 	}
 	if cmd.Flags().Changed("work-dir") {
-		globalConfig.WorkDir = workDir
+		config.GlConfig.WorkDir = workDir
 	}
 
 	log := logger.Logger()
@@ -132,7 +132,7 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 	}
 
 	// Ensure cache directory exists
-	absCacheDir, err := filepath.Abs(globalConfig.CacheDir)
+	absCacheDir, err := filepath.Abs(config.GlConfig.CacheDir)
 	if err != nil {
 		return fmt.Errorf("resolving cache directory: %v", err)
 	}
@@ -141,7 +141,7 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 	}
 
 	// Ensure work directory exists
-	absWorkDir, err := filepath.Abs(globalConfig.WorkDir)
+	absWorkDir, err := filepath.Abs(config.GlConfig.WorkDir)
 	if err != nil {
 		return fmt.Errorf("resolving work directory: %v", err)
 	}
@@ -150,14 +150,14 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 	}
 
 	// Download packages using configured workers and cache directory
-	log.Infof("downloading %d packages to %s using %d workers", len(urls), absCacheDir, globalConfig.Workers)
-	if err := pkgfetcher.FetchPackages(urls, absCacheDir, globalConfig.Workers); err != nil {
+	log.Infof("downloading %d packages to %s using %d workers", len(urls), absCacheDir, config.GlConfig.Workers)
+	if err := pkgfetcher.FetchPackages(urls, absCacheDir, config.GlConfig.Workers); err != nil {
 		return fmt.Errorf("fetch failed: %v", err)
 	}
 	log.Info("all downloads complete")
 
 	// Verify downloaded packages
-	if err := p.Validate(globalConfig.CacheDir); err != nil {
+	if err := p.Validate(config.GlConfig.CacheDir); err != nil {
 		return fmt.Errorf("verification failed: %v", err)
 	}
 

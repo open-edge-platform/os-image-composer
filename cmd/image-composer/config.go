@@ -52,11 +52,11 @@ func executeConfigShow(cmd *cobra.Command, args []string) {
 	} else {
 		fmt.Printf("Configuration file: <using defaults>\n")
 	}
-	fmt.Printf("Workers: %d\n", globalConfig.Workers)
-	fmt.Printf("Cache directory: %s\n", globalConfig.CacheDir)
-	fmt.Printf("Work directory: %s\n", globalConfig.WorkDir)
-	fmt.Printf("Temp directory: %s\n", globalConfig.TempDir)
-	fmt.Printf("Log level: %s\n", globalConfig.Logging.Level)
+	fmt.Printf("Workers: %d\n", config.GlConfig.Workers)
+	fmt.Printf("Cache directory: %s\n", config.GlConfig.CacheDir)
+	fmt.Printf("Work directory: %s\n", config.GlConfig.WorkDir)
+	fmt.Printf("Temp directory: %s\n", config.GlConfig.TempDir)
+	fmt.Printf("Log level: %s\n", config.GlConfig.Logging.Level)
 }
 
 // executeConfigInit creates a new configuration file

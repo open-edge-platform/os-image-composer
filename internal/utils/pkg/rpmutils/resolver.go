@@ -11,10 +11,9 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/open-edge-platform/image-composer/internal/provider"
-	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
-
 	"github.com/cavaliergopher/rpm"
+	"github.com/open-edge-platform/image-composer/internal/utils/general/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/pkg"
 )
 
 // Index maps provided capabilities to RPM paths and RPM paths to their requirements.
@@ -65,7 +64,7 @@ func BuildIndex(dir string) (*Index, error) {
 	return idx, nil
 }
 
-func GenerateDot(pkgs []provider.PackageInfo, file string) error {
+func GenerateDot(pkgs []pkg.PackageInfo, file string) error {
 	log := logger.Logger()
 	log.Infof("Generating DOT file %s", file)
 
@@ -94,12 +93,12 @@ func GenerateDot(pkgs []provider.PackageInfo, file string) error {
 // matched) and the full list of all PackageInfos from the repo, and
 // returns the minimal closure of PackageInfos needed to satisfy all Requires.
 func ResolvePackageInfos(
-	requested []provider.PackageInfo,
-	all []provider.PackageInfo,
-) ([]provider.PackageInfo, error) {
+	requested []pkg.PackageInfo,
+	all []pkg.PackageInfo,
+) ([]pkg.PackageInfo, error) {
 
 	// Build helper maps:
-	byName := make(map[string]provider.PackageInfo, len(all))
+	byName := make(map[string]pkg.PackageInfo, len(all))
 	provides := make(map[string][]string) // cap -> pkgNames
 	requires := make(map[string][]string) // pkgName -> caps
 
@@ -149,7 +148,7 @@ func ResolvePackageInfos(
 	}
 
 	// Build the result slice in deterministic order:
-	result := make([]provider.PackageInfo, 0, len(neededSet))
+	result := make([]pkg.PackageInfo, 0, len(neededSet))
 	for name := range neededSet {
 		result = append(result, byName[name])
 	}
@@ -160,7 +159,7 @@ func ResolvePackageInfos(
 }
 
 // ParsePrimary parses the repodata/primary.xml.gz file from a given base URL.
-func ParsePrimary(baseURL, gzHref string) ([]provider.PackageInfo, error) {
+func ParsePrimary(baseURL, gzHref string) ([]pkg.PackageInfo, error) {
 
 	resp, err := http.Get(baseURL + gzHref)
 	if err != nil {
@@ -176,9 +175,9 @@ func ParsePrimary(baseURL, gzHref string) ([]provider.PackageInfo, error) {
 	dec := xml.NewDecoder(gr)
 
 	var (
-		infos          []provider.PackageInfo
+		infos          []pkg.PackageInfo
 		currentSection string // "provides", "requires", or ""
-		curInfo        *provider.PackageInfo
+		curInfo        *pkg.PackageInfo
 	)
 
 	for {
@@ -194,7 +193,7 @@ func ParsePrimary(baseURL, gzHref string) ([]provider.PackageInfo, error) {
 			switch elem.Name.Local {
 			case "package":
 				// start a new PackageInfo
-				curInfo = &provider.PackageInfo{}
+				curInfo = &pkg.PackageInfo{}
 
 			case "location":
 				// read the href and build full URL + infer Name
