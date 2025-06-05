@@ -14,8 +14,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 )
 
-replace github.com/microsoft/azurelinux/toolkit/tools/internal/logger => ./github.com/microsoft/azurelinux/toolkit/tools/internal/logger
-
 require (
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/cloudflare/circl v1.6.0 // indirect
