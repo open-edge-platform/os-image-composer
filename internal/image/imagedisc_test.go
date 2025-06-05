@@ -27,6 +27,12 @@ func TestBasicImageDiscWorkflow(t *testing.T) {
 		}
 	}()
 
+	// Setup loopback device for the image
+	dev, err := SetupLoopbackDevice(imgPath)
+	if err != nil {
+		t.Fatalf("SetupLoopbackDevice failed: %v", err)
+	}
+
 	// Define a single 8 MiB partition (aligned at LBA 2048 internally)
 	parts := []PartitionInfo{
 		{
@@ -39,31 +45,18 @@ func TestBasicImageDiscWorkflow(t *testing.T) {
 	}
 
 	// Partition the image
-	if err := PartitionImageDisc(imgPath, maxSize, parts); err != nil {
+	if _, _, err := PartitionImageDisc(dev, maxSize, parts); err != nil {
 		t.Fatalf("PartitionImageDisc failed: %v", err)
 	}
 
-	// // 5. Format that partition as ext4 (shells out to mkfs.ext4)
-	// if err := FormatPartition(imgPath, 1, "ext4"); err != nil {
-	// 	t.Fatalf("FormatPartition failed: %v", err)
-	// }
+	// Format the partitions
+	if err := FormatPartitions(dev, parts); err != nil {
+		t.Fatalf("FormatPartitions failed: %v", err)
+	}
 
-	// // 6. Mount the ext4 partition in-memory and verify it's empty
-	// fs, dsk, err := MountImageDisc(imgPath, 1)
-	// if err != nil {
-	// 	t.Fatalf("MountImageDisc failed: %v", err)
-	// }
-	// defer func() {
-	// 	if err := UnmountImageDisc(fs, dsk); err != nil {
-	// 		t.Errorf("UnmountImageDisc failed: %v", err)
-	// 	}
-	// }()
+	// Detach the loopback device
+	if err := DetachLoopbackDevice(dev); err != nil {
+		t.Fatalf("DetachLoopbackDevice failed: %v", err)
+	}
 
-	// entries, err := fs.ReadDir("/")
-	// if err != nil {
-	// 	t.Fatalf("filesystem ReadDir failed: %v", err)
-	// }
-	// if len(entries) != 0 {
-	// 	t.Errorf("expected empty root filesystem, got %d entries", len(entries))
-	// }
 }

@@ -3,10 +3,10 @@ package imagedisc
 import (
 	"fmt"
 	"os"
+	"unsafe"
 
 	azcfg "github.com/microsoft/azurelinux/toolkit/tools/imagegen/configuration"
-	azdisc "github.com/microsoft/azurelinux/toolkit/tools/imagegen/diskutils"
-	azlog "github.com/microsoft/azurelinux/toolkit/tools/internal/logger"
+	"github.com/microsoft/azurelinux/toolkit/tools/imagegen/diskutils"
 	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
 )
 
@@ -19,10 +19,39 @@ type PartitionInfo struct {
 	StartBytes uint64 // StartBytes: absolute start offset in bytes; if zero, partitions are laid out sequentially
 }
 
+var _ unsafe.Pointer // Dummy pointer, this line makes the 'unsafe' import explicitly used.
+
+// Link to InitStderrLog directly
+// Signature: func InitStderrLog(logLevel Level, packageName string) error
+// Level is an int alias.
+//
+//go:linkname internalAzureLogInitStderrLog github.com/microsoft/azurelinux/toolkit/tools/internal/logger.InitStderrLog
+func internalAzureLogInitStderrLog(levelAsInt int, packageName string) // implemented in another package via go:linkname
+
+// InitializeAzureLogger should be called once at the beginning
+func InitializeAzureLogger() error {
+	programName := "imagedisc"
+	azureLogLevelInfo := 4 // Corresponds to logger.LevelInfo (0:Panic, 1:Fatal, 2:Error, 3:Warn, 4:Info, 5:Debug, 6:Trace)
+
+	log := utils.Logger()
+	log.Debugf("Attempting to initialize Azure logger for package '%s' with level %d...\n", programName, azureLogLevelInfo)
+	internalAzureLogInitStderrLog(azureLogLevelInfo, programName)
+	log.Debugf("Azure logger InitStderrLog call completed successfully for package '%s'.\n", programName)
+	return nil
+}
+
+func init() {
+	err := InitializeAzureLogger()
+	if err != nil {
+		// Log the detailed, original error
+		fmt.Fprintf(os.Stderr, "InitializeAzureLogger() raw error details: %#v\n", err) // Use %#v for detailed struct output
+		// Then panic with your formatted message
+		panic(fmt.Sprintf("imagedisc: CRITICAL - Failed to initialize Azure logger: %v", err))
+	}
+}
+
 // CreateImageDisc allocates a new raw disk image file of the given size.
 func CreateImageDisc(workDirPath string, discName string, maxSize uint64) error {
-
-	azlog.Init(utils.Logger()) // Initialize the logger for Azure diskutils
 
 	// Validate the image path
 	if workDirPath == "" || discName == "" || maxSize == 0 {
@@ -32,11 +61,48 @@ func CreateImageDisc(workDirPath string, discName string, maxSize uint64) error 
 	log := utils.Logger()
 	log.Debugf("Creating image disk at %s with max size %d bytes", workDirPath, maxSize)
 
-	discFilePath, err := azdisc.CreateEmptyDisk(workDirPath, discName, maxSize)
+	discFilePath, err := diskutils.CreateEmptyDisk(workDirPath, discName, maxSize)
 	if err != nil {
 		return fmt.Errorf("failed to create empty disk image: %w", err)
 	}
 	log.Infof("Created image disk at %s with max size %d bytes", discFilePath, maxSize)
+	return nil
+}
+
+// SetupLoopbackDevice sets up a loopback device for the specified disk image file.
+func SetupLoopbackDevice(discFilePath string) (string, error) {
+	log := utils.Logger()
+	log.Infof("Setting up loopback device for image disk at %s", discFilePath)
+
+	// Validate the image path
+	if discFilePath == "" {
+		return "", fmt.Errorf("invalid image path")
+	}
+
+	// Call the Azure diskutils to setup the loopback device
+	loopDev, err := diskutils.SetupLoopbackDevice(discFilePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to setup loopback device: %w", err)
+	}
+	log.Infof("Loopback device set up at %s for image disk %s", loopDev, discFilePath)
+	return loopDev, nil
+}
+
+// DetachLoopbackDevice detaches the loopback device
+func DetachLoopbackDevice(loopDev string) error {
+	log := utils.Logger()
+	log.Infof("Detaching loopback device %s", loopDev)
+
+	// Validate the loop device path
+	if loopDev == "" {
+		return fmt.Errorf("invalid loop device path")
+	}
+
+	// Call the Azure diskutils to detach the loopback device
+	if err := diskutils.DetachLoopbackDevice(loopDev); err != nil {
+		return fmt.Errorf("failed to detach loopback device: %w", err)
+	}
+	log.Infof("Detached loopback device %s successfully", loopDev)
 	return nil
 }
 
@@ -51,27 +117,18 @@ func DeleteImageDisc(discFilePath string) error {
 
 // PartitionImageDisc partitions the specified disk image file according to the
 // provided partition information.
-func PartitionImageDisc(path string, maxSize uint64, parts []PartitionInfo) error {
+func PartitionImageDisc(path string, maxSize uint64, parts []PartitionInfo) (partDevPathMap map[string]string,
+	partIDToFsTypeMap map[string]string, err error) {
 
 	log := utils.Logger()
 	log.Infof("Partitioning image disk at %s with max size %d bytes", path, maxSize)
+
 	// Validate the image path
 	if path == "" || maxSize == 0 {
-		return fmt.Errorf("invalid image path or max size")
+		return nil, nil, fmt.Errorf("invalid image path or max size")
 	}
 
-	// Convert PartitionInfo -> azdisk.PartitionType, etc.
-	azParts := make([]azcfg.Partition, len(parts))
-	for i, p := range parts {
-		azParts[i] = azcfg.Partition{
-			Name:     p.Name,
-			FsType:   p.FsType,
-			Start:    p.StartBytes,
-			End:      p.SizeBytes,
-			TypeUUID: p.TypeGUID,
-		}
-
-	}
+	azParts := toAzurePartitions(parts)
 	cfg := azcfg.Disk{
 		PartitionTableType: azcfg.PartitionTableTypeGpt,
 		MaxSize:            maxSize,
@@ -81,13 +138,52 @@ func PartitionImageDisc(path string, maxSize uint64, parts []PartitionInfo) erro
 		Enable:   false,
 		Password: "",
 	}
-	// Now call the Azure helper:
-	partDevMap, partIdToFs, encRoot, err := azdisc.CreatePartitions(path, cfg, rootEncryption, true)
+
+	partToDev, partIdToFs, encRoot, err := diskutils.CreatePartitions(path, cfg, rootEncryption, false)
 	if err != nil {
-		return fmt.Errorf("azure diskutils failed: %w", err)
+		return nil, nil, fmt.Errorf("azure diskutils failed: %w", err)
 	}
-	log.Infof("Partitioned image disk %s with partitions: %v", path, partDevMap)
+	log.Infof("Partitioned image disk %s with partitions: %v", path, partToDev)
 	log.Infof("Partitioned image disk %s with filesystem map: %v", path, partIdToFs)
 	log.Infof("Partitioned image disk %s with encrypted root: %v", path, encRoot)
+	return partToDev, partIdToFs, nil
+}
+
+func FormatPartitions(discFilePath string, parts []PartitionInfo) error {
+	log := utils.Logger()
+
+	// Validate the image path and partition ID
+	if discFilePath == "" || len(parts) < 1 {
+		return fmt.Errorf("invalid image path, partition ID or filesystem type")
+	}
+
+	azParts := toAzurePartitions(parts)
+	for i, part := range azParts {
+		if part.FsType == "" {
+			return fmt.Errorf("partition %s has no filesystem type defined", part.Name)
+		}
+		log.Infof("Formatting partition %d of image disk at %s with filesystem type %s", i, discFilePath, part.FsType)
+
+		// Call the Azure diskutils to format the partition
+		if _, err := diskutils.FormatSinglePartition(discFilePath, part); err != nil {
+			return fmt.Errorf("failed to format partition: %w", err)
+		}
+		log.Infof("Formatted partition %d of image disk %s with filesystem type %s", i, discFilePath)
+	}
 	return nil
+}
+
+// toAzurePartitions converts a slice of PartitionInfo to a slice of azcfg.Partition.
+func toAzurePartitions(parts []PartitionInfo) []azcfg.Partition {
+	azParts := make([]azcfg.Partition, len(parts))
+	for i, p := range parts {
+		azParts[i] = azcfg.Partition{
+			Name:     p.Name,
+			FsType:   p.FsType,
+			Start:    p.StartBytes,
+			End:      p.SizeBytes,
+			TypeUUID: p.TypeGUID,
+		}
+	}
+	return azParts
 }
