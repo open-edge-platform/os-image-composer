@@ -5,7 +5,36 @@ import (
 	"testing"
 )
 
-func TestBasicImageDiscWorkflow(t *testing.T) {
+var (
+	singlePartition = []PartitionInfo{
+		{
+			Name:       "root",
+			FsType:     "ext4",
+			StartBytes: 1024,                                   // 1 MiB
+			SizeBytes:  8 * 1024,                               // 8 MiB
+			TypeGUID:   "0FC63DAF-8483-4772-8E79-3D69D8477DE4", // Linux filesystem
+		},
+	}
+
+	multiPartitions = []PartitionInfo{
+		{
+			Name:       "boot",
+			FsType:     "fat32",
+			StartBytes: 1024,                                   // 1 MiB
+			SizeBytes:  100 * 1024,                             // 100 MiB
+			TypeGUID:   "C12A7328-F81F-11D2-BA4B-00A0C93EC93B", // EFI System Partition
+		},
+		{
+			Name:       "root",
+			FsType:     "ext4",
+			StartBytes: 103424,                                 // Start after the boot partition
+			SizeBytes:  200 * 1024,                             // 200 MiB
+			TypeGUID:   "0FC63DAF-8483-4772-8E79-3D69D8477DE4", // Linux filesystem
+		},
+	}
+)
+
+func TestImageCreation(t *testing.T) {
 
 	// Create a temporary directory and image path
 	tempDir := t.TempDir()
@@ -26,37 +55,57 @@ func TestBasicImageDiscWorkflow(t *testing.T) {
 			t.Errorf("DeleteImageDisc failed: %v", err)
 		}
 	}()
+}
+func TestImagePartitioning(t *testing.T) {
 
-	// Setup loopback device for the image
-	dev, err := SetupLoopbackDevice(imgPath)
-	if err != nil {
-		t.Fatalf("SetupLoopbackDevice failed: %v", err)
-	}
-
-	// Define a single 8 MiB partition (aligned at LBA 2048 internally)
-	parts := []PartitionInfo{
+	testCases := []struct {
+		name       string
+		partitions []PartitionInfo
+		imageSize  uint64 // in bytes
+	}{
 		{
-			Name:       "root",                                 // Partition label
-			FsType:     "ext4",                                 // Filesystem type
-			SizeBytes:  8 * 1024 * 1024,                        // 8 MiB
-			StartBytes: 2048,                                   // set the LBA=2048 offset
-			TypeGUID:   "0FC63DAF-8483-4772-8E79-3D69D8477DE4", // Linux filesystem type GUID
+			name:       "SingleRootPartition",
+			partitions: singlePartition,
+			imageSize:  10 * 1024 * 1024, // 10 MiB image is sufficient
+		},
+		{
+			name:       "BootAndRootPartitions",
+			partitions: multiPartitions,
+			imageSize:  350 * 1024 * 1024, // ~300 MiB partitions need a larger image
 		},
 	}
 
-	// Partition the image
-	if _, _, err := PartitionImageDisc(dev, maxSize, parts); err != nil {
-		t.Fatalf("PartitionImageDisc failed: %v", err)
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			imageName := "test.img"
+			imgPath := filepath.Join(tempDir, imageName)
 
-	// Format the partitions
-	if err := FormatPartitions(dev, parts); err != nil {
-		t.Fatalf("FormatPartitions failed: %v", err)
-	}
+			if err := CreateImageDisc(tempDir, imageName, tc.imageSize); err != nil {
+				t.Fatalf("CreateImageDisc failed: %v", err)
+			}
 
-	// Detach the loopback device
-	if err := DetachLoopbackDevice(dev); err != nil {
-		t.Fatalf("DetachLoopbackDevice failed: %v", err)
-	}
+			dev, err := SetupLoopbackDevice(imgPath)
+			if err != nil {
+				t.Fatalf("SetupLoopbackDevice failed: %v", err)
+			}
 
+			t.Cleanup(func() {
+				if err := DetachLoopbackDevice(dev); err != nil {
+					t.Errorf("DetachLoopbackDevice failed: %v", err)
+				}
+			})
+
+			partDevPathMap, partIDToFsTypeMap, err := PartitionImageDisc(dev, tc.imageSize, tc.partitions)
+			if err != nil {
+				t.Fatalf("PartitionImageDisc failed: %v", err)
+			}
+			t.Logf("Partitioning successful: partDevPathMap=%s, partIDToFsTypeMap=%s", partDevPathMap, partIDToFsTypeMap)
+
+			if err := FormatPartitions(partDevPathMap, partIDToFsTypeMap, tc.partitions); err != nil {
+				t.Fatalf("FormatPartitions failed: %v", err)
+			}
+			t.Log("Formatting partitions successful")
+		})
+	}
 }

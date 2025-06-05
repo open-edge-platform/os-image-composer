@@ -91,7 +91,7 @@ func SetupLoopbackDevice(discFilePath string) (string, error) {
 // DetachLoopbackDevice detaches the loopback device
 func DetachLoopbackDevice(loopDev string) error {
 	log := utils.Logger()
-	log.Infof("Detaching loopback device %s", loopDev)
+	log.Debugf("Detaching loopback device %s", loopDev)
 
 	// Validate the loop device path
 	if loopDev == "" {
@@ -138,37 +138,42 @@ func PartitionImageDisc(path string, maxSize uint64, parts []PartitionInfo) (par
 		Enable:   false,
 		Password: "",
 	}
-
 	partToDev, partIdToFs, encRoot, err := diskutils.CreatePartitions(path, cfg, rootEncryption, false)
 	if err != nil {
 		return nil, nil, fmt.Errorf("azure diskutils failed: %w", err)
 	}
-	log.Infof("Partitioned image disk %s with partitions: %v", path, partToDev)
-	log.Infof("Partitioned image disk %s with filesystem map: %v", path, partIdToFs)
-	log.Infof("Partitioned image disk %s with encrypted root: %v", path, encRoot)
+	log.Debugf("Partitioned image disk %s with partitions: %v", path, partToDev)
+	log.Debugf("Partitioned image disk %s with filesystem map: %v", path, partIdToFs)
+	log.Debugf("Partitioned image disk %s with encrypted root: %v", path, encRoot)
 	return partToDev, partIdToFs, nil
 }
 
-func FormatPartitions(discFilePath string, parts []PartitionInfo) error {
+func FormatPartitions(partDevs map[string]string, partFSTypes map[string]string, parts []PartitionInfo) error {
 	log := utils.Logger()
 
 	// Validate the image path and partition ID
-	if discFilePath == "" || len(parts) < 1 {
+	if len(partDevs) < 1 || len(parts) < 1 {
 		return fmt.Errorf("invalid image path, partition ID or filesystem type")
 	}
 
-	azParts := toAzurePartitions(parts)
-	for i, part := range azParts {
-		if part.FsType == "" {
-			return fmt.Errorf("partition %s has no filesystem type defined", part.Name)
+	detailsMap := make(map[string]PartitionInfo)
+	for _, p := range parts {
+		detailsMap[p.Name] = p
+	}
+
+	for partID, devPath := range partDevs {
+		partInfo, ok := detailsMap[partID]
+		if !ok {
+			return fmt.Errorf("partition %s does not have a filesystem type defined", partID)
 		}
-		log.Infof("Formatting partition %d of image disk at %s with filesystem type %s", i, discFilePath, part.FsType)
+		log.Infof("Formatting partition %s at %s with filesystem type %s", partID, devPath, partInfo.FsType)
+		azPart := toAzureSinglePartition(partInfo)
 
 		// Call the Azure diskutils to format the partition
-		if _, err := diskutils.FormatSinglePartition(discFilePath, part); err != nil {
+		if _, err := diskutils.FormatSinglePartition(devPath, azPart); err != nil {
 			return fmt.Errorf("failed to format partition: %w", err)
 		}
-		log.Infof("Formatted partition %d of image disk %s with filesystem type %s", i, discFilePath)
+		log.Infof("Formatted partition %d of image disk %s with filesystem type %s", partID, devPath, azPart.FsType)
 	}
 	return nil
 }
@@ -178,6 +183,7 @@ func toAzurePartitions(parts []PartitionInfo) []azcfg.Partition {
 	azParts := make([]azcfg.Partition, len(parts))
 	for i, p := range parts {
 		azParts[i] = azcfg.Partition{
+			ID:       p.Name, // Assuming the Name is the ID
 			Name:     p.Name,
 			FsType:   p.FsType,
 			Start:    p.StartBytes,
@@ -186,4 +192,16 @@ func toAzurePartitions(parts []PartitionInfo) []azcfg.Partition {
 		}
 	}
 	return azParts
+}
+
+// to AzureSinglePartition converts a single PartitionInfo to an azcfg.Partition.
+func toAzureSinglePartition(part PartitionInfo) azcfg.Partition {
+	return azcfg.Partition{
+		ID:     part.Name, // Assuming the Name is the ID
+		Name:   part.Name,
+		FsType: part.FsType,
+		Start:  part.StartBytes,
+		End:    part.SizeBytes,
+		Type:   part.TypeGUID,
+	}
 }
