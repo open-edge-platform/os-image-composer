@@ -1,13 +1,8 @@
 package imagedisc
 
 import (
-	"fmt"
-	"os/exec"
 	"path/filepath"
 	"testing"
-	"time"
-
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
 )
 
 var (
@@ -105,38 +100,10 @@ func TestImagePartitioning(t *testing.T) {
 			if err != nil {
 				t.Fatalf("PartitionImageDisc failed: %v", err)
 			}
-			t.Logf("Partitioning successful: partDevPathMap=%s, partIDToFsTypeMap=%s", partDevPathMap, partIDToFsTypeMap)
-
-			// Manually Force Kernel to Scan for Partitions
-			if err := RescanPartitions(dev); err != nil {
-				t.Fatalf("RescanPartitions failed: %v", err)
-			}
-			t.Logf("Successfully rescanned partitions on %s", dev)
 
 			if err := FormatPartitions(partDevPathMap, partIDToFsTypeMap, tc.partitions); err != nil {
 				t.Fatalf("FormatPartitions failed: %v", err)
 			}
-			t.Log("Formatting partitions successful")
 		})
 	}
-}
-
-// RescanPartitions runs a sync command like partprobe or losetup -P
-func RescanPartitions(devPath string) error {
-	log := utils.Logger()
-
-	cmd := exec.Command("losetup", "-c", devPath)
-	log.Infof("Running '%s' to force partition rescan...", cmd.String())
-	if _, err := cmd.CombinedOutput(); err != nil {
-
-		// ... fallback, try partprobe
-		cmd = exec.Command("partprobe", devPath)
-		log.Infof("losetup -c failed, trying 'partprobe %s'...", devPath)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("partprobe for %s also failed: %w\nOutput: %s", devPath, err, string(output))
-		}
-	}
-	// Give udev/mdev a moment
-	time.Sleep(500 * time.Millisecond)
-	return nil
 }
