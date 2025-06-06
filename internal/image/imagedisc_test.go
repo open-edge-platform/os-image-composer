@@ -3,12 +3,15 @@ package imagedisc
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/open-edge-platform/image-composer/internal/config"
 )
 
 var (
-	singlePartition = []PartitionInfo{
+	singlePartition = []config.PartitionInfo{
 		{
 			Name:       "root",
+			ID:         "extended",
 			FsType:     "ext4",
 			StartBytes: 1024 * 1024,                            // 1 MiB
 			SizeBytes:  8 * 1024 * 1024,                        // 8 MiB
@@ -16,9 +19,10 @@ var (
 		},
 	}
 
-	multiPartitions = []PartitionInfo{
+	multiPartitions = []config.PartitionInfo{
 		{
 			Name:       "boot",
+			ID:         "boot",
 			FsType:     "fat32",
 			StartBytes: 1024 * 1024,                            // 1 MiB
 			SizeBytes:  100 * 1024 * 1024,                      // 100 MiB
@@ -26,6 +30,7 @@ var (
 		},
 		{
 			Name:       "root",
+			ID:         "rootfs",
 			FsType:     "ext4",
 			StartBytes: 101 * 1024 * 1024,                      // Start after boot (1 + 100 MiB)
 			SizeBytes:  200 * 1024 * 1024,                      // 200 MiB
@@ -60,7 +65,7 @@ func TestImagePartitioning(t *testing.T) {
 
 	testCases := []struct {
 		name       string
-		partitions []PartitionInfo
+		partitions []config.PartitionInfo
 		imageSize  uint64 // in bytes
 	}{
 		{

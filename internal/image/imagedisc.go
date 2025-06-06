@@ -7,21 +7,13 @@ import (
 
 	azcfg "github.com/microsoft/azurelinux/toolkit/tools/imagegen/configuration"
 	"github.com/microsoft/azurelinux/toolkit/tools/imagegen/diskutils"
+	"github.com/open-edge-platform/image-composer/internal/config"
 	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
 )
 
 const (
 	MiB = (1024 * 1024) // 1 MiB = 1024 KiB * 1024 bytes
 )
-
-// PartitionInfo holds information about a partition to be created in an image.
-type PartitionInfo struct {
-	Name       string // Name: label for the partition
-	TypeGUID   string // TypeGUID: GPT type GUID for the partition (e.g., "8300" for Linux filesystem)
-	FsType     string // FsType: filesystem type (e.g., "ext4", "xfs", etc.);
-	SizeBytes  uint64 // SizeBytes: size of the partition in bytes
-	StartBytes uint64 // StartBytes: absolute start offset in bytes; if zero, partitions are laid out sequentially
-}
 
 var _ unsafe.Pointer // Dummy pointer, this line makes the 'unsafe' import explicitly used.
 
@@ -140,7 +132,7 @@ func DeleteImageDisc(discFilePath string) error {
 
 // PartitionImageDisc partitions the specified disk image file according to the
 // provided partition information.
-func PartitionImageDisc(path string, maxSize uint64, parts []PartitionInfo) (partDevPathMap map[string]string,
+func PartitionImageDisc(path string, maxSize uint64, parts []config.PartitionInfo) (partDevPathMap map[string]string,
 	partIDToFsTypeMap map[string]string, err error) {
 
 	maxSizeMiB := maxSize / MiB // Convert maxSize to MiB for diskutils
@@ -174,7 +166,7 @@ func PartitionImageDisc(path string, maxSize uint64, parts []PartitionInfo) (par
 	return partToDev, partIdToFs, nil
 }
 
-func FormatPartitions(partDevs map[string]string, partFSTypes map[string]string, parts []PartitionInfo) error {
+func FormatPartitions(partDevs map[string]string, partFSTypes map[string]string, parts []config.PartitionInfo) error {
 	log := utils.Logger()
 
 	// Validate the image path and partition ID
@@ -182,7 +174,7 @@ func FormatPartitions(partDevs map[string]string, partFSTypes map[string]string,
 		return fmt.Errorf("invalid image path, partition ID or filesystem type")
 	}
 
-	detailsMap := make(map[string]PartitionInfo)
+	detailsMap := make(map[string]config.PartitionInfo)
 	for _, p := range parts {
 		detailsMap[p.Name] = p
 	}
@@ -205,11 +197,11 @@ func FormatPartitions(partDevs map[string]string, partFSTypes map[string]string,
 }
 
 // toAzurePartitions converts a slice of PartitionInfo to a slice of azcfg.Partition.
-func toAzurePartitions(parts []PartitionInfo) []azcfg.Partition {
+func toAzurePartitions(parts []config.PartitionInfo) []azcfg.Partition {
 	azParts := make([]azcfg.Partition, len(parts))
 	for i, p := range parts {
 		azParts[i] = azcfg.Partition{
-			ID:       p.Name, // Assuming the Name is the ID
+			ID:       p.ID,
 			Name:     p.Name,
 			FsType:   p.FsType,
 			Start:    p.StartBytes / MiB,
@@ -221,9 +213,9 @@ func toAzurePartitions(parts []PartitionInfo) []azcfg.Partition {
 }
 
 // to AzureSinglePartition converts a single PartitionInfo to an azcfg.Partition.
-func toAzureSinglePartition(part PartitionInfo) azcfg.Partition {
+func toAzureSinglePartition(part config.PartitionInfo) azcfg.Partition {
 	return azcfg.Partition{
-		ID:     part.Name, // Assuming the Name is the ID
+		ID:     part.ID,
 		Name:   part.Name,
 		FsType: part.FsType,
 		Start:  part.StartBytes / MiB,                    // Convert to MiB

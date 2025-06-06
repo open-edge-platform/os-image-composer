@@ -42,6 +42,27 @@ type KernelConfig struct {
 	Cmdline string `yaml:"cmdline"`
 }
 
+// PartitionInfo holds information about a partition in the disk layout
+type PartitionInfo struct {
+	Name       string   // Name: label for the partition
+	ID         string   // ID: unique identifier for the partition; can be used as a key
+	Flags      []string // Flags: optional flags for the partition (e.g., "boot", "hidden")
+	TypeGUID   string   // TypeGUID: GPT type GUID for the partition (e.g., "8300" for Linux filesystem)
+	FsType     string   // FsType: filesystem type (e.g., "ext4", "xfs", etc.);
+	SizeBytes  uint64   // SizeBytes: size of the partition in bytes
+	StartBytes uint64   // StartBytes: absolute start offset in bytes; if zero, partitions are laid out sequentially
+	MountPoint string   // MountPoint: optional mount point for the partition (e.g., "/boot", "/rootfs")
+}
+
+// Disk Info holds information about the disk layout
+type Disk struct {
+	Name               string          `yaml:"name"`               // Name of the disk
+	Compression        string          `yaml:"compression"`        // Compression type (e.g., "gzip", "zstd", "none")
+	Size               uint64          `yaml:"size"`               // Size of the disk in bytes (4GB, 4GiB, 4096Mib also valid)
+	PartitionTableType string          `yaml:"partitionTableType"` // Type of partition table (e.g., "gpt", "mbr")
+	Partitions         []PartitionInfo `yaml:"partitions"`         // List of partitions to create in the disk image
+}
+
 // GlobalConfig holds essential tool-level configuration parameters
 type GlobalConfig struct {
 	// Core tool settings
