@@ -10,8 +10,8 @@ var (
 		{
 			Name:       "root",
 			FsType:     "ext4",
-			StartBytes: 1024,                                   // 1 MiB
-			SizeBytes:  8 * 1024,                               // 8 MiB
+			StartBytes: 1024 * 1024,                            // 1 MiB
+			SizeBytes:  8 * 1024 * 1024,                        // 8 MiB
 			TypeGUID:   "0FC63DAF-8483-4772-8E79-3D69D8477DE4", // Linux filesystem
 		},
 	}
@@ -20,15 +20,15 @@ var (
 		{
 			Name:       "boot",
 			FsType:     "fat32",
-			StartBytes: 1024,                                   // 1 MiB
-			SizeBytes:  100 * 1024,                             // 100 MiB
+			StartBytes: 1024 * 1024,                            // 1 MiB
+			SizeBytes:  100 * 1024 * 1024,                      // 100 MiB
 			TypeGUID:   "C12A7328-F81F-11D2-BA4B-00A0C93EC93B", // EFI System Partition
 		},
 		{
 			Name:       "root",
 			FsType:     "ext4",
-			StartBytes: 103424,                                 // Start after the boot partition
-			SizeBytes:  200 * 1024,                             // 200 MiB
+			StartBytes: 101 * 1024 * 1024,                      // Start after boot (1 + 100 MiB)
+			SizeBytes:  200 * 1024 * 1024,                      // 200 MiB
 			TypeGUID:   "0FC63DAF-8483-4772-8E79-3D69D8477DE4", // Linux filesystem
 		},
 	}
@@ -71,7 +71,7 @@ func TestImagePartitioning(t *testing.T) {
 		{
 			name:       "BootAndRootPartitions",
 			partitions: multiPartitions,
-			imageSize:  350 * 1024 * 1024, // ~300 MiB partitions need a larger image
+			imageSize:  350 * 1024 * 1024, // ~350 MiB partitions need a larger image
 		},
 	}
 
@@ -92,6 +92,7 @@ func TestImagePartitioning(t *testing.T) {
 
 			t.Cleanup(func() {
 				if err := DetachLoopbackDevice(dev); err != nil {
+					WaitForLoopbackToDetach(imgPath, dev)
 					t.Errorf("DetachLoopbackDevice failed: %v", err)
 				}
 			})

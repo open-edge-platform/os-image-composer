@@ -10,6 +10,10 @@ import (
 	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
 )
 
+const (
+	MiB = (1024 * 1024) // 1 MiB = 1024 KiB * 1024 bytes
+)
+
 // PartitionInfo holds information about a partition to be created in an image.
 type PartitionInfo struct {
 	Name       string // Name: label for the partition
@@ -57,15 +61,16 @@ func CreateImageDisc(workDirPath string, discName string, maxSize uint64) error 
 	if workDirPath == "" || discName == "" || maxSize == 0 {
 		return fmt.Errorf("invalid image path or max size")
 	}
+	maxSizeMb := (maxSize / MiB) // Convert maxSize to MiB for diskutils
 
 	log := utils.Logger()
-	log.Debugf("Creating image disk at %s with max size %d bytes", workDirPath, maxSize)
+	log.Debugf("Creating image disk at %s with max size %d bytes", workDirPath, maxSizeMb)
 
-	discFilePath, err := diskutils.CreateEmptyDisk(workDirPath, discName, maxSize)
+	discFilePath, err := diskutils.CreateEmptyDisk(workDirPath, discName, maxSizeMb)
 	if err != nil {
 		return fmt.Errorf("failed to create empty disk image: %w", err)
 	}
-	log.Infof("Created image disk at %s with max size %d bytes", discFilePath, maxSize)
+	log.Infof("Created image disk at %s with max size %d MiB", discFilePath, maxSizeMb)
 	return nil
 }
 
@@ -106,6 +111,24 @@ func DetachLoopbackDevice(loopDev string) error {
 	return nil
 }
 
+// WaitForLoopbackDetach waits for the loopback device to be detached.
+func WaitForLoopbackToDetach(dev string, loopDev string) error {
+	log := utils.Logger()
+	log.Debugf("Waiting for loopback device %s to be detached from %s", dev, loopDev)
+
+	// Validate the loop device path
+	if dev == "" || loopDev == "" {
+		return fmt.Errorf("invalid loop device or device path")
+	}
+
+	// Call the Azure diskutils to wait for the loopback device to be detached
+	if err := diskutils.WaitForLoopbackToDetach(dev, loopDev); err != nil {
+		return fmt.Errorf("failed to wait for loopback detach: %w", err)
+	}
+	log.Infof("Loopback device %s detached successfully from %s", dev, loopDev)
+	return nil
+}
+
 // DeleteImageDisc deletes the specified disk image file.
 func DeleteImageDisc(discFilePath string) error {
 
@@ -120,18 +143,20 @@ func DeleteImageDisc(discFilePath string) error {
 func PartitionImageDisc(path string, maxSize uint64, parts []PartitionInfo) (partDevPathMap map[string]string,
 	partIDToFsTypeMap map[string]string, err error) {
 
+	maxSizeMiB := maxSize / MiB // Convert maxSize to MiB for diskutils
+
 	log := utils.Logger()
-	log.Infof("Partitioning image disk at %s with max size %d bytes", path, maxSize)
+	log.Infof("Partitioning image disk at %s with max size %d MiB", path, maxSizeMiB)
 
 	// Validate the image path
-	if path == "" || maxSize == 0 {
+	if path == "" || maxSizeMiB == 0 {
 		return nil, nil, fmt.Errorf("invalid image path or max size")
 	}
 
 	azParts := toAzurePartitions(parts)
 	cfg := azcfg.Disk{
 		PartitionTableType: azcfg.PartitionTableTypeGpt,
-		MaxSize:            maxSize,
+		MaxSize:            maxSizeMiB, // Use MiB for diskutils
 		Partitions:         azParts,
 	}
 	rootEncryption := azcfg.RootEncryption{
@@ -142,9 +167,10 @@ func PartitionImageDisc(path string, maxSize uint64, parts []PartitionInfo) (par
 	if err != nil {
 		return nil, nil, fmt.Errorf("azure diskutils failed: %w", err)
 	}
-	log.Debugf("Partitioned image disk %s with partitions: %v", path, partToDev)
-	log.Debugf("Partitioned image disk %s with filesystem map: %v", path, partIdToFs)
-	log.Debugf("Partitioned image disk %s with encrypted root: %v", path, encRoot)
+
+	log.Infof("Partitioned image disk %s with partitions: %v", path, partToDev)
+	log.Infof("Partitioned image disk %s with filesystem map: %v", path, partIdToFs)
+	log.Infof("Partitioned image disk %s with encrypted root: %v", path, encRoot)
 	return partToDev, partIdToFs, nil
 }
 
@@ -186,8 +212,8 @@ func toAzurePartitions(parts []PartitionInfo) []azcfg.Partition {
 			ID:       p.Name, // Assuming the Name is the ID
 			Name:     p.Name,
 			FsType:   p.FsType,
-			Start:    p.StartBytes,
-			End:      p.SizeBytes,
+			Start:    p.StartBytes / MiB,
+			End:      (p.SizeBytes + p.StartBytes) / MiB, // Convert to MiB
 			TypeUUID: p.TypeGUID,
 		}
 	}
@@ -200,8 +226,8 @@ func toAzureSinglePartition(part PartitionInfo) azcfg.Partition {
 		ID:     part.Name, // Assuming the Name is the ID
 		Name:   part.Name,
 		FsType: part.FsType,
-		Start:  part.StartBytes,
-		End:    part.SizeBytes,
+		Start:  part.StartBytes / MiB,                    // Convert to MiB
+		End:    (part.SizeBytes + part.StartBytes) / MiB, // Convert to MiB
 		Type:   part.TypeGUID,
 	}
 }
