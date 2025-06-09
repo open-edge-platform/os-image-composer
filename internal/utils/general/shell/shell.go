@@ -17,84 +17,6 @@ var (
 	HostPath string = ""
 )
 
-var commandMap = map[string]string{
-	"apt":                "/usr/bin/apt",
-	"apt-cache":          "/usr/bin/apt-cache",
-	"apt-get":            "/usr/bin/apt-get",
-	"basename":           "/usr/bin/basename",
-	"bash":               "/usr/bin/bash",
-	"blkid":              "/usr/sbin/blkid",
-	"bootctl":            "/usr/bin/bootctl",
-	"bunzip2":            "/usr/bin/bunzip2",
-	"cat":                "/usr/bin/cat",
-	"cd":                 "cd", // 'cd' is a shell builtin, not a standalone command
-	"chroot":             "/usr/sbin/chroot",
-	"chmod":              "/usr/bin/chmod",
-	"cp":                 "/usr/bin/cp",
-	"createrepo_c":       "/usr/bin/createrepo_c",
-	"cryptsetup":         "/usr/sbin/cryptsetup",
-	"dd":                 "/usr/bin/dd",
-	"df":                 "/usr/bin/df",
-	"dirname":            "/usr/bin/dirname",
-	"dnf":                "/usr/bin/dnf",
-	"dpkg":               "/usr/bin/dpkg",
-	"dpkg-scanpackages":  "/usr/bin/dpkg-scanpackages",
-	"echo":               "/usr/bin/echo",
-	"e2fsck":             "/usr/sbin/e2fsck",
-	"fallocate":          "/usr/bin/fallocate",
-	"fdisk":              "/usr/sbin/fdisk",
-	"find":               "/usr/bin/find",
-	"findmnt":            "/usr/bin/findmnt",
-	"flock":              "/usr/bin/flock",
-	"gunzip":             "/usr/bin/gunzip",
-	"grep":               "/usr/bin/grep",
-	"gzip":               "/usr/bin/gzip",
-	"head":               "/usr/bin/head",
-	"ls":                 "/usr/bin/ls",
-	"lsb_release":        "/usr/bin/lsb_release",
-	"lsblk":              "/usr/bin/lsblk",
-	"losetup":            "/usr/sbin/losetup",
-	"lvcreate":           "/usr/sbin/lvcreate",
-	"mkdir":              "/usr/bin/mkdir",
-	"mkfs":               "/usr/sbin/mkfs",
-	"mkswap":             "/usr/sbin/mkswap",
-	"mktemp":             "/usr/bin/mktemp",
-	"mount":              "/usr/bin/mount",
-	"opkg":               "/usr/bin/opkg",
-	"parted":             "/usr/sbin/parted",
-	"pvcreate":           "/usr/sbin/pvcreate",
-	"qemu-img":           "/usr/bin/qemu-img",
-	"qemu-system-x86_64": "/usr/bin/qemu-system-x86_64",
-	"rm":                 "/usr/bin/rm",
-	"rpm":                "/usr/bin/rpm",
-	"run":                "/usr/bin/run",
-	"sed":                "/usr/bin/sed",
-	"sfdisk":             "/usr/sbin/sfdisk",
-	"sgdisk":             "/usr/bin/sgdisk",
-	"sha256sum":          "/usr/bin/sha256sum",
-	"sh":                 "/bin/sh",
-	"sleep":              "/usr/bin/sleep",
-	"sudo":               "/usr/bin/sudo",
-	"swapon":             "/usr/sbin/swapon",
-	"sync":               "/usr/bin/sync",
-	"tail":               "/usr/bin/tail",
-	"tar":                "/usr/bin/tar",
-	"tdnf":               "/usr/bin/tdnf",
-	"touch":              "/usr/bin/touch",
-	"truncate":           "/usr/bin/truncate",
-	"tune2fs":            "/usr/sbin/tune2fs",
-	"umount":             "/usr/bin/umount",
-	"uname":              "/usr/bin/uname",
-	"uniq":               "/usr/bin/uniq",
-	"veritysetup":        "/usr/sbin/veritysetup",
-	"vgcreate":           "/usr/sbin/vgcreate",
-	"wipefs":             "/usr/sbin/wipefs",
-	"xz":                 "/usr/bin/xz",
-	"yum":                "/usr/bin/yum",
-	"zstd":               "/usr/bin/zstd",
-	// Add more mappings as needed
-}
-
 // GetOSEnvirons returns the system environment variables
 func GetOSEnvirons() map[string]string {
 	// Convert os.Environ() to a map
@@ -124,6 +46,17 @@ func GetOSProxyEnvirons() map[string]string {
 	return proxyEnv
 }
 
+// getShell returns the preferred shell, falling back to /bin/sh if bash is not available
+func getShell() string {
+	shells := []string{"/bin/bash", "/usr/bin/bash", "/bin/sh"}
+	for _, shell := range shells {
+		if _, err := os.Stat(shell); err == nil {
+			return shell
+		}
+	}
+	return "/bin/sh" // fallback
+}
+
 // IsCommandExist checks if a command exists in the system or in a chroot environment
 func IsCommandExist(cmd string, chrootPath string) bool {
 	var cmdStr string
@@ -133,52 +66,14 @@ func IsCommandExist(cmd string, chrootPath string) bool {
 		cmdStr = "command -v " + cmd
 	}
 
-	output, _ := exec.Command("bash", "-c", cmdStr).Output()
+	shell := getShell()
+	output, _ := exec.Command(shell, "-c", cmdStr).Output()
 	output = bytes.TrimSpace(output)
 	if len(output) == 0 {
 		return false
 	} else {
 		return true
 	}
-}
-
-func verifyCmdWithFullPath(cmd string) (string, error) {
-	separators := []string{"&&", "||", ";"}
-
-	sepIdx := -1
-	sep := ""
-	for _, s := range separators {
-		if idx := strings.Index(cmd, s); idx != -1 && (sepIdx == -1 || idx < sepIdx) {
-			sepIdx = idx
-			sep = s
-		}
-	}
-	if sepIdx != -1 {
-		left := strings.TrimSpace(cmd[:sepIdx])
-		right := strings.TrimSpace(cmd[sepIdx+len(sep):])
-		leftCmdStr, err := verifyCmdWithFullPath(left)
-		if err != nil {
-			return "", fmt.Errorf("failed to verify command: %w", err)
-		}
-		rightCmdStr, err := verifyCmdWithFullPath(right)
-		if err != nil {
-			return "", fmt.Errorf("failed to verify command: %w", err)
-		}
-		return leftCmdStr + " " + sep + " " + rightCmdStr, nil
-	}
-
-	fields := strings.Fields(cmd)
-	if len(fields) == 0 {
-		return cmd, nil
-	}
-	bin := fields[0]
-	fullPath, ok := commandMap[bin]
-	if ok {
-		fields[0] = fullPath
-	} else {
-		return "", fmt.Errorf("command %s not found in commandMap", bin)
-	}
-	return strings.Join(fields, " "), nil
 }
 
 // GetFullCmdStr prepares a command string with necessary prefixes
@@ -190,14 +85,9 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 		envValStr += env + " "
 	}
 
-	fullPathCmdStr, err := verifyCmdWithFullPath(cmdStr)
-	if err != nil {
-		return fullPathCmdStr, fmt.Errorf("failed to verify command with full path: %w", err)
-	}
-
 	if chrootPath != HostPath {
 		if _, err := os.Stat(chrootPath); os.IsNotExist(err) {
-			return fullPathCmdStr, fmt.Errorf("chroot path %s does not exist", chrootPath)
+			return cmdStr, fmt.Errorf("chroot path %s does not exist", chrootPath)
 		}
 
 		proxyEnv := GetOSProxyEnvirons()
@@ -206,9 +96,9 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 			envValStr += key + "=" + value + " "
 		}
 
-		fullCmdStr = "sudo " + envValStr + "chroot " + chrootPath + " " + fullPathCmdStr
+		fullCmdStr = "sudo " + envValStr + "chroot " + chrootPath + " " + cmdStr
 		chrootDir := filepath.Base(chrootPath)
-		log.Debugf("Chroot " + chrootDir + " Exec: [" + fullPathCmdStr + "]")
+		log.Debugf("Chroot " + chrootDir + " Exec: [" + cmdStr + "]")
 
 	} else {
 		if sudo {
@@ -218,11 +108,11 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 				envValStr += key + "=" + value + " "
 			}
 
-			fullCmdStr = "sudo " + envValStr + fullPathCmdStr
-			log.Debugf("Exec: [sudo " + fullPathCmdStr + "]")
+			fullCmdStr = "sudo " + envValStr + cmdStr
+			log.Debugf("Exec: [sudo " + cmdStr + "]")
 		} else {
-			fullCmdStr = fullPathCmdStr
-			log.Debugf("Exec: [" + fullPathCmdStr + "]")
+			fullCmdStr = cmdStr
+			log.Debugf("Exec: [" + cmdStr + "]")
 		}
 	}
 
@@ -237,7 +127,8 @@ func ExecCmd(cmdStr string, sudo bool, chrootPath string, envVal []string) (stri
 		return "", fmt.Errorf("failed to get full command string: %w", err)
 	}
 
-	cmd := exec.Command("bash", "-c", fullCmdStr)
+	shell := getShell()
+	cmd := exec.Command(shell, "-c", fullCmdStr)
 	output, err := cmd.CombinedOutput()
 	outputStr := string(output)
 
@@ -263,7 +154,9 @@ func ExecCmdWithStream(cmdStr string, sudo bool, chrootPath string, envVal []str
 	if err != nil {
 		return "", fmt.Errorf("failed to get full command string: %w", err)
 	}
-	cmd := exec.Command("bash", "-c", fullCmdStr)
+
+	shell := getShell()
+	cmd := exec.Command(shell, "-c", fullCmdStr)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", fmt.Errorf("failed to get stdout pipe for command %s: %w", fullCmdStr, err)
@@ -321,7 +214,8 @@ func ExecCmdWithInput(inputStr string, cmdStr string, sudo bool, chrootPath stri
 		return "", fmt.Errorf("failed to get full command string: %w", err)
 	}
 
-	cmd := exec.Command("bash", "-c", fullCmdStr)
+	shell := getShell()
+	cmd := exec.Command(shell, "-c", fullCmdStr)
 	cmd.Stdin = strings.NewReader(inputStr)
 
 	output, err := cmd.CombinedOutput()
