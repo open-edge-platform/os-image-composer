@@ -76,7 +76,15 @@ func createRootCommand() *cobra.Command {
 		Short: "Image Composer Tool (ICT) for building Linux distributions",
 		Long: `Image Composer Tool (ICT) is a toolchain that enables building immutable
 Linux distributions using a simple toolchain from pre-built packages emanating
-from different Operating System Vendors (OSVs).`,
+from different Operating System Vendors (OSVs).
+
+The tool supports building custom images for:
+- EMT (Edge Microvisor Toolkit)
+- Azure Linux
+- Wind River eLxr
+
+Use 'image-composer --help' to see available commands.
+Use 'image-composer <command> --help' for more information about a command.`,
 	}
 
 	// Add global flags

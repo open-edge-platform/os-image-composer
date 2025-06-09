@@ -2,82 +2,76 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/open-edge-platform/image-composer/internal/utils/config"
 	"github.com/spf13/cobra"
 )
 
-// createConfigCommand creates the config command with subcommands
+// createConfigCommand creates the config subcommand
 func createConfigCommand() *cobra.Command {
 	configCmd := &cobra.Command{
 		Use:   "config",
-		Short: "Manage global configuration",
+		Short: "Manage configuration",
+		Long: `Manage global configuration for the Image Composer Tool.
+
+Available commands:
+  init    Initialize a new configuration file with default values`,
 	}
 
-	// Add subcommands
-	configCmd.AddCommand(createConfigShowCommand())
+	// Add only the init subcommand
 	configCmd.AddCommand(createConfigInitCommand())
 
 	return configCmd
 }
 
-// createConfigShowCommand creates the config show subcommand
-func createConfigShowCommand() *cobra.Command {
-	configShowCmd := &cobra.Command{
-		Use:   "show",
-		Short: "Show current configuration",
-		Run:   executeConfigShow,
-	}
-
-	return configShowCmd
-}
-
 // createConfigInitCommand creates the config init subcommand
 func createConfigInitCommand() *cobra.Command {
-	configInitCmd := &cobra.Command{
+	initCmd := &cobra.Command{
 		Use:   "init [config-file]",
 		Short: "Initialize a new configuration file",
-		Args:  cobra.MaximumNArgs(1),
-		RunE:  executeConfigInit,
+		Long: `Initialize a new configuration file with default values.
+
+If no path is specified, the config will be created in the current directory as image-composer.yml
+
+Examples:
+  # Create config in current directory
+  image-composer config init
+  
+  # Create config at specific location
+  image-composer config init /etc/image-composer/config.yml
+  
+  # Create config in user's home directory
+  image-composer config init ~/.image-composer/config.yml`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: executeConfigInit,
 	}
 
-	return configInitCmd
+	return initCmd
 }
 
-// executeConfigShow shows the current configuration
-func executeConfigShow(cmd *cobra.Command, args []string) {
-	if configFile != "" {
-		fmt.Printf("Configuration file: %s\n", configFile)
-	} else {
-		fmt.Printf("Configuration file: <using defaults>\n")
-	}
-	fmt.Printf("Workers: %d\n", globalConfig.Workers)
-	fmt.Printf("Cache directory: %s\n", globalConfig.CacheDir)
-	fmt.Printf("Work directory: %s\n", globalConfig.WorkDir)
-	fmt.Printf("Temp directory: %s\n", globalConfig.TempDir)
-	fmt.Printf("Log level: %s\n", globalConfig.Logging.Level)
-}
-
-// executeConfigInit creates a new configuration file
+// executeConfigInit handles the config init command logic
 func executeConfigInit(cmd *cobra.Command, args []string) error {
-	configPath := "image-composer.yml" // Default to image-composer.yml
+	configPath := "image-composer.yml"
 	if len(args) > 0 {
 		configPath = args[0]
 	}
 
-	// Check if file already exists
-	if _, err := os.Stat(configPath); err == nil {
-		return fmt.Errorf("configuration file already exists: %s", configPath)
-	}
-
-	// Create default config and save it
+	// Create default config
 	defaultConfig := config.DefaultGlobalConfig()
+
+	// Save to file
 	if err := defaultConfig.SaveGlobalConfig(configPath); err != nil {
-		return fmt.Errorf("creating config file: %w", err)
+		return fmt.Errorf("failed to save config file: %v", err)
 	}
 
-	fmt.Printf("Configuration file created: %s\n", configPath)
-	fmt.Printf("Edit the file to customize settings for your environment.\n")
+	fmt.Printf("Configuration file created at: %s\n", configPath)
+	fmt.Printf("\nDefault configuration settings:\n")
+	fmt.Printf("  Workers: %d\n", defaultConfig.Workers)
+	fmt.Printf("  Cache Directory: %s\n", defaultConfig.CacheDir)
+	fmt.Printf("  Work Directory: %s\n", defaultConfig.WorkDir)
+	fmt.Printf("  Temp Directory: %s\n", defaultConfig.TempDir)
+	fmt.Printf("  Log Level: %s\n", defaultConfig.Logging.Level)
+	fmt.Printf("\nEdit the configuration file to customize these settings.\n")
+
 	return nil
 }
