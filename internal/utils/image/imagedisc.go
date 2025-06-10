@@ -7,8 +7,8 @@ import (
 
 	azcfg "github.com/microsoft/azurelinux/toolkit/tools/imagegen/configuration"
 	"github.com/microsoft/azurelinux/toolkit/tools/imagegen/diskutils"
-	"github.com/open-edge-platform/image-composer/internal/config"
-	utils "github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/config"
+	utils "github.com/open-edge-platform/image-composer/internal/utils/general/logger"
 )
 
 const (
