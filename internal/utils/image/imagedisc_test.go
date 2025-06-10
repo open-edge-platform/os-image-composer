@@ -11,7 +11,7 @@ var (
 	singlePartition = []config.PartitionInfo{
 		{
 			Name:       "root",
-			ID:         "extended",
+			ID:         "rootfs",
 			FsType:     "ext4",
 			StartBytes: 1024 * 1024,                            // 1 MiB
 			SizeBytes:  8 * 1024 * 1024,                        // 8 MiB
@@ -96,8 +96,7 @@ func TestImagePartitioning(t *testing.T) {
 			}
 
 			t.Cleanup(func() {
-				if err := DetachLoopbackDevice(dev); err != nil {
-					WaitForLoopbackToDetach(imgPath, dev)
+				if err := DetachLoopbackDevice(dev, imgPath); err != nil {
 					t.Errorf("DetachLoopbackDevice failed: %v", err)
 				}
 			})

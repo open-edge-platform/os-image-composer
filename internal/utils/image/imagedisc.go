@@ -86,7 +86,7 @@ func SetupLoopbackDevice(discFilePath string) (string, error) {
 }
 
 // DetachLoopbackDevice detaches the loopback device
-func DetachLoopbackDevice(loopDev string) error {
+func DetachLoopbackDevice(dev string, loopDev string) error {
 	log := utils.Logger()
 	log.Debugf("Detaching loopback device %s", loopDev)
 
@@ -96,15 +96,21 @@ func DetachLoopbackDevice(loopDev string) error {
 	}
 
 	// Call the Azure diskutils to detach the loopback device
-	if err := diskutils.DetachLoopbackDevice(loopDev); err != nil {
+	if err := diskutils.DetachLoopbackDevice(dev); err != nil {
 		return fmt.Errorf("failed to detach loopback device: %w", err)
 	}
-	log.Infof("Detached loopback device %s successfully", loopDev)
+
+	// Wait for the loopback device to be detached
+	if err := waitForLoopbackToDetach(dev, loopDev); err != nil {
+		return fmt.Errorf("failed to wait for loopback detach: %w", err)
+	}
+	log.Infof("Loopback device %s detached successfully from %s", dev, loopDev)
+
 	return nil
 }
 
 // WaitForLoopbackDetach waits for the loopback device to be detached.
-func WaitForLoopbackToDetach(dev string, loopDev string) error {
+func waitForLoopbackToDetach(dev string, loopDev string) error {
 	log := utils.Logger()
 	log.Debugf("Waiting for loopback device %s to be detached from %s", dev, loopDev)
 
@@ -176,7 +182,7 @@ func FormatPartitions(partDevs map[string]string, partFSTypes map[string]string,
 
 	detailsMap := make(map[string]config.PartitionInfo)
 	for _, p := range parts {
-		detailsMap[p.Name] = p
+		detailsMap[p.ID] = p
 	}
 
 	for partID, devPath := range partDevs {
