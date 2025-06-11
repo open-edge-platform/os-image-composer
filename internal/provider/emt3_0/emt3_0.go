@@ -40,7 +40,7 @@ type Emt30 struct {
 	repoCfg      repoConfig
 	zstHref      string
 	template     *config.ImageTemplate
-	globalConfig *config.GlobalConfig // Add this field
+	globalConfig *config.GlobalConfig
 }
 
 func init() {

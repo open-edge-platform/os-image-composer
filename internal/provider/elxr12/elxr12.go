@@ -49,7 +49,7 @@ type eLxr12 struct {
 	pkgChecksum  []pkgChecksum //this is not using for debian
 	gzHref       string
 	template     *config.ImageTemplate
-	globalConfig *config.GlobalConfig // Add this field
+	globalConfig *config.GlobalConfig
 }
 
 func init() {
