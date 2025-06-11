@@ -37,10 +37,11 @@ type repoConfig struct {
 
 // AzureLinux3 implements provider.Provider
 type AzureLinux3 struct {
-	repoURL  string
-	repoCfg  repoConfig
-	gzHref   string
-	template *config.ImageTemplate
+	repoURL      string
+	repoCfg      repoConfig
+	gzHref       string
+	template     *config.ImageTemplate
+	globalConfig *config.GlobalConfig
 }
 
 func init() {
@@ -51,8 +52,13 @@ func init() {
 func (p *AzureLinux3) Name() string { return "AzureLinux3" }
 
 // Init will initialize the provider, fetching repo configuration
-func (p *AzureLinux3) Init(template *config.ImageTemplate) error {
+func (p *AzureLinux3) Init(template *config.ImageTemplate, globalConfig *config.GlobalConfig) error {
 	log := logger.Logger()
+
+	// Store both template and global config
+	p.template = template
+	p.globalConfig = globalConfig
+
 	p.repoURL = baseURL + template.Target.Arch + "/" + configName
 
 	resp, err := http.Get(p.repoURL)
@@ -76,13 +82,13 @@ func (p *AzureLinux3) Init(template *config.ImageTemplate) error {
 	}
 
 	p.repoCfg = cfg
-	p.template = template
 	p.gzHref = href
 
 	log.Infof("initialized AzureLinux3 provider repo section=%s", cfg.Section)
 	log.Infof("name=%s", cfg.Name)
 	log.Infof("url=%s", cfg.URL)
 	log.Infof("primary.xml.gz=%s", p.gzHref)
+	log.Infof("using %d workers for downloads", globalConfig.Workers)
 	return nil
 }
 
@@ -101,6 +107,12 @@ func (p *AzureLinux3) Packages() ([]provider.PackageInfo, error) {
 }
 
 func (p *AzureLinux3) MatchRequested(requests []string, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
+	log := logger.Logger()
+
+	if p.globalConfig.Logging.Level == "debug" {
+		log.Debugf("matching %d requested packages against %d available", len(requests), len(all))
+	}
+
 	var out []provider.PackageInfo
 
 	for _, want := range requests {
@@ -142,6 +154,12 @@ func (p *AzureLinux3) MatchRequested(requests []string, all []provider.PackageIn
 func (p *AzureLinux3) Validate(destDir string) error {
 	log := logger.Logger()
 
+	// Use workers from config with cap of 4 for verification
+	workers := p.globalConfig.Workers
+	if workers > 4 {
+		workers = 4 // Keep your current cap
+	}
+
 	// read the GPG key from the repo config
 	resp, err := http.Get(p.repoCfg.GPGKey)
 	if err != nil {
@@ -154,10 +172,14 @@ func (p *AzureLinux3) Validate(destDir string) error {
 		return fmt.Errorf("read GPG key body: %w", err)
 	}
 	log.Infof("fetched GPG key (%d bytes)", len(keyBytes))
-	log.Debugf("GPG key: %s\n", keyBytes)
 
-	// store in a temp file
-	tmp, err := os.CreateTemp("", "azurelinux-gpg-*.asc")
+	// Use temp directory from config
+	tempDir := p.globalConfig.TempDir
+	if tempDir == "" {
+		tempDir = os.TempDir()
+	}
+
+	tmp, err := os.CreateTemp(tempDir, "azurelinux-gpg-*.asc")
 	if err != nil {
 		return fmt.Errorf("create temp key file: %w", err)
 	}
@@ -182,8 +204,8 @@ func (p *AzureLinux3) Validate(destDir string) error {
 	}
 
 	start := time.Now()
-	results := rpmutils.VerifyAll(rpmPaths, tmp.Name(), 4)
-	log.Infof("RPM verification took %s", time.Since(start))
+	results := rpmutils.VerifyAll(rpmPaths, tmp.Name(), workers)
+	log.Infof("RPM verification took %s using %d workers", time.Since(start), workers)
 
 	// Check results
 	for _, r := range results {
@@ -209,8 +231,11 @@ func (p *AzureLinux3) Resolve(req []provider.PackageInfo, all []provider.Package
 	}
 	log.Infof("need a total of %d RPMs (including dependencies)", len(needed))
 
-	for _, pkg := range needed {
-		log.Debugf("-> %s", pkg.Name)
+	// Use global config for conditional debug output
+	if p.globalConfig.Logging.Level == "debug" {
+		for _, pkg := range needed {
+			log.Debugf("-> %s", pkg.Name)
+		}
 	}
 
 	return needed, nil

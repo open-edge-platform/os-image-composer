@@ -36,10 +36,11 @@ type repoConfig struct {
 
 // Emt30 implements provider.Provider
 type Emt30 struct {
-	repoURL  string
-	repoCfg  repoConfig
-	zstHref  string
-	template *config.ImageTemplate
+	repoURL      string
+	repoCfg      repoConfig
+	zstHref      string
+	template     *config.ImageTemplate
+	globalConfig *config.GlobalConfig // Add this field
 }
 
 func init() {
@@ -50,8 +51,12 @@ func init() {
 func (p *Emt30) Name() string { return "EMT3.0" }
 
 // Init will initialize the provider, fetching repo configuration
-func (p *Emt30) Init(template *config.ImageTemplate) error {
+func (p *Emt30) Init(template *config.ImageTemplate, globalConfig *config.GlobalConfig) error {
 	log := logger.Logger()
+
+	// Store both template and global config
+	p.template = template
+	p.globalConfig = globalConfig
 
 	resp, err := http.Get(configURL)
 	if err != nil {
@@ -74,13 +79,13 @@ func (p *Emt30) Init(template *config.ImageTemplate) error {
 
 	p.repoURL = configURL
 	p.repoCfg = cfg
-	p.template = template
 	p.zstHref = href
 
 	log.Infof("initialized EMT3.0 provider repo section=%s", cfg.Section)
 	log.Infof("name=%s", cfg.Name)
 	log.Infof("url=%s", cfg.URL)
 	log.Infof("primary.xml.zst=%s", p.zstHref)
+	log.Infof("using %d workers for downloads", globalConfig.Workers)
 	return nil
 }
 
@@ -99,7 +104,6 @@ func (p *Emt30) Packages() ([]provider.PackageInfo, error) {
 	return packages, nil
 }
 
-// MatchRequested takes the list of requested packages and returns
 func (p *Emt30) MatchRequested(requests []string, all []provider.PackageInfo) ([]provider.PackageInfo, error) {
 	var out []provider.PackageInfo
 
@@ -143,6 +147,11 @@ func (p *Emt30) MatchRequested(requests []string, all []provider.PackageInfo) ([
 func (p *Emt30) Validate(destDir string) error {
 	log := logger.Logger()
 
+	workers := p.globalConfig.Workers
+	if workers > 4 {
+		workers = 4
+	}
+
 	// read the GPG key from the repo config
 	resp, err := http.Get(p.repoCfg.GPGKey)
 	if err != nil {
@@ -158,7 +167,12 @@ func (p *Emt30) Validate(destDir string) error {
 	log.Debugf("GPG key: %s\n", keyBytes)
 
 	// store in a temp file
-	tmp, err := os.CreateTemp("", "emt-gpg-*.asc")
+	tempDir := p.globalConfig.TempDir
+	if tempDir == "" {
+		tempDir = os.TempDir()
+	}
+
+	tmp, err := os.CreateTemp(tempDir, "emt-gpg-*.asc")
 	if err != nil {
 		return fmt.Errorf("create temp key file: %w", err)
 	}
@@ -183,8 +197,8 @@ func (p *Emt30) Validate(destDir string) error {
 	}
 
 	start := time.Now()
-	results := rpmutils.VerifyAll(rpmPaths, tmp.Name(), 4)
-	log.Infof("RPM verification took %s", time.Since(start))
+	results := rpmutils.VerifyAll(rpmPaths, tmp.Name(), workers)
+	log.Infof("RPM verification took %s using %d workers", time.Since(start), workers)
 
 	// Check results
 	for _, r := range results {
@@ -211,8 +225,10 @@ func (p *Emt30) Resolve(req []provider.PackageInfo, all []provider.PackageInfo) 
 	}
 	log.Infof("need a total of %d RPMs (including dependencies)", len(needed))
 
-	for _, pkg := range needed {
-		log.Debugf("-> %s", pkg.Name)
+	if p.globalConfig.Logging.Level == "debug" {
+		for _, pkg := range needed {
+			log.Debugf("-> %s", pkg.Name)
+		}
 	}
 
 	return needed, nil

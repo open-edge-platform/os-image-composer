@@ -20,7 +20,7 @@ type Provider interface {
 	Name() string
 
 	// Init does any one-time setup: import GPG keys, register repos, etc.
-	Init(template *config.ImageTemplate) error
+	Init(template *config.ImageTemplate, globalConfig *config.GlobalConfig) error
 
 	// Packages returns the list of PackageInfo for this image build.
 	Packages() ([]PackageInfo, error)

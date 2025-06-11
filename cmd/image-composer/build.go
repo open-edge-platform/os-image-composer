@@ -88,8 +88,8 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("provider not found: %s", providerName)
 	}
 
-	// Initialize provider with the template
-	if err := p.Init(template); err != nil {
+	// Initialize provider with the template and global config
+	if err := p.Init(template, globalConfig); err != nil {
 		return fmt.Errorf("provider init: %v", err)
 	}
 

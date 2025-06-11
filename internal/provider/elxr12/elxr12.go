@@ -44,11 +44,12 @@ type pkgChecksum struct {
 
 // eLxr12 implements provider.Provider
 type eLxr12 struct {
-	repoURL     string
-	repoCfg     repoConfig
-	pkgChecksum []pkgChecksum //this is not using for debian
-	gzHref      string
-	template    *config.ImageTemplate
+	repoURL      string
+	repoCfg      repoConfig
+	pkgChecksum  []pkgChecksum //this is not using for debian
+	gzHref       string
+	template     *config.ImageTemplate
+	globalConfig *config.GlobalConfig // Add this field
 }
 
 func init() {
@@ -59,8 +60,12 @@ func init() {
 func (p *eLxr12) Name() string { return "eLxr12" }
 
 // Init will initialize the provider, fetching repo configuration
-func (p *eLxr12) Init(template *config.ImageTemplate) error {
+func (p *eLxr12) Init(template *config.ImageTemplate, globalConfig *config.GlobalConfig) error {
 	log := logger.Logger()
+
+	// Store both template and global config
+	p.template = template
+	p.globalConfig = globalConfig
 
 	//todo: need to correct of how to get the arch once finalized
 	arch := template.Target.Arch
@@ -76,12 +81,12 @@ func (p *eLxr12) Init(template *config.ImageTemplate) error {
 	}
 	p.repoCfg = cfg
 	p.gzHref = cfg.PkgList
-	p.template = template
 
 	log.Infof("initialized eLxr provider repo section=%s", cfg.Section)
 	log.Infof("name=%s", cfg.Name)
 	log.Infof("package list url=%s", cfg.PkgList)
 	log.Infof("package download url=%s", cfg.PkgPrefix)
+	log.Infof("using %d workers for downloads", globalConfig.Workers)
 	return nil
 }
 
@@ -104,6 +109,12 @@ func (p *eLxr12) Packages() ([]provider.PackageInfo, error) {
 func (p *eLxr12) Validate(destDir string) error {
 	log := logger.Logger()
 
+	// Use workers from global config with cap of 4 for verification
+	workers := p.globalConfig.Workers
+	if workers > 4 {
+		workers = 4
+	}
+
 	// get all DEBs in the destDir
 	debPattern := filepath.Join(destDir, "*.deb")
 	debPaths, err := filepath.Glob(debPattern)
@@ -122,8 +133,8 @@ func (p *eLxr12) Validate(destDir string) error {
 	}
 
 	start := time.Now()
-	results := debutils.VerifyDEBs(debPaths, checksumMap, 4)
-	log.Infof("Debian verification took %s", time.Since(start))
+	results := debutils.VerifyDEBs(debPaths, checksumMap, workers)
+	log.Infof("Debian verification took %s using %d workers", time.Since(start), workers)
 
 	// Check results
 	for _, r := range results {
@@ -151,8 +162,11 @@ func (p *eLxr12) Resolve(req []provider.PackageInfo, all []provider.PackageInfo)
 	log.Infof("requested %d packages, resolved to %d packages", len(req), len(needed))
 	log.Infof("need a total of %d DEBs (including dependencies)", len(needed))
 
-	for _, pkg := range needed {
-		log.Debugf("-> %s", pkg.Name)
+	// Use global config for conditional debug output
+	if p.globalConfig.Logging.Level == "debug" {
+		for _, pkg := range needed {
+			log.Debugf("-> %s", pkg.Name)
+		}
 	}
 
 	// Adding needed packages to the pkgChecksum list
