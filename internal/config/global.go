@@ -1,3 +1,4 @@
+// internal/config/global.go
 package config
 
 import (
@@ -45,14 +46,16 @@ func SetGlobal(config *GlobalConfig) {
 
 // Global returns the global config instance
 func Global() *GlobalConfig {
+	once.Do(func() {
+		globalMutex.Lock()
+		defer globalMutex.Unlock()
+		if globalInstance == nil {
+			globalInstance = DefaultGlobalConfig()
+		}
+	})
+
 	globalMutex.RLock()
 	defer globalMutex.RUnlock()
-	if globalInstance == nil {
-		// Return defaults if not set
-		once.Do(func() {
-			globalInstance = DefaultGlobalConfig()
-		})
-	}
 	return globalInstance
 }
 
