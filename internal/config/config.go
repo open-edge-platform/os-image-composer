@@ -68,6 +68,7 @@ var (
 	TargetDist      string
 	TargetArch      string
 	TargetImageType string
+	ProviderId      string
 )
 
 // LoadTemplate loads an ImageTemplate from the specified YAML template path

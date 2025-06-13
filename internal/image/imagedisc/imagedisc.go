@@ -46,6 +46,10 @@ func init() {
 	}
 }
 
+func CreateRawImage(filePath string, template *config.ImageTemplate) error {
+	return nil
+}
+
 // CreateImageDisc allocates a new raw disk image file of the given size.
 func CreateImageDisc(workDirPath string, discName string, maxSize uint64) error {
 

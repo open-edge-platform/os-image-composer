@@ -102,22 +102,22 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 }
 
 func InitProvider(os, dist, arch string) (provider.Provider, error) {
-	var providerId string
+
 	var p provider.Provider
 	switch os {
 	case "azure-linux":
 		azl.Register(dist, arch)
-		providerId = azl.GetProviderId(dist, arch)
+		config.ProviderId = azl.GetProviderId(dist, arch)
 	case "edge-microvisor-toolkit":
 		emt.Register(dist, arch)
-		providerId = emt.GetProviderId(dist, arch)
+		config.ProviderId = emt.GetProviderId(dist, arch)
 	case "elxr":
 		elxr.Register(dist, arch)
-		providerId = elxr.GetProviderId(dist, arch)
+		config.ProviderId = elxr.GetProviderId(dist, arch)
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", os)
 	}
-	p, ok := provider.Get(providerId)
+	p, ok := provider.Get(config.ProviderId)
 	if !ok {
 		return nil, fmt.Errorf("provider not found for %s %s %s", os, dist, arch)
 	}
