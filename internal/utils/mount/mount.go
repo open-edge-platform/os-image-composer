@@ -1,0 +1,217 @@
+package mount
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/shell"
+	"github.com/open-edge-platform/image-composer/internal/utils/slice"
+)
+
+func GetMountPathList() ([]string, error) {
+	var mountPathList []string
+	output, err := shell.ExecCmd("mount", false, "", nil)
+	if err != nil {
+		return mountPathList, err
+	}
+	if output != "" {
+		lines := strings.Split(output, "\n")
+		for _, line := range lines {
+			mountInfoList := strings.Fields(line)
+			if len(mountInfoList) > 2 {
+				mountPathList = append(mountPathList, mountInfoList[2])
+			}
+		}
+	}
+	return mountPathList, nil
+}
+
+// GetMountSubPathList returns a list of mount points that are subdirectories of the specified root mount point
+func GetMountSubPathList(rootMountPoint string) ([]string, error) {
+	var mountSubpathList []string
+	mountPathList, err := GetMountPathList()
+	if err != nil {
+		return mountSubpathList, fmt.Errorf("failed to get mount path list: %w", err)
+	}
+	for _, mountPath := range mountPathList {
+		if strings.HasPrefix(mountPath, rootMountPoint) {
+			mountSubpathList = append(mountSubpathList, mountPath)
+		}
+	}
+	return mountSubpathList, nil
+}
+
+// IsMountPathExist checks if a given path is currently mounted
+func IsMountPathExist(mountPoint string) (bool, error) {
+	mountPathList, err := GetMountPathList()
+	if err != nil {
+		return false, fmt.Errorf("failed to get mount path list: %w", err)
+	}
+	for _, path := range mountPathList {
+		if path == mountPoint {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// MountPath mounts a target path to a mount point with specific flags
+func MountPath(targetPath, mountPoint, mountFlags string) error {
+	log := logger.Logger()
+	if _, err := os.Stat(mountPoint); os.IsNotExist(err) {
+		if _, err := shell.ExecCmd("mkdir -p "+mountPoint, true, "", nil); err != nil {
+			return fmt.Errorf("failed to create mount point %s: %w", mountPoint, err)
+		}
+	}
+	pathExist, err := IsMountPathExist(mountPoint)
+	if err != nil {
+		return fmt.Errorf("failed to check if mount point %s exists: %w", mountPoint, err)
+	}
+	if !pathExist {
+		mountCmdStr := "mount " + mountFlags + " " + targetPath + " " + mountPoint
+		if _, err := shell.ExecCmd(mountCmdStr, true, "", nil); err != nil {
+			return fmt.Errorf("failed to mount %s to %s: %w", targetPath, mountPoint, err)
+		} else {
+			log.Debugf("Mounted:", targetPath, "to", mountPoint)
+		}
+	} else {
+		log.Debugf("Mount point already exists:", mountPoint)
+	}
+	return nil
+}
+
+func UmountPath(mountPoint string) error {
+	log := logger.Logger()
+	pathExist, err := IsMountPathExist(mountPoint)
+	if err != nil {
+		return fmt.Errorf("failed to check if mount point %s exists: %w", mountPoint, err)
+	}
+	if pathExist {
+		if _, err := shell.ExecCmd("umount -lR "+mountPoint, true, "", nil); err != nil {
+			return fmt.Errorf("failed to unmount %s: %w", mountPoint, err)
+		} else {
+			log.Debugf("Unmounted:", mountPoint)
+		}
+	} else {
+		log.Debugf("Mount point does not exist:", mountPoint)
+	}
+	return nil
+}
+
+func UmountAndDeletePath(mountPoint string) error {
+	if err := UmountPath(mountPoint); err != nil {
+		return fmt.Errorf("failed to unmount %s: %w", mountPoint, err)
+	}
+	if _, err := shell.ExecCmd("rm -rf "+mountPoint, true, "", nil); err != nil {
+		return fmt.Errorf("failed to remove mount point directory %s:%v", mountPoint, err)
+	}
+	return nil
+}
+
+func UmountSubPath(mountPoint string) error {
+	mountSubpathList, err := GetMountSubPathList(mountPoint)
+	if err != nil {
+		return fmt.Errorf("failed to get mount subpath list for %s: %w", mountPoint, err)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(mountSubpathList)))
+	for _, path := range mountSubpathList {
+		if _, err := shell.ExecCmd("umount -lR "+path, true, "", nil); err != nil {
+			return fmt.Errorf("failed to unmount %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+// MountSysfs mounts system directories (e.g., /dev, /proc, /sys) into the chroot environment
+func MountSysfs(mountPoint string) error {
+	devMountPoint := filepath.Join(mountPoint, "dev")
+	if err := MountPath("/dev", devMountPoint, "--rbind"); err != nil {
+		return fmt.Errorf("failed to mount /dev to %s: %w", devMountPoint, err)
+	}
+	if _, err := shell.ExecCmd("mount --make-rslave "+devMountPoint, true, "", nil); err != nil {
+		return fmt.Errorf("failed to make /dev %s a slave mount: %w", devMountPoint, err)
+	}
+
+	procMountPoint := filepath.Join(mountPoint, "proc")
+	if err := MountPath("/proc", procMountPoint, "-t proc"); err != nil {
+		return fmt.Errorf("failed to mount /proc to %s: %w", procMountPoint, err)
+	}
+
+	sysMountPoint := filepath.Join(mountPoint, "sys")
+	if err := MountPath("/sys", sysMountPoint, "--rbind"); err != nil {
+		return fmt.Errorf("failed to mount /sys to %s: %w", sysMountPoint, err)
+	}
+	if _, err := shell.ExecCmd("mount --make-rslave "+sysMountPoint, true, "", nil); err != nil {
+		return fmt.Errorf("failed to make /sys %s a slave mount: %w", devMountPoint, err)
+	}
+
+	runMountPoint := filepath.Join(mountPoint, "run")
+	if err := MountPath("/run", runMountPoint, "--rbind"); err != nil {
+		return fmt.Errorf("failed to mount /run to %s: %w", runMountPoint, err)
+	}
+	return nil
+}
+
+// UmountSysfs unmounts system directories from the chroot environment
+func UmountSysfs(mountPoint string) error {
+	var pathList []string
+	log := logger.Logger()
+	mountPathList, err := GetMountPathList()
+	if err != nil {
+		return fmt.Errorf("failed to get mount path list: %w", err)
+	}
+	if len(mountPathList) == 0 {
+		log.Debugf("No mount points found")
+		return nil
+	}
+
+	for _, path := range mountPathList {
+		if strings.Contains(path, mountPoint) {
+			pathList = append(pathList, path)
+		}
+	}
+
+	for _, _mountPoint := range []string{"run", "sys", "proc", "dev"} {
+		fullPath := filepath.Join(mountPoint, _mountPoint)
+		if slice.Contains(pathList, fullPath) {
+			if _, err := shell.ExecCmd("umount -lR "+fullPath, true, "", nil); err != nil {
+				return fmt.Errorf("failed to unmount %s: %w", fullPath, err)
+			} else {
+				log.Debugf("Unmounted: %s", fullPath)
+			}
+		}
+	}
+	return nil
+}
+
+// CleanSysfs cleans up system directories in the chroot environment
+func CleanSysfs(mountPoint string) error {
+	var pathList []string
+	log := logger.Logger()
+	mountPathList, err := GetMountPathList()
+	if err != nil {
+		return fmt.Errorf("failed to get mount path list: %w", err)
+	}
+	if len(mountPathList) == 0 {
+		log.Debugf("No mount points found")
+		return nil
+	}
+
+	for _, _mountPoint := range []string{"run", "sys", "proc", "dev"} {
+		fullPath := filepath.Join(mountPoint, _mountPoint)
+		if !slice.Contains(pathList, fullPath) {
+			if _, err := shell.ExecCmd("rm -rf "+fullPath, true, "", nil); err != nil {
+				return fmt.Errorf("failed to remove path %s: %w", fullPath, err)
+			}
+		} else {
+			return fmt.Errorf("failed to remove path: %s still mounted", fullPath)
+		}
+	}
+
+	return nil
+}
