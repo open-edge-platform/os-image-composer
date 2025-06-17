@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/klauspost/compress/zstd"
 	"github.com/open-edge-platform/image-composer/internal/ospackage"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
 )
@@ -176,7 +178,7 @@ func ResolvePackageInfos(
 	return result, nil
 }
 
-// ParsePrimary parses the repodata/primary.xml.gz file from a given base URL.
+// ParsePrimary parses the repodata/primary.xml(.gz/.zst) file from a given base URL.
 func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 
 	resp, err := http.Get(baseURL + gzHref)
@@ -184,7 +186,24 @@ func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	gr, err := gzip.NewReader(resp.Body)
+
+	var gr io.ReadCloser
+	ext := strings.ToLower(filepath.Ext(gzHref))
+	switch ext {
+	case ".gz":
+		gr, err = gzip.NewReader(resp.Body)
+
+	case ".zst":
+		zstDecoder, err := zstd.NewReader(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		gr = zstDecoder.IOReadCloser()
+
+	default:
+		err = fmt.Errorf("unsupported compression type %s", ext)
+	}
+
 	if err != nil {
 		return nil, err
 	}
