@@ -13,18 +13,36 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type ImageInfo struct {
+	Name    string `yaml:"name"`
+	Version string `yaml:"version"`
+}
+
+type TargetInfo struct {
+	OS        string `yaml:"os"`
+	Dist      string `yaml:"dist"`
+	Arch      string `yaml:"arch"`
+	ImageType string `yaml:"imageType"`
+}
+
+type ArtifactInfo struct {
+	Type        string `yaml:"type"`
+	Compression string `yaml:"compression"`
+}
+
+type DiskConfig struct {
+	Name               string          `yaml:"name"`
+	Artifacts          []ArtifactInfo  `yaml:"artifacts"`
+	Size               string          `yaml:"size"`
+	PartitionTableType string          `yaml:"partitionTableType"`
+	Partitions         []PartitionInfo `yaml:"partitions"`
+}
+
 // ImageTemplate represents the YAML image template structure
 type ImageTemplate struct {
-	Image struct {
-		Name    string `yaml:"name"`
-		Version string `yaml:"version"`
-	} `yaml:"image"`
-	Target struct {
-		OS        string `yaml:"os"`
-		Dist      string `yaml:"dist"`
-		Arch      string `yaml:"arch"`
-		ImageType string `yaml:"imageType"`
-	} `yaml:"target"`
+	Image         ImageInfo      `yaml:"image"`
+	Target        TargetInfo     `yaml:"target"`
+	DiskConfigs   []DiskConfig   `yaml:"disk"`
 	SystemConfigs []SystemConfig `yaml:"systemConfigs"`
 }
 
@@ -152,6 +170,28 @@ func (t *ImageTemplate) GetDistroVersion() string {
 		"elxr12": "12",
 	}
 	return versionMap[t.Target.Dist]
+}
+
+func (t *ImageTemplate) GetImageName() string {
+	return t.Image.Name
+}
+
+func (t *ImageTemplate) GetTargetInfo() TargetInfo {
+	return t.Target
+}
+
+func (t *ImageTemplate) GetDiskConfig() DiskConfig {
+	if len(t.DiskConfigs) > 0 {
+		return t.DiskConfigs[0]
+	}
+	return DiskConfig{}
+}
+
+func (t *ImageTemplate) GetSystemConfig() SystemConfig {
+	if len(t.SystemConfigs) > 0 {
+		return t.SystemConfigs[0]
+	}
+	return SystemConfig{}
 }
 
 // GetPackages returns all packages from the first system configuration
