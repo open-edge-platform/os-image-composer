@@ -59,9 +59,14 @@ func MatchRequested(requests []string, all []ospackage.PackageInfo) ([]ospackage
 				break
 			}
 			// 2) prefix by want-version ("acl-")
+			// Only match if the part after "want-" is a version (starts with a digit)
+			// prevent getting acl-dev when asking for acl-9.2
 			if strings.HasPrefix(pi.Name, want+"-") {
-				candidates = append(candidates, pi)
-				continue
+				rest := strings.TrimPrefix(pi.Name, want+"-")
+				if isValidVersionFormat(rest) {
+					candidates = append(candidates, pi)
+					continue
+				}
 			}
 			// 3) prefix by want.release ("acl-2.3.1-2.")
 			if strings.HasPrefix(pi.Name, want+".") {
@@ -84,6 +89,31 @@ func MatchRequested(requests []string, all []ospackage.PackageInfo) ([]ospackage
 		out = append(out, candidates[0])
 	}
 	return out, nil
+}
+
+func isAllDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return len(s) > 0
+}
+
+func isValidVersionFormat(s string) bool {
+	// Check if the string is all digits up to the next '.'
+	dotIdx := strings.IndexByte(s, '.')
+	var prefix string
+	if dotIdx == -1 {
+		prefix = s
+	} else {
+		prefix = s[:dotIdx]
+	}
+	if len(prefix) > 0 && isAllDigits(prefix) {
+		return true
+	}
+	// If we reach here, the format is not valid
+	return false
 }
 
 func Validate(destDir string) error {
