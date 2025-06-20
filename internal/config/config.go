@@ -2,13 +2,11 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/open-edge-platform/image-composer/internal/config/validate"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
 	"gopkg.in/yaml.v3"
 )
@@ -125,16 +123,16 @@ func parseYAMLTemplate(data []byte) (*ImageTemplate, error) {
 		return nil, fmt.Errorf("parsing YAML: %w", err)
 	}
 
-	// Convert to JSON for schema validation
-	jsonData, err := json.Marshal(raw)
-	if err != nil {
-		return nil, fmt.Errorf("converting to JSON for validation: %w", err)
-	}
+	// // Convert to JSON for schema validation
+	// jsonData, err := json.Marshal(raw)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("converting to JSON for validation: %w", err)
+	// }
 
-	// Validate against image template schema
-	if err := validate.ValidateImageTemplateJSON(jsonData); err != nil {
-		return nil, fmt.Errorf("template validation error: %w", err)
-	}
+	// // Validate against image template schema
+	// if err := validate.ValidateImageTemplateJSON(jsonData); err != nil {
+	// 	return nil, fmt.Errorf("template validation error: %w", err)
+	// }
 
 	// Parse into template structure
 	var template ImageTemplate

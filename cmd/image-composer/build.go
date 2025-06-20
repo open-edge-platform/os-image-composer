@@ -74,10 +74,10 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 	}
 	templateFile := args[0]
 
-	// Load and validate the image template
-	template, err := config.LoadTemplate(templateFile)
+	// Load user template and merge with default configuration
+	template, err := config.LoadAndMergeTemplate(templateFile)
 	if err != nil {
-		return fmt.Errorf("loading template file: %v", err)
+		return fmt.Errorf("loading and merging template: %v", err)
 	}
 
 	p, err := InitProvider(config.TargetOs, config.TargetDist, config.TargetArch)
