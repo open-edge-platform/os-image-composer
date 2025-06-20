@@ -355,5 +355,107 @@ func updateImageFstab(installRoot string, diskPathIdMap map[string]string, templ
 }
 
 func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
+
+	installRoot = "/data/yockgen/rootfs"
+	//installRoot = "/home/user/sam/azlRootfs"
+	builderRoot := ""
+
+	// 1. Update initramfs
+	kernelVersion, err := getKernelVersion(installRoot)
+	if err != nil {
+		fmt.Println("failed to get kernel version: %w", err)
+		return fmt.Errorf("failed to get kernel version: %w", err)
+	}
+
+	fmt.Println("Kernel version:", kernelVersion)
+
+	if err := updateInitramfs(installRoot, kernelVersion, builderRoot); err != nil {
+		fmt.Printf("initrd updated failed: %v\n", err)
+		return fmt.Errorf("failed to update initramfs: %w", err)
+	}
+
+	fmt.Println("initrd updated successfully")
+
+	// 2. Build UKI with ukify
+	kernelPath := filepath.Join("/boot", "vmlinuz-"+kernelVersion)
+	initrdPath := filepath.Join("/boot", "initrd.img-"+kernelVersion)
+	espRoot := "/"
+	// espDir := getESPDir(espRoot)
+	// outputPath := filepath.Join(espDir, "EFI", "Linux", "linux.efi")
+	outputPath := filepath.Join(espRoot, "linux.efi")
+	cmdline := "root=LABEL=ROOT rw quiet console=ttyS0 rd.shell"
+
+	if err := buildUKIWithUkify(installRoot, kernelPath, initrdPath, cmdline, outputPath); err != nil {
+		fmt.Printf("failed to build UKI: %v", err)
+		return fmt.Errorf("failed to build UKI: %w", err)
+	}
+	fmt.Println("UKI created successfully on:", outputPath)
+
+	// cmdStr := "chroot " + installRoot + " ukify"
+	// result, _ := shell.ExecCmd(cmdStr, true, "", nil)
+	// fmt.Println(result)
+
+	// fmt.Printf("install root: %s\n", template)
+	// panic("hard stop: UKI configuration is not implemented")
 	return nil
+}
+
+// Helper to get the current kernel version from the rootfs
+func getKernelVersion(installRoot string) (string, error) {
+	kernelDir := filepath.Join(installRoot, "boot")
+	files, err := os.ReadDir(kernelDir)
+	if err != nil {
+		return "", err
+	}
+	for _, f := range files {
+		name := f.Name()
+		if strings.HasPrefix(name, "vmlinuz-") {
+			return strings.TrimPrefix(name, "vmlinuz-"), nil
+		}
+	}
+	return "", fmt.Errorf("kernel image not found in %s", kernelDir)
+}
+
+// Helper to update initramfs for the given kernel version
+func updateInitramfs(installRoot, kernelVersion, builderRoot string) error {
+	cmd := fmt.Sprintf("chroot %s update-initramfs -c -k %s", installRoot, kernelVersion)
+	_, err := shell.ExecCmd(cmd, true, builderRoot, nil)
+	return err
+}
+
+// Helper to determine the ESP directory (assumes /boot/efi)
+func getESPDir(bootRoot string) string {
+	return filepath.Join(bootRoot, "boot", "efi")
+}
+
+// Helper to build UKI using ukify
+func buildUKIWithUkify(installRoot, kernelPath, initrdPath, cmdline, outputPath string) error {
+	// Ensure output directory exists
+	outputDir := filepath.Dir(outputPath)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return err
+	}
+	cmd := fmt.Sprintf(
+		"chroot %s ukify build --linux \"%s\" --initrd \"%s\" --cmdline \"%s\" --output \"%s\"",
+		installRoot,
+		kernelPath,
+		initrdPath,
+		cmdline,
+		outputPath,
+	)
+	_, err := shell.ExecCmd(cmd, true, "", nil)
+	return err
+}
+
+// Helper to copy the bootloader EFI file
+func copyBootloader(src, dst string) error {
+	dstDir := filepath.Dir(dst)
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return err
+	}
+	input, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, input, 0644)
 }
