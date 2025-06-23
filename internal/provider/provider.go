@@ -19,7 +19,7 @@ type Provider interface {
 	BuildImage(template *config.ImageTemplate) error
 
 	// PostProcess does any final steps after the image is built.
-	PostProcess(template *config.ImageTemplate) error
+	PostProcess(template *config.ImageTemplate, err error) error
 }
 
 var (

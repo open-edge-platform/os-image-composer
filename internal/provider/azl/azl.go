@@ -103,12 +103,16 @@ func (p *AzureLinux) BuildImage(template *config.ImageTemplate) error {
 	return nil
 }
 
-func (p *AzureLinux) PostProcess(template *config.ImageTemplate) error {
-	err := chroot.CleanupChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch)
+func (p *AzureLinux) PostProcess(template *config.ImageTemplate, err error) error {
+	log := logger.Logger()
 	if err != nil {
+		log.Errorf("post-process error: %v", err)
+	}
+
+	if err := chroot.CleanupChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch); err != nil {
 		return fmt.Errorf("failed to cleanup chroot environment: %v", err)
 	}
-	return nil
+	return err
 }
 
 func (p *AzureLinux) downloadImagePkgs(template *config.ImageTemplate) error {

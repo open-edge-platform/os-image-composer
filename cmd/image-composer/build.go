@@ -66,6 +66,7 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 		config.SetGlobal(currentConfig)
 	}
 
+	var buildErr error
 	log := logger.Logger()
 
 	// Check if template file is provided as first positional argument
@@ -82,23 +83,33 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 
 	p, err := InitProvider(config.TargetOs, config.TargetDist, config.TargetArch)
 	if err != nil {
-		return fmt.Errorf("initializing provider failed: %v", err)
+		buildErr = fmt.Errorf("initializing provider failed: %v", err)
+		goto post
 	}
 
 	if err := p.PreProcess(template); err != nil {
-		return fmt.Errorf("pre-processing failed: %v", err)
+		buildErr = fmt.Errorf("pre-processing failed: %v", err)
+		goto post
 	}
 
 	if err := p.BuildImage(template); err != nil {
-		return fmt.Errorf("image build failed: %v", err)
+		buildErr = fmt.Errorf("image build failed: %v", err)
+		goto post
 	}
 
-	if err := p.PostProcess(template); err != nil {
+post:
+
+	if err := p.PostProcess(template, buildErr); err != nil {
 		return fmt.Errorf("post-processing failed: %v", err)
 	}
 
-	log.Info("build completed successfully")
-	return nil
+	if buildErr == nil {
+		log.Info("image build completed successfully")
+	} else {
+		log.Errorf("image build failed: %v", buildErr)
+	}
+
+	return buildErr
 }
 
 func InitProvider(os, dist, arch string) (provider.Provider, error) {

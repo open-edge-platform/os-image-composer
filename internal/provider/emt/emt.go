@@ -88,7 +88,7 @@ func (p *Emt) BuildImage(template *config.ImageTemplate) error {
 	return nil
 }
 
-func (p *Emt) PostProcess(template *config.ImageTemplate) error {
+func (p *Emt) PostProcess(template *config.ImageTemplate, err error) error {
 	return nil
 }
 

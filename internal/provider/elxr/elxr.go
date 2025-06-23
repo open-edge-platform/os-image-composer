@@ -72,7 +72,7 @@ func (p *eLxr) BuildImage(template *config.ImageTemplate) error {
 	return nil
 }
 
-func (p *eLxr) PostProcess(template *config.ImageTemplate) error {
+func (p *eLxr) PostProcess(template *config.ImageTemplate, err error) error {
 	return nil
 }
 
