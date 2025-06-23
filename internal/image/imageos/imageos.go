@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/open-edge-platform/image-composer/internal/chroot"
 	"github.com/open-edge-platform/image-composer/internal/config"
@@ -85,14 +86,14 @@ func InstallImageOs(diskPathIdMap map[string]string, template *config.ImageTempl
 		goto fail
 	}
 
-	if err = umountDiskFromChroot(mountPointInfoList); err != nil {
+	if err = umountDiskFromChroot(installRoot, mountPointInfoList); err != nil {
 		return fmt.Errorf("failed to unmount disk from chroot: %w", err)
 	}
 
 	return nil
 
 fail:
-	if umountErr := umountDiskFromChroot(mountPointInfoList); umountErr != nil {
+	if umountErr := umountDiskFromChroot(installRoot, mountPointInfoList); umountErr != nil {
 		log.Errorf("Failed to unmount disk from chroot after error: %v", umountErr)
 	}
 	return fmt.Errorf("image OS installation failed: %w", err)
@@ -136,8 +137,7 @@ func mountDiskToChroot(installRoot string, diskPathIdMap map[string]string, temp
 	}
 
 	if len(mountPointInfoList) == 0 {
-		//return nil, fmt.Errorf("no mount points found for the provided diskPathIdMap")
-		return nil, nil
+		return nil, fmt.Errorf("no mount points found for the provided diskPathIdMap")
 	}
 
 	// sort the mountPointInfoList by the partition.MountPoint
@@ -155,10 +155,28 @@ func mountDiskToChroot(installRoot string, diskPathIdMap map[string]string, temp
 		}
 	}
 
+	// mount sysfs into the image rootfs
+	chrootInstallRoot, err := chroot.GetChrootEnvPath(installRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chroot environment path: %w", err)
+	}
+	err = chroot.MountChrootSysfs(chrootInstallRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to mount sysfs into image rootfs %s: %w", chrootInstallRoot, err)
+	}
+
 	return mountPointInfoList, nil
 }
 
-func umountDiskFromChroot(mountPointInfoList []map[string]string) error {
+func umountDiskFromChroot(installRoot string, mountPointInfoList []map[string]string) error {
+	chrootInstallRoot, err := chroot.GetChrootEnvPath(installRoot)
+	if err != nil {
+		return fmt.Errorf("failed to get chroot environment path: %w", err)
+	}
+	if err := chroot.UmountChrootSysfs(chrootInstallRoot); err != nil {
+		return fmt.Errorf("failed to unmount sysfs for image rootfs: %w", err)
+	}
+
 	mountPointInfoListLen := len(mountPointInfoList)
 	for i := mountPointInfoListLen - 1; i >= 0; i-- {
 		mountPointInfo := mountPointInfoList[i]
@@ -171,11 +189,64 @@ func umountDiskFromChroot(mountPointInfoList []map[string]string) error {
 	return nil
 }
 
+func getImagePkgInstallList(template *config.ImageTemplate) []string {
+	var head, middle, tail []string
+	imagePkgList := template.GetPackages()
+	for _, pkg := range imagePkgList {
+		if strings.HasPrefix(pkg, "filesystem") {
+			head = append(head, pkg)
+		} else if strings.HasPrefix(pkg, "initramfs") {
+			tail = append(tail, pkg)
+		} else {
+			middle = append(middle, pkg)
+		}
+	}
+	return append(append(head, middle...), tail...)
+}
+
+func initImageRpmDb(installRoot string, template *config.ImageTemplate) error {
+	log := logger.Logger()
+	log.Infof("Initializing RPM database in %s", installRoot)
+	rpmDbPath := filepath.Join(installRoot, "var", "lib", "rpm")
+	if _, err := os.Stat(rpmDbPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(rpmDbPath, 0755); err != nil {
+			return fmt.Errorf("failed to create RPM database directory: %w", err)
+		}
+	}
+	chrootInstallRoot, err := chroot.GetChrootEnvPath(installRoot)
+	if err != nil {
+		return fmt.Errorf("failed to get chroot environment path: %w", err)
+	}
+	cmd := fmt.Sprintf("rpm --root %s --initdb", chrootInstallRoot)
+	if _, err := shell.ExecCmd(cmd, true, chroot.ChrootEnvRoot, nil); err != nil {
+		return fmt.Errorf("failed to initialize RPM database: %w", err)
+	}
+	return nil
+}
+
 func preImageOsInstall(installRoot string, template *config.ImageTemplate) error {
 	return nil
 }
 
 func installImagePkgs(installRoot string, template *config.ImageTemplate) error {
+	log := logger.Logger()
+	err := initImageRpmDb(installRoot, template)
+	if err != nil {
+		return fmt.Errorf("failed to initialize RPM database: %w", err)
+	}
+	imagePkgOrderedList := getImagePkgInstallList(template)
+	imagePkgNum := len(imagePkgOrderedList)
+	// Force to use the local cache repository
+	//var repositoryIDList []string = []string{"cache-repo"}
+
+	// workaround for bypass the cache-repo, use remote repo.
+	var repositoryIDList []string = []string{}
+	for i, pkg := range imagePkgOrderedList {
+		log.Infof("Installing package %d/%d: %s", i+1, imagePkgNum, pkg)
+		if err := chroot.TdnfInstallPackage(pkg, installRoot, repositoryIDList); err != nil {
+			return fmt.Errorf("failed to install package %s: %w", pkg, err)
+		}
+	}
 	return nil
 }
 

@@ -11,6 +11,30 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// IsSubPath checks if the target path is a subpath of the base path
+func IsSubPath(base, target string) (bool, error) {
+	absBase, err := filepath.Abs(base)
+	if err != nil {
+		return false, err
+	}
+	absTarget, err := filepath.Abs(target)
+	if err != nil {
+		return false, err
+	}
+	rel, err := filepath.Rel(absBase, absTarget)
+	if err != nil {
+		return false, err
+	}
+	// rel == "." means same dir, rel starting with ".." means not subpath
+	if rel == "." {
+		return true, nil
+	}
+	if strings.HasPrefix(rel, "..") || filepath.IsAbs(rel) {
+		return false, nil
+	}
+	return true, nil
+}
+
 func getCurrentDirPath() (string, error) {
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {

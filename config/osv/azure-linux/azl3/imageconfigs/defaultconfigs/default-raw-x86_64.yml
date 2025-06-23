@@ -62,7 +62,7 @@ systemConfigs:
       - irqbalance
       - ncurses-libs
       - openssl
-      - kernel-6.6.92.2-1
+      - kernel
       - rpm
       - rpm-libs
       - shadow-utils

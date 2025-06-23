@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/open-edge-platform/image-composer/internal/config"
 	"github.com/open-edge-platform/image-composer/internal/utils/compression"
@@ -23,6 +24,27 @@ func GetChrootEnvHostPath(chrootPath string) (string, error) {
 		return "", fmt.Errorf("chroot env may not initialized")
 	}
 	return filepath.Join(ChrootEnvRoot, chrootPath), nil
+}
+
+func GetChrootEnvPath(ChrootEnvHostPath string) (string, error) {
+	if ChrootEnvRoot == "" {
+		return "", fmt.Errorf("chroot env may not initialized")
+	}
+	isSubPath, err := file.IsSubPath(ChrootEnvRoot, ChrootEnvHostPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to check if path %s is a subpath of chroot env root %s: %w",
+			ChrootEnvHostPath, ChrootEnvRoot, err)
+	}
+	if !isSubPath {
+		return "", fmt.Errorf("path %s is not a subpath of chroot env root %s", ChrootEnvHostPath, ChrootEnvRoot)
+	}
+
+	chrootPath := ChrootEnvHostPath[len(ChrootEnvRoot):]
+	if strings.HasPrefix(chrootPath, "/") {
+		return chrootPath, nil
+	} else {
+		return filepath.Join("/", chrootPath), nil
+	}
 }
 
 func MountChrootSysfs(chrootPath string) error {
@@ -263,8 +285,12 @@ func CleanupChrootEnv(targetOs, targetDist, targetArch string) error {
 
 func TdnfInstallPackage(packageName, installRoot string, repositoryIDList []string) error {
 	var installCmd string
+	chrootInstallRoot, err := GetChrootEnvPath(installRoot)
+	if err != nil {
+		return fmt.Errorf("failed to get chroot environment path for install root %s: %w", installRoot, err)
+	}
 	installCmd = fmt.Sprintf("tdnf install %s --releasever 3.0 --nogpgcheck --assumeyes --installroot %s",
-		packageName, installRoot)
+		packageName, chrootInstallRoot)
 
 	if len(repositoryIDList) > 0 {
 		installCmd += " --disablerepo=*"
