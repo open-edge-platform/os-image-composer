@@ -379,10 +379,18 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 	// 2. Build UKI with ukify
 	kernelPath := filepath.Join("/boot", "vmlinuz-"+kernelVersion)
 	initrdPath := filepath.Join("/boot", "initrd.img-"+kernelVersion)
-	espRoot := "/"
-	// espDir := getESPDir(espRoot)
-	// outputPath := filepath.Join(espDir, "EFI", "Linux", "linux.efi")
-	outputPath := filepath.Join(espRoot, "linux.efi")
+
+	espRoot := installRoot
+	espDir, err := prepareESPDir(espRoot)
+	if err != nil {
+		fmt.Printf("failed to prepare ESP directory: %v", err)
+		return fmt.Errorf("failed to prepare ESP directory: %w", err)
+	}
+	fmt.Println("Succesfully Creating EspPath:", espDir)
+
+	outputPath := filepath.Join(espDir, "linux.efi")
+	fmt.Println("UKI Path:", outputPath)
+
 	cmdline := "root=LABEL=ROOT rw quiet console=ttyS0 rd.shell"
 
 	if err := buildUKIWithUkify(installRoot, kernelPath, initrdPath, cmdline, outputPath); err != nil {
@@ -424,17 +432,28 @@ func updateInitramfs(installRoot, kernelVersion, builderRoot string) error {
 }
 
 // Helper to determine the ESP directory (assumes /boot/efi)
+func prepareESPDir(bootRoot string) (string, error) {
+
+	espDir := "/boot/efi/EFI/Linux"
+	cmd := fmt.Sprintf("chroot %s mkdir -p %s", bootRoot, espDir)
+	_, err := shell.ExecCmd(cmd, true, "", nil)
+
+	if err != nil {
+		fmt.Printf("Failed to create ESP directory %s: %v\n", espDir, err)
+		return "", err
+	}
+
+	return espDir, err
+}
+
 func getESPDir(bootRoot string) string {
-	return filepath.Join(bootRoot, "boot", "efi")
+	espDir := filepath.Join(bootRoot, "boot", "efi")
+	return espDir
 }
 
 // Helper to build UKI using ukify
 func buildUKIWithUkify(installRoot, kernelPath, initrdPath, cmdline, outputPath string) error {
-	// Ensure output directory exists
-	outputDir := filepath.Dir(outputPath)
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return err
-	}
+
 	cmd := fmt.Sprintf(
 		"chroot %s ukify build --linux \"%s\" --initrd \"%s\" --cmdline \"%s\" --output \"%s\"",
 		installRoot,
@@ -443,6 +462,8 @@ func buildUKIWithUkify(installRoot, kernelPath, initrdPath, cmdline, outputPath 
 		cmdline,
 		outputPath,
 	)
+
+	fmt.Println("UKI Executing command:", cmd)
 	_, err := shell.ExecCmd(cmd, true, "", nil)
 	return err
 }
