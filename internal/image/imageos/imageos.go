@@ -493,24 +493,22 @@ func configureSystemdBoot(installRoot, espDir string) error {
 	// Create os1.conf entry
 	entryContent := "title   OS (UKI)\\nefi     /EFI/Linux/linux.efi\\n"
 	cmdEntry := fmt.Sprintf(
-		"chroot %s /bin/sh -c 'printf \"%s\" > %s/loader/entries/os1.conf'",
-		installRoot,
+		"bash -c 'printf \"%s\" > %s/loader/entries/os1.conf'",
 		entryContent,
 		espDir,
 	)
-	if _, err := shell.ExecCmd(cmdEntry, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd(cmdEntry, true, installRoot, nil); err != nil {
 		return fmt.Errorf("failed to create os1.conf: %w", err)
 	}
 
 	// Create loader.conf
 	loaderConf := "default os1\\ntimeout 30\\n"
 	cmdLoader := fmt.Sprintf(
-		"chroot %s /bin/sh -c 'printf \"%s\" > %s/loader/loader.conf'",
-		installRoot,
+		"bash -c 'printf \"%s\" > %s/loader/loader.conf'",
 		loaderConf,
 		espDir,
 	)
-	if _, err := shell.ExecCmd(cmdLoader, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd(cmdLoader, true, installRoot, nil); err != nil {
 		return fmt.Errorf("failed to create loader.conf: %w", err)
 	}
 
