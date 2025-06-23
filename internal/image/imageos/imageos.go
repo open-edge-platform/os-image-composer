@@ -358,7 +358,7 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 
 	installRoot = "/data/yockgen/rootfs"
 	//installRoot = "/home/user/sam/azlRootfs"
-	builderRoot := ""
+	// builderRoot := ""
 
 	// 1. Update initramfs
 	kernelVersion, err := getKernelVersion(installRoot)
@@ -369,7 +369,7 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 
 	fmt.Println("Kernel version:", kernelVersion)
 
-	if err := updateInitramfs(installRoot, kernelVersion, builderRoot); err != nil {
+	if err := updateInitramfs(installRoot, kernelVersion); err != nil {
 		fmt.Printf("initrd updated failed: %v\n", err)
 		return fmt.Errorf("failed to update initramfs: %w", err)
 	}
@@ -388,23 +388,34 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 	}
 	fmt.Println("Succesfully Creating EspPath:", espDir)
 
-	outputPath := filepath.Join(espDir, "linux.efi")
+	outputPath := filepath.Join(espDir, "EFI", "Linux", "linux.efi")
 	fmt.Println("UKI Path:", outputPath)
 
+	//todo: cmdline should be configurable, here is a hardcoded example
 	cmdline := "root=LABEL=ROOT rw quiet console=ttyS0 rd.shell"
 
-	if err := buildUKIWithUkify(installRoot, kernelPath, initrdPath, cmdline, outputPath); err != nil {
+	if err := buildUKI(installRoot, kernelPath, initrdPath, cmdline, outputPath); err != nil {
 		fmt.Printf("failed to build UKI: %v", err)
 		return fmt.Errorf("failed to build UKI: %w", err)
 	}
 	fmt.Println("UKI created successfully on:", outputPath)
 
-	// cmdStr := "chroot " + installRoot + " ukify"
-	// result, _ := shell.ExecCmd(cmdStr, true, "", nil)
-	// fmt.Println(result)
+	// 3. Copy systemd-bootx64.efi to ESP/EFI/BOOT/BOOTX64.EFI
+	srcBootloader := filepath.Join("usr", "lib", "systemd", "boot", "efi", "systemd-bootx64.efi")
+	dstBootloader := filepath.Join(espDir, "EFI", "BOOT", "BOOTX64.EFI")
+	if err := copyBootloader(installRoot, srcBootloader, dstBootloader); err != nil {
+		fmt.Printf("failed to copy bootloader: %v", err)
+		return fmt.Errorf("failed to copy bootloader: %w", err)
+	}
+	fmt.Println("bootloader copied successfully on:", dstBootloader)
 
-	// fmt.Printf("install root: %s\n", template)
-	// panic("hard stop: UKI configuration is not implemented")
+	// 4. create systemd-boot entries and loader.conf
+	if err := configureSystemdBoot(installRoot, espDir); err != nil {
+		fmt.Printf("failed to systemd-boot entries: %v", err)
+		return fmt.Errorf("failed to systemd-boot entries: %w", err)
+	}
+	fmt.Println("systemd-boot entries successfully created on:", dstBootloader)
+
 	return nil
 }
 
@@ -425,38 +436,39 @@ func getKernelVersion(installRoot string) (string, error) {
 }
 
 // Helper to update initramfs for the given kernel version
-func updateInitramfs(installRoot, kernelVersion, builderRoot string) error {
-	cmd := fmt.Sprintf("chroot %s update-initramfs -c -k %s", installRoot, kernelVersion)
-	_, err := shell.ExecCmd(cmd, true, builderRoot, nil)
+func updateInitramfs(installRoot, kernelVersion string) error {
+	cmd := fmt.Sprintf("update-initramfs -c -k %s", kernelVersion)
+	_, err := shell.ExecCmd(cmd, true, installRoot, nil)
 	return err
 }
 
 // Helper to determine the ESP directory (assumes /boot/efi)
-func prepareESPDir(bootRoot string) (string, error) {
-
-	espDir := "/boot/efi/EFI/Linux"
-	cmd := fmt.Sprintf("chroot %s mkdir -p %s", bootRoot, espDir)
-	_, err := shell.ExecCmd(cmd, true, "", nil)
-
-	if err != nil {
-		fmt.Printf("Failed to create ESP directory %s: %v\n", espDir, err)
-		return "", err
+func prepareESPDir(installRoot string) (string, error) {
+	espDirs := []string{
+		"/boot/efi",
+		"/boot/efi/EFI/Linux",
+		"/boot/efi/EFI/BOOT",
+		"/boot/efi/loader",
+		"/boot/efi/loader/entries",
 	}
 
-	return espDir, err
-}
+	for _, dir := range espDirs {
+		cmd := fmt.Sprintf("mkdir -p %s", dir)
+		if _, err := shell.ExecCmd(cmd, true, installRoot, nil); err != nil {
+			fmt.Printf("Failed to create ESP directory %s: %v\n", dir, err)
+			return "", err
+		}
+	}
 
-func getESPDir(bootRoot string) string {
-	espDir := filepath.Join(bootRoot, "boot", "efi")
-	return espDir
+	// Return the Linux ESP directory as before
+	return espDirs[0], nil
 }
 
 // Helper to build UKI using ukify
-func buildUKIWithUkify(installRoot, kernelPath, initrdPath, cmdline, outputPath string) error {
+func buildUKI(installRoot, kernelPath, initrdPath, cmdline, outputPath string) error {
 
 	cmd := fmt.Sprintf(
-		"chroot %s ukify build --linux \"%s\" --initrd \"%s\" --cmdline \"%s\" --output \"%s\"",
-		installRoot,
+		"ukify build --linux \"%s\" --initrd \"%s\" --cmdline \"%s\" --output \"%s\"",
 		kernelPath,
 		initrdPath,
 		cmdline,
@@ -464,19 +476,43 @@ func buildUKIWithUkify(installRoot, kernelPath, initrdPath, cmdline, outputPath 
 	)
 
 	fmt.Println("UKI Executing command:", cmd)
-	_, err := shell.ExecCmd(cmd, true, "", nil)
+	_, err := shell.ExecCmd(cmd, true, installRoot, nil)
 	return err
 }
 
 // Helper to copy the bootloader EFI file
-func copyBootloader(src, dst string) error {
-	dstDir := filepath.Dir(dst)
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
-		return err
+func copyBootloader(installRoot, src, dst string) error {
+	// src and dst should be absolute paths inside the chroot (e.g., /usr/lib/systemd/boot/efi/systemd-bootx64.efi and /boot/efi/EFI/BOOT/BOOTX64.EFI)
+	cmd := fmt.Sprintf("cp %s %s", src, dst)
+	_, err := shell.ExecCmd(cmd, true, installRoot, nil)
+	return err
+}
+
+// configureSystemdBoot sets up systemd-boot entries and loader.conf inside the chroot ESP.
+func configureSystemdBoot(installRoot, espDir string) error {
+	// Create os1.conf entry
+	entryContent := "title   OS (UKI)\\nefi     /EFI/Linux/linux.efi\\n"
+	cmdEntry := fmt.Sprintf(
+		"chroot %s /bin/sh -c 'printf \"%s\" > %s/loader/entries/os1.conf'",
+		installRoot,
+		entryContent,
+		espDir,
+	)
+	if _, err := shell.ExecCmd(cmdEntry, true, "", nil); err != nil {
+		return fmt.Errorf("failed to create os1.conf: %w", err)
 	}
-	input, err := os.ReadFile(src)
-	if err != nil {
-		return err
+
+	// Create loader.conf
+	loaderConf := "default os1\\ntimeout 30\\n"
+	cmdLoader := fmt.Sprintf(
+		"chroot %s /bin/sh -c 'printf \"%s\" > %s/loader/loader.conf'",
+		installRoot,
+		loaderConf,
+		espDir,
+	)
+	if _, err := shell.ExecCmd(cmdLoader, true, "", nil); err != nil {
+		return fmt.Errorf("failed to create loader.conf: %w", err)
 	}
-	return os.WriteFile(dst, input, 0644)
+
+	return nil
 }
