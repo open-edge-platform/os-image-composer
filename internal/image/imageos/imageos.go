@@ -437,7 +437,12 @@ func getKernelVersion(installRoot string) (string, error) {
 
 // Helper to update initramfs for the given kernel version
 func updateInitramfs(installRoot, kernelVersion string) error {
-	cmd := fmt.Sprintf("update-initramfs -c -k %s", kernelVersion)
+	initrdPath := fmt.Sprintf("/boot/initramfs-%s.img", kernelVersion)
+	cmd := fmt.Sprintf(
+		"dracut -f %s %s",
+		initrdPath,
+		kernelVersion,
+	)
 	_, err := shell.ExecCmd(cmd, true, installRoot, nil)
 	return err
 }

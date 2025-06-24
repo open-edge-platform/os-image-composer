@@ -97,6 +97,7 @@ var commandMap = map[string]string{
 	"zstd":               "/usr/bin/zstd",
 	"update-initramfs":   "/usr/sbin/update-initramfs",
 	"ukify":              "/usr/bin/ukify",
+	"dracut":             "/usr/bin/dracut",
 	// Add more mappings as needed
 }
 
