@@ -6,33 +6,28 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 
+	"github.com/open-edge-platform/image-composer/internal/chroot"
 	"github.com/open-edge-platform/image-composer/internal/config"
+	"github.com/open-edge-platform/image-composer/internal/image/isomaker"
+	"github.com/open-edge-platform/image-composer/internal/image/rawmaker"
+	"github.com/open-edge-platform/image-composer/internal/ospackage/rpmutils"
 	"github.com/open-edge-platform/image-composer/internal/provider"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
 )
 
 const (
 	configURL = "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/edge-base.repo"
+	gpgkeyURL = "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY"
 	repomdURL = "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0/repodata/repomd.xml"
 )
-
-// repoConfig holds .repo file values
-type repoConfig struct {
-	Section      string // raw section header
-	Name         string // human-readable name from name=
-	URL          string
-	GPGCheck     bool
-	RepoGPGCheck bool
-	Enabled      bool
-	GPGKey       string
-}
 
 // Emt implements provider.Provider
 type Emt struct {
 	repoURL string
-	repoCfg repoConfig
+	repoCfg rpmutils.RepoConfig
 	zstHref string
 }
 
@@ -70,7 +65,6 @@ func (p *Emt) Init(dist, arch string) error {
 
 	p.repoURL = configURL
 	p.repoCfg = cfg
-
 	p.zstHref = href
 
 	log.Infof("initialized EMT3.0 provider repo section=%s", cfg.Section)
@@ -81,15 +75,56 @@ func (p *Emt) Init(dist, arch string) error {
 }
 
 func (p *Emt) PreProcess(template *config.ImageTemplate) error {
+	err := p.downloadImagePkgs(template)
+	if err != nil {
+		return fmt.Errorf("failed to download image packages: %v", err)
+	}
+	err = chroot.InitChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch)
+	if err != nil {
+		return fmt.Errorf("failed to initialize chroot environment: %v", err)
+	}
 	return nil
 }
 
 func (p *Emt) BuildImage(template *config.ImageTemplate) error {
+	if config.TargetImageType == "iso" {
+		err := isomaker.BuildISOImage(template)
+		if err != nil {
+			return fmt.Errorf("failed to build ISO image: %v", err)
+		}
+	} else {
+		err := rawmaker.BuildRawImage(template)
+		if err != nil {
+			return fmt.Errorf("failed to build raw image: %v", err)
+		}
+	}
 	return nil
 }
 
 func (p *Emt) PostProcess(template *config.ImageTemplate, err error) error {
-	return nil
+	log := logger.Logger()
+	if err != nil {
+		log.Errorf("post-process error: %v", err)
+	}
+
+	if err := chroot.CleanupChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch); err != nil {
+		return fmt.Errorf("failed to cleanup chroot environment: %v", err)
+	}
+	return err
+}
+
+func (p *Emt) downloadImagePkgs(template *config.ImageTemplate) error {
+	pkgList := template.GetPackages()
+	providerId := p.Name(config.TargetDist, config.TargetArch)
+	globalCache, err := config.CacheDir()
+	if err != nil {
+		return fmt.Errorf("failed to get global cache dir: %w", err)
+	}
+	pkgCacheDir := filepath.Join(globalCache, "pkgCache", providerId)
+	rpmutils.RepoCfg = p.repoCfg
+	rpmutils.GzHref = p.zstHref
+	_, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, "")
+	return err
 }
 
 func GetProviderId(dist, arch string) string {
@@ -97,9 +132,9 @@ func GetProviderId(dist, arch string) string {
 }
 
 // loadRepoConfig parses the repo configuration data
-func loadRepoConfig(r io.Reader) (repoConfig, error) {
+func loadRepoConfig(r io.Reader) (rpmutils.RepoConfig, error) {
 	s := bufio.NewScanner(r)
-	var rc repoConfig
+	var rc rpmutils.RepoConfig
 	for s.Scan() {
 		line := strings.TrimSpace(s.Text())
 		// skip comments or empty
@@ -130,7 +165,7 @@ func loadRepoConfig(r io.Reader) (repoConfig, error) {
 		case "enabled":
 			rc.Enabled = (val == "1")
 		case "gpgkey":
-			rc.GPGKey = val
+			rc.GPGKey = gpgkeyURL
 		}
 	}
 	if err := s.Err(); err != nil {

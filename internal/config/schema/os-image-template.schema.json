@@ -31,7 +31,7 @@
           "os": {
             "type": "string",
             "description": "Target operating system",
-            "enum": ["azure-linux", "emt", "elxr"]
+            "enum": ["azure-linux", "edge-microvisor-toolkit", "elxr"]
           },
           "dist": {
             "type": "string",
@@ -111,7 +111,7 @@
         "then": { "properties": { "target": { "properties": { "dist": { "enum": ["azl3"] } } } } }
       },
       {
-        "if": { "properties": { "target": { "properties": { "os": { "const": "emt" } } } } },
+        "if": { "properties": { "target": { "properties": { "os": { "const": "edge-microvisor-toolkit" } } } } },
         "then": { "properties": { "target": { "properties": { "dist": { "enum": ["emt3"] } } } } }
       },
       {

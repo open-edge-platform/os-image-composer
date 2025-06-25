@@ -1,0 +1,33 @@
+image:
+  name: emt3-x86_64-edge
+  version: "1.0.0"
+
+target:
+  os: edge-microvisor-toolkit # Target OS name
+  dist: emt3 # Target OS distribution
+  arch: x86_64 # Target OS architecture
+  imageType: raw # Image type, valid value: [raw, iso].
+
+# Disk:
+# Use defaults, Creates a single root partition with EFI boot
+
+systemConfigs:
+  - name: edge
+    description: Default yml configuration for edge image
+
+    # Package Configuration
+    packages:
+      # Additional packages beyond the base system
+      - cloud-init
+      - rsyslog
+
+    # Kernel Configuration
+    kernel:
+      version: "6.12"
+      cmdline: "quiet splash"
+
+    # Everything else uses defaults:
+    # Network: Uses DHCP on first interface
+    # Security: Enables distro-appropriate security
+    # Services: Enables SSH, disables unnecessary services
+    # Users: Creates default admin user with sudo access
