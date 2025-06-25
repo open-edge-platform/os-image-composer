@@ -48,6 +48,7 @@ var commandMap = map[string]string{
 	"flock":              "/usr/bin/flock",
 	"gunzip":             "/usr/bin/gunzip",
 	"grep":               "/usr/bin/grep",
+	"grub2-mkconfig":     "/usr/sbin/grub2-mkconfig",
 	"gzip":               "/usr/bin/gzip",
 	"head":               "/usr/bin/head",
 	"ls":                 "/usr/bin/ls",
@@ -143,7 +144,7 @@ func IsCommandExist(cmd string, chrootPath string) bool {
 }
 
 func verifyCmdWithFullPath(cmd string) (string, error) {
-	separators := []string{"&&", "||", ";"}
+	separators := []string{"&&", ";"}
 
 	sepIdx := -1
 	sep := ""
