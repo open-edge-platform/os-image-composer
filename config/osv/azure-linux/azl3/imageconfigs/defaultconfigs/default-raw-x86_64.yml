@@ -41,7 +41,7 @@ systemConfigs:
 
     bootloader:
       bootType: efi # (efi or legacy)
-      provider: grub # (grub2 for efi and legacy mode, or systemd-boot for efi mode)
+      provider: systemd-boot # (grub2 for efi and legacy mode, or systemd-boot for efi mode)
 
     packages:
       - filesystem
