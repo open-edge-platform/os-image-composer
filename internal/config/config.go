@@ -44,10 +44,16 @@ type ImageTemplate struct {
 	SystemConfigs []SystemConfig `yaml:"systemConfigs"`
 }
 
+type Bootloader struct {
+	BootType string `yaml:"bootType"` // BootType: type of bootloader (e.g., "efi", "legacy")
+	Provider string `yaml:"provider"` // Provider: bootloader provider (e.g., "grub2", "systemd-boot")
+}
+
 // SystemConfig represents a system configuration within the template
 type SystemConfig struct {
 	Name        string       `yaml:"name"`
 	Description string       `yaml:"description"`
+	Bootloader  Bootloader   `yaml:"bootloader"`
 	Packages    []string     `yaml:"packages"`
 	Kernel      KernelConfig `yaml:"kernel"`
 }
@@ -60,15 +66,16 @@ type KernelConfig struct {
 
 // PartitionInfo holds information about a partition in the disk layout
 type PartitionInfo struct {
-	Name       string   `yaml:"name"`       // Name: label for the partition
-	ID         string   `yaml:"id"`         // ID: unique identifier for the partition; can be used as a key
-	Flags      []string `yaml:"flags"`      // Flags: optional flags for the partition (e.g., "boot", "hidden")
-	Type       string   `yaml:"type"`       // Type: partition type (e.g., "esp", "linux-root-amd64")
-	TypeGUID   string   `yaml:"typeUUID"`   // TypeGUID: GPT type GUID for the partition (e.g., "8300" for Linux filesystem)
-	FsType     string   `yaml:"fsType"`     // FsType: filesystem type (e.g., "ext4", "xfs", etc.);
-	Start      string   `yaml:"start"`      // Start: start offset of the partition; can be a absolute size (e.g., "512MiB")
-	End        string   `yaml:"end"`        // End: end offset of the partition; can be a absolute size (e.g., "2GiB") or "0" for the end of the disk
-	MountPoint string   `yaml:"mountPoint"` // MountPoint: optional mount point for the partition (e.g., "/boot", "/rootfs")
+	Name         string   `yaml:"name"`         // Name: label for the partition
+	ID           string   `yaml:"id"`           // ID: unique identifier for the partition; can be used as a key
+	Flags        []string `yaml:"flags"`        // Flags: optional flags for the partition (e.g., "boot", "hidden")
+	Type         string   `yaml:"type"`         // Type: partition type (e.g., "esp", "linux-root-amd64")
+	TypeGUID     string   `yaml:"typeUUID"`     // TypeGUID: GPT type GUID for the partition (e.g., "8300" for Linux filesystem)
+	FsType       string   `yaml:"fsType"`       // FsType: filesystem type (e.g., "ext4", "xfs", etc.);
+	Start        string   `yaml:"start"`        // Start: start offset of the partition; can be a absolute size (e.g., "512MiB")
+	End          string   `yaml:"end"`          // End: end offset of the partition; can be a absolute size (e.g., "2GiB") or "0" for the end of the disk
+	MountPoint   string   `yaml:"mountPoint"`   // MountPoint: optional mount point for the partition (e.g., "/boot", "/rootfs")
+	MountOptions string   `yaml:"mountOptions"` // MountOptions: optional mount options for the partition (e.g., "defaults", "noatime")
 }
 
 // Disk Info holds information about the disk layout
@@ -191,6 +198,13 @@ func (t *ImageTemplate) GetSystemConfig() SystemConfig {
 		return t.SystemConfigs[0]
 	}
 	return SystemConfig{}
+}
+
+func (t *ImageTemplate) GetBootloaderConfig() Bootloader {
+	if len(t.SystemConfigs) > 0 {
+		return t.SystemConfigs[0].Bootloader
+	}
+	return Bootloader{}
 }
 
 // GetPackages returns all packages from the first system configuration

@@ -26,6 +26,7 @@ disk:
         end: 513MiB
         fsType: fat32
         mountPoint: /boot/efi
+        mountOptions: umask=0077
 
       - id: rootfs
         type: linux-root-amd64
@@ -39,9 +40,8 @@ systemConfigs:
     description: Default yml configuration for raw image
 
     bootloader:
-      type: systemd-boot # (grub or systemd-boot)
-      grub:
-        bootType: efi # (efi or legacy)
+      bootType: efi # (efi or legacy)
+      provider: grub # (grub2 for efi and legacy mode, or systemd-boot for efi mode)
 
     packages:
       - filesystem
@@ -82,5 +82,5 @@ systemConfigs:
     kernel:
       name: kernel
       version: 6.6
-      cmdline: "quiet splash"
+      cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
       uki: true
