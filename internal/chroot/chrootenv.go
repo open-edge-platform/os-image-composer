@@ -68,9 +68,6 @@ func UmountChrootSysfs(chrootPath string) error {
 	if err = mount.UmountSysfs(chrootHostPath); err != nil {
 		return fmt.Errorf("failed to unmount sysfs for %s: %w", chrootHostPath, err)
 	}
-	if err = mount.CleanSysfs(chrootHostPath); err != nil {
-		return fmt.Errorf("failed to clean sysfs for %s: %w", chrootHostPath, err)
-	}
 	return nil
 }
 

@@ -92,7 +92,7 @@ func UmountPath(mountPoint string) error {
 		return fmt.Errorf("failed to check if mount point %s exists: %w", mountPoint, err)
 	}
 	if pathExist {
-		if _, err := shell.ExecCmd("umount -lR "+mountPoint, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd("umount -l "+mountPoint, true, "", nil); err != nil {
 			return fmt.Errorf("failed to unmount %s: %w", mountPoint, err)
 		} else {
 			log.Debugf("Unmounted:", mountPoint)
@@ -120,7 +120,7 @@ func UmountSubPath(mountPoint string) error {
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(mountSubpathList)))
 	for _, path := range mountSubpathList {
-		if _, err := shell.ExecCmd("umount -lR "+path, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd("umount -l "+path, true, "", nil); err != nil {
 			return fmt.Errorf("failed to unmount %s: %w", path, err)
 		}
 	}
@@ -130,7 +130,7 @@ func UmountSubPath(mountPoint string) error {
 // MountSysfs mounts system directories (e.g., /dev, /proc, /sys) into the chroot environment
 func MountSysfs(mountPoint string) error {
 	devMountPoint := filepath.Join(mountPoint, "dev")
-	if err := MountPath("/dev", devMountPoint, "--rbind"); err != nil {
+	if err := MountPath("/dev", devMountPoint, "--bind"); err != nil {
 		return fmt.Errorf("failed to mount /dev to %s: %w", devMountPoint, err)
 	}
 	if _, err := shell.ExecCmd("mount --make-rslave "+devMountPoint, true, "", nil); err != nil {
@@ -143,7 +143,7 @@ func MountSysfs(mountPoint string) error {
 	}
 
 	sysMountPoint := filepath.Join(mountPoint, "sys")
-	if err := MountPath("/sys", sysMountPoint, "--rbind"); err != nil {
+	if err := MountPath("/sys", sysMountPoint, "--bind"); err != nil {
 		return fmt.Errorf("failed to mount /sys to %s: %w", sysMountPoint, err)
 	}
 	if _, err := shell.ExecCmd("mount --make-rslave "+sysMountPoint, true, "", nil); err != nil {
@@ -151,9 +151,19 @@ func MountSysfs(mountPoint string) error {
 	}
 
 	runMountPoint := filepath.Join(mountPoint, "run")
-	if err := MountPath("/run", runMountPoint, "--rbind"); err != nil {
+	if err := MountPath("/run", runMountPoint, "--bind"); err != nil {
 		return fmt.Errorf("failed to mount /run to %s: %w", runMountPoint, err)
 	}
+
+	if _, err := shell.ExecCmd("mount --make-rslave "+runMountPoint, true, "", nil); err != nil {
+		return fmt.Errorf("failed to make /dev %s a slave mount: %w", devMountPoint, err)
+	}
+
+	devPtsMountPoint := filepath.Join(mountPoint, "dev/pts")
+	if err := MountPath("/dev/pts", devPtsMountPoint, "--bind"); err != nil {
+		return fmt.Errorf("failed to mount /dev/pts to %s: %w", devPtsMountPoint, err)
+	}
+
 	return nil
 }
 
@@ -176,10 +186,10 @@ func UmountSysfs(mountPoint string) error {
 		}
 	}
 
-	for _, _mountPoint := range []string{"run", "sys", "proc", "dev"} {
+	for _, _mountPoint := range []string{"dev/pts", "run", "sys", "proc", "dev"} {
 		fullPath := filepath.Join(mountPoint, _mountPoint)
 		if slice.Contains(pathList, fullPath) {
-			if _, err := shell.ExecCmd("umount -lR "+fullPath, true, "", nil); err != nil {
+			if _, err := shell.ExecCmd("umount -l "+fullPath, true, "", nil); err != nil {
 				// Only treat as error if not "not found"
 				if !strings.Contains(err.Error(), "not found") {
 					return fmt.Errorf("failed to unmount %s: %w", fullPath, err)

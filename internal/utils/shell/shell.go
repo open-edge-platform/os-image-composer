@@ -85,6 +85,7 @@ var commandMap = map[string]string{
 	"touch":              "/usr/bin/touch",
 	"truncate":           "/usr/bin/truncate",
 	"tune2fs":            "/usr/sbin/tune2fs",
+	"ukify":              "/usr/bin/ukify",
 	"umount":             "/usr/bin/umount",
 	"uname":              "/usr/bin/uname",
 	"uniq":               "/usr/bin/uniq",

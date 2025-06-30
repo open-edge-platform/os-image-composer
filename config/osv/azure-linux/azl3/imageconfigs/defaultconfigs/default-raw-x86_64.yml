@@ -41,43 +41,34 @@ systemConfigs:
 
     bootloader:
       bootType: efi # (efi or legacy)
-      provider: systemd-boot # (grub2 for efi and legacy mode, or systemd-boot for efi mode)
+      provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
 
     packages:
       - filesystem
-      - azurelinux-release
-      - azurelinux-repos
-      - azurelinux-rpm-macros
-      - bash
-      - ca-certificates
-      - ca-certificates-base
-      - dbus
-      - dracut-hostonly
-      - e2fsprogs
-      - grub2
-      - grub2-efi-binary
-      - iana-etc
-      - iproute
-      - iputils
-      - irqbalance
-      - ncurses-libs
-      - openssl
       - kernel
-      - rpm
-      - rpm-libs
-      - shadow-utils
+      - azurelinux-release
+      # hyperv packages
+      - dracut-hyperv
+      - hyperv-daemons
+      # core image packages
       - shim
-      - sudo
-      - systemd
-      - systemd-networkd
-      - systemd-resolved
+      - systemd-boot
       - systemd-ukify
-      - systemd-udev
-      - tdnf
-      - tdnf-plugin-repogpgcheck
-      - util-linux
-      - zlib
+      - ca-certificates
+      - cronie-anacron
+      - logrotate
+      - core-packages-base-image
+      - dracut-hostonly
+      - dracut-vrf
       - initramfs
+      - shadow-utils
+      # cloud-init packages
+      - cloud-init
+      - cloud-utils-growpart
+      # virt guest packages
+      - dracut-hyperv
+      - dracut-virtio
+      - dracut-xen
 
     kernel:
       name: kernel

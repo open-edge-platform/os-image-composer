@@ -240,6 +240,25 @@ func toAzurePartitions(parts []config.PartitionInfo) ([]azcfg.Partition, error) 
 		if err != nil {
 			return azParts, fmt.Errorf("failed to normalize partition end size %s: %v", p.End, err)
 		}
+
+		azFlags := make([]azcfg.PartitionFlag, 0, len(p.Flags))
+		for _, flag := range p.Flags {
+			switch flag {
+			case "boot":
+				azFlags = append(azFlags, azcfg.PartitionFlagBoot)
+			case "esp":
+				azFlags = append(azFlags, azcfg.PartitionFlagESP)
+			case "grub":
+				azFlags = append(azFlags, azcfg.PartitionFlagGrub)
+			case "bios_grub":
+				azFlags = append(azFlags, azcfg.PartitionFlagBiosGrub)
+			case "bios-grub":
+				azFlags = append(azFlags, azcfg.PartitionFlagBiosGrubLegacy)
+			case "dmroot":
+				azFlags = append(azFlags, azcfg.PartitionFlagDeviceMapperRoot)
+			}
+		}
+
 		azParts[i] = azcfg.Partition{
 			ID:       p.ID,
 			Name:     p.Name,
@@ -247,6 +266,8 @@ func toAzurePartitions(parts []config.PartitionInfo) ([]azcfg.Partition, error) 
 			Start:    StartBytes / MiB,
 			End:      EndBytes / MiB, // Convert to MiB
 			TypeUUID: p.TypeGUID,
+			Type:     p.Type,
+			Flags:    azFlags,
 		}
 	}
 	return azParts, nil
