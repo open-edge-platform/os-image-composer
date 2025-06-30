@@ -259,6 +259,10 @@ func toAzurePartitions(parts []config.PartitionInfo) ([]azcfg.Partition, error) 
 			}
 		}
 
+		// If the partition ID is "rootfs", set the Name to "ROOT"
+		if p.ID == "rootfs" {
+			p.Name = "ROOT"
+		}
 		azParts[i] = azcfg.Partition{
 			ID:       p.ID,
 			Name:     p.Name,

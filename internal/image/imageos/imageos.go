@@ -356,10 +356,6 @@ func updateImageFstab(installRoot string, diskPathIdMap map[string]string, templ
 
 func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 
-	installRoot = "/data/yockgen/rootfs"
-	//installRoot = "/home/user/sam/azlRootfs"
-	// builderRoot := ""
-
 	// 1. Update initramfs
 	kernelVersion, err := getKernelVersion(installRoot)
 	if err != nil {
@@ -378,7 +374,7 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 
 	// 2. Build UKI with ukify
 	kernelPath := filepath.Join("/boot", "vmlinuz-"+kernelVersion)
-	initrdPath := filepath.Join("/boot", "initrd.img-"+kernelVersion)
+	initrdPath := fmt.Sprintf("/boot/initramfs-%s.img", kernelVersion)
 
 	espRoot := installRoot
 	espDir, err := prepareESPDir(espRoot)
@@ -392,7 +388,8 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 	fmt.Println("UKI Path:", outputPath)
 
 	//todo: cmdline should be configurable, here is a hardcoded example
-	cmdline := "root=LABEL=ROOT rw quiet console=ttyS0 rd.shell"
+	// cmdline := "root=LABEL=ROOT rw quiet console=ttyS0 rd.shell"
+	cmdline := "root=PARTLABEL=ROOT rw quiet console=ttyS0 rd.shell"
 
 	if err := buildUKI(installRoot, kernelPath, initrdPath, cmdline, outputPath); err != nil {
 		fmt.Printf("failed to build UKI: %v", err)

@@ -45,6 +45,22 @@ systemConfigs:
 
     packages:
       - filesystem
+      - azurelinux-release
+      - azurelinux-repos
+      - azurelinux-rpm-macros
+      - bash
+      - ca-certificates
+      - ca-certificates-base
+      - dbus
+      - dracut-hostonly
+      - e2fsprogs
+      - grub2
+      - iana-etc
+      - iproute
+      - iputils
+      - irqbalance
+      - ncurses-libs
+      - openssl
       - kernel
       - azurelinux-release
       # hyperv packages
@@ -61,14 +77,7 @@ systemConfigs:
       - dracut-hostonly
       - dracut-vrf
       - initramfs
-      - shadow-utils
-      # cloud-init packages
-      - cloud-init
-      - cloud-utils-growpart
-      # virt guest packages
-      - dracut-hyperv
-      - dracut-virtio
-      - dracut-xen
+      - systemd-boot
 
     kernel:
       name: kernel
