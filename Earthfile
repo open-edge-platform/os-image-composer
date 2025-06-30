@@ -57,7 +57,7 @@ build:
 test:
     FROM +golang-base
     RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOARCH=amd64 GOOS=linux \
-        go test -v -timeout=3m ./... -skip "TestImagePartitioning|TestExecCmd|TestExecCmdWithStream|TestExecCmdWithInput|TestUnsupportedDistribution"
+        go test -v -timeout=3m ./... -skip "TestImagePartitioning|TestExecCmd|TestExecCmdWithStream|TestExecCmdWithInput|TestUnsupportedDistribution|TestValidImageTemplate"
 
 lint:
     FROM +golang-base

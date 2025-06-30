@@ -98,21 +98,22 @@ func MergeConfigurations(userTemplate, defaultTemplate *ImageTemplate) (*ImageTe
 	// Target section - always use user values (these should be consistent)
 	mergedTemplate.Target = userTemplate.Target
 
-	// Disk configurations - merge or override
-	if len(userTemplate.DiskConfigs) > 0 {
-		mergedTemplate.DiskConfigs = mergeDiskConfigs(defaultTemplate.DiskConfigs, userTemplate.DiskConfigs)
+	// Disk configuration - simple override if user provides one
+	if !isEmptyDiskConfig(userTemplate.Disk) {
+		mergedTemplate.Disk = userTemplate.Disk
+		log.Debugf("User disk config overrides default")
 	}
 
-	// System configurations - merge
-	if len(userTemplate.SystemConfigs) > 0 {
-		mergedTemplate.SystemConfigs = mergeSystemConfigs(defaultTemplate.SystemConfigs, userTemplate.SystemConfigs)
+	// System configuration - merge intelligently
+	if !isEmptySystemConfig(userTemplate.SystemConfig) {
+		mergedTemplate.SystemConfig = mergeSystemConfig(defaultTemplate.SystemConfig, userTemplate.SystemConfig)
+		log.Debugf("Merged system config: %s", mergedTemplate.SystemConfig.Name)
 	}
 
 	log.Infof("Successfully merged user and default configurations")
 
 	// Debug mode: Pretty print the merged template
 	if IsDebugMode() {
-		// Pretty print the merged template
 		pretty, err := json.MarshalIndent(mergedTemplate, "", "  ")
 		if err != nil {
 			log.Warnf("Failed to pretty print merged template: %v", err)
@@ -121,69 +122,10 @@ func MergeConfigurations(userTemplate, defaultTemplate *ImageTemplate) (*ImageTe
 		}
 	}
 
-	log.Debugf("Merged template: name=%s, systemConfigs=%d, diskConfigs=%d",
-		mergedTemplate.Image.Name, len(mergedTemplate.SystemConfigs), len(mergedTemplate.DiskConfigs))
+	log.Debugf("Merged template: name=%s, systemConfig=%s",
+		mergedTemplate.Image.Name, mergedTemplate.SystemConfig.Name)
 
 	return &mergedTemplate, nil
-}
-
-// mergeDiskConfigs merges disk configurations, with user configs taking precedence
-func mergeDiskConfigs(defaultConfigs, userConfigs []DiskConfig) []DiskConfig {
-	if len(userConfigs) == 0 {
-		return defaultConfigs
-	}
-
-	// For now, user disk configs completely override default ones
-	// This can be made more sophisticated if needed
-	return userConfigs
-}
-
-// mergeSystemConfigs merges system configurations by name
-func mergeSystemConfigs(defaultConfigs, userConfigs []SystemConfig) []SystemConfig {
-	log := logger.Logger()
-
-	if len(userConfigs) == 0 {
-		return defaultConfigs
-	}
-
-	// Create a map of default configs by name for easy lookup
-	defaultConfigMap := make(map[string]SystemConfig)
-	for _, config := range defaultConfigs {
-		defaultConfigMap[config.Name] = config
-	}
-
-	var mergedConfigs []SystemConfig
-
-	// Process user configs
-	for _, userConfig := range userConfigs {
-		if defaultConfig, exists := defaultConfigMap[userConfig.Name]; exists {
-			// Merge this specific system config
-			merged := mergeSystemConfig(defaultConfig, userConfig)
-			mergedConfigs = append(mergedConfigs, merged)
-			log.Debugf("Merged system config: %s", userConfig.Name)
-		} else {
-			// User config doesn't have a default counterpart, use as-is
-			mergedConfigs = append(mergedConfigs, userConfig)
-			log.Debugf("Added user-only system config: %s", userConfig.Name)
-		}
-	}
-
-	// Add any default configs that weren't overridden by user
-	for _, defaultConfig := range defaultConfigs {
-		found := false
-		for _, userConfig := range userConfigs {
-			if userConfig.Name == defaultConfig.Name {
-				found = true
-				break
-			}
-		}
-		if !found {
-			mergedConfigs = append(mergedConfigs, defaultConfig)
-			log.Debugf("Added default-only system config: %s", defaultConfig.Name)
-		}
-	}
-
-	return mergedConfigs
 }
 
 // mergeSystemConfig merges a single system configuration
@@ -198,6 +140,11 @@ func mergeSystemConfig(defaultConfig, userConfig SystemConfig) SystemConfig {
 		merged.Description = userConfig.Description
 	}
 
+	// Merge bootloader config
+	if !isEmptyBootloader(userConfig.Bootloader) {
+		merged.Bootloader = mergeBootloader(defaultConfig.Bootloader, userConfig.Bootloader)
+	}
+
 	// Merge packages - user packages are added to default packages
 	if len(userConfig.Packages) > 0 {
 		merged.Packages = mergePackages(defaultConfig.Packages, userConfig.Packages)
@@ -205,6 +152,20 @@ func mergeSystemConfig(defaultConfig, userConfig SystemConfig) SystemConfig {
 
 	// Merge kernel config
 	merged.Kernel = mergeKernelConfig(defaultConfig.Kernel, userConfig.Kernel)
+
+	return merged
+}
+
+// mergeBootloader merges bootloader configurations
+func mergeBootloader(defaultBootloader, userBootloader Bootloader) Bootloader {
+	merged := defaultBootloader
+
+	if userBootloader.BootType != "" {
+		merged.BootType = userBootloader.BootType
+	}
+	if userBootloader.Provider != "" {
+		merged.Provider = userBootloader.Provider
+	}
 
 	return merged
 }
@@ -249,6 +210,20 @@ func mergeKernelConfig(defaultKernel, userKernel KernelConfig) KernelConfig {
 	return merged
 }
 
+// Helper functions to check if structures are empty
+
+func isEmptyDiskConfig(disk DiskConfig) bool {
+	return disk.Name == "" && disk.Size == "" && len(disk.Partitions) == 0
+}
+
+func isEmptySystemConfig(config SystemConfig) bool {
+	return config.Name == ""
+}
+
+func isEmptyBootloader(bootloader Bootloader) bool {
+	return bootloader.BootType == "" && bootloader.Provider == ""
+}
+
 // LoadAndMergeTemplate loads a user template and merges it with the appropriate default config
 func LoadAndMergeTemplate(templatePath string) (*ImageTemplate, error) {
 	log := logger.Logger()
@@ -278,8 +253,8 @@ func LoadAndMergeTemplate(templatePath string) (*ImageTemplate, error) {
 		return nil, fmt.Errorf("failed to merge configurations: %w", err)
 	}
 
-	log.Infof("Successfully created merged configuration with %d system configs and %d disk configs",
-		len(mergedTemplate.SystemConfigs), len(mergedTemplate.DiskConfigs))
+	log.Infof("Successfully created merged configuration with system config: %s and disk config: %s",
+		mergedTemplate.SystemConfig.Name, mergedTemplate.Disk.Name)
 
 	return mergedTemplate, nil
 }

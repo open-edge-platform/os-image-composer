@@ -9,40 +9,41 @@ target:
   imageType: raw # Image type, valid value: [raw, iso].
 
 disk:
-  - name: Default # 1:1 mapping to the systemConfigs name
-    artifacts:
-      -
-        type: raw  # image file format
-        compression: gz # image compression format (optional)
-    size: 4GiB # 4G, 4GB, 4096 MiB also valid. (Required for raw)
-    partitionTableType: gpt # Partition table type, valid value: [gpt, mbr]
-    partitions: # Required for raw, optional for ISO, not needed for rootfs.
-      - id: boot
-        type: esp
-        flags:
-          - esp
-          - boot
-        start: 1MiB
-        end: 513MiB
-        fsType: fat32
-        mountPoint: /boot/efi
-        mountOptions: umask=0077
+  name: Default # 1:1 mapping to the systemConfigs name
+  artifacts:
+    -
+      type: raw  # image file format
+      compression: gz # image compression format (optional)
+  size: 4GiB # 4G, 4GB, 4096 MiB also valid. (Required for raw)
+  partitionTableType: gpt # Partition table type, valid value: [gpt, mbr]
+  partitions: # Required for raw, optional for ISO, not needed for rootfs.
+    - id: boot
+      type: esp
+      flags:
+        - esp
+        - boot
+      start: 1MiB
+      end: 513MiB
+      fsType: fat32
+      mountPoint: /boot/efi
+      mountOptions: umask=0077
 
-      - id: rootfs
-        type: linux-root-amd64
-        start: 513MiB
-        end: 0  # 0 means use the rest of the disk space
-        fsType: ext4
-        mountPoint: /
+    - id: rootfs
+      type: linux-root-amd64
+      start: 513MiB
+      end: 0  # 0 means use the rest of the disk space
+      fsType: ext4
+      mountPoint: /
 
-systemConfigs:
-  - name: Default
-    description: Default yml configuration for raw image
+systemConfig:
+  name: Default
+  description: Default yml configuration for raw image
 
-    bootloader:
-      bootType: efi # (efi or legacy)
-      provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
+  bootloader:
+    bootType: efi # (efi or legacy)
+    provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
 
+<<<<<<< HEAD
     # packages:
     #   - filesystem
     #   - azurelinux-release
@@ -115,9 +116,37 @@ systemConfigs:
         - initramfs
         - systemd-boot
 
+=======
+  packages:
+    - filesystem
+    - kernel
+    - azurelinux-release
+    # hyperv packages
+    - dracut-hyperv
+    - hyperv-daemons
+    # core image packages
+    - shim
+    - systemd-boot
+    - systemd-ukify
+    - ca-certificates
+    - cronie-anacron
+    - logrotate
+    - core-packages-base-image
+    - dracut-hostonly
+    - dracut-vrf
+    - initramfs
+    - shadow-utils
+    # cloud-init packages
+    - cloud-init
+    - cloud-utils-growpart
+    # virt guest packages
+    - dracut-hyperv
+    - dracut-virtio
+    - dracut-xen
+>>>>>>> d5c2ac0 (changed disc and sysconfig to single entry instead of array)
 
-    kernel:
-      name: kernel
-      version: 6.6
-      cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
-      uki: true
+  kernel:
+    name: kernel
+    version: 6.6
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    uki: true

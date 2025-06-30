@@ -42,22 +42,28 @@ func executeValidate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("template validation failed: %v", err)
 	}
 
-	log.Infof("✓ Template validation successful")
-	log.Infof("  Image: %s v%s", template.Image.Name, template.Image.Version)
-	log.Infof("  Target: %s %s (%s)", template.Target.OS, template.Target.Dist, template.Target.Arch)
-	log.Infof("  Output: %s", template.Target.ImageType)
-	log.Infof("  Provider: %s", template.GetProviderName())
-	log.Infof("  System Configs: %d", len(template.SystemConfigs))
+	log.Infof("✓ Template validation successful for %s", templateFile)
+	log.Infof("Image: %s v%s", template.Image.Name, template.Image.Version)
+	log.Infof("Target: %s/%s/%s (%s)", template.Target.OS, template.Target.Dist, template.Target.Arch, template.Target.ImageType)
 
-	if len(template.SystemConfigs) > 0 {
-		config := template.SystemConfigs[0]
-		log.Infof("  Config: %s (%s)", config.Name, config.Description)
-		log.Infof("  Packages: %d", len(config.Packages))
-		log.Infof("  Kernel: %s (%s)", config.Kernel.Version, config.Kernel.Cmdline)
+	if verbose {
+		if template.Disk.Name != "" {
+			log.Infof("Disk Config: %s (%s)", template.Disk.Name, template.Disk.Size)
+			if len(template.Disk.Partitions) > 0 {
+				log.Infof("Partitions: %d specified", len(template.Disk.Partitions))
+			}
+		}
 
-		if verbose && len(config.Packages) > 0 {
+		if template.SystemConfig.Name != "" {
+			log.Infof("System Config: %s", template.SystemConfig.Name)
+			if len(template.SystemConfig.Packages) > 0 {
+				log.Infof("Packages: %d specified", len(template.SystemConfig.Packages))
+			}
+		}
+
+		if len(template.SystemConfig.Packages) > 0 {
 			log.Infof("  Package list:")
-			for _, pkg := range config.Packages {
+			for _, pkg := range template.SystemConfig.Packages {
 				log.Infof("    - %s", pkg)
 			}
 		}
