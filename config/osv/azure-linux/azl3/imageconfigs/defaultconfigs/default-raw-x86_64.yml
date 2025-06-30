@@ -43,41 +43,78 @@ systemConfigs:
       bootType: efi # (efi or legacy)
       provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
 
+    # packages:
+    #   - filesystem
+    #   - azurelinux-release
+    #   - azurelinux-repos
+    #   - azurelinux-rpm-macros
+    #   - bash
+    #   - ca-certificates
+    #   - ca-certificates-base
+    #   - dbus
+    #   - dracut-hostonly
+    #   - e2fsprogs
+    #   - grub2
+    #   - iana-etc
+    #   - iproute
+    #   - iputils
+    #   - irqbalance
+    #   - ncurses-libs
+    #   - openssl
+    #   - kernel
+    #   - azurelinux-release
+    #   # hyperv packages
+    #   - dracut-hyperv
+    #   - hyperv-daemons
+    #   # core image packages
+    #   - shim
+    #   - systemd-boot
+    #   - systemd-ukify
+    #   - ca-certificates
+    #   - cronie-anacron
+    #   - logrotate
+    #   - core-packages-base-image
+    #   - dracut-hostonly
+    #   - dracut-vrf
+    #   - initramfs
+    #   - systemd-boot4
+
     packages:
-      - filesystem
-      - azurelinux-release
-      - azurelinux-repos
-      - azurelinux-rpm-macros
-      - bash
-      - ca-certificates
-      - ca-certificates-base
-      - dbus
-      - dracut-hostonly
-      - e2fsprogs
-      - grub2
-      - iana-etc
-      - iproute
-      - iputils
-      - irqbalance
-      - ncurses-libs
-      - openssl
-      - kernel
-      - azurelinux-release
-      # hyperv packages
-      - dracut-hyperv
-      - hyperv-daemons
-      # core image packages
-      - shim
-      - systemd-boot
-      - systemd-ukify
-      - ca-certificates
-      - cronie-anacron
-      - logrotate
-      - core-packages-base-image
-      - dracut-hostonly
-      - dracut-vrf
-      - initramfs
-      - systemd-boot
+        - filesystem
+        - azurelinux-release
+        - azurelinux-repos
+        - azurelinux-rpm-macros
+        - bash
+        - ca-certificates
+        - ca-certificates-base
+        - dbus
+        - dracut-hostonly
+        - e2fsprogs
+        - grub2
+        - iana-etc
+        - iproute
+        - iputils
+        - irqbalance
+        - ncurses-libs
+        - openssl
+        - kernel
+        - rpm
+        - rpm-libs
+        - shadow-utils
+        - shim
+        - sudo
+        - systemd
+        - systemd-networkd
+        - systemd-resolved
+        - systemd-ukify
+        - systemd-udev
+        - tdnf
+        - tdnf-plugin-repogpgcheck
+        - util-linux
+        - zlib
+        - initramfs
+        - systemd-boot
+
 
     kernel:
       name: kernel
