@@ -39,5 +39,5 @@ func TestBuildImageUKI_CaptureAllOutput(t *testing.T) {
 		}
 	}()
 
-	buildImageUKI(installRoot, tmpl)
+	_ = buildImageUKI(installRoot, tmpl)
 }
