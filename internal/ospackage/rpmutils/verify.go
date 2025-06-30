@@ -2,14 +2,14 @@ package rpmutils
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
-	"os"
-
-	"github.com/cavaliergopher/rpm"
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/sassoftware/go-rpmutils"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -99,7 +99,13 @@ func VerifyAll(paths []string, pubkeyPath string, workers int) []Result {
 func verifyWithGoRpm(rpmPath, pubkeyPath string) error {
 
 	// load the keyring
-	keyring, err := rpm.OpenKeyRing(pubkeyPath)
+	keyringFile, err := os.Open(pubkeyPath)
+	if err != nil {
+		return fmt.Errorf("opening public key: %w", err)
+	}
+	defer keyringFile.Close()
+
+	keyring, err := openpgp.ReadArmoredKeyRing(keyringFile)
 	if err != nil {
 		return fmt.Errorf("loading keyring: %w", err)
 	}
@@ -111,18 +117,14 @@ func verifyWithGoRpm(rpmPath, pubkeyPath string) error {
 	}
 	defer f.Close()
 
-	// GPG signature check
-	if _, err := rpm.GPGCheck(f, keyring); err != nil {
-		return fmt.Errorf("GPG check failed: %w", err)
-	}
-	// rewind for the next check
-	if _, err := f.Seek(0, 0); err != nil {
-		return fmt.Errorf("seek rpm: %w", err)
+	// GPG signature check + MD5 digest check
+	_, sigs, err := rpmutils.Verify(f, keyring)
+	if err != nil {
+		return fmt.Errorf("verify failed: %w", err)
 	}
 
-	// MD5 digest check
-	if err := rpm.MD5Check(f); err != nil {
-		return fmt.Errorf("MD5 checksum failed: %w", err)
+	if len(sigs) == 0 {
+		return fmt.Errorf("no GPG signatures found")
 	}
 
 	return nil

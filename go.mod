@@ -4,10 +4,10 @@ go 1.22.12
 
 require (
 	github.com/ProtonMail/go-crypto v1.2.0
-	github.com/cavaliergopher/rpm v1.3.0
 	github.com/klauspost/compress v1.18.0
 	github.com/microsoft/azurelinux/toolkit/tools v0.0.0-20250402013339-39cc18a4a03f
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
+	github.com/sassoftware/go-rpmutils v0.4.0
 	github.com/schollz/progressbar/v3 v3.12.0
 	github.com/spf13/cobra v1.9.1
 	go.uber.org/zap v1.27.0
@@ -16,6 +16,7 @@ require (
 )
 
 require (
+	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/cloudflare/circl v1.6.0 // indirect
 	github.com/fatih/color v1.16.0 // indirect
@@ -28,6 +29,8 @@ require (
 	github.com/rivo/uniseg v0.4.2 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/ulikunitz/xz v0.5.12 // indirect
+	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
