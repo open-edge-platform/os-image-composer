@@ -269,6 +269,9 @@ func updateImageConfig(installRoot string, diskPathIdMap map[string]string, temp
 }
 
 func postImageOsInstall(installRoot string, template *config.ImageTemplate) error {
+	if err := cleanSystemdState(installRoot, template); err != nil {
+		return fmt.Errorf("failed to clean systemd state: %w", err)
+	}
 	return nil
 }
 
@@ -407,5 +410,31 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 	} else {
 		log.Infof("Skipping UKI build for image: %s, bootloader provider is not systemd-boot", template.GetImageName())
 	}
+	return nil
+}
+
+func cleanSystemdState(installRoot string, template *config.ImageTemplate) error {
+	log := logger.Logger()
+	log.Infof("Cleaning systemd state for first boot")
+
+	machineIdFile := filepath.Join(installRoot, "etc", "machine-id")
+	removeFileLits := []string{
+		"/var/lib/systemd/random-seed",
+		"/boot/efi/loader/random-seed",
+		"/var/lib/systemd/credential.secret",
+	}
+
+	err := file.Write("", machineIdFile)
+	if err != nil {
+		return fmt.Errorf("failed to write machine-id file: %w", err)
+	}
+
+	for _, filePath := range removeFileLits {
+		fullPath := filepath.Join(installRoot, filePath)
+		if _, err := shell.ExecCmd("rm -f "+fullPath, true, "", nil); err != nil {
+			return fmt.Errorf("failed to remove file %s: %w", fullPath, err)
+		}
+	}
+
 	return nil
 }

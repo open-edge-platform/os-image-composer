@@ -79,6 +79,20 @@ func GetTargetOsConfigDir(targetOs, targetDist string) (string, error) {
 	return configDir, nil
 }
 
+// Write writes a string to a file, creating it if it doesn't exist.
+func Write(data string, dst string) error {
+	// Create or truncate the file
+	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to create file %s: %w", dst, err)
+	}
+	defer dstFile.Close()
+
+	// Write data to the file
+	_, err = dstFile.WriteString(data)
+	return err
+}
+
 // Append appends a string to the end of file dst.
 func Append(data string, dst string) error {
 	dstFile, err := os.OpenFile(dst, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
