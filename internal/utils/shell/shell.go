@@ -266,6 +266,18 @@ func ExecCmd(cmdStr string, sudo bool, chrootPath string, envVal []string) (stri
 	}
 }
 
+// ExecCmdSilent executes a command without logging its output
+func ExecCmdSilent(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	fullCmdStr, err := GetFullCmdStr(cmdStr, sudo, chrootPath, envVal)
+	if err != nil {
+		return "", fmt.Errorf("failed to get full command string: %w", err)
+	}
+
+	cmd := exec.Command("bash", "-c", fullCmdStr)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
+
 // ExecCmdWithStream executes a command and streams its output
 func ExecCmdWithStream(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
 	var outputStr string
