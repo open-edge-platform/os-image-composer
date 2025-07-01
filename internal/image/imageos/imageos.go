@@ -355,5 +355,57 @@ func updateImageFstab(installRoot string, diskPathIdMap map[string]string, templ
 }
 
 func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
+	log := logger.Logger()
+	bootloaderConfig := template.GetBootloaderConfig()
+	if bootloaderConfig.Provider == "systemd-boot" {
+		log.Infof("Building UKI for image: %s", template.GetImageName())
+
+		cmdStr := "ls /boot | grep initramfs"
+		output, err := shell.ExecCmd(cmdStr, true, installRoot, nil)
+		if err != nil {
+			return fmt.Errorf("failed to list initramfs files in /boot: %w", err)
+		}
+		for _, line := range strings.Split(output, "\n") {
+			initramfsFile := strings.TrimSpace(line)
+			if initramfsFile == "" {
+				continue
+			}
+			initramfsPath := filepath.Join("/boot", initramfsFile)
+			kernelVesion := strings.TrimPrefix(initramfsFile, "initramfs-")
+			kernelVesion = strings.TrimSuffix(kernelVesion, ".img")
+			kernelFile := fmt.Sprintf("vmlinuz-%s", kernelVesion)
+			kernelFilePath := filepath.Join("/boot", kernelFile)
+			cmdlineFile := "cmdline.conf"
+			cmdlineFilePath := filepath.Join("/boot", cmdlineFile)
+			ukiImageName := fmt.Sprintf("linux-%s.efi", kernelVesion)
+			ukiImagePath := filepath.Join("/boot/efi/EFI/Linux/", ukiImageName)
+			ukiImageHostDir := filepath.Join(installRoot, "boot", "efi", "EFI", "Linux")
+			if _, err := shell.ExecCmd("mkdir -p "+ukiImageHostDir, true, "", nil); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", ukiImageHostDir, err)
+			}
+
+			log.Infof("Building UKI for kernel version: %s", kernelVesion)
+			cmdStr := fmt.Sprintf("ukify build --uname %s --initrd=%s --linux=%s --cmdline=@%s --output %s",
+				kernelVesion, initramfsPath, kernelFilePath, cmdlineFilePath, ukiImagePath)
+			if _, err := shell.ExecCmd(cmdStr, true, installRoot, nil); err != nil {
+				return fmt.Errorf("failed to build UKI for kernel version %s: %w", kernelVesion, err)
+			}
+			log.Infof("UKI built successfully: %s", ukiImagePath)
+
+			cmdStr = "bootctl --esp-path=/boot/efi install"
+			output, err := shell.ExecCmd(cmdStr, true, installRoot, nil)
+			if err != nil {
+				if strings.Contains(output, "Failed to write 'LoaderSystemToken' EFI variable") {
+					log.Warnf("bootctl tries to write an EFI variable to NVRAM (firmware) using efivars.")
+					log.Warnf("efivars is only supported in the real hardware, ignoring this error.")
+				} else {
+					return fmt.Errorf("failed to install bootctl: %w", err)
+				}
+			}
+		}
+
+	} else {
+		log.Infof("Skipping UKI build for image: %s, bootloader provider is not systemd-boot", template.GetImageName())
+	}
 	return nil
 }
