@@ -282,7 +282,7 @@ fail:
 
 func CheckOpenFile(chrootPath string) error {
 	log := logger.Logger()
-	output, err := shell.ExecCmd("lsof +D "+chrootPath, true, "", nil)
+	output, err := shell.ExecCmdSilent("lsof +D "+chrootPath, true, "", nil)
 	if err != nil {
 		if strings.Contains(output, "WARNING: can't stat()") {
 			log.Debugf("Harmless WARNING: The error just means not all filesystems could be checked.")
@@ -291,14 +291,24 @@ func CheckOpenFile(chrootPath string) error {
 			return fmt.Errorf("failed to check open files in chroot environment: %w", err)
 		}
 	}
+	if output != "" {
+		for _, line := range strings.Split(output, "\n") {
+			log.Debugf("%s", line)
+		}
+	}
 	return nil
 }
 
 func CheckUsedMountPoint(chrootPath string) error {
-	// Logs will show in debug mode
-	_, err := shell.ExecCmd("fuser -vm "+chrootPath, true, "", nil)
+	log := logger.Logger()
+	output, err := shell.ExecCmdSilent("fuser -vm "+chrootPath, true, "", nil)
 	if err != nil {
 		return fmt.Errorf("failed to check used mount points in chroot environment: %w", err)
+	}
+	if output != "" {
+		for _, line := range strings.Split(output, "\n") {
+			log.Debugf("%s", line)
+		}
 	}
 	return nil
 }

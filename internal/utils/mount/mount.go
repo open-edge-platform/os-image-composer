@@ -14,7 +14,7 @@ import (
 
 func GetMountPathList() ([]string, error) {
 	var mountPathList []string
-	output, err := shell.ExecCmd("mount", false, "", nil)
+	output, err := shell.ExecCmdSilent("mount", false, "", nil)
 	if err != nil {
 		return mountPathList, err
 	}
