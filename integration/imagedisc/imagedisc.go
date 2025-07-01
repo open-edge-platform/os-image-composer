@@ -35,30 +35,28 @@ func main() {
 	imageFile := filepath.Join(buildDir, "image.raw")
 
 	template := config.ImageTemplate{}
-	template.DiskConfigs = []config.DiskConfig{
-		{
-			Name:               "disk1",
-			Size:               "2GiB",
-			PartitionTableType: "gpt",
-			Partitions: []config.PartitionInfo{
-				{
-					Name:       "boot",
-					ID:         "boot",
-					Type:       "esp",
-					Start:      "1MiB",
-					End:        "513MiB",
-					FsType:     "fat32",
-					MountPoint: "/boot/efi",
-				},
-				{
-					Name:       "rootfs",
-					ID:         "rootfs",
-					Type:       "linux-root-amd64",
-					Start:      "513MiB",
-					End:        "0",
-					FsType:     "ext4",
-					MountPoint: "/",
-				},
+	template.Disk = config.DiskConfig{
+		Name:               "disk1",
+		Size:               "2GiB",
+		PartitionTableType: "gpt",
+		Partitions: []config.PartitionInfo{
+			{
+				Name:       "boot",
+				ID:         "boot",
+				Type:       "esp",
+				Start:      "1MiB",
+				End:        "513MiB",
+				FsType:     "fat32",
+				MountPoint: "/boot/efi",
+			},
+			{
+				Name:       "rootfs",
+				ID:         "rootfs",
+				Type:       "linux-root-amd64",
+				Start:      "513MiB",
+				End:        "0",
+				FsType:     "ext4",
+				MountPoint: "/",
 			},
 		},
 	}
