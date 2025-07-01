@@ -8,27 +8,27 @@ target:
   arch: x86_64 # Target OS architecture
   imageType: raw # Image type, valid value: [raw, iso].
 
-# Disk:
-# Use defaults, Creates a single root partition with EFI boot
+# Disk configuration can be omitted to use defaults from default template
+# If specified, it will override the default disk configuration completely
 
-systemConfigs:
-  - name: edge
-    description: Default yml configuration for edge image
+# System configuration
+systemConfig:
+  name: edge
+  description: Default yml configuration for edge image
 
-    # Package Configuration
-    packages:
-      # Additional packages beyond the base system
-      - cloud-init
-      - rsyslog
+  # Package Configuration
+  packages:
+    # Additional packages beyond the base system
+    - cloud-init
+    - rsyslog
 
+  # Kernel Configuration
+  kernel:
+    version: "6.12"
+    cmdline: "quiet splash"
 
-    # Kernel Configuration
-    kernel:
-      version: "6.12"
-      cmdline: "quiet splash"
-
-    # Everything else uses defaults:
-    # Network: Uses DHCP on first interface
-    # Security: Enables distro-appropriate security (SELinux for AzureLinux)
-    # Services: Enables SSH, disables unnecessary services
-    # Users: Creates default admin user with sudo access
+  # Everything else uses defaults from the default template:
+  # Network: Uses DHCP on first interface
+  # Security: Enables distro-appropriate security (SELinux for AzureLinux)
+  # Services: Enables SSH, disables unnecessary services
+  # Users: Creates default admin user with sudo access

@@ -1,4 +1,3 @@
-// internal/config/config.go
 package config
 
 import (
@@ -38,10 +37,10 @@ type DiskConfig struct {
 
 // ImageTemplate represents the YAML image template structure
 type ImageTemplate struct {
-	Image         ImageInfo      `yaml:"image"`
-	Target        TargetInfo     `yaml:"target"`
-	DiskConfigs   []DiskConfig   `yaml:"disk"`
-	SystemConfigs []SystemConfig `yaml:"systemConfigs"`
+	Image        ImageInfo    `yaml:"image"`
+	Target       TargetInfo   `yaml:"target"`
+	Disk         DiskConfig   `yaml:"disk,omitempty"`
+	SystemConfig SystemConfig `yaml:"systemConfig"`
 }
 
 type Bootloader struct {
@@ -118,6 +117,7 @@ func LoadTemplate(path string) (*ImageTemplate, error) {
 	TargetOs = template.Target.OS
 	TargetDist = template.Target.Dist
 	TargetArch = template.Target.Arch
+	TargetImageType = template.Target.ImageType
 	log.Infof("loaded image template from %s: name=%s, os=%s, dist=%s, arch=%s",
 		path, template.Image.Name, template.Target.OS, template.Target.Dist, template.Target.Arch)
 	return template, nil
@@ -186,50 +186,32 @@ func (t *ImageTemplate) GetTargetInfo() TargetInfo {
 	return t.Target
 }
 
+// Updated methods to work with single objects instead of arrays
 func (t *ImageTemplate) GetDiskConfig() DiskConfig {
-	if len(t.DiskConfigs) > 0 {
-		return t.DiskConfigs[0]
-	}
-	return DiskConfig{}
+	return t.Disk
 }
 
 func (t *ImageTemplate) GetSystemConfig() SystemConfig {
-	if len(t.SystemConfigs) > 0 {
-		return t.SystemConfigs[0]
-	}
-	return SystemConfig{}
+	return t.SystemConfig
 }
 
 func (t *ImageTemplate) GetBootloaderConfig() Bootloader {
-	if len(t.SystemConfigs) > 0 {
-		return t.SystemConfigs[0].Bootloader
-	}
-	return Bootloader{}
+	return t.SystemConfig.Bootloader
 }
 
-// GetPackages returns all packages from the first system configuration
-// TODO: In the future, we might want to support multiple configs or allow selection
+// GetPackages returns all packages from the system configuration
 func (t *ImageTemplate) GetPackages() []string {
-	if len(t.SystemConfigs) > 0 {
-		return t.SystemConfigs[0].Packages
-	}
-	return []string{}
+	return t.SystemConfig.Packages
 }
 
-// GetKernel returns the kernel configuration from the first system configuration
+// GetKernel returns the kernel configuration from the system configuration
 func (t *ImageTemplate) GetKernel() KernelConfig {
-	if len(t.SystemConfigs) > 0 {
-		return t.SystemConfigs[0].Kernel
-	}
-	return KernelConfig{}
+	return t.SystemConfig.Kernel
 }
 
-// GetSystemConfigName returns the name of the first system configuration
+// GetSystemConfigName returns the name of the system configuration
 func (t *ImageTemplate) GetSystemConfigName() string {
-	if len(t.SystemConfigs) > 0 {
-		return t.SystemConfigs[0].Name
-	}
-	return ""
+	return t.SystemConfig.Name
 }
 
 func SaveUpdatedConfigFile(path string, config *ImageTemplate) error {
