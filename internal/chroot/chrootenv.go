@@ -65,6 +65,14 @@ func UmountChrootSysfs(chrootPath string) error {
 		return fmt.Errorf("failed to stop GPG components in chroot environment: %w", err)
 	}
 
+	if err := CheckOpenFile(chrootHostPath); err != nil {
+		return fmt.Errorf("failed to check open files in chroot environment: %w", err)
+	}
+
+	if err := CheckUsedMountPoint(chrootHostPath); err != nil {
+		return fmt.Errorf("failed to check open processes in chroot environment: %w", err)
+	}
+
 	if err = mount.UmountSysfs(chrootHostPath); err != nil {
 		return fmt.Errorf("failed to unmount sysfs for %s: %w", chrootHostPath, err)
 	}
@@ -272,6 +280,29 @@ fail:
 	return fmt.Errorf("failed to initialize chroot environment: %w", err)
 }
 
+func CheckOpenFile(chrootPath string) error {
+	log := logger.Logger()
+	output, err := shell.ExecCmd("lsof +D "+chrootPath, true, "", nil)
+	if err != nil {
+		if strings.Contains(output, "WARNING: can't stat()") {
+			log.Debugf("Harmless WARNING: The error just means not all filesystems could be checked.")
+			log.Debugf("Harmless WARNING: But the result is valid.")
+		} else {
+			return fmt.Errorf("failed to check open files in chroot environment: %w", err)
+		}
+	}
+	return nil
+}
+
+func CheckUsedMountPoint(chrootPath string) error {
+	// Logs will show in debug mode
+	_, err := shell.ExecCmd("fuser -vm "+chrootPath, true, "", nil)
+	if err != nil {
+		return fmt.Errorf("failed to check used mount points in chroot environment: %w", err)
+	}
+	return nil
+}
+
 func StopGPGComponents(chrootPath string) error {
 	log := logger.Logger()
 	cmdExist, err := shell.IsCommandExist("gpgconf", chrootPath)
@@ -287,12 +318,14 @@ func StopGPGComponents(chrootPath string) error {
 		return fmt.Errorf("failed to list GPG components in chroot environment: %w", err)
 	}
 	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || !strings.Contains(line, ":") {
+			continue // Skip empty lines or lines without a colon
+		}
 		component := strings.TrimSpace(strings.Split(line, ":")[0])
-		if component == "gpg-agent" || component == "keyboxd" {
-			log.Debugf("Stopping GPG component: %s", component)
-			if _, err := shell.ExecCmd("gpgconf --kill "+component, true, chrootPath, nil); err != nil {
-				return fmt.Errorf("failed to stop GPG component %s: %w", component, err)
-			}
+		log.Debugf("Stopping GPG component: %s", component)
+		if _, err := shell.ExecCmd("gpgconf --kill "+component, true, chrootPath, nil); err != nil {
+			return fmt.Errorf("failed to stop GPG component %s: %w", component, err)
 		}
 	}
 
