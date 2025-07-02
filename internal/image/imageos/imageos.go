@@ -361,14 +361,12 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 		// 1. Update initramfs
 		kernelVersion, err := getKernelVersion(installRoot)
 		if err != nil {
-			log.Errorf("failed to get kernel version: %w", err)
 			return fmt.Errorf("failed to get kernel version: %w", err)
 		}
 
 		log.Debugf("Kernel version:%s", kernelVersion)
 
 		if err := updateInitramfs(installRoot, kernelVersion); err != nil {
-			log.Errorf("initrd updated failed: %v\n", err)
 			return fmt.Errorf("failed to update initramfs: %w", err)
 		}
 
@@ -381,7 +379,6 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 		espRoot := installRoot
 		espDir, err := prepareESPDir(espRoot)
 		if err != nil {
-			log.Errorf("failed to prepare ESP directory: %v", err)
 			return fmt.Errorf("failed to prepare ESP directory: %w", err)
 		}
 		log.Debugf("Succesfully Creating EspPath:", espDir)
@@ -394,7 +391,6 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 		cmdline := rootCmd + " " + inputCmd
 
 		if err := buildUKI(installRoot, kernelPath, initrdPath, cmdline, outputPath); err != nil {
-			log.Errorf("failed to build UKI: %v", err)
 			return fmt.Errorf("failed to build UKI: %w", err)
 		}
 		log.Debugf("UKI created successfully on:", outputPath)
@@ -403,7 +399,6 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 		srcBootloader := filepath.Join("usr", "lib", "systemd", "boot", "efi", "systemd-bootx64.efi")
 		dstBootloader := filepath.Join(espDir, "EFI", "BOOT", "BOOTX64.EFI")
 		if err := copyBootloader(installRoot, srcBootloader, dstBootloader); err != nil {
-			log.Errorf("failed to copy bootloader: %v", err)
 			return fmt.Errorf("failed to copy bootloader: %w", err)
 		}
 		log.Debugf("bootloader copied successfully on:", dstBootloader)
@@ -471,8 +466,6 @@ func prepareESPDir(installRoot string) (string, error) {
 	for _, dir := range espDirs {
 		cmd := fmt.Sprintf("mkdir -p %s", dir)
 		if _, err := shell.ExecCmd(cmd, true, installRoot, nil); err != nil {
-			log := logger.Logger()
-			log.Errorf("Failed to create ESP directory %s: %v\n", dir, err)
 			return "", err
 		}
 	}
