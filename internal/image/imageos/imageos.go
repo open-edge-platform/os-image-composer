@@ -467,35 +467,7 @@ func prepareESPDir(installRoot string) (string, error) {
 		"/boot/efi/EFI/BOOT",
 	}
 
-	// 1. Clean up existing bootloader files that might conflict with UKI
-	cleanupFiles := []string{
-		"/boot/efi/EFI/BOOT/grubx64.efi",
-		"/boot/efi/EFI/BOOT/mmx64.efi",
-		"/boot/efi/EFI/BOOT/bootx64.efi",
-	}
-
-	cleanupDirs := []string{
-		"/boot/efi/EFI/fedora",
-		"/boot/efi/EFI/centos",
-		"/boot/efi/EFI/rhel",
-		"/boot/efi/EFI/ubuntu",
-		"/boot/efi/EFI/debian",
-		"/boot/efi/grub",
-	}
-
-	// Remove conflicting files
-	for _, file := range cleanupFiles {
-		cmd := fmt.Sprintf("rm -f %s", file)
-		shell.ExecCmd(cmd, true, installRoot, nil) // Ignore errors for non-existent files
-	}
-
-	// Remove conflicting directories
-	for _, dir := range cleanupDirs {
-		cmd := fmt.Sprintf("rm -rf %s", dir)
-		shell.ExecCmd(cmd, true, installRoot, nil) // Ignore errors for non-existent dirs
-	}
-
-	// 2. Create required ESP directories
+	// Create required ESP directories
 	for _, dir := range espDirs {
 		cmd := fmt.Sprintf("mkdir -p %s", dir)
 		if _, err := shell.ExecCmd(cmd, true, installRoot, nil); err != nil {
@@ -511,7 +483,6 @@ func prepareESPDir(installRoot string) (string, error) {
 
 // Helper to build UKI using ukify
 func buildUKI(installRoot, kernelPath, initrdPath, cmdline, outputPath string) error {
-
 	cmd := fmt.Sprintf(
 		"ukify build --linux \"%s\" --initrd \"%s\" --cmdline \"%s\" --output \"%s\"",
 		kernelPath,
