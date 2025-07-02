@@ -95,6 +95,7 @@ var commandMap = map[string]string{
 	"xz":                 "/usr/bin/xz",
 	"yum":                "/usr/bin/yum",
 	"zstd":               "/usr/bin/zstd",
+	"dracut":             "/usr/bin/dracut",
 	// Add more mappings as needed
 }
 
