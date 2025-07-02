@@ -91,14 +91,29 @@ func UmountPath(mountPoint string) error {
 	if err != nil {
 		return fmt.Errorf("failed to check if mount point %s exists: %w", mountPoint, err)
 	}
-	if pathExist {
-		if _, err := shell.ExecCmd("umount -l "+mountPoint, true, "", nil); err != nil {
-			return fmt.Errorf("failed to unmount %s: %w", mountPoint, err)
-		} else {
-			log.Debugf("Unmounted:", mountPoint)
-		}
-	} else {
+	if !pathExist {
 		log.Debugf("Mount point does not exist:", mountPoint)
+		return nil
+	}
+
+	// Try different unmount strategies with increasing aggressiveness
+	unmountStrategies := []struct {
+		cmd  string
+		desc string
+	}{
+		{"umount " + mountPoint, "standard"},
+		{"umount -l " + mountPoint, "lazy"},
+		{"umount -f " + mountPoint, "force"},
+		{"umount -lf " + mountPoint, "lazy-force"},
+	}
+	for _, strategy := range unmountStrategies {
+		log.Debugf("Trying %s unmount for %s", strategy.desc, mountPoint)
+		if output, err := shell.ExecCmd(strategy.cmd, true, "", nil); err == nil {
+			log.Debugf("Successfully unmounted %s using %s approach", mountPoint, strategy.desc)
+			return nil
+		} else {
+			log.Debugf("Unmount failed with %s approach: %v, output: %s", strategy.desc, err, output)
+		}
 	}
 	return nil
 }
