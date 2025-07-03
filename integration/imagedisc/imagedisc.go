@@ -68,7 +68,7 @@ func main() {
 		log.Infof("Disk created: %s with ID: %s", diskPath, id)
 	}
 
-	err = imagedisc.DetachLoopbackDevice(imageFile, loopDevPath)
+	err = imagedisc.LoopSetupDelete(loopDevPath)
 	if err != nil {
 		log.Fatalf("Failed to detach loopback device: %v", err)
 	}
