@@ -61,6 +61,10 @@ func UmountChrootSysfs(chrootPath string) error {
 		return fmt.Errorf("failed to get chroot host path for %s: %w", chrootPath, err)
 	}
 
+	if err := DisableSwap(chrootHostPath); err != nil {
+		return fmt.Errorf("failed to disable swap in chroot environment: %w", err)
+	}
+
 	if err := StopGPGComponents(chrootHostPath); err != nil {
 		return fmt.Errorf("failed to stop GPG components in chroot environment: %w", err)
 	}
@@ -278,6 +282,14 @@ fail:
 		return fmt.Errorf("failed to unmount sysfs for chroot environment: %w", err)
 	}
 	return fmt.Errorf("failed to initialize chroot environment: %w", err)
+}
+
+func DisableSwap(chrootPath string) error {
+	_, err := shell.ExecCmd("swapoff -a", true, chrootPath, nil)
+	if err != nil {
+		return fmt.Errorf("failed to disable swap in chroot environment: %w", err)
+	}
+	return nil
 }
 
 func CheckOpenFile(chrootPath string) error {

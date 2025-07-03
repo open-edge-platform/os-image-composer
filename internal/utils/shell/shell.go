@@ -80,6 +80,7 @@ var commandMap = map[string]string{
 	"sleep":              "/usr/bin/sleep",
 	"sudo":               "/usr/bin/sudo",
 	"swapon":             "/usr/sbin/swapon",
+	"swapoff":            "/usr/sbin/swapoff",
 	"sync":               "/usr/bin/sync",
 	"tail":               "/usr/bin/tail",
 	"tar":                "/usr/bin/tar",
