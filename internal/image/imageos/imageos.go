@@ -386,11 +386,8 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 		outputPath := filepath.Join(espDir, "EFI", "Linux", "linux.efi")
 		log.Debugf("UKI Path:", outputPath)
 
-		inputCmd := template.GetKernel().Cmdline
-		rootCmd := getRootCmdline()
-		cmdline := rootCmd + " " + inputCmd
-
-		if err := buildUKI(installRoot, kernelPath, initrdPath, cmdline, outputPath); err != nil {
+		cmdlineFile := filepath.Join("/boot", "cmdline.conf")
+		if err := buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath); err != nil {
 			return fmt.Errorf("failed to build UKI: %w", err)
 		}
 		log.Debugf("UKI created successfully on:", outputPath)
@@ -445,15 +442,6 @@ func updateInitramfs(installRoot, kernelVersion string) error {
 	return err
 }
 
-// Helper to get root part of cmdline
-func getRootCmdline() string {
-	// This function should return the root part of the cmdline,
-	// e.g., "root=PARTLABEL=ROOT"
-	// For now, we assume it's a fixed value,
-	// but it can be extended to read from config or other sources
-	return "root=PARTLABEL=ROOT"
-}
-
 // Helper to determine the ESP directory (assumes /boot/efi)
 func prepareESPDir(installRoot string) (string, error) {
 	espDirs := []string{
@@ -475,12 +463,12 @@ func prepareESPDir(installRoot string) (string, error) {
 }
 
 // Helper to build UKI using ukify
-func buildUKI(installRoot, kernelPath, initrdPath, cmdline, outputPath string) error {
+func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath string) error {
 	cmd := fmt.Sprintf(
-		"ukify build --linux \"%s\" --initrd \"%s\" --cmdline \"%s\" --output \"%s\"",
+		"ukify build --linux \"%s\" --initrd \"%s\" --cmdline \"@%s\" --output \"%s\"",
 		kernelPath,
 		initrdPath,
-		cmdline,
+		cmdlineFile,
 		outputPath,
 	)
 	log := logger.Logger()
