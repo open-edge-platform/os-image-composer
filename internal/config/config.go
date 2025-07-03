@@ -69,7 +69,7 @@ type PartitionInfo struct {
 	ID           string   `yaml:"id"`           // ID: unique identifier for the partition; can be used as a key
 	Flags        []string `yaml:"flags"`        // Flags: optional flags for the partition (e.g., "boot", "hidden")
 	Type         string   `yaml:"type"`         // Type: partition type (e.g., "esp", "linux-root-amd64")
-	TypeGUID     string   `yaml:"typeUUID"`     // TypeGUID: GPT type GUID for the partition (e.g., "8300" for Linux filesystem)
+	TypeGUID     string   `yaml:"typeGUID"`     // TypeGUID: GPT type GUID for the partition (e.g., "8300" for Linux filesystem)
 	FsType       string   `yaml:"fsType"`       // FsType: filesystem type (e.g., "ext4", "xfs", etc.);
 	Start        string   `yaml:"start"`        // Start: start offset of the partition; can be a absolute size (e.g., "512MiB")
 	End          string   `yaml:"end"`          // End: end offset of the partition; can be a absolute size (e.g., "2GiB") or "0" for the end of the disk
