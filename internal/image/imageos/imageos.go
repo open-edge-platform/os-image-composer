@@ -535,7 +535,7 @@ func createUser(installRoot string, template *config.ImageTemplate) error {
 	
 	// Verify user creation
 	if err := verifyUserCreated(installRoot, user); err != nil {
-		return fmt.Errorf("user verification failed: %w", user, err)
+		return fmt.Errorf("user verification failed: %w", err)
 	}
 	
 	log.Infof("User %s created successfully with sudo permissions", user)
