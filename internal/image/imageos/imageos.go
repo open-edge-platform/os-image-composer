@@ -74,7 +74,7 @@ func InstallImageOs(diskPathIdMap map[string]string, template *config.ImageTempl
 		err = fmt.Errorf("failed to configure UKI: %w", err)
 		goto fail
 	}
-    
+
 	log.Infof("Configuring User...")
 	err = createUser(installRoot, template)
 	if err != nil {
