@@ -96,10 +96,10 @@ var commandMap = map[string]string{
 	"yum":                "/usr/bin/yum",
 	"zstd":               "/usr/bin/zstd",
 	"dracut":             "/usr/bin/dracut",
-	"useradd":             "/usr/sbin/useradd",
-	"usermod":             "/usr/sbin/usermod",
-	"groups":            "/usr/bin/groups",
-	"passwd":            "/usr/bin/passwd",
+	"useradd":            "/usr/sbin/useradd",
+	"usermod":            "/usr/sbin/usermod",
+	"groups":             "/usr/bin/groups",
+	"passwd":             "/usr/bin/passwd",
 	// Add more mappings as needed
 }
 

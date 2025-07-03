@@ -510,34 +510,34 @@ func createUser(installRoot string, template *config.ImageTemplate) error {
 	log := logger.Logger()
 	user := "user"
 	pwd := "user"
-	
+
 	log.Infof("Creating user: %s", user)
-	
+
 	// Create the user with useradd command
 	// -m creates home directory, -s sets shell
 	cmd := fmt.Sprintf("useradd -m -s /bin/bash %s", user)
 	if _, err := shell.ExecCmd(cmd, true, installRoot, nil); err != nil {
 		return fmt.Errorf("failed to create user %s: %w", user, err)
 	}
-	
+
 	// Set password using passwd command with expect-like approach
 	passwdInput := fmt.Sprintf("%s\n%s\n", pwd, pwd)
 	passwdCmd := fmt.Sprintf("passwd %s", user)
 	if _, err := shell.ExecCmdWithInput(passwdInput, passwdCmd, true, installRoot, nil); err != nil {
 		return fmt.Errorf("failed to set password for user %s: %w", user, err)
 	}
-	
+
 	// Add user to sudo group for sudo permissions
 	sudoCmd := fmt.Sprintf("usermod -aG sudo %s", user)
 	if _, err := shell.ExecCmd(sudoCmd, true, installRoot, nil); err != nil {
 		return fmt.Errorf("failed to add user %s to sudo group: %w", user, err)
 	}
-	
+
 	// Verify user creation
 	if err := verifyUserCreated(installRoot, user); err != nil {
 		return fmt.Errorf("user verification failed: %w", err)
 	}
-	
+
 	log.Infof("User %s created successfully with sudo permissions", user)
 	return nil
 }
@@ -545,7 +545,7 @@ func createUser(installRoot string, template *config.ImageTemplate) error {
 // Verify that the user was created correctly
 func verifyUserCreated(installRoot, username string) error {
 	log := logger.Logger()
-	
+
 	// Check if user exists in passwd file
 	passwdCmd := fmt.Sprintf("grep '^%s:' /etc/passwd", username)
 	output, err := shell.ExecCmd(passwdCmd, true, installRoot, nil)
@@ -553,7 +553,7 @@ func verifyUserCreated(installRoot, username string) error {
 		return fmt.Errorf("user %s not found in passwd file: %w", username, err)
 	}
 	log.Debugf("User in passwd: %s", strings.TrimSpace(output))
-	
+
 	// Check if user has password in shadow file
 	shadowCmd := fmt.Sprintf("grep '^%s:' /etc/shadow", username)
 	output, err = shell.ExecCmd(shadowCmd, true, installRoot, nil)
@@ -561,7 +561,7 @@ func verifyUserCreated(installRoot, username string) error {
 		return fmt.Errorf("user %s not found in shadow file: %w", username, err)
 	}
 	log.Debugf("User in shadow: %s", strings.TrimSpace(output))
-	
+
 	// Check if account is locked (password field starts with ! or *)
 	shadowFields := strings.Split(strings.TrimSpace(output), ":")
 	if len(shadowFields) >= 2 {
@@ -573,7 +573,7 @@ func verifyUserCreated(installRoot, username string) error {
 			return fmt.Errorf("user %s has no password set", username)
 		}
 	}
-			
+
 	// Check sudo group membership
 	groupCmd := fmt.Sprintf("groups %s", username)
 	output, err = shell.ExecCmd(groupCmd, true, installRoot, nil)
@@ -581,10 +581,10 @@ func verifyUserCreated(installRoot, username string) error {
 		return fmt.Errorf("failed to check groups for user %s: %w", username, err)
 	}
 	log.Debugf("User groups: %s", strings.TrimSpace(output))
-	
+
 	if !strings.Contains(output, "sudo") {
 		return fmt.Errorf("user %s is not in sudo group", username)
 	}
-	
+
 	return nil
 }
