@@ -85,17 +85,8 @@ func MountPath(targetPath, mountPoint, mountFlags string) error {
 	return nil
 }
 
-func UmountPath(mountPoint string) error {
+func umountPath(mountPoint string) error {
 	log := logger.Logger()
-	pathExist, err := IsMountPathExist(mountPoint)
-	if err != nil {
-		return fmt.Errorf("failed to check if mount point %s exists: %w", mountPoint, err)
-	}
-	if !pathExist {
-		log.Debugf("Mount point does not exist:", mountPoint)
-		return nil
-	}
-
 	// Try different unmount strategies with increasing aggressiveness
 	unmountStrategies := []struct {
 		cmd  string
@@ -118,6 +109,19 @@ func UmountPath(mountPoint string) error {
 	return nil
 }
 
+func UmountPath(mountPoint string) error {
+	log := logger.Logger()
+	pathExist, err := IsMountPathExist(mountPoint)
+	if err != nil {
+		return fmt.Errorf("failed to check if mount point %s exists: %w", mountPoint, err)
+	}
+	if !pathExist {
+		log.Debugf("Mount point does not exist:", mountPoint)
+		return nil
+	}
+	return umountPath(mountPoint)
+}
+
 func UmountAndDeletePath(mountPoint string) error {
 	if err := UmountPath(mountPoint); err != nil {
 		return fmt.Errorf("failed to unmount %s: %w", mountPoint, err)
@@ -135,7 +139,7 @@ func UmountSubPath(mountPoint string) error {
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(mountSubpathList)))
 	for _, path := range mountSubpathList {
-		if _, err := shell.ExecCmd("umount -l "+path, true, "", nil); err != nil {
+		if err := umountPath(path); err != nil {
 			return fmt.Errorf("failed to unmount %s: %w", path, err)
 		}
 	}
@@ -144,41 +148,47 @@ func UmountSubPath(mountPoint string) error {
 
 // MountSysfs mounts system directories (e.g., /dev, /proc, /sys) into the chroot environment
 func MountSysfs(mountPoint string) error {
-	devMountPoint := filepath.Join(mountPoint, "dev")
-	if err := MountPath("/dev", devMountPoint, "--bind"); err != nil {
-		return fmt.Errorf("failed to mount /dev to %s: %w", devMountPoint, err)
-	}
-	if _, err := shell.ExecCmd("mount --make-rslave "+devMountPoint, true, "", nil); err != nil {
-		return fmt.Errorf("failed to make /dev %s a slave mount: %w", devMountPoint, err)
-	}
-
 	procMountPoint := filepath.Join(mountPoint, "proc")
-	if err := MountPath("/proc", procMountPoint, "-t proc"); err != nil {
+	if err := MountPath("proc", procMountPoint, "-t proc"); err != nil {
 		return fmt.Errorf("failed to mount /proc to %s: %w", procMountPoint, err)
-	}
-	if _, err := shell.ExecCmd("mount --make-rslave "+procMountPoint, true, "", nil); err != nil {
-		return fmt.Errorf("failed to make /dev %s a slave mount: %w", procMountPoint, err)
 	}
 
 	sysMountPoint := filepath.Join(mountPoint, "sys")
-	if err := MountPath("/sys", sysMountPoint, "--bind"); err != nil {
+	if err := MountPath("sysfs", sysMountPoint, "-t sysfs -o nosuid,noexec,nodev"); err != nil {
 		return fmt.Errorf("failed to mount /sys to %s: %w", sysMountPoint, err)
 	}
-	if _, err := shell.ExecCmd("mount --make-rslave "+sysMountPoint, true, "", nil); err != nil {
-		return fmt.Errorf("failed to make /sys %s a slave mount: %w", sysMountPoint, err)
-	}
 
-	runMountPoint := filepath.Join(mountPoint, "run")
-	if err := MountPath("/run", runMountPoint, "--bind"); err != nil {
-		return fmt.Errorf("failed to mount /run to %s: %w", runMountPoint, err)
-	}
-	if _, err := shell.ExecCmd("mount --make-rslave "+runMountPoint, true, "", nil); err != nil {
-		return fmt.Errorf("failed to make /dev %s a slave mount: %w", runMountPoint, err)
+	devMountPoint := filepath.Join(mountPoint, "dev")
+	if err := MountPath("devtmpfs", devMountPoint, "-t devtmpfs -o mode=0755,nosuid"); err != nil {
+		return fmt.Errorf("failed to mount /dev to %s: %w", devMountPoint, err)
 	}
 
 	devPtsMountPoint := filepath.Join(mountPoint, "dev/pts")
-	if err := MountPath("/dev/pts", devPtsMountPoint, "--bind"); err != nil {
+	if err := MountPath("devpts", devPtsMountPoint, "-t devpts -o gid=5,mode=620"); err != nil {
 		return fmt.Errorf("failed to mount /dev/pts to %s: %w", devPtsMountPoint, err)
+	}
+
+	devShmMountPoint := filepath.Join(mountPoint, "dev/shm")
+	if err := MountPath("tmpfs", devShmMountPoint, "-t tmpfs -o mode=1777"); err != nil {
+		return fmt.Errorf("failed to mount /dev/shm to %s: %w", devShmMountPoint, err)
+	}
+
+	runMountPoint := filepath.Join(mountPoint, "run")
+	if err := MountPath("tmpfs", runMountPoint, "-t tmpfs -o mode=0755"); err != nil {
+		return fmt.Errorf("failed to mount /run to %s: %w", runMountPoint, err)
+	}
+
+	runShmMountPoint := filepath.Join(mountPoint, "run/shm")
+	if _, err := shell.ExecCmd("mkdir -p "+runShmMountPoint, true, "", nil); err != nil {
+		return fmt.Errorf("failed to create %s: %w", runShmMountPoint, err)
+	}
+	if _, err := shell.ExecCmd("chmod 1777 "+runShmMountPoint, true, "", nil); err != nil {
+		return fmt.Errorf("failed to set permissions on %s: %w", runShmMountPoint, err)
+	}
+
+	runLockMountPoint := filepath.Join(mountPoint, "run/lock")
+	if _, err := shell.ExecCmd("mkdir -p "+runLockMountPoint, true, "", nil); err != nil {
+		return fmt.Errorf("failed to create %s: %w", runLockMountPoint, err)
 	}
 
 	return nil
@@ -203,10 +213,10 @@ func UmountSysfs(mountPoint string) error {
 		}
 	}
 
-	for _, _mountPoint := range []string{"dev/pts", "run", "sys", "proc", "dev"} {
+	for _, _mountPoint := range []string{"run", "dev/pts", "dev/shm", "dev", "sys", "proc"} {
 		fullPath := filepath.Join(mountPoint, _mountPoint)
 		if slice.Contains(pathList, fullPath) {
-			if _, err := shell.ExecCmd("umount -l "+fullPath, true, "", nil); err != nil {
+			if err := umountPath(fullPath); err != nil {
 				// Only treat as error if not "not found"
 				if !strings.Contains(err.Error(), "not found") {
 					return fmt.Errorf("failed to unmount %s: %w", fullPath, err)
