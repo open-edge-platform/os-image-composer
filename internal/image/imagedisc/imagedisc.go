@@ -130,6 +130,12 @@ func SetupLoopbackDevice(discFilePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to setup loopback device: %w", err)
 	}
+
+	err = diskutils.WaitForDevicesToSettle()
+	if err != nil {
+		return "", fmt.Errorf("failed to wait for devices to settle: %w", err)
+	}
+
 	log.Infof("Loopback device set up at %s for image disk %s", loopDev, discFilePath)
 	return loopDev, nil
 }
@@ -144,9 +150,9 @@ func DetachLoopbackDevice(diskPath string, loopDevPath string) error {
 		return fmt.Errorf("invalid loop device path")
 	}
 
-	// Wait for any pending disk IO operations to complete
-	if err := diskutils.BlockOnDiskIO(loopDevPath); err != nil {
-		return fmt.Errorf("failed to block on disk IO for loopback device %s: %w", loopDevPath, err)
+	maj, min, err := diskutils.GetDiskIds(loopDevPath)
+	if err != nil {
+		return fmt.Errorf("failed to get loopback device IDs: %w", err)
 	}
 
 	// Call the Azure diskutils to detach the loopback device
@@ -157,6 +163,11 @@ func DetachLoopbackDevice(diskPath string, loopDevPath string) error {
 	// Wait for the loopback device to be detached
 	if err := waitForLoopbackToDetach(diskPath, loopDevPath); err != nil {
 		return fmt.Errorf("failed to wait for loopback detach: %w", err)
+	}
+
+	// Wait for any pending disk IO operations to complete
+	if err := diskutils.BlockOnDiskIOByIds(loopDevPath, maj, min); err != nil {
+		return fmt.Errorf("failed to block on disk IO for loopback device %s: %w", loopDevPath, err)
 	}
 
 	log.Infof("Loopback device %s detached successfully from %s", diskPath, loopDevPath)
