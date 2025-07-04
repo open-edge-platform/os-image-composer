@@ -156,22 +156,24 @@ func MountSysfs(mountPoint string) error {
 	if err := MountPath("/proc", procMountPoint, "-t proc"); err != nil {
 		return fmt.Errorf("failed to mount /proc to %s: %w", procMountPoint, err)
 	}
+	if _, err := shell.ExecCmd("mount --make-rslave "+procMountPoint, true, "", nil); err != nil {
+		return fmt.Errorf("failed to make /dev %s a slave mount: %w", procMountPoint, err)
+	}
 
 	sysMountPoint := filepath.Join(mountPoint, "sys")
 	if err := MountPath("/sys", sysMountPoint, "--bind"); err != nil {
 		return fmt.Errorf("failed to mount /sys to %s: %w", sysMountPoint, err)
 	}
 	if _, err := shell.ExecCmd("mount --make-rslave "+sysMountPoint, true, "", nil); err != nil {
-		return fmt.Errorf("failed to make /sys %s a slave mount: %w", devMountPoint, err)
+		return fmt.Errorf("failed to make /sys %s a slave mount: %w", sysMountPoint, err)
 	}
 
 	runMountPoint := filepath.Join(mountPoint, "run")
 	if err := MountPath("/run", runMountPoint, "--bind"); err != nil {
 		return fmt.Errorf("failed to mount /run to %s: %w", runMountPoint, err)
 	}
-
 	if _, err := shell.ExecCmd("mount --make-rslave "+runMountPoint, true, "", nil); err != nil {
-		return fmt.Errorf("failed to make /dev %s a slave mount: %w", devMountPoint, err)
+		return fmt.Errorf("failed to make /dev %s a slave mount: %w", runMountPoint, err)
 	}
 
 	devPtsMountPoint := filepath.Join(mountPoint, "dev/pts")
