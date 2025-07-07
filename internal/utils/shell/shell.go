@@ -100,6 +100,7 @@ var commandMap = map[string]string{
 	"usermod":            "/usr/sbin/usermod",
 	"groups":             "/usr/bin/groups",
 	"passwd":             "/usr/bin/passwd",
+	"mv":                 "/usr/bin/mv",
 	// Add more mappings as needed
 }
 
