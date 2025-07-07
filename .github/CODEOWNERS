@@ -1,3 +1,5 @@
 * @open-edge-platform/image-composer-maintain 
 
-/docs @open-edge-platform/image-composer-docs-write
+# documentation content
+/docs @open-edge-platform/open-edge-platform-docs-write
+README.md @open-edge-platform/open-edge-platform-docs-write
