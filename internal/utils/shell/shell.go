@@ -46,6 +46,7 @@ var commandMap = map[string]string{
 	"find":               "/usr/bin/find",
 	"findmnt":            "/usr/bin/findmnt",
 	"flock":              "/usr/bin/flock",
+	"fuser":              "/usr/bin/fuser",
 	"gpgconf":            "/usr/bin/gpgconf",
 	"gunzip":             "/usr/bin/gunzip",
 	"grep":               "/usr/bin/grep",
@@ -53,6 +54,7 @@ var commandMap = map[string]string{
 	"gzip":               "/usr/bin/gzip",
 	"head":               "/usr/bin/head",
 	"ls":                 "/usr/bin/ls",
+	"lsof":               "/usr/bin/lsof",
 	"lsb_release":        "/usr/bin/lsb_release",
 	"lsblk":              "/usr/bin/lsblk",
 	"losetup":            "/usr/sbin/losetup",
@@ -268,6 +270,18 @@ func ExecCmd(cmdStr string, sudo bool, chrootPath string, envVal []string) (stri
 		}
 		return outputStr, nil
 	}
+}
+
+// ExecCmdSilent executes a command without logging its output
+func ExecCmdSilent(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	fullCmdStr, err := GetFullCmdStr(cmdStr, sudo, chrootPath, envVal)
+	if err != nil {
+		return "", fmt.Errorf("failed to get full command string: %w", err)
+	}
+
+	cmd := exec.Command("bash", "-c", fullCmdStr)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
 }
 
 // ExecCmdWithStream executes a command and streams its output

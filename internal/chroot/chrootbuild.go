@@ -223,6 +223,12 @@ func BuildChrootEnv(targetOs string, targetDist string, targetArch string) error
 		goto fail
 	}
 
+	err = StopGPGComponents(chrootEnvPath)
+	if err != nil {
+		err = fmt.Errorf("failed to stop GPG components in chroot environment: %w", err)
+		goto fail
+	}
+
 	err = mount.UmountSysfs(chrootEnvPath)
 	if err != nil {
 		return fmt.Errorf("failed to unmount system directories in chroot environment: %v", err)
