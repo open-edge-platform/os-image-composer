@@ -4,6 +4,7 @@ package ospackage
 type PackageInfo struct {
 	Name     string   // e.g. "abseil-cpp"
 	Version  string   // e.g. "7.88.1-10+deb12u5"
+	Arch     string   // e.g. "x86_64", "noarch", "src"
 	URL      string   // download URL
 	Checksum string   // optional pre-known digest
 	Provides []string // capabilities this package provides (rpm:entry names)

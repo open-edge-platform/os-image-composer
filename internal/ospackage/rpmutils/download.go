@@ -53,6 +53,9 @@ func MatchRequested(requests []string, all []ospackage.PackageInfo) ([]ospackage
 	for _, want := range requests {
 		var candidates []ospackage.PackageInfo
 		for _, pi := range all {
+			if pi.Arch == "src" {
+				continue
+			}
 			// 1) exact name match
 			if pi.Name == want || pi.Name == want+".rpm" {
 				candidates = append(candidates, pi)

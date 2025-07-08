@@ -74,6 +74,9 @@ func ResolvePackageInfos(
 	requires := make(map[string][]string) // pkgName -> caps
 
 	for _, pi := range all {
+		if pi.Arch == "src" {
+			continue
+		}
 		byName[pi.Name] = pi
 		provides[pi.Name] = append(provides[pi.Name], pi.Name)
 		for _, cap := range pi.Provides {
@@ -247,6 +250,14 @@ func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 				if err2 == nil {
 					if charData, ok := tok2.(xml.CharData); ok && curInfo != nil {
 						curInfo.Name = string(charData)
+					}
+				}
+			case "arch":
+				// Read the arch value
+				tok2, err2 := dec.Token()
+				if err2 == nil {
+					if charData, ok := tok2.(xml.CharData); ok {
+						curInfo.Arch = string(charData)
 					}
 				}
 			case "checksum":
