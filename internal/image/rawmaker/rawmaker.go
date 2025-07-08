@@ -60,7 +60,7 @@ func BuildRawImage(template *config.ImageTemplate) error {
 		goto fail
 	}
 
-	err = imagedisc.DetachLoopbackDevice(filePath, loopDevPath)
+	err = imagedisc.LoopSetupDelete(loopDevPath)
 	if err != nil {
 		return fmt.Errorf("failed to detach loopback device: %w", err)
 	}
@@ -72,7 +72,7 @@ func BuildRawImage(template *config.ImageTemplate) error {
 	return nil
 
 fail:
-	detachErr := imagedisc.DetachLoopbackDevice(filePath, loopDevPath)
+	detachErr := imagedisc.LoopSetupDelete(loopDevPath)
 	if detachErr != nil {
 		log.Errorf("Failed to detach loopback device after error: %v", detachErr)
 	}

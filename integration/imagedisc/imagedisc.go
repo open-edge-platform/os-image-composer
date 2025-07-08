@@ -21,6 +21,7 @@ func getCurrentDirPath() (string, error) {
 
 func main() {
 	log := logger.Logger()
+	logger.SetLogLevel("debug")
 	currentDir, err := getCurrentDirPath()
 	if err != nil {
 		log.Fatalf("Failed to get current directory: %v", err)
@@ -68,7 +69,7 @@ func main() {
 		log.Infof("Disk created: %s with ID: %s", diskPath, id)
 	}
 
-	err = imagedisc.DetachLoopbackDevice(imageFile, loopDevPath)
+	err = imagedisc.LoopSetupDelete(loopDevPath)
 	if err != nil {
 		log.Fatalf("Failed to detach loopback device: %v", err)
 	}
