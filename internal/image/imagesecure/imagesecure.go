@@ -12,11 +12,37 @@ import (
 )
 
 func ConfigImageSecurity(installRoot string, template *config.ImageTemplate) error {
+
 	log := logger.Logger()
+
+	// 0. Check if the input indicates immutable rootfs
+	result := ""
+	prtCfg := template.GetDiskConfig()
+	for _, p := range prtCfg.Partitions {
+		if p.Type == "linux-root-amd64" || p.ID == "rootfs" || p.Name == "rootfs" {
+			result = p.MountOptions
+		}
+	}
+
+	hasRO := false
+	for _, opt := range strings.Split(result, ",") {
+		if strings.TrimSpace(opt) == "ro" {
+			hasRO = true
+			break
+		}
+	}
+
+	if !hasRO { // no further action if immutable rootfs is not enable
+		return nil
+	}
+
+	// log.Debugf("Mount options contain 'ro': %v", hasRO)
+	// return fmt.Errorf("yockgen: test error: returning early for testing purposes: %v %v", prtCfg.Partitions, hasRO)
+
 	// 1. make rootfs read-only
 	err := makeRootfsReadOnly(installRoot)
 	if err != nil {
-		return fmt.Errorf("Failed to create readonly rootfs: %w", err)
+		return fmt.Errorf("failed to create readonly rootfs: %w", err)
 	}
 
 	log.Debugf("Root filesystem made read-only successfully")
