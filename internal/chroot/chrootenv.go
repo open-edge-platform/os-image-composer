@@ -113,7 +113,7 @@ func CopyFileFromChrootToHost(hostFilePath, chrootPath string) error {
 	return file.CopyFile(chrootHostPath, hostFilePath, "-f", true)
 }
 
-func updateChrootLocalRPMRepo(chrootRepoDir string) error {
+func UpdateChrootLocalRPMRepo(chrootRepoDir string) error {
 	chrootHostPath, err := GetChrootEnvHostPath(chrootRepoDir)
 	if err != nil {
 		return fmt.Errorf("failed to get chroot host path for %s: %w", chrootRepoDir, err)
@@ -150,7 +150,7 @@ func initChrootLocalRPMRepo() error {
 		return fmt.Errorf("failed to mount package cache directory %s to chroot repo directory %s: %w",
 			pkgCacheDir, chrootRepoDir, err)
 	}
-	if err := updateChrootLocalRPMRepo(chrootRepoDir); err != nil {
+	if err := UpdateChrootLocalRPMRepo(chrootRepoDir); err != nil {
 		return fmt.Errorf("failed to update chroot local cache repository %s: %w", chrootRepoDir, err)
 	}
 	return nil

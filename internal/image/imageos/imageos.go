@@ -19,12 +19,66 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/utils/shell"
 )
 
+func InstallInitrd(template *config.ImageTemplate) (string, error) {
+	log := logger.Logger()
+	log.Infof("Installing initrd for image: %s", template.GetImageName())
+
+	installRoot, err := InitChrootInstallRoot(template)
+	if err != nil {
+		return installRoot, fmt.Errorf("failed to initialize chroot install root: %w", err)
+	}
+
+	if err := mountSysfsToRootfs(installRoot); err != nil {
+		return installRoot, err
+	}
+
+	log.Infof("Image installation pre-processing...")
+	err = preImageOsInstall(installRoot, template)
+	if err != nil {
+		err = fmt.Errorf("pre-install failed: %w", err)
+		goto fail
+	}
+
+	log.Infof("Image package installation...")
+	err = installImagePkgs(installRoot, template)
+	if err != nil {
+		err = fmt.Errorf("failed to install image packages: %w", err)
+		goto fail
+	}
+
+	log.Infof("Image system configuration...")
+	err = updateInitrdConfig(installRoot, template)
+	if err != nil {
+		err = fmt.Errorf("failed to update image config: %w", err)
+		goto fail
+	}
+
+	log.Infof("Image installation post-processing...")
+	err = postImageOsInstall(installRoot, template)
+	if err != nil {
+		err = fmt.Errorf("post-install failed: %w", err)
+		goto fail
+	}
+
+	if err := umountSysfsFromRootfs(installRoot); err != nil {
+		return installRoot, err
+	}
+
+	return installRoot, nil
+
+fail:
+	if umountErr := umountSysfsFromRootfs(installRoot); umountErr != nil {
+		log.Errorf("Failed to unmount sysfs from rootfs after error: %v", umountErr)
+	}
+	return installRoot, fmt.Errorf("initrd installation failed: %w", err)
+}
+
 func InstallImageOs(diskPathIdMap map[string]string, template *config.ImageTemplate) error {
 	var err error
 	log := logger.Logger()
 	log.Infof("Installing OS for image: %s", template.GetImageName())
 
-	installRoot, err := initChrootInstallRoot(template)
+	installRoot, err := InitChrootInstallRoot(template)
 	if err != nil {
 		return fmt.Errorf("failed to initialize chroot install root: %w", err)
 	}
@@ -101,7 +155,7 @@ fail:
 	return fmt.Errorf("image OS installation failed: %w", err)
 }
 
-func initChrootInstallRoot(template *config.ImageTemplate) (string, error) {
+func InitChrootInstallRoot(template *config.ImageTemplate) (string, error) {
 	if _, err := os.Stat(chroot.ChrootImageBuildDir); os.IsNotExist(err) {
 		return "", fmt.Errorf("chroot image build directory does not exist: %s", chroot.ChrootImageBuildDir)
 	}
@@ -111,6 +165,29 @@ func initChrootInstallRoot(template *config.ImageTemplate) (string, error) {
 		return installRoot, fmt.Errorf("failed to create directory %s: %w", installRoot, err)
 	}
 	return installRoot, nil
+}
+
+func mountSysfsToRootfs(installRoot string) error {
+	chrootInstallRoot, err := chroot.GetChrootEnvPath(installRoot)
+	if err != nil {
+		return fmt.Errorf("failed to get chroot environment path: %w", err)
+	}
+	err = chroot.MountChrootSysfs(chrootInstallRoot)
+	if err != nil {
+		return fmt.Errorf("failed to mount sysfs into image rootfs %s: %w", chrootInstallRoot, err)
+	}
+	return nil
+}
+
+func umountSysfsFromRootfs(installRoot string) error {
+	chrootInstallRoot, err := chroot.GetChrootEnvPath(installRoot)
+	if err != nil {
+		return fmt.Errorf("failed to get chroot environment path: %w", err)
+	}
+	if err := chroot.UmountChrootSysfs(chrootInstallRoot); err != nil {
+		return fmt.Errorf("failed to unmount sysfs for image rootfs: %w", err)
+	}
+	return nil
 }
 
 func mountDiskToChroot(installRoot string, diskPathIdMap map[string]string, template *config.ImageTemplate) ([]map[string]string, error) {
@@ -157,28 +234,16 @@ func mountDiskToChroot(installRoot string, diskPathIdMap map[string]string, temp
 		}
 	}
 
-	// mount sysfs into the image rootfs
-	chrootInstallRoot, err := chroot.GetChrootEnvPath(installRoot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get chroot environment path: %w", err)
+	if err := mountSysfsToRootfs(installRoot); err != nil {
+		return nil, err
 	}
-	err = chroot.MountChrootSysfs(chrootInstallRoot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to mount sysfs into image rootfs %s: %w", chrootInstallRoot, err)
-	}
-
 	return mountPointInfoList, nil
 }
 
 func umountDiskFromChroot(installRoot string, mountPointInfoList []map[string]string) error {
-	chrootInstallRoot, err := chroot.GetChrootEnvPath(installRoot)
-	if err != nil {
-		return fmt.Errorf("failed to get chroot environment path: %w", err)
+	if err := umountSysfsFromRootfs(installRoot); err != nil {
+		return err
 	}
-	if err := chroot.UmountChrootSysfs(chrootInstallRoot); err != nil {
-		return fmt.Errorf("failed to unmount sysfs for image rootfs: %w", err)
-	}
-
 	mountPointInfoListLen := len(mountPointInfoList)
 	for i := mountPointInfoListLen - 1; i >= 0; i-- {
 		mountPointInfo := mountPointInfoList[i]
@@ -243,8 +308,28 @@ func installImagePkgs(installRoot string, template *config.ImageTemplate) error 
 	for i, pkg := range imagePkgOrderedList {
 		log.Infof("Installing package %d/%d: %s", i+1, imagePkgNum, pkg)
 		if err := chroot.TdnfInstallPackage(pkg, installRoot, repositoryIDList); err != nil {
-			return fmt.Errorf("failed to install package %s: %w", pkg, err)
+			//return fmt.Errorf("failed to install package %s: %w", pkg, err)
+			log.Debugf("Package %s not found in cache repository, trying to install from remote repo.", pkg)
+			if err := chroot.TdnfInstallPackage(pkg, installRoot, []string{}); err != nil {
+				return fmt.Errorf("failed to install package %s: %w", pkg, err)
+			}
 		}
+	}
+	return nil
+}
+
+func updateInitrdConfig(installRoot string, template *config.ImageTemplate) error {
+	if err := updateImageHostname(installRoot, template); err != nil {
+		return fmt.Errorf("failed to update image hostname: %w", err)
+	}
+	if err := updateImageUsrGroup(installRoot, template); err != nil {
+		return fmt.Errorf("failed to update image user/group: %w", err)
+	}
+	if err := updateImageNetwork(installRoot, template); err != nil {
+		return fmt.Errorf("failed to update image network: %w", err)
+	}
+	if err := addImageAdditionalFiles(installRoot, template); err != nil {
+		return fmt.Errorf("failed to add additional files to image: %w", err)
 	}
 	return nil
 }
