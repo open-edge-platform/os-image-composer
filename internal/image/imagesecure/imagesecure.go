@@ -36,9 +36,6 @@ func ConfigImageSecurity(installRoot string, template *config.ImageTemplate) err
 		return nil
 	}
 
-	// log.Debugf("Mount options contain 'ro': %v", hasRO)
-	// return fmt.Errorf("yockgen: test error: returning early for testing purposes: %v %v", prtCfg.Partitions, hasRO)
-
 	// 1. make rootfs read-only
 	err := makeRootfsReadOnly(installRoot)
 	if err != nil {
