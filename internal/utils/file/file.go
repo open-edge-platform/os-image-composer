@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/open-edge-platform/image-composer/internal/utils/shell"
 	"gopkg.in/yaml.v3"
 )
 
@@ -193,4 +194,66 @@ func ReadFromYaml(yamlFile string) (map[interface{}]interface{}, error) {
 	}
 
 	return result, nil
+}
+
+func CopyFile(srcFile, dstFile, flags string, sudo bool) error {
+	srcFilePath, err := filepath.Abs(srcFile)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path of source file: %w", err)
+	}
+	if _, err := os.Stat(srcFilePath); os.IsNotExist(err) {
+		return fmt.Errorf("source file does not exist: %s", srcFilePath)
+	}
+
+	dstFilePath, err := filepath.Abs(dstFile)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path of destination file: %w", err)
+	}
+	dstDir := filepath.Dir(dstFilePath)
+	if _, err := os.Stat(dstDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dstDir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory for destination file: %w", err)
+		}
+	}
+	var cmdStr string
+	if flags == "" {
+		cmdStr = fmt.Sprintf("cp %s %s", srcFilePath, dstFilePath)
+	} else {
+		cmdStr = fmt.Sprintf("cp %s %s %s", flags, srcFilePath, dstFilePath)
+	}
+	if _, err := shell.ExecCmd(cmdStr, sudo, "", nil); err != nil {
+		return fmt.Errorf("failed to copy file from %s to %s: %w", srcFilePath, dstFilePath, err)
+	}
+	return nil
+}
+
+func CopyDir(srcDir, dstDir, flags string, sudo bool) error {
+	srcDirPath, err := filepath.Abs(srcDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path of source directory: %w", err)
+	}
+	if _, err := os.Stat(srcDirPath); os.IsNotExist(err) {
+		return fmt.Errorf("source directory does not exist: %s", srcDirPath)
+	}
+
+	dstDirPath, err := filepath.Abs(dstDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path of destination directory: %w", err)
+	}
+	if _, err := os.Stat(dstDirPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(dstDirPath, 0755); err != nil {
+			return fmt.Errorf("failed to create destination directory: %w", err)
+		}
+	}
+
+	var cmdStr string
+	if flags == "" {
+		cmdStr = fmt.Sprintf("cp -r %s/* %s", srcDirPath, dstDirPath)
+	} else {
+		cmdStr = fmt.Sprintf("cp -r %s %s/* %s", flags, srcDirPath, dstDirPath)
+	}
+	if _, err := shell.ExecCmd(cmdStr, sudo, "", nil); err != nil {
+		return fmt.Errorf("failed to copy directory from %s to %s: %w", srcDirPath, dstDirPath, err)
+	}
+	return nil
 }
