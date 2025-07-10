@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "os-image-template.schema.json",
+    "$id": "https://raw.githubusercontent.com/intel-innersource/os.linux.tiberos.os-curation-tool/refs/heads/main/schemas/os-image-template.schema.json",
     "title": "OS Image Template",
     "description": "Defines image configuration including target OS, packages, kernel, and system configurations",
     "type": "object",
@@ -52,165 +52,57 @@
         "required": ["os", "dist", "arch", "imageType"],
         "additionalProperties": false
       },
-      "disk": {
-        "type": "object",
-        "description": "Disk configuration (optional, uses defaults if omitted)",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Name of the disk configuration"
-          },
-          "artifacts": {
-            "type": "array",
-            "description": "Output artifacts configuration",
-            "items": {
-              "type": "object",
-              "properties": {
-                "type": {
-                  "type": "string",
-                  "description": "Output format type",
-                  "enum": ["raw", "qcow2", "vhd", "vhdx", "vmdk"]
-                },
-                "compression": {
-                  "type": "string",
-                  "description": "Compression format (optional)",
-                  "enum": ["gz", "gzip", "xz", "zstd", "bz2"]
-                }
-              },
-              "required": ["type"],
-              "additionalProperties": false
-            }
-          },
-          "size": {
-            "type": "string",
-            "description": "Size of the disk (e.g., '4GiB', '8GB')"
-          },
-          "partitionTableType": {
-            "type": "string",
-            "description": "Partition table type",
-            "enum": ["gpt", "mbr"]
-          },
-          "partitions": {
-            "type": "array",
-            "description": "Partition layout",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "description": "Partition identifier"
-                },
-                "name": {
-                  "type": "string",
-                  "description": "Partition name/label"
-                },
-                "type": {
-                  "type": "string",
-                  "description": "Partition type"
-                },
-                "fsType": {
-                  "type": "string",
-                  "description": "Filesystem type"
-                },
-                "start": {
-                  "type": "string",
-                  "description": "Partition start offset"
-                },
-                "end": {
-                  "type": "string", 
-                  "description": "Partition end offset (0 = rest of disk)"
-                },
-                "mountPoint": {
-                  "type": "string",
-                  "description": "Mount point path"
-                },
-                "mountOptions": {
-                  "type": "string",
-                  "description": "Mount options"
-                },
-                "flags": {
-                  "type": "array",
-                  "description": "Partition flags",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              },
-              "additionalProperties": false
-            }
-          }
-        },
-        "additionalProperties": false
-      },
-      "systemConfig": {
-        "type": "object",
-        "description": "System configuration object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Name of the system configuration",
-            "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9\\-_]*[a-zA-Z0-9])?$"
-          },
-          "description": {
-            "type": "string",
-            "description": "Description of the system configuration"
-          },
-          "bootloader": {
-            "type": "object",
-            "description": "Bootloader configuration",
-            "properties": {
-              "bootType": {
-                "type": "string",
-                "description": "Boot type",
-                "enum": ["efi", "legacy"]
-              },
-              "provider": {
-                "type": "string", 
-                "description": "Bootloader provider",
-                "enum": ["grub", "grub2", "systemd-boot"]
-              }
-            },
-            "additionalProperties": false
-          },
-          "packages": {
-            "type": "array",
-            "description": "List of packages to include in the system",
-            "items": {
+      "systemConfigs": {
+        "type": "array",
+        "description": "Array of system configuration objects",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
               "type": "string",
-              "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9\\-_.+]*[a-zA-Z0-9])?$"
+              "description": "Name of the system configuration",
+              "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9\\-_]*[a-zA-Z0-9])?$"
             },
-            "uniqueItems": true
+            "description": {
+              "type": "string",
+              "description": "Description of the system configuration"
+            },
+            "packages": {
+              "type": "array",
+              "description": "List of packages to include in the system",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9\\-_.+]*[a-zA-Z0-9])?$"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "kernel": {
+              "type": "object",
+              "description": "Kernel configuration",
+              "properties": {
+                "version": {
+                  "type": "string",
+                  "description": "Kernel version",
+                  "pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$"
+                },
+                "cmdline": {
+                  "type": "string",
+                  "description": "Kernel command line parameters"
+                }
+              },
+              "required": ["version"],
+              "additionalProperties": false
+            }
           },
-          "kernel": {
-            "type": "object",
-            "description": "Kernel configuration",
-            "properties": {
-              "version": {
-                "type": "string",
-                "description": "Kernel version"
-              },
-              "name": {
-                "type": "string",
-                "description": "Kernel package name"
-              },
-              "cmdline": {
-                "type": "string",
-                "description": "Kernel command line parameters"
-              },
-              "uki": {
-                "type": "boolean",
-                "description": "Enable Unified Kernel Image"
-              }
-            },
-            "additionalProperties": false
-          }
+          "required": ["name"],
+          "additionalProperties": false
         },
-        "required": ["name"],
-        "additionalProperties": false
+        "minItems": 1
       }
     },
   
-    "required": ["image", "target"],
+    "required": ["image", "target", "systemConfigs"],
     "additionalProperties": false,
   
     "allOf": [

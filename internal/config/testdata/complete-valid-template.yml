@@ -8,13 +8,13 @@ target:
   arch: x86_64
   imageType: raw
 
-systemConfig:  # Changed from systemConfigs
-  name: complete
-  packages:
-    - openssh-server
-    - curl
-    - vim
-    - git
-  kernel:
-    version: "6.12"
-    cmdline: "quiet splash"
+systemConfigs:
+  - name: complete
+    packages:
+      - openssh-server
+      - curl
+      - vim
+      - git
+    kernel:
+      version: "6.12"
+      cmdline: "quiet splash"

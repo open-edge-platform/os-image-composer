@@ -36,17 +36,8 @@ func ValidateAgainstSchema(name string, schemaBytes, data []byte) error {
 // ValidateImageTemplateJSON runs the template schema against data
 func ValidateImageTemplateJSON(data []byte) error {
 	return ValidateAgainstSchema(
-		"os-image-merged-template.schema.json",
+		"os-image-template.schema.json",
 		schema.ImageTemplateSchema,
-		data,
-	)
-}
-
-// ValidateMergedTemplateJSON runs the merged template schema against data
-func ValidateMergedTemplateJSON(data []byte) error {
-	return ValidateAgainstSchema(
-		"os-image-merged-template.schema.json",
-		schema.MergedTemplateSchema,
 		data,
 	)
 }

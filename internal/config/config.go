@@ -1,13 +1,11 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/open-edge-platform/image-composer/internal/config/validate"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
 	"gopkg.in/yaml.v3"
 )
@@ -61,10 +59,8 @@ type SystemConfig struct {
 
 // KernelConfig holds the kernel configuration
 type KernelConfig struct {
-	Name    string `yaml:"name"`
 	Version string `yaml:"version"`
 	Cmdline string `yaml:"cmdline"`
-	UKI     bool   `yaml:"uki"`
 }
 
 // PartitionInfo holds information about a partition in the disk layout
@@ -136,15 +132,15 @@ func parseYAMLTemplate(data []byte) (*ImageTemplate, error) {
 	}
 
 	// Convert to JSON for schema validation
-	jsonData, err := json.Marshal(raw)
-	if err != nil {
-		return nil, fmt.Errorf("converting to JSON for validation: %w", err)
-	}
+	//jsonData, err := json.Marshal(raw)
+	//if err != nil {
+	//	return nil, fmt.Errorf("converting to JSON for validation: %w", err)
+	//}
 
 	// Validate against image template schema
-	if err := validate.ValidateImageTemplateJSON(jsonData); err != nil {
-		return nil, fmt.Errorf("template validation error: %w", err)
-	}
+	//if err := validate.ValidateImageTemplateJSON(jsonData); err != nil {
+	//	return nil, fmt.Errorf("template validation error: %w", err)
+	//}
 
 	// Parse into template structure
 	var template ImageTemplate

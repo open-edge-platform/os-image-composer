@@ -78,7 +78,6 @@ func MergeConfigurations(userTemplate, defaultTemplate *ImageTemplate) (*ImageTe
 		return nil, fmt.Errorf("user template cannot be nil")
 	}
 
-	// If no default template, use user template as-is
 	if defaultTemplate == nil {
 		log.Warn("Default template is nil, using user template as-is")
 		return userTemplate, nil
@@ -87,12 +86,19 @@ func MergeConfigurations(userTemplate, defaultTemplate *ImageTemplate) (*ImageTe
 	// Start with a copy of the default template
 	mergedTemplate := *defaultTemplate
 
-	// ALWAYS override with user-specified core sections
-	// These are required and must come from user template
-	mergedTemplate.Image = userTemplate.Image
+	// Override with user-specified values
+	// Image section - always use user values if provided
+	if userTemplate.Image.Name != "" {
+		mergedTemplate.Image.Name = userTemplate.Image.Name
+	}
+	if userTemplate.Image.Version != "" {
+		mergedTemplate.Image.Version = userTemplate.Image.Version
+	}
+
+	// Target section - always use user values (these should be consistent)
 	mergedTemplate.Target = userTemplate.Target
 
-	// Disk configuration - user override if provided
+	// Disk configuration - simple override if user provides one
 	if !isEmptyDiskConfig(userTemplate.Disk) {
 		mergedTemplate.Disk = userTemplate.Disk
 		log.Debugf("User disk config overrides default")
@@ -102,9 +108,6 @@ func MergeConfigurations(userTemplate, defaultTemplate *ImageTemplate) (*ImageTe
 	if !isEmptySystemConfig(userTemplate.SystemConfig) {
 		mergedTemplate.SystemConfig = mergeSystemConfig(defaultTemplate.SystemConfig, userTemplate.SystemConfig)
 		log.Debugf("Merged system config: %s", mergedTemplate.SystemConfig.Name)
-	} else {
-		// Use default system config if user didn't provide one
-		mergedTemplate.SystemConfig = defaultTemplate.SystemConfig
 	}
 
 	log.Infof("Successfully merged user and default configurations")
@@ -197,18 +200,12 @@ func mergeKernelConfig(defaultKernel, userKernel KernelConfig) KernelConfig {
 	merged := defaultKernel // Start with default
 
 	// Override with user values where provided
-	if userKernel.Name != "" {
-		merged.Name = userKernel.Name
-	}
 	if userKernel.Version != "" {
 		merged.Version = userKernel.Version
 	}
 	if userKernel.Cmdline != "" {
 		merged.Cmdline = userKernel.Cmdline
 	}
-	// UKI is a boolean, so we need to check if it was explicitly set
-	// For now, user value takes precedence if provided
-	merged.UKI = userKernel.UKI
 
 	return merged
 }
@@ -245,7 +242,6 @@ func LoadAndMergeTemplate(templatePath string) (*ImageTemplate, error) {
 	// Load the appropriate default configuration
 	defaultTemplate, err := loader.LoadDefaultConfig(userTemplate.Target.ImageType)
 	if err != nil {
-		log.Debugf("Default template: %+v", defaultTemplate)
 		log.Warnf("Could not load default configuration: %v", err)
 		log.Info("Proceeding with user template only")
 		return userTemplate, nil
