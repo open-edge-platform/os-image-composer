@@ -24,14 +24,6 @@ func getDiskPartDevByMountPoint(mountPoint string, diskPathIdMap map[string]stri
 	return ""
 }
 
-func replacePlaceholdersInFile(placeholder, value, filePath string) error {
-	sedCmd := fmt.Sprintf("sed -i 's|%s|%s|g' %s", placeholder, value, filePath)
-	if _, err := shell.ExecCmd(sedCmd, true, "", nil); err != nil {
-		return fmt.Errorf("failed to replace placeholder %s with %s in file %s: %w", placeholder, value, filePath, err)
-	}
-	return nil
-}
-
 func installGrubWithLegacyMode(installRoot, bootUUID, bootPrefix string, template *config.ImageTemplate) error {
 	return fmt.Errorf("legacy boot mode is not implemented yet")
 }
@@ -54,17 +46,17 @@ func installGrubWithEfiMode(installRoot, bootUUID, bootPrefix string, template *
 		return fmt.Errorf("failed to copy grub configuration file: %w", err)
 	}
 
-	if err := replacePlaceholdersInFile("{{.BootUUID}}", bootUUID, grubFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.BootUUID}}", bootUUID, grubFinalPath); err != nil {
 		return fmt.Errorf("failed to replace boot UUID in grub configuration: %w", err)
 	}
 
 	// Replace CryptoMountCommand placeholder with an empty string for now.
-	if err := replacePlaceholdersInFile("{{.CryptoMountCommand}}", "", grubFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.CryptoMountCommand}}", "", grubFinalPath); err != nil {
 		return fmt.Errorf("failed to replace CryptoMountCommand in grub configuration: %w", err)
 	}
 
 	prefixPath := fmt.Sprintf("%s/grub2", bootPrefix)
-	if err := replacePlaceholdersInFile("{{.PrefixPath}}", prefixPath, grubFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.PrefixPath}}", prefixPath, grubFinalPath); err != nil {
 		return fmt.Errorf("failed to replace prefix path in grub configuration: %w", err)
 	}
 
@@ -132,59 +124,59 @@ func updateBootConfigTemplate(installRoot, rootDevID, bootUUID, bootPrefix strin
 		return fmt.Errorf("unsupported bootloader provider: %s", bootloaderConfig.Provider)
 	}
 
-	if err := replacePlaceholdersInFile("{{.BootUUID}}", bootUUID, configFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.BootUUID}}", bootUUID, configFinalPath); err != nil {
 		return fmt.Errorf("failed to replace BootUUID in boot configuration: %w", err)
 	}
 
-	if err := replacePlaceholdersInFile("{{.BootPrefix}}", bootPrefix, configFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.BootPrefix}}", bootPrefix, configFinalPath); err != nil {
 		return fmt.Errorf("failed to replace BootPrefix in boot configuration: %w", err)
 	}
 
-	if err := replacePlaceholdersInFile("{{.RootPartition}}", rootDevID, configFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.RootPartition}}", rootDevID, configFinalPath); err != nil {
 		return fmt.Errorf("failed to replace RootPartition in boot configuration: %w", err)
 	}
 
 	// For now, we do not support LUKS encryption, so we replace the LuksUUID placeholder with an empty string.
-	if err := replacePlaceholdersInFile("{{.LuksUUID}}", "", configFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.LuksUUID}}", "", configFinalPath); err != nil {
 		return fmt.Errorf("failed to replace LuksUUID in boot configuration: %w", err)
 	}
 
 	// For now, we do not support LVM, so we replace the LVM placeholder with an empty string.
-	if err := replacePlaceholdersInFile("{{.LVM}}", "", configFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.LVM}}", "", configFinalPath); err != nil {
 		return fmt.Errorf("failed to replace LVM in boot configuration: %w", err)
 	}
 
 	// For now, we do not support IMAPolicy, so we replace the IMAPolicy placeholder with an empty string.
-	if err := replacePlaceholdersInFile("{{.IMAPolicy}}", "", configFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.IMAPolicy}}", "", configFinalPath); err != nil {
 		return fmt.Errorf("failed to replace IMAPolicy in boot configuration: %w", err)
 	}
 
 	// For now, we do not support SELinux, so we replace the SELinux placeholder with an empty string.
-	if err := replacePlaceholdersInFile("{{.SELinux}}", "", configFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.SELinux}}", "", configFinalPath); err != nil {
 		return fmt.Errorf("failed to replace SELinux in boot configuration: %w", err)
 	}
 
 	// For now, we do not support FIPS, so we replace the FIPS placeholder with an empty string.
-	if err := replacePlaceholdersInFile("{{.FIPS}}", "", configFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.FIPS}}", "", configFinalPath); err != nil {
 		return fmt.Errorf("failed to replace FIPS in boot configuration: %w", err)
 	}
 
 	// For now, we do not support CGroup, so we replace the CGroup placeholder with an empty string.
-	if err := replacePlaceholdersInFile("{{.CGroup}}", "", configFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.CGroup}}", "", configFinalPath); err != nil {
 		return fmt.Errorf("failed to replace CGroup in boot configuration: %w", err)
 	}
 
 	kernelConfig := template.GetKernel()
-	if err := replacePlaceholdersInFile("{{.ExtraCommandLine}}", kernelConfig.Cmdline, configFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.ExtraCommandLine}}", kernelConfig.Cmdline, configFinalPath); err != nil {
 		return fmt.Errorf("failed to replace ExtraCommandLine in boot configuration: %w", err)
 	}
 
 	// For now, we do not support EncryptionBootUUID, so we replace the EncryptionBootUUID placeholder with an empty string.
-	if err := replacePlaceholdersInFile("{{.EncryptionBootUUID}}", "", configFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.EncryptionBootUUID}}", "", configFinalPath); err != nil {
 		return fmt.Errorf("failed to replace EncryptionBootUUID in boot configuration: %w", err)
 	}
 
-	if err := replacePlaceholdersInFile("{{.rdAuto}}", "rd.auto=1", configFinalPath); err != nil {
+	if err := file.ReplacePlaceholdersInFile("{{.rdAuto}}", "rd.auto=1", configFinalPath); err != nil {
 		return fmt.Errorf("failed to replace rdAuto in boot configuration: %w", err)
 	}
 
