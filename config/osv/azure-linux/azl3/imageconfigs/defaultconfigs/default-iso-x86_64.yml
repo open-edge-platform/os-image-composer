@@ -29,9 +29,13 @@ disk:
       fsType: ext4
       mountPoint: /
 
-systemConfigs: # Required
+systemConfig: # Required
   name: Default_ISO
   description: Default yml configuration for iso image
+
+  bootloader:
+    bootType: efi # (efi or legacy)
+    provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
 
   packages:
     - filesystem
