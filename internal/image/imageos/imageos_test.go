@@ -31,13 +31,14 @@ func TestBuildImageUKI_CaptureAllOutput(t *testing.T) {
 		// Print captured output for debugging
 		t.Logf("Captured output:\n%s", output)
 
-		// Check for panic
-		if rec := recover(); rec == nil {
-			t.Errorf("")
-		} else if rec != "hard stop: UKI configuration is not implemented" {
-			t.Errorf("unexpected panic message: got %v, want %v", rec, "hard stop: UKI configuration is not implemented")
+		// Check that no panic occurred and function returned normally
+		if rec := recover(); rec != nil {
+			t.Errorf("unexpected panic: %v", rec)
 		}
 	}()
 
-	_ = buildImageUKI(installRoot, tmpl)
+	err := buildImageUKI(installRoot, tmpl)
+	if err != nil {
+		t.Errorf("buildImageUKI returned error: %v", err)
+	}
 }
