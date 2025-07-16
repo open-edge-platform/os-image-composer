@@ -78,7 +78,7 @@ output=$(echo $sudo_pwd | sudo -S ./image-composer build config/osv/azure-linux/
 if echo "$output" | grep -q "image build completed successfully"; then
   echo "Image build passed. Proceeding to QEMU boot test..."
   
-  if create_vm_aszl3; then
+  if run_qemu_boot_test; then
     echo "QEMU boot test PASSED"
   else
     echo "QEMU boot test FAILED"
