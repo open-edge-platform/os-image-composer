@@ -17,10 +17,10 @@ run_qemu_boot_test() {
   echo "Booting image: $IMAGE "
   echo "Current working dir: $(pwd)"
   if [ -f "$ORIGINAL_IMAGE" ]; then
-    echo "✅ Found image file, copying to /tmp..."
+    echo "Found image file, copying to /tmp..."
     cp "$ORIGINAL_IMAGE" "$COPY_IMAGE" 
   else
-    echo "❌ File '$ORIGINAL_IMAGE' not found in $(pwd)"
+    echo "File '$ORIGINAL_IMAGE' not found in $(pwd)"
     exit 1
   fi
   
@@ -73,7 +73,7 @@ echo "Building the Linux image..."
 
 output=$(sudo bash -c './image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1')
 # Check for the success message in the output
-echo "$output"
+#echo "$output"
 
 if echo "$output" | grep -q "image build completed successfully"; then
   echo "Image build passed. Proceeding to QEMU boot test..."
