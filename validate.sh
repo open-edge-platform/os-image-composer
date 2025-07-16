@@ -5,7 +5,7 @@ echo "Current working dir: $(pwd)"
 
 
 run_qemu_boot_test() {
-  cd /home/user/image-composer/tmp/image-composer/azure-linux-azl3-x86_64/imagebuild/Default
+  cd tmp/image-composer/azure-linux-azl3-x86_64/imagebuild/Default
   IMAGE="azl3-default-x86_64.raw"  # image file
   BIOS="/usr/share/OVMF/OVMF_CODE.fd"
   TIMEOUT=30
@@ -20,8 +20,6 @@ run_qemu_boot_test() {
   
   cp "$ORIGINAL_IMAGE" "$COPY_IMAGE" 
   sudo bash -c "touch '$LOGFILE' && chmod 666 '$LOGFILE'"
-
-  # echo "$sudo_pwd" | sudo qemu-system-x86_64 -m 2048 -enable-kvm -cpu host   -drive if=none,file=$IMAGE,format=raw,id=nvme0   -device nvme,drive=nvme0,serial=deadbeef   -bios /usr/share/OVMF/OVMF_CODE.fd   -nographic -serial mon:stdio > "$LOGFILE" >2
 
 sudo bash -c '
   nohup qemu-system-x86_64 \
@@ -68,11 +66,7 @@ go build ./cmd/image-composer
 
 echo "Building the Linux image..."
 
-
-#output=$(echo $sudo_pwd | sudo -S ./image-composer build image-templates/azl3-x86_64-edge-raw.yml)
-sudo_pwd=user1234
-output=$(echo $sudo_pwd | sudo -S ./image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1)
-
+output=$(sudo bash -c './image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1')
 # Check for the success message in the output
 
 if echo "$output" | grep -q "image build completed successfully"; then
