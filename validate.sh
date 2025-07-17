@@ -12,7 +12,7 @@ run_qemu_boot_test() {
 
 
   ORIGINAL_DIR=$(pwd)
-  echo "Booting image: $IMAGE "
+  
   # Search under the directory and copy the file to /tmp
   # Find image path
   FOUND_PATH=$(find . -type f -name "$IMAGE" | head -n 1)
@@ -26,10 +26,9 @@ run_qemu_boot_test() {
     exit 1
   fi
 
-  echo "Current working dir: $(pwd)"
-  #touch '$LOGFILE' && chmod 666 '$LOGFILE'
-  sudo bash -c "touch '$LOGFILE' && chmod 666 '$LOGFILE'"
-
+  echo "Booting image: $IMAGE "
+  sudo bash -c '
+  touch "'$LOGFILE'" && chmod 666 "'$LOGFILE'"
   nohup qemu-system-x86_64 \
       -m 2048 \
       -enable-kvm \
@@ -65,7 +64,7 @@ run_qemu_boot_test() {
       fi   
      
       exit $result
-       
+  '     
 }
 
 git branch
