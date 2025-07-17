@@ -1,11 +1,10 @@
 name: PR Tester
 
 on:
-  workflow_dispatch:
-  push:
+  pull_request:
+    types: [opened, reopened, synchronize]
     branches:
-      - rpandya28-patch-2
-
+      - main
 jobs:
   test-prs:
     runs-on: ubuntu-latest
