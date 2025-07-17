@@ -25,8 +25,8 @@ run_qemu_boot_test() {
 
   
   echo "Booting image: $IMAGE "
-  sudo bash -c '
-  touch "'$LOGFILE'" && chmod 666 "'$LOGFILE'"
+  #create log file ,boot image into qemu , return the pass or fail after boot sucess
+  sudo bash -c 'touch "'$LOGFILE'" && chmod 666 "'$LOGFILE'"    
   nohup qemu-system-x86_64 \
       -m 2048 \
       -enable-kvm \
@@ -77,7 +77,7 @@ output=$( sudo -S ./image-composer build config/osv/azure-linux/azl3/imageconfig
 if echo "$output" | grep -q "image build completed successfully"; then
   echo "Image build passed. Proceeding to QEMU boot test..."
   
-  if run_qemu_boot_test; then
+  if run_qemu_boot_test; then # call qemu boot function
     echo "QEMU boot test PASSED"
     exit 0
   else
