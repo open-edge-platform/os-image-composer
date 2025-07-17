@@ -3,63 +3,66 @@ set -e
 # Expect to be run from the root of the PR branch
 echo "Current working dir: $(pwd)"
 
-
 run_qemu_boot_test() {
-  
   IMAGE="azl3-default-x86_64.raw"  # image file
   BIOS="/usr/share/OVMF/OVMF_CODE.fd"
   TIMEOUT=30
   SUCCESS_STRING="login:"
   LOGFILE="qemu_serial.log"
   ORIGINAL_IMAGE="azl3-default-x86_64.raw"
-  COPY_IMAGE="/tmp/azl3-test.raw"
+  COPY_IMAGE="/tmp/azl3-default-x86_64.raw"
+
 
   echo "Booting image: $IMAGE "
-  echo "Current working dir: $(pwd)"
-  if [ -f "$ORIGINAL_IMAGE" ]; then
-    echo "Found image file, copying to /tmp..."
-    cp "$ORIGINAL_IMAGE" "$COPY_IMAGE" 
+  # Search under the directory and copy the file to /tmp
+  rm -f $COPY_IMAGE
+  FOUND_PATH=$(find . -type f -name "$IMAGE" | head -n 1)
+
+  if [ -n "$FOUND_PATH" ]; then
+    echo "Found image file at: $FOUND_PATH"
+    cp "$FOUND_PATH" /tmp/
+    echo "Copied to /tmp successfully!"
   else
-    echo "File '$ORIGINAL_IMAGE' not found in $(pwd)"
+    echo "Image file not found in directory tree."
     exit 1
   fi
-  
+
   sudo bash -c "touch '$LOGFILE' && chmod 666 '$LOGFILE'"
 
-sudo bash -c '
-  nohup qemu-system-x86_64 \
-    -m 2048 \
-    -enable-kvm \
-    -cpu host \
-    -drive if=none,file="'$COPY_IMAGE'",format=raw,id=nvme0 \
-    -device nvme,drive=nvme0,serial=deadbeef \
-    -bios "'$BIOS'" \
-    -nographic \
-    -serial mon:stdio \
-    > "'$LOGFILE'" 2>&1 &
+  sudo bash -c '
+    nohup qemu-system-x86_64 \
+      -m 2048 \
+      -enable-kvm \
+      -cpu host \
+      -drive if=none,file="'$COPY_IMAGE'",format=raw,id=nvme0 \
+      -device nvme,drive=nvme0,serial=deadbeef \
+      -bios "'$BIOS'" \
+      -nographic \
+      -serial mon:stdio \
+      > "'$LOGFILE'" 2>&1 &
 
-  qemu_pid=$!
-  echo "QEMU launched as root with PID $qemu_pid"
+    qemu_pid=$!
+    echo "QEMU launched as root with PID $qemu_pid"
 
-  # Wait for SUCCESS_STRING or timeout
-    timeout=60
-    elapsed=0
-    while ! grep -q "'$SUCCESS_STRING'" "'$LOGFILE'" && [ $elapsed -lt $timeout ]; do
-      sleep 1
-      elapsed=$((elapsed + 1))
-    done
+    # Wait for SUCCESS_STRING or timeout
+      timeout=80
+      elapsed=0
+      while ! grep -q "'$SUCCESS_STRING'" "'$LOGFILE'" && [ $elapsed -lt $timeout ]; do
+        sleep 1
+        elapsed=$((elapsed + 1))
+      done
+      echo "$elapsed"
+      kill $qemu_pid
 
-    if grep -q "'$SUCCESS_STRING'" "'$LOGFILE'"; then
-      echo "Boot success!"
-      result=0
-    else
-      echo "Boot failed or timed out"
-      result=1
-    fi
-
-    kill $qemu_pid
-    exit $result
-'
+      if grep -q "'$SUCCESS_STRING'" "'$LOGFILE'"; then
+        echo "Boot success!"
+        result=0
+      else
+        echo "Boot failed or timed out"
+        result=1
+      fi     
+      exit $result
+  '
 }
 
 git branch
@@ -68,13 +71,10 @@ echo "Building the Image Composer Tool..."
 go build ./cmd/image-composer
 
 # Run tests
-
 echo "Building the Linux image..."
-
-output=$(sudo bash -c './image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1')
+output=$(echo "user1234" | sudo -S ./image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1)
+#output=$(sudo bash -c -S './image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1')
 # Check for the success message in the output
-#echo "$output"
-
 if echo "$output" | grep -q "image build completed successfully"; then
   echo "Image build passed. Proceeding to QEMU boot test..."
   
