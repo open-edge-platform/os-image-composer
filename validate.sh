@@ -72,7 +72,7 @@ go build ./cmd/image-composer
 
 # Run tests
 echo "Building the Linux image..."
-output=$(echo "user1234" | sudo -S ./image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1)
+output=$( sudo -S ./image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1)
 #output=$(sudo bash -c -S './image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1')
 # Check for the success message in the output
 if echo "$output" | grep -q "image build completed successfully"; then
