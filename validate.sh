@@ -5,26 +5,15 @@ echo "Current working dir: $(pwd)"
 
 run_qemu_boot_test() {
   IMAGE="azl3-default-x86_64.raw"  # image file
-  BIOS="/usr/share/OVMF/OVMF_CODE.fd"
+  BIOS="/usr/share/OVMF/OVMF_CODE_4M.fd"
   TIMEOUT=30
   SUCCESS_STRING="login:"
   LOGFILE="qemu_serial.log"
 
 
   ORIGINAL_DIR=$(pwd)
-  if [ -f /usr/share/OVMF/OVMF_CODE.fd ]; then
-    BIOS_PATH="/usr/share/OVMF/OVMF_CODE.fd"
-  elif [ -f /usr/share/ovmf/OVMF_CODE.fd ]; then
-    BIOS_PATH="/usr/share/ovmf/OVMF_CODE.fd"
-  else
-    echo "OVMF BIOS not found. Falling back to legacy BIOS."
-    BIOS_PATH=""
-  fi
-
-
   # Find image path
   FOUND_PATH=$(find . -type f -name "$IMAGE" | head -n 1)
-  
   if [ -n "$FOUND_PATH" ]; then
     echo "Found image at: $FOUND_PATH"   
     IMAGE_DIR=$(dirname "$FOUND_PATH")  # Extract directory path where image resides   
@@ -70,8 +59,7 @@ run_qemu_boot_test() {
       else
         echo "Boot failed or timed out"
         result=1
-      fi   
-     
+      fi    
       exit $result
   '     
 }
