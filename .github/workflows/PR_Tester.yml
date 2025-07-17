@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Install QEMU
-        run: sudo apt-get update && sudo apt-get install -y qemu-system-x86
+        run: sudo apt-get install -y qemu-system-x86 ovmf
 
       - name: Checkout PR code
         uses: actions/checkout@v4
