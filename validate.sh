@@ -33,7 +33,8 @@ run_qemu_boot_test() {
       -cpu host \
       -drive if=none,file="'$IMAGE'",format=raw,id=nvme0 \
       -device nvme,drive=nvme0,serial=deadbeef \
-      -bios "'$BIOS'" \
+      -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+      -drive if=pflash,format=raw,file=/usr/share/OVMF/OVMF_VARS_4M.fd \
       -nographic \
       -serial mon:stdio \
       > "'$LOGFILE'" 2>&1 &
