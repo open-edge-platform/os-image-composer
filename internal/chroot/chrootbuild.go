@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/open-edge-platform/image-composer/internal/config"
+	"github.com/open-edge-platform/image-composer/internal/ospackage/debutils"
 	"github.com/open-edge-platform/image-composer/internal/ospackage/rpmutils"
 	"github.com/open-edge-platform/image-composer/internal/utils/compression"
 	"github.com/open-edge-platform/image-composer/internal/utils/file"
@@ -61,27 +62,49 @@ func getChrootEnvPackageList(chrootEnvCongfigPath string) ([]string, error) {
 	return pkgList, nil
 }
 
+func getTaRgetOsPkgType(targetOs string) string {
+	switch targetOs {
+	case "azure-linux":
+		return "rpm"
+	case "edge-microvisor-toolkit":
+		return "rpm"
+	case "wind-river-elxr":
+		return "deb"
+	default:
+		return ""
+	}
+}
+
 func downloadChrootEnvPackages(targetOs string, targetDist string, targetArch string) ([]string, error) {
 	var allPkgsList []string
-	if targetOs == "azure-linux" || targetOs == "edge-microvisor-toolkit" {
-		targetOsConfigDir, err := file.GetTargetOsConfigDir(targetOs, targetDist)
-		if err != nil {
-			return allPkgsList, fmt.Errorf("failed to get target OS config directory: %v", err)
-		}
-		chrootEnvCongfigPath := filepath.Join(targetOsConfigDir, "chrootenvconfigs", "chrootenv_"+targetArch+".yml")
-		chrootEnvPackageList, err := getChrootEnvPackageList(chrootEnvCongfigPath)
-		if err != nil {
-			return allPkgsList, fmt.Errorf("failed to get chroot environment package list: %v", err)
-		}
 
-		if _, err := os.Stat(ChrootPkgCacheDir); os.IsNotExist(err) {
-			if err := os.MkdirAll(ChrootPkgCacheDir, 0755); err != nil {
-				return allPkgsList, fmt.Errorf("failed to create chroot package cache directory: %v", err)
-			}
-		}
+	pkgType := getTaRgetOsPkgType(targetOs)
+	targetOsConfigDir, err := file.GetTargetOsConfigDir(targetOs, targetDist)
+	if err != nil {
+		return allPkgsList, fmt.Errorf("failed to get target OS config directory: %v", err)
+	}
+	chrootEnvCongfigPath := filepath.Join(targetOsConfigDir, "chrootenvconfigs", "chrootenv_"+targetArch+".yml")
+	chrootEnvPackageList, err := getChrootEnvPackageList(chrootEnvCongfigPath)
+	if err != nil {
+		return allPkgsList, fmt.Errorf("failed to get chroot environment package list: %v", err)
+	}
 
-		dotFilePath := filepath.Join(ChrootPkgCacheDir, "chrootpkgs.dot")
+	if _, err := os.Stat(ChrootPkgCacheDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(ChrootPkgCacheDir, 0755); err != nil {
+			return allPkgsList, fmt.Errorf("failed to create chroot package cache directory: %v", err)
+		}
+	}
+
+	dotFilePath := filepath.Join(ChrootPkgCacheDir, "chrootpkgs.dot")
+
+	if pkgType == "rpm" {
 		allPkgsList, err = rpmutils.DownloadPackages(chrootEnvPackageList, ChrootPkgCacheDir, dotFilePath)
+		if err != nil {
+			return allPkgsList, fmt.Errorf("failed to download chroot environment packages: %v", err)
+		}
+		return allPkgsList, nil
+	} else if pkgType == "deb" {
+		allPkgsList, err = debutils.DownloadPackages(chrootEnvPackageList, ChrootPkgCacheDir, dotFilePath)
 		if err != nil {
 			return allPkgsList, fmt.Errorf("failed to download chroot environment packages: %v", err)
 		}
@@ -166,6 +189,7 @@ func importGpgKeys(targetOs string, chrootEnvBuildPath string) error {
 
 func BuildChrootEnv(targetOs string, targetDist string, targetArch string) error {
 	log := logger.Logger()
+	pkgType := getTaRgetOsPkgType(targetOs)
 	err := InitChrootBuildSpace(targetOs, targetDist, targetArch)
 	if err != nil {
 		return fmt.Errorf("failed to initialize chroot build space: %v", err)
@@ -195,31 +219,53 @@ func BuildChrootEnv(targetOs string, targetDist string, targetArch string) error
 		return fmt.Errorf("failed to mount system directories in chroot environment: %v", err)
 	}
 
-	for _, pkg := range allPkgsList {
-		pkgPath := filepath.Join(ChrootPkgCacheDir, pkg)
-		if _, err = os.Stat(pkgPath); os.IsNotExist(err) {
-			err = fmt.Errorf("package %s does not exist in cache directory: %v", pkg, err)
-			goto fail
+	if pkgType == "rpm" {
+		for _, pkg := range allPkgsList {
+			pkgPath := filepath.Join(ChrootPkgCacheDir, pkg)
+			if _, err = os.Stat(pkgPath); os.IsNotExist(err) {
+				err = fmt.Errorf("package %s does not exist in cache directory: %v", pkg, err)
+				goto fail
+			}
+			log.Infof("Installing package %s in chroot environment", pkg)
+			cmdStr := fmt.Sprintf("rpm -i -v --nodeps --noorder --force --root %s --define '_dbpath /var/lib/rpm' %s",
+				chrootEnvPath, pkgPath)
+			var output string
+			output, err = shell.ExecCmd(cmdStr, true, "", nil)
+			if err != nil {
+				err = fmt.Errorf("failed to install package %s: %v, output: %s", pkg, err, output)
+				goto fail
+			}
 		}
-		log.Infof("Installing package %s in chroot environment", pkg)
-		cmdStr := fmt.Sprintf("rpm -i -v --nodeps --noorder --force --root %s --define '_dbpath /var/lib/rpm' %s",
-			chrootEnvPath, pkgPath)
-		var output string
-		output, err = shell.ExecCmd(cmdStr, true, "", nil)
-		if err != nil {
-			err = fmt.Errorf("failed to install package %s: %v, output: %s", pkg, err, output)
-			goto fail
-		}
-	}
 
-	err = updateRpmDB(chrootEnvPath, allPkgsList)
-	if err != nil {
-		err = fmt.Errorf("failed to update RPM database in chroot environment: %v", err)
-		goto fail
-	}
-	err = importGpgKeys(targetOs, chrootEnvPath)
-	if err != nil {
-		err = fmt.Errorf("failed to import GPG keys in chroot environment: %v", err)
+		err = updateRpmDB(chrootEnvPath, allPkgsList)
+		if err != nil {
+			err = fmt.Errorf("failed to update RPM database in chroot environment: %v", err)
+			goto fail
+		}
+		err = importGpgKeys(targetOs, chrootEnvPath)
+		if err != nil {
+			err = fmt.Errorf("failed to import GPG keys in chroot environment: %v", err)
+			goto fail
+		}
+	} else if pkgType == "deb" {
+		for _, pkg := range allPkgsList {
+			pkgPath := filepath.Join(ChrootPkgCacheDir, pkg)
+			if _, err = os.Stat(pkgPath); os.IsNotExist(err) {
+				err = fmt.Errorf("package %s does not exist in cache directory: %v", pkg, err)
+				goto fail
+			}
+			log.Infof("Installing package %s in chroot environment", pkg)
+			cmdStr := fmt.Sprintf("dpkg -i --root=%s --force-depends -admindir=%s/var/lib/dpkg %s",
+				chrootEnvPath, chrootEnvPath, pkgPath)
+			var output string
+			output, err = shell.ExecCmd(cmdStr, true, "", nil)
+			if err != nil {
+				err = fmt.Errorf("failed to install package %s: %v, output: %s", pkg, err, output)
+				goto fail
+			}
+		}
+	} else {
+		err = fmt.Errorf("unsupported package type: %s", pkgType)
 		goto fail
 	}
 

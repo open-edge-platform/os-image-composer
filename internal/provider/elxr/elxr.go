@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/open-edge-platform/image-composer/internal/chroot"
 	"github.com/open-edge-platform/image-composer/internal/config"
 	"github.com/open-edge-platform/image-composer/internal/ospackage/debutils"
 	"github.com/open-edge-platform/image-composer/internal/provider"
@@ -64,6 +65,10 @@ func (p *eLxr) PreProcess(template *config.ImageTemplate) error {
 	err := p.downloadImagePkgs(template)
 	if err != nil {
 		return fmt.Errorf("failed to download image packages: %v", err)
+	}
+	err = chroot.InitChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch)
+	if err != nil {
+		return fmt.Errorf("failed to initialize chroot environment: %v", err)
 	}
 	return nil
 }
