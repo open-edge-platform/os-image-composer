@@ -3,7 +3,7 @@ image:
   version: "12.0.0"
 
 target:
-  os: elxr # Target OS name
+  os: wind-river-elxr # Target OS name
   dist: elxr12 # Target OS distribution
   arch: x86_64 # Target OS architecture
   imageType: raw # Image type, valid value: [raw, iso].
@@ -56,11 +56,11 @@ systemConfig:
 
   packages:
     - systemd-boot
-    - dracut   
+    - dracut
     - linux-image-amd64
     - ca-certificates
     - vim
-    - sudo     
+    - sudo
     - net-tools
     - openssh-client
     - openssh-server
@@ -69,7 +69,7 @@ systemConfig:
     - dbus
     - policykit-1
     - curl
-    - wget    
+    - wget
     - ostree
     - ostree-boot
     - python3-apt-ostree

@@ -122,7 +122,7 @@ func InitProvider(os, dist, arch string) (provider.Provider, error) {
 	case "edge-microvisor-toolkit":
 		emt.Register(dist, arch)
 		config.ProviderId = emt.GetProviderId(dist, arch)
-	case "elxr":
+	case "wind-river-elxr":
 		elxr.Register(dist, arch)
 		config.ProviderId = elxr.GetProviderId(dist, arch)
 	default:

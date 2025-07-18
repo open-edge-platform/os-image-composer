@@ -4,7 +4,7 @@
     "title": "OS Image Template",
     "description": "Defines image configuration including target OS, packages, kernel, and system configurations",
     "type": "object",
-  
+
     "properties": {
       "image": {
         "type": "object",
@@ -31,7 +31,7 @@
           "os": {
             "type": "string",
             "description": "Target operating system",
-            "enum": ["azure-linux", "edge-microvisor-toolkit", "elxr"]
+            "enum": ["azure-linux", "edge-microvisor-toolkit", "wind-river-elxr"]
           },
           "dist": {
             "type": "string",
@@ -101,10 +101,10 @@
         "minItems": 1
       }
     },
-  
+
     "required": ["image", "target", "systemConfigs"],
     "additionalProperties": false,
-  
+
     "allOf": [
       {
         "if": { "properties": { "target": { "properties": { "os": { "const": "azure-linux" } } } } },
@@ -115,7 +115,7 @@
         "then": { "properties": { "target": { "properties": { "dist": { "enum": ["emt3"] } } } } }
       },
       {
-        "if": { "properties": { "target": { "properties": { "os": { "const": "elxr" } } } } },
+        "if": { "properties": { "target": { "properties": { "os": { "const": "wind-river-elxr" } } } } },
         "then": { "properties": { "target": { "properties": { "dist": { "enum": ["elxr12"] } } } } }
       }
     ]

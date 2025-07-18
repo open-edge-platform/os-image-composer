@@ -3,7 +3,7 @@ image:
   version: "12.0.0"
 
 target:
-  os: elxr
+  os: wind-river-elxr
   dist: elxr12
   arch: x86_64
   imageType: raw
@@ -13,11 +13,11 @@ systemConfigs:
     description: Minimal eLxr image with immutable rootfs
     packages:
       - systemd-boot
-      - dracut   
+      - dracut
       - linux-image-amd64
       - ca-certificates
       - vim
-      - sudo     
+      - sudo
       - net-tools
       - openssh-client
       - openssh-server
@@ -26,14 +26,14 @@ systemConfigs:
       - dbus
       - policykit-1
       - curl
-      - wget    
+      - wget
       - ostree
       - ostree-boot
       - python3-apt-ostree
       - uefi-ext4
       - systemd-resolved
       - cloud-guest-utils
-      - xterm        
+      - xterm
     kernel:
       version: "6.12"
       cmdline: "quiet splash"
