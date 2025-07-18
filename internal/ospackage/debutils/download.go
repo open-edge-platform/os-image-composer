@@ -108,7 +108,7 @@ func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospack
 	log.Infof("need a total of %d DEBs (including dependencies)", len(needed))
 
 	for _, pkg := range needed {
-		log.Debugf("-> %s", pkg.Name)
+		log.Debugf("-> %s", filepath.Base(pkg.URL))
 	}
 
 	// Adding needed packages to the pkgChecksum list
@@ -185,7 +185,7 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 	log.Infof("matched a total of %d packages", len(req))
 
 	for _, pkg := range req {
-		log.Debugf("-> %s", pkg.Name)
+		log.Debugf("-> %s", filepath.Base(pkg.URL))
 	}
 
 	// Resolve the dependencies of the requested packages
@@ -212,7 +212,7 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 	urls := make([]string, len(sorted_pkgs))
 	for i, pkg := range sorted_pkgs {
 		urls[i] = pkg.URL
-		downloadPkgList = append(downloadPkgList, pkg.Name)
+		downloadPkgList = append(downloadPkgList, filepath.Base(pkg.URL))
 	}
 
 	// Ensure dest directory exists
