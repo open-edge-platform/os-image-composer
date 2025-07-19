@@ -255,7 +255,7 @@ func BuildChrootEnv(targetOs string, targetDist string, targetArch string) error
 				goto fail
 			}
 			log.Infof("Installing package %s in chroot environment", pkg)
-			cmdStr := fmt.Sprintf("dpkg -i --root=%s --force-depends -admindir=%s/var/lib/dpkg %s",
+			cmdStr := fmt.Sprintf("dpkg -i --root=%s --force-depends --admindir=%s/var/lib/dpkg %s",
 				chrootEnvPath, chrootEnvPath, pkgPath)
 			var output string
 			output, err = shell.ExecCmd(cmdStr, true, "", nil)
