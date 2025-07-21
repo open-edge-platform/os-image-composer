@@ -130,19 +130,23 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 		case "Version":
 			pkg.Version = val
 		case "Pre-Depends":
-			// Split dependencies by comma and trim spaces
+			// Split dependencies by comma and clean each dependency
 			deps := strings.Split(val, ",")
-			for i := range deps {
-				deps[i] = strings.TrimSpace(deps[i])
+			for _, dep := range deps {
+				cleanedDep := CleanDependencyName(dep)
+				if cleanedDep != "" {
+					pkg.Requires = append(pkg.Requires, cleanedDep)
+				}
 			}
-			pkg.Requires = append(pkg.Requires, deps...)
 		case "Depends":
-			// Split dependencies by comma and trim spaces
+			// Split dependencies by comma and clean each dependency
 			deps := strings.Split(val, ",")
-			for i := range deps {
-				deps[i] = strings.TrimSpace(deps[i])
+			for _, dep := range deps {
+				cleanedDep := CleanDependencyName(dep)
+				if cleanedDep != "" {
+					pkg.Requires = append(pkg.Requires, cleanedDep)
+				}
 			}
-			pkg.Requires = append(pkg.Requires, deps...)
 		case "Provides":
 			// Split provides by comma and trim spaces, remove version constraints
 			deps := strings.Split(val, ",")
@@ -245,28 +249,19 @@ func ResolvePackageInfos(requested []ospackage.PackageInfo, all []ospackage.Pack
 
 		// Traverse dependencies
 		for _, dep := range cur.Requires {
-			depName := dep
+			depName := CleanDependencyName(dep)
 			depVersion := ""
-			// Handle alternatives (|) and arch qualifiers (:)
-			if idx := strings.Index(depName, "|"); idx > 0 {
-				depName = strings.TrimSpace(depName[:idx])
-			}
-			if idx := strings.Index(depName, ":"); idx > 0 {
-				depName = depName[:idx]
-			}
-			// Handle version constraints
-			if idx := strings.Index(depName, "("); idx > 0 {
-				name := strings.TrimSpace(depName[:idx])
-				verPart := strings.TrimSpace(depName[idx:])
+
+			// Extract version information if present (for more precise matching)
+			originalDep := strings.TrimSpace(dep)
+			if idx := strings.Index(originalDep, "("); idx > 0 {
+				verPart := strings.TrimSpace(originalDep[idx:])
 				verPart = strings.Trim(verPart, "() ")
 				if strings.HasPrefix(verPart, "=") {
 					depVersion = strings.TrimSpace(strings.TrimPrefix(verPart, "="))
 				}
-				depName = name
-			} else if idx := strings.Index(depName, " "); idx > 0 {
-				depName = depName[:idx]
 			}
-			depName = strings.TrimSpace(depName)
+
 			if depName == "" || neededSet[depName] != struct{}{} {
 				continue
 			}
@@ -487,4 +482,35 @@ func compareDebianVersions(a, b string) (int, error) {
 		sa, sb = restA, restB
 	}
 	return 0, nil
+}
+
+// CleanDependencyName extracts the base package name from a complex dependency string.
+// Handles version constraints, alternatives, and architecture qualifiers.
+// Examples:
+//
+//	"libc6 (>= 2.34)" -> "libc6"
+//	"python3 | python3-dev" -> "python3"
+//	"gcc:amd64" -> "gcc"
+func CleanDependencyName(dep string) string {
+	depName := strings.TrimSpace(dep)
+
+	// Handle alternatives (|) - take the first option
+	if idx := strings.Index(depName, "|"); idx > 0 {
+		depName = strings.TrimSpace(depName[:idx])
+	}
+
+	// Handle architecture qualifiers (:)
+	if idx := strings.Index(depName, ":"); idx > 0 {
+		depName = depName[:idx]
+	}
+
+	// Handle version constraints - remove everything from opening parenthesis
+	if idx := strings.Index(depName, "("); idx > 0 {
+		depName = strings.TrimSpace(depName[:idx])
+	} else if idx := strings.Index(depName, " "); idx > 0 {
+		// Handle cases where there's a space but no parentheses
+		depName = depName[:idx]
+	}
+
+	return strings.TrimSpace(depName)
 }
