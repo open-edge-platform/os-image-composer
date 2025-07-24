@@ -1,0 +1,91 @@
+image:
+  name: emt3-default-x86_64
+  version: "1.0.0"
+
+target:
+  os: edge-microvisor-toolkit # Target OS name
+  dist: emt3 # Target OS distribution
+  arch: x86_64 # Target OS architecture
+  imageType: img # Image type, valid value: [raw, iso, img].
+
+systemConfig:
+  name: ISO_Initrd
+  description: Default yml configuration for iso initrd image
+
+  bootloader:
+    bootType: efi # (efi or legacy)
+    provider: grub # (grub for efi and legacy mode, or systemd-boot for efi mode)
+
+  packages:
+    - filesystem
+    - kernel
+    - edge-release
+    - pam
+    - audit
+    - attr
+    - bash
+    - bzip2
+    - calamares
+    - cifs-utils
+    - coreutils
+    - cpio
+    - cracklib
+    - cracklib-dicts
+    - cryptsetup
+    - curl
+    - dbus
+    - dosfstools
+    - dracut
+    - e2fsprogs
+    - efibootmgr
+    - efivar
+    - expat
+    - file
+    - findutils
+    - glib
+    - glibc
+    - gmp
+    - gptfdisk
+    - grep
+    - grub2-efi
+    - grub2-efi-binary
+    - grub2-pc
+    - gzip
+    - haveged
+    - libcap
+    - libgcc
+    - libstdc++
+    - linux-firmware-qlogic
+    - lvm2
+    - lua
+    - lz4
+    - nano
+    - ncurses
+    - ncurses-term
+    - nspr
+    - nss
+    - openssl
+    - parted
+    - pkgconf-pkg-config
+    - popt
+    - readline
+    - rpm
+    - sed
+    - shadow-utils
+    - shim
+    - sqlite
+    - systemd
+    - systemd-networkd
+    - systemd-resolved
+    - tdnf
+    - systemd-udev
+    - util-linux
+    - words
+    - xfsprogs
+    - xz
+    - zlib
+
+  kernel:
+    name: kernel
+    version: 6.12
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
