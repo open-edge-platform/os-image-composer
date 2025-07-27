@@ -122,7 +122,7 @@ func downloadInitrdPkgs(initrdTemplate *config.ImageTemplate) error {
 		return fmt.Errorf("failed to download initrd packages: %v", err)
 	}
 	// From local.repo
-	chrootRepoDir := filepath.Join("/workspace", "cache-repo")
+	chrootRepoDir := filepath.Join("/cdrom", "cache-repo")
 	if err := chroot.UpdateChrootLocalRPMRepo(chrootRepoDir); err != nil {
 		return fmt.Errorf("failed to update chroot local cache repository %s: %w", chrootRepoDir, err)
 	}

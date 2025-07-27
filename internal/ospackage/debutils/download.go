@@ -232,10 +232,9 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 	log.Info("all downloads complete")
 
 	// Verify downloaded packages
-	/*
-		if err := Validate(destDir); err != nil {
-			return downloadPkgList, fmt.Errorf("verification failed: %v", err)
-		}
-	*/
+	if err := Validate(destDir); err != nil {
+		return downloadPkgList, fmt.Errorf("verification failed: %v", err)
+	}
+
 	return downloadPkgList, nil
 }
