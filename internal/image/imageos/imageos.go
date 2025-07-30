@@ -703,85 +703,33 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 
 		log.Debug("initrd updated successfully")
 
-		if template.IsImmutabilityEnabled() {
-			// 2. Build UKI with ukify
-			kernelPath := filepath.Join("/boot", "vmlinuz-"+kernelVersion)
-			initrdPath := fmt.Sprintf("/boot/initramfs-%s.img", kernelVersion)
+		// 2. Build UKI with ukify
+		kernelPath := filepath.Join("/boot", "vmlinuz-"+kernelVersion)
+		initrdPath := fmt.Sprintf("/boot/initramfs-%s.img", kernelVersion)
 
-			espRoot := installRoot
-			espDir, err := prepareESPDir(espRoot)
-			if err != nil {
-				return fmt.Errorf("failed to prepare ESP directory: %w", err)
-			}
-			log.Debugf("Succesfully Creating EspPath:", espDir)
-
-			outputPath := filepath.Join(espDir, "EFI", "Linux", "linux.efi")
-			log.Debugf("UKI Path:", outputPath)
-
-			cmdlineFile := filepath.Join("/boot", "cmdline.conf")
-			if err := buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath, template); err != nil {
-				return fmt.Errorf("failed to build UKI: %w", err)
-			}
-			log.Debugf("UKI created successfully on:", outputPath)
-
-			// 3. Copy systemd-bootx64.efi to ESP/EFI/BOOT/BOOTX64.EFI
-			srcBootloader := filepath.Join("usr", "lib", "systemd", "boot", "efi", "systemd-bootx64.efi")
-			dstBootloader := filepath.Join(espDir, "EFI", "BOOT", "BOOTX64.EFI")
-			if err := copyBootloader(installRoot, srcBootloader, dstBootloader); err != nil {
-				return fmt.Errorf("failed to copy bootloader: %w", err)
-			}
-			log.Debugf("bootloader copied successfully on:", dstBootloader)
-		} else {
-			// If immutability is not enabled, skip UKI build
-			log.Infof("Skipping UKI build for image: %s, immutability is not enabled", template.GetImageName())
-
-			// Create loader directory if it doesn't exist
-			loaderDir := filepath.Join(installRoot, "boot/efi/loader")
-			entriesDir := filepath.Join(loaderDir, "entries")
-			if err := os.MkdirAll(entriesDir, 0755); err != nil {
-				return fmt.Errorf("failed to create loader entries directory: %w", err)
-			}
-
-			// Create loader.conf
-			loaderConf := filepath.Join(loaderDir, "loader.conf")
-			loaderContent := []byte("default elxr-" + kernelVersion + ".conf\ntimeout 5\n")
-			if err := os.WriteFile(loaderConf, loaderContent, 0644); err != nil {
-				return fmt.Errorf("failed to create loader.conf: %w", err)
-			}
-
-			// Get kernel command line
-			cmdlineData, err := os.ReadFile(filepath.Join(installRoot, "/boot/cmdline.conf"))
-			if err != nil {
-				cmdlineData = []byte(template.SystemConfig.Kernel.Cmdline)
-				log.Warnf("Failed to read cmdline file, using default: %s", string(cmdlineData))
-			}
-
-			// Create boot entry
-			entryFile := filepath.Join(entriesDir, "elxr-"+kernelVersion+".conf")
-			entryContent := fmt.Sprintf("title Wind River elxr %s\n", kernelVersion) +
-				fmt.Sprintf("linux /vmlinuz-%s\n", kernelVersion) +
-				fmt.Sprintf("initrd /initramfs-%s.img\n", kernelVersion) +
-				fmt.Sprintf("options %s\n", string(cmdlineData))
-
-			if err := os.WriteFile(entryFile, []byte(entryContent), 0644); err != nil {
-				return fmt.Errorf("failed to create boot entry file: %w", err)
-			}
-
-			// Create symlinks for kernel and initramfs in ESP root
-			kernelSrc := filepath.Join(installRoot, "/boot/vmlinuz-"+kernelVersion)
-			kernelDst := filepath.Join(installRoot, "/boot/efi/vmlinuz-"+kernelVersion)
-			initrdSrc := filepath.Join(installRoot, "/boot/initramfs-"+kernelVersion+".img")
-			initrdDst := filepath.Join(installRoot, "/boot/efi/initramfs-"+kernelVersion+".img")
-
-			// Copy kernel and initramfs to ESP
-			if err := file.CopyFile(kernelSrc, kernelDst, "", true); err != nil {
-				return fmt.Errorf("failed to copy kernel to ESP: %w", err)
-			}
-			if err := file.CopyFile(initrdSrc, initrdDst, "", true); err != nil {
-				return fmt.Errorf("failed to copy initramfs to ESP: %w", err)
-			}
-			log.Debugf("systemd-boot entries created successfully")
+		espRoot := installRoot
+		espDir, err := prepareESPDir(espRoot)
+		if err != nil {
+			return fmt.Errorf("failed to prepare ESP directory: %w", err)
 		}
+		log.Debugf("Succesfully Creating EspPath:", espDir)
+
+		outputPath := filepath.Join(espDir, "EFI", "Linux", "linux.efi")
+		log.Debugf("UKI Path:", outputPath)
+
+		cmdlineFile := filepath.Join("/boot", "cmdline.conf")
+		if err := buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath, template); err != nil {
+			return fmt.Errorf("failed to build UKI: %w", err)
+		}
+		log.Debugf("UKI created successfully on:", outputPath)
+
+		// 3. Copy systemd-bootx64.efi to ESP/EFI/BOOT/BOOTX64.EFI
+		srcBootloader := filepath.Join("usr", "lib", "systemd", "boot", "efi", "systemd-bootx64.efi")
+		dstBootloader := filepath.Join(espDir, "EFI", "BOOT", "BOOTX64.EFI")
+		if err := copyBootloader(installRoot, srcBootloader, dstBootloader); err != nil {
+			return fmt.Errorf("failed to copy bootloader: %w", err)
+		}
+		log.Debugf("bootloader copied successfully on:", dstBootloader)
 	} else {
 		log.Infof("Skipping UKI build for image: %s, bootloader provider is not systemd-boot", template.GetImageName())
 	}
@@ -840,6 +788,17 @@ func prepareESPDir(installRoot string) (string, error) {
 		"/boot/efi",
 		"/boot/efi/EFI/Linux",
 		"/boot/efi/EFI/BOOT",
+	}
+
+	// remove previous bootloader
+	cleanupDirs := []string{
+		"/boot/efi/*",
+	}
+
+	// Remove conflicting directories
+	for _, dir := range cleanupDirs {
+		cmd := fmt.Sprintf("sh -c 'rm -rf %s'", dir)
+		shell.ExecCmd(cmd, true, installRoot, nil) // Ignore errors for non-existent dirs
 	}
 
 	// Create required ESP directories
@@ -945,6 +904,11 @@ func getVerityRootHash(partPair, installRoot string) (string, error) {
 	log := logger.Logger()
 	cmd := fmt.Sprintf(`veritysetup format %s`, partPair)
 	log.Debugf("Veritysetup Executing command:", cmd)
+	// runs on host
+	exists, _ := shell.IsCommandExist("ukify", installRoot)
+	if !exists {
+		installRoot = ""
+	}
 	output, err := shell.ExecCmd(cmd, true, installRoot, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to run veritysetup format: %w", err)
@@ -981,19 +945,43 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 		cmdlineStr = replaceRootHashPH(cmdlineStr, rootHashR)
 	}
 
-	cmd := fmt.Sprintf(
-		"ukify build --linux \"%s\" --initrd \"%s\" --cmdline \"%s\" --output \"%s\"",
-		kernelPath,
-		initrdPath,
-		cmdlineStr,
-		outputPath,
-	)
+	// runs on host
+	var cmd string
+	var backInstallRoot = installRoot
+	exists, _ := shell.IsCommandExist("ukify", installRoot)
+	if !exists {
+		kernelPath = filepath.Join(installRoot, kernelPath)
+		initrdPath = filepath.Join(installRoot, initrdPath)
+		outputPath = filepath.Join(installRoot, outputPath)
+		osRelease := filepath.Join(installRoot, "/etc/os-release")
+		installRoot = ""
+
+		cmd = fmt.Sprintf(
+			"ukify build --linux \"%s\" --initrd \"%s\" --cmdline \"%s\" --os-release @\"%s\" --output \"%s\"",
+			kernelPath,
+			initrdPath,
+			cmdlineStr,
+			osRelease,
+			outputPath,
+		)
+
+	} else {
+		cmd = fmt.Sprintf(
+			"ukify build --linux \"%s\" --initrd \"%s\" --cmdline \"%s\" --output \"%s\"",
+			kernelPath,
+			initrdPath,
+			cmdlineStr,
+			outputPath,
+		)
+	}
+
 	log := logger.Logger()
 	log.Debugf("UKI Executing command:", cmd)
 	if template.IsImmutabilityEnabled() {
 		// Set TMPDIR environment variable to use the mounted tmpfs
 		envVars := []string{"TMPDIR=/tmp"}
 		_, err = shell.ExecCmd(cmd, true, installRoot, envVars)
+		installRoot = backInstallRoot
 		removeVerityTmp(installRoot)
 	} else {
 		_, err = shell.ExecCmd(cmd, true, installRoot, nil)

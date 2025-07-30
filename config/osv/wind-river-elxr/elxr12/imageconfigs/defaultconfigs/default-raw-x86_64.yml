@@ -36,9 +36,16 @@ disk:
       mountPoint: /
       mountOptions: defaults, ro
 
-    - id: userdata
+    - id: roothashmap
       type: linux
       start: 2561MiB
+      end: 3061MiB  # 2561MiB + 500MiB = 3061MiB
+      fsType: ext4
+      mountPoint: none
+
+    - id: userdata
+      type: linux
+      start: 3061MiB
       end: 0  # 2561MiB + 2GiB (2048MiB) = 4609MiB
       fsType: ext4
       mountPoint: /opt
