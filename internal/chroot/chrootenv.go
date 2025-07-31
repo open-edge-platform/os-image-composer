@@ -150,16 +150,10 @@ func UpdateLocalDebRepo(repoPath string) error {
 	return nil
 }
 
-func initChrootLocalRepo(targetOs string) error {
+func RefreshLocalCacheRepo() error {
 	// From local.repo
 	chrootRepoDir := "/cdrom/cache-repo"
-
-	if err := MountChrootPath(ChrootPkgCacheDir, chrootRepoDir, "--bind"); err != nil {
-		return fmt.Errorf("failed to mount package cache directory %s to chroot repo directory %s: %w",
-			ChrootPkgCacheDir, chrootRepoDir, err)
-	}
-
-	pkgType := GetTaRgetOsPkgType(targetOs)
+	pkgType := GetTaRgetOsPkgType(config.TargetOs)
 	if pkgType == "rpm" {
 		if err := UpdateChrootLocalRPMRepo(chrootRepoDir); err != nil {
 			return fmt.Errorf("failed to update rpm local cache repository %s: %w", chrootRepoDir, err)
@@ -180,6 +174,21 @@ func initChrootLocalRepo(targetOs string) error {
 		}
 	} else {
 		return fmt.Errorf("unsupported package type: %s", pkgType)
+	}
+	return nil
+}
+
+func initChrootLocalRepo() error {
+	// From local.repo
+	chrootRepoDir := "/cdrom/cache-repo"
+
+	if err := MountChrootPath(ChrootPkgCacheDir, chrootRepoDir, "--bind"); err != nil {
+		return fmt.Errorf("failed to mount package cache directory %s to chroot repo directory %s: %w",
+			ChrootPkgCacheDir, chrootRepoDir, err)
+	}
+
+	if err := RefreshLocalCacheRepo(); err != nil {
+		return fmt.Errorf("failed to refresh local cache repository: %w", err)
 	}
 	return nil
 }
@@ -222,10 +231,6 @@ func createChrootRepo(targetOs, targetDist string) error {
 		}
 	} else {
 		return fmt.Errorf("unsupported package type: %s", pkgType)
-	}
-
-	if err := initChrootLocalRepo(targetOs); err != nil {
-		return fmt.Errorf("failed to initialize chroot local repository: %w", err)
 	}
 
 	return nil
@@ -301,12 +306,11 @@ func InitChrootEnv(targetOs, targetDist, targetArch string) error {
 			err = fmt.Errorf("failed to create chroot repository: %w", err)
 			goto fail
 		}
-	} else {
-		// If the chroot environment already exists, update the local RPM repository
-		if err = initChrootLocalRepo(targetOs); err != nil {
-			err = fmt.Errorf("failed to initialize chroot local repository: %w", err)
-			goto fail
-		}
+	}
+
+	if err = initChrootLocalRepo(); err != nil {
+		err = fmt.Errorf("failed to initialize chroot local repository: %w", err)
+		goto fail
 	}
 
 	return nil

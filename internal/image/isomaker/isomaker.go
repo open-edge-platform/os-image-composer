@@ -10,6 +10,7 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/config"
 	"github.com/open-edge-platform/image-composer/internal/image/imagedisc"
 	"github.com/open-edge-platform/image-composer/internal/image/imageos"
+	"github.com/open-edge-platform/image-composer/internal/ospackage/debutils"
 	"github.com/open-edge-platform/image-composer/internal/ospackage/rpmutils"
 	"github.com/open-edge-platform/image-composer/internal/utils/file"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
@@ -112,19 +113,21 @@ func downloadInitrdPkgs(initrdTemplate *config.ImageTemplate) error {
 	log.Infof("Downloading packages for: %s", initrdTemplate.GetImageName())
 
 	pkgList := initrdTemplate.GetPackages()
-	globalCache, err := config.CacheDir()
-	if err != nil {
-		return fmt.Errorf("failed to get global cache dir: %w", err)
+	pkgType := chroot.GetTaRgetOsPkgType(config.TargetOs)
+	if pkgType == "deb" {
+		_, err := debutils.DownloadPackages(pkgList, chroot.ChrootPkgCacheDir, "")
+		if err != nil {
+			return fmt.Errorf("failed to download initrd packages: %v", err)
+		}
+	} else if pkgType == "rpm" {
+		_, err := rpmutils.DownloadPackages(pkgList, chroot.ChrootPkgCacheDir, "")
+		if err != nil {
+			return fmt.Errorf("failed to download initrd packages: %v", err)
+		}
 	}
-	pkgCacheDir := filepath.Join(globalCache, "pkgCache", config.ProviderId)
-	_, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, "")
-	if err != nil {
-		return fmt.Errorf("failed to download initrd packages: %v", err)
-	}
-	// From local.repo
-	chrootRepoDir := filepath.Join("/cdrom", "cache-repo")
-	if err := chroot.UpdateChrootLocalRPMRepo(chrootRepoDir); err != nil {
-		return fmt.Errorf("failed to update chroot local cache repository %s: %w", chrootRepoDir, err)
+
+	if err := chroot.RefreshLocalCacheRepo(); err != nil {
+		return fmt.Errorf("failed to refresh local cache repository: %w", err)
 	}
 	return nil
 }
