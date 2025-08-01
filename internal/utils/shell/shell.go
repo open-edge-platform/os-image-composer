@@ -331,7 +331,7 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 }
 
 // ExecCmd executes a command and returns its output
-func ExecCmd(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+var ExecCmd = func(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
 	log := logger.Logger()
 	fullCmdStr, err := GetFullCmdStr(cmdStr, sudo, chrootPath, envVal)
 	if err != nil {
@@ -358,7 +358,7 @@ func ExecCmd(cmdStr string, sudo bool, chrootPath string, envVal []string) (stri
 }
 
 // ExecCmdSilent executes a command without logging its output
-func ExecCmdSilent(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+var ExecCmdSilent = func(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
 	fullCmdStr, err := GetFullCmdStr(cmdStr, sudo, chrootPath, envVal)
 	if err != nil {
 		return "", fmt.Errorf("failed to get full command string: %w", err)
@@ -370,7 +370,7 @@ func ExecCmdSilent(cmdStr string, sudo bool, chrootPath string, envVal []string)
 }
 
 // ExecCmdWithStream executes a command and streams its output
-func ExecCmdWithStream(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+var ExecCmdWithStream = func(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
 	var outputStr string
 	log := logger.Logger()
 
@@ -429,7 +429,7 @@ func ExecCmdWithStream(cmdStr string, sudo bool, chrootPath string, envVal []str
 }
 
 // ExecCmdWithInput executes a command with input string
-func ExecCmdWithInput(inputStr string, cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+var ExecCmdWithInput = func(inputStr string, cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
 	log := logger.Logger()
 	fullCmdStr, err := GetFullCmdStr(cmdStr, sudo, chrootPath, envVal)
 	if err != nil {
