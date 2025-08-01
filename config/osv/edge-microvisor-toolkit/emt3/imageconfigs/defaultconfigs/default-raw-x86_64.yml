@@ -9,7 +9,7 @@ target:
   imageType: raw # Image type, valid value: [raw, iso].
 
 disk:
-  name: Default # 1:1 mapping to the systemConfigs name
+  name: Default_Raw # 1:1 mapping to the systemConfigs name
   artifacts:
     -
       type: raw  # image file format
@@ -36,20 +36,30 @@ disk:
       mountPoint: /
       mountOptions: defaults,ro
 
-    - id: edge_persistent
+    - id: roothashmap
       type: linux
       start: 2561MiB
+      end: 3061MiB
+      fsType: ext4
+      mountPoint: none
+
+    - id: userdata
+      type: linux
+      start: 3061MiB
       end: 0  # use the rest of the disk space
       fsType: ext4
       mountPoint: /opt
 
 systemConfig:
-  name: Default
+  name: Default_Raw
   description: Default yml configuration for raw image
 
   bootloader:
     bootType: efi # (efi or legacy)
     provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
+
+  immutability:
+    enabled: false # default is false
 
   packages:
     # base packages
@@ -94,10 +104,6 @@ systemConfig:
 
     # persistent mount
     - rsync
-    - persistent-mount
-
-    # fde verity
-    #- tpm-cryptsetup
 
     # selinux full
     - selinux-policy
@@ -130,8 +136,6 @@ systemConfig:
     - docker-compose
 
   additionalFiles:
-    - local: layout.env
-      final: /etc/layout.env
     - local: 99-dhcp-en.network
       final: /etc/systemd/network/99-dhcp-en.network
     - local: systemd-networkd-wait-online-override.conf

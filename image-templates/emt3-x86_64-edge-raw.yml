@@ -16,6 +16,9 @@ systemConfig:
   name: edge
   description: Default yml configuration for edge image
 
+  immutability:
+    enabled: true # default is false
+
   # Package Configuration
   packages:
     # Additional packages beyond the base system
