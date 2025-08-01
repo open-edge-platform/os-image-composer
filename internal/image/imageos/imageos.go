@@ -795,10 +795,12 @@ func prepareESPDir(installRoot string) (string, error) {
 		"/boot/efi/*",
 	}
 
-	// Remove conflicting directories
+	// Remove all from efi directories
 	for _, dir := range cleanupDirs {
 		cmd := fmt.Sprintf("sh -c 'rm -rf %s'", dir)
-		shell.ExecCmd(cmd, true, installRoot, nil) // Ignore errors for non-existent dirs
+		if _, err := shell.ExecCmd(cmd, true, installRoot, nil); err != nil {
+			return "", err
+		}
 	}
 
 	// Create required ESP directories
