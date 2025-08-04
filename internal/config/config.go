@@ -53,11 +53,25 @@ type ImmutabilityConfig struct {
 	Enabled bool `yaml:"enabled"` // Enabled: whether immutability is enabled (default: false)
 }
 
+// UserConfig holds the user configuration
+type UserConfig struct {
+	Name           string   `yaml:"name"`                     // Name: username for the user account
+	Password       string   `yaml:"password,omitempty"`       // Password: plain text password (discouraged for security)
+	HashAlgo       string   `yaml:"hash_algo,omitempty"`      // HashAlgo: algorithm to be used to hash the password (e.g., "sha512", "bcrypt")
+	PasswordMaxAge int      `yaml:"passwordMaxAge,omitempty"` // PasswordMaxAge: maximum password age in days (like /etc/login.defs PASS_MAX_DAYS)
+	StartupScript  string   `yaml:"startupScript,omitempty"`  // StartupScript: shell/script to run on login
+	Groups         []string `yaml:"groups,omitempty"`         // Groups: additional groups to add user to
+	Sudo           bool     `yaml:"sudo,omitempty"`           // Sudo: whether to grant sudo permissions
+	Home           string   `yaml:"home,omitempty"`           // Home: custom home directory path
+	Shell          string   `yaml:"shell,omitempty"`          // Shell: login shell (e.g., /bin/bash, /bin/zsh)
+}
+
 // SystemConfig represents a system configuration within the template
 type SystemConfig struct {
 	Name            string               `yaml:"name"`
 	Description     string               `yaml:"description"`
 	Immutability    ImmutabilityConfig   `yaml:"immutability,omitempty"`
+	Users           []UserConfig         `yaml:"users,omitempty"`
 	Bootloader      Bootloader           `yaml:"bootloader"`
 	Packages        []string             `yaml:"packages"`
 	AdditionalFiles []AdditionalFileInfo `yaml:"additionalFiles"`
@@ -250,4 +264,44 @@ func (sc *SystemConfig) GetImmutability() ImmutabilityConfig {
 // IsImmutabilityEnabled returns whether immutability is enabled (SystemConfig method)
 func (sc *SystemConfig) IsImmutabilityEnabled() bool {
 	return sc.Immutability.Enabled
+}
+
+// GetUsers returns the user configurations from systemConfig
+func (t *ImageTemplate) GetUsers() []UserConfig {
+	return t.SystemConfig.Users
+}
+
+// GetUserByName returns a user configuration by name, or nil if not found
+func (t *ImageTemplate) GetUserByName(name string) *UserConfig {
+	for i := range t.SystemConfig.Users {
+		if t.SystemConfig.Users[i].Name == name {
+			return &t.SystemConfig.Users[i]
+		}
+	}
+	return nil
+}
+
+// HasUsers returns whether any users are configured
+func (t *ImageTemplate) HasUsers() bool {
+	return len(t.SystemConfig.Users) > 0
+}
+
+// GetUsers returns the user configurations (SystemConfig method)
+func (sc *SystemConfig) GetUsers() []UserConfig {
+	return sc.Users
+}
+
+// GetUserByName returns a user configuration by name (SystemConfig method)
+func (sc *SystemConfig) GetUserByName(name string) *UserConfig {
+	for i := range sc.Users {
+		if sc.Users[i].Name == name {
+			return &sc.Users[i]
+		}
+	}
+	return nil
+}
+
+// HasUsers returns whether any users are configured (SystemConfig method)
+func (sc *SystemConfig) HasUsers() bool {
+	return len(sc.Users) > 0
 }

@@ -19,6 +19,24 @@ systemConfig:
   immutability:
     enabled: true # default is false
 
+  # User Configuration
+  users:
+    # Pre-hashed password (production approach)
+    - name: admin
+      password: "$6$rounds=4096$salt$hashedvalue..."
+      groups: ["wheel"]
+
+    # Plain text with algorithm (development approach)
+    - name: testuser
+      password: "test123"
+      hash_algo: "sha512"
+
+    # Plain text with different algorithm
+    - name: secureuser
+      password: "securepass"
+      hash_algo: "bcrypt"
+      sudo: true
+
   # Package Configuration
   packages:
     # Additional packages beyond the base system

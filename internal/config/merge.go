@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/open-edge-platform/image-composer/internal/utils/file"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
@@ -122,8 +123,8 @@ func MergeConfigurations(userTemplate, defaultTemplate *ImageTemplate) (*ImageTe
 		}
 	}
 
-	log.Debugf("Merged template: name=%s, systemConfig=%s, immutability=%t",
-		mergedTemplate.Image.Name, mergedTemplate.SystemConfig.Name, mergedTemplate.IsImmutabilityEnabled())
+	log.Debugf("Merged template: name=%s, systemConfig=%s, immutability=%t users=%d",
+		mergedTemplate.Image.Name, mergedTemplate.SystemConfig.Name, mergedTemplate.IsImmutabilityEnabled(), len(mergedTemplate.GetUsers()))
 
 	return &mergedTemplate, nil
 }
@@ -142,6 +143,11 @@ func mergeSystemConfig(defaultConfig, userConfig SystemConfig) SystemConfig {
 
 	// Merge immutability config
 	merged.Immutability = mergeImmutabilityConfig(defaultConfig.Immutability, userConfig.Immutability)
+
+	// Merge users config
+	if len(userConfig.Users) > 0 {
+		merged.Users = mergeUsers(defaultConfig.Users, userConfig.Users)
+	}
 
 	// Merge bootloader config
 	if !isEmptyBootloader(userConfig.Bootloader) {
@@ -168,6 +174,112 @@ func mergeImmutabilityConfig(defaultImmutability, userImmutability ImmutabilityC
 	// Otherwise, keep the default value
 	if userImmutability.Enabled != defaultImmutability.Enabled {
 		merged.Enabled = userImmutability.Enabled
+	}
+
+	return merged
+}
+
+// mergeUsers merges user configurations
+func mergeUsers(defaultUsers, userUsers []UserConfig) []UserConfig {
+	merged := make([]UserConfig, 0, len(defaultUsers)+len(userUsers))
+	userMap := make(map[string]UserConfig)
+
+	// Create a map of user configurations by name for easy lookup
+	for _, user := range userUsers {
+		userMap[user.Name] = user
+	}
+
+	// Add default users, but override with user values if same name exists
+	for _, defaultUser := range defaultUsers {
+		if userUser, exists := userMap[defaultUser.Name]; exists {
+			// User exists in both default and user config - merge them
+			merged = append(merged, mergeUserConfig(defaultUser, userUser))
+			delete(userMap, defaultUser.Name) // Remove from map to avoid duplicate addition
+		} else {
+			// User only exists in default config
+			merged = append(merged, defaultUser)
+		}
+	}
+
+	// Add remaining user-only configurations
+	for _, userUser := range userMap {
+		merged = append(merged, userUser)
+	}
+
+	return merged
+}
+
+// mergeUserConfig merges individual user configurations
+func mergeUserConfig(defaultUser, userUser UserConfig) UserConfig {
+	merged := defaultUser // Start with default
+
+	// Override basic fields
+	if userUser.Name != "" {
+		merged.Name = userUser.Name
+	}
+
+	// Password and hash algorithm merging logic
+	if userUser.Password != "" {
+		merged.Password = userUser.Password
+
+		// If user provides hash_algo, use it
+		if userUser.HashAlgo != "" {
+			merged.HashAlgo = userUser.HashAlgo
+		}
+
+		// Special case: if user provides pre-hashed password, clear hash_algo
+		if strings.HasPrefix(userUser.Password, "$") {
+			merged.HashAlgo = ""
+		}
+	} else if userUser.HashAlgo != "" {
+		// User only changed algorithm for default password
+		merged.HashAlgo = userUser.HashAlgo
+	}
+
+	// Other field merging
+	if userUser.PasswordMaxAge != 0 {
+		merged.PasswordMaxAge = userUser.PasswordMaxAge
+	}
+	if userUser.StartupScript != "" {
+		merged.StartupScript = userUser.StartupScript
+	}
+	if userUser.Home != "" {
+		merged.Home = userUser.Home
+	}
+	if userUser.Shell != "" {
+		merged.Shell = userUser.Shell
+	}
+
+	// Merge groups
+	if len(userUser.Groups) > 0 {
+		merged.Groups = mergeStringSlices(defaultUser.Groups, userUser.Groups)
+	}
+
+	// Override sudo setting
+	merged.Sudo = userUser.Sudo
+
+	return merged
+}
+
+// mergeStringSlices combines two string slices, removing duplicates
+func mergeStringSlices(defaultSlice, userSlice []string) []string {
+	itemSet := make(map[string]bool)
+	var merged []string
+
+	// Add default items first
+	for _, item := range defaultSlice {
+		if !itemSet[item] {
+			itemSet[item] = true
+			merged = append(merged, item)
+		}
+	}
+
+	// Add user items, avoiding duplicates
+	for _, item := range userSlice {
+		if !itemSet[item] {
+			itemSet[item] = true
+			merged = append(merged, item)
+		}
 	}
 
 	return merged
