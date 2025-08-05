@@ -79,6 +79,7 @@ func MergeConfigurations(userTemplate, defaultTemplate *ImageTemplate) (*ImageTe
 		return nil, fmt.Errorf("user template cannot be nil")
 	}
 
+	// If no default template, use user template as-is
 	if defaultTemplate == nil {
 		log.Warn("Default template is nil, using user template as-is")
 		return userTemplate, nil
@@ -96,19 +97,21 @@ func MergeConfigurations(userTemplate, defaultTemplate *ImageTemplate) (*ImageTe
 		mergedTemplate.Image.Version = userTemplate.Image.Version
 	}
 
-	// Target section - always use user values (these should be consistent)
 	mergedTemplate.Target = userTemplate.Target
 
-	// Disk configuration - simple override if user provides one
+	// Disk configuration - user override if provided
 	if !isEmptyDiskConfig(userTemplate.Disk) {
 		mergedTemplate.Disk = userTemplate.Disk
 		log.Debugf("User disk config overrides default")
 	}
 
-	// System configuration - merge intelligently (includes immutability)
+	// System configuration - merge intelligently
 	if !isEmptySystemConfig(userTemplate.SystemConfig) {
 		mergedTemplate.SystemConfig = mergeSystemConfig(defaultTemplate.SystemConfig, userTemplate.SystemConfig)
 		log.Debugf("Merged system config: %s", mergedTemplate.SystemConfig.Name)
+	} else {
+		// Use default system config if user didn't provide one
+		mergedTemplate.SystemConfig = defaultTemplate.SystemConfig
 	}
 
 	log.Infof("Successfully merged user and default configurations")
@@ -371,6 +374,7 @@ func LoadAndMergeTemplate(templatePath string) (*ImageTemplate, error) {
 	// Load the appropriate default configuration
 	defaultTemplate, err := loader.LoadDefaultConfig(userTemplate.Target.ImageType)
 	if err != nil {
+		log.Debugf("Default template: %+v", defaultTemplate)
 		log.Warnf("Could not load default configuration: %v", err)
 		log.Info("Proceeding with user template only")
 		return userTemplate, nil

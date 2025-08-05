@@ -8,65 +8,99 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Validate command flags
+var (
+	validateMerged bool = false // Whether to validate after merging with defaults
+	schemaOnly     bool = false // Only validate schema without filesystem checks
+)
+
 // createValidateCommand creates the validate subcommand
 func createValidateCommand() *cobra.Command {
 	validateCmd := &cobra.Command{
 		Use:   "validate [flags] TEMPLATE_FILE",
 		Short: "Validate an image template file",
-		Long: `Validate an image template file against the schema without building it.
+		Long: `Validate an image template file for syntax and schema compliance.
 The template file must be in YAML format following the image template schema.
-This allows checking for errors in your template before committing to a full build process.`,
+By default, this validates the user template against the input schema.
+Use --merged to validate the template after merging with defaults.`,
 		Args:              cobra.ExactArgs(1),
 		RunE:              executeValidate,
 		ValidArgsFunction: templateFileCompletion,
 	}
 
+	// Add flags
+	validateCmd.Flags().BoolVar(&validateMerged, "merged", false,
+		"Validate the template after merging with defaults")
+	validateCmd.Flags().BoolVar(&schemaOnly, "schema-only", false,
+		"Only validate YAML schema without checking filesystem dependencies")
+
 	return validateCmd
 }
 
-// executeValidate handles the validate command logic
+// executeValidate handles the validate command execution logic
 func executeValidate(cmd *cobra.Command, args []string) error {
 	log := logger.Logger()
-
-	// Check if template file is provided as first positional argument
-	if len(args) < 1 {
-		return fmt.Errorf("no template file provided, usage: image-composer validate TEMPLATE_FILE")
-	}
 	templateFile := args[0]
 
-	log.Infof("validating template file: %s", templateFile)
+	if validateMerged {
+		// Validate merged template (with defaults)
+		log.Infof("Validating merged template: %s", templateFile)
 
-	// Load and validate the image template
-	template, err := config.LoadTemplate(templateFile)
-	if err != nil {
-		return fmt.Errorf("template validation failed: %v", err)
+		mergedTemplate, err := config.LoadAndMergeTemplate(templateFile)
+		if err != nil {
+			return fmt.Errorf("validation failed during template loading and merging: %v", err)
+		}
+
+		log.Info("✓ Merged template validation passed")
+		log.Infof("Template: %s (type: %s, os: %s/%s/%s)",
+			mergedTemplate.Image.Name,
+			mergedTemplate.Target.ImageType,
+			mergedTemplate.Target.OS,
+			mergedTemplate.Target.Dist,
+			mergedTemplate.Target.Arch)
+
+		// Show details about merged configuration
+		log.Infof("System Config: %s", mergedTemplate.SystemConfig.Name)
+		log.Infof("Packages: %d", len(mergedTemplate.GetPackages()))
+		log.Infof("Users: %d", len(mergedTemplate.SystemConfig.Users))
+		log.Infof("Kernel: %s", mergedTemplate.GetKernel().Version)
+
+		if mergedTemplate.Disk.Name != "" {
+			log.Infof("Disk Config: %s (%s)", mergedTemplate.Disk.Name, mergedTemplate.Disk.Size)
+			log.Infof("Partitions: %d", len(mergedTemplate.Disk.Partitions))
+		}
+	} else {
+		// Validate user template only
+		log.Infof("Validating user template: %s", templateFile)
+
+		template, err := config.LoadTemplate(templateFile)
+		if err != nil {
+			return fmt.Errorf("validation failed: %v", err)
+		}
+
+		log.Info("✓ Template validation passed")
+		log.Infof("Template: %s (type: %s, os: %s/%s/%s)",
+			template.Image.Name,
+			template.Target.ImageType,
+			template.Target.OS,
+			template.Target.Dist,
+			template.Target.Arch)
+
+		// Show details about user configuration
+		log.Infof("System Config: %s", template.SystemConfig.Name)
+		if len(template.GetPackages()) > 0 {
+			log.Infof("User Packages: %d", len(template.GetPackages()))
+		}
+		if len(template.SystemConfig.Users) > 0 {
+			log.Infof("Users: %d", len(template.SystemConfig.Users))
+		}
+		if template.GetKernel().Version != "" {
+			log.Infof("Kernel: %s", template.GetKernel().Version)
+		}
 	}
 
-	log.Infof("✓ Template validation successful for %s", templateFile)
-	log.Infof("Image: %s v%s", template.Image.Name, template.Image.Version)
-	log.Infof("Target: %s/%s/%s (%s)", template.Target.OS, template.Target.Dist, template.Target.Arch, template.Target.ImageType)
-
-	if verbose {
-		if template.Disk.Name != "" {
-			log.Infof("Disk Config: %s (%s)", template.Disk.Name, template.Disk.Size)
-			if len(template.Disk.Partitions) > 0 {
-				log.Infof("Partitions: %d specified", len(template.Disk.Partitions))
-			}
-		}
-
-		if template.SystemConfig.Name != "" {
-			log.Infof("System Config: %s", template.SystemConfig.Name)
-			if len(template.SystemConfig.Packages) > 0 {
-				log.Infof("Packages: %d specified", len(template.SystemConfig.Packages))
-			}
-		}
-
-		if len(template.SystemConfig.Packages) > 0 {
-			log.Infof("  Package list:")
-			for _, pkg := range template.SystemConfig.Packages {
-				log.Infof("    - %s", pkg)
-			}
-		}
+	if !schemaOnly {
+		log.Info("Note: Use --schema-only flag to skip filesystem dependency checks")
 	}
 
 	return nil

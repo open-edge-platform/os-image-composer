@@ -1,8 +1,8 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "os-image-template.schema.json",
-    "title": "OS Image Template",
-    "description": "Defines image configuration including target OS, packages, kernel, and system configurations",
+    "$id": "os-image-merged-template.schema.json",
+    "title": "OS Image Merged Template",
+    "description": "Defines merged image configuration with defaults applied including target OS, packages, kernel, and system configurations",
     "type": "object",
     "properties": {
         "image": {
@@ -84,7 +84,7 @@
         },
         "disk": {
             "type": "object",
-            "description": "Disk configuration (optional, uses defaults if omitted)",
+            "description": "Disk configuration (merged with defaults)",
             "properties": {
                 "name": {
                     "type": "string",
@@ -170,11 +170,12 @@
                     }
                 }
             },
+            "required": ["name"],
             "additionalProperties": false
         },
         "systemConfig": {
             "type": "object",
-            "description": "System configuration object",
+            "description": "System configuration object (merged with defaults)",
             "properties": {
                 "name": {
                     "type": "string",
@@ -186,12 +187,12 @@
                 },
                 "immutability": {
                     "type": "object",
-                    "description": "Immutability configuration (optional)",
+                    "description": "Immutability configuration (merged)",
                     "additionalProperties": true
                 },
                 "users": {
                     "type": "array",
-                    "description": "User configurations (optional)",
+                    "description": "User configurations (merged)",
                     "items": {
                         "type": "object",
                         "properties": {
@@ -258,7 +259,7 @@
                 },
                 "packages": {
                     "type": "array",
-                    "description": "List of packages to include in the system",
+                    "description": "List of packages to include in the system (merged)",
                     "items": {
                         "type": "string",
                         "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9\\-_.+]*[a-zA-Z0-9])?$"
@@ -267,7 +268,7 @@
                 },
                 "additionalFiles": {
                     "type": "array",
-                    "description": "Additional files to include in the system",
+                    "description": "Additional files to include in the system (merged)",
                     "items": {
                         "type": "object",
                         "additionalProperties": true
@@ -275,7 +276,7 @@
                 },
                 "kernel": {
                     "type": "object",
-                    "description": "Kernel configuration",
+                    "description": "Kernel configuration (merged)",
                     "properties": {
                         "version": {
                             "type": "string",
@@ -290,9 +291,10 @@
                     "additionalProperties": false
                 }
             },
+            "required": ["name", "packages", "kernel"],
             "additionalProperties": false
         }
     },
-    "required": ["image", "target"],
+    "required": ["image", "target", "systemConfig"],
     "additionalProperties": false
 }

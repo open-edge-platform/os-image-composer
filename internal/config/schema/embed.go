@@ -7,3 +7,6 @@ var ImageTemplateSchema []byte
 
 //go:embed os-image-composer-config.schema.json
 var ConfigSchema []byte
+
+//go:embed os-image-merged-template.schema.json
+var MergedTemplateSchema []byte
