@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/open-edge-platform/image-composer/internal/utils/shell"
@@ -36,24 +35,14 @@ func IsSubPath(base, target string) (bool, error) {
 	return true, nil
 }
 
-func getCurrentDirPath() (string, error) {
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		return "", fmt.Errorf("failed to get current directory path")
-	}
-	return filepath.Dir(filename), nil
-}
-
 // GetRootPath returns the root path of the application
 func GetRootPath() (string, error) {
-	currentPath, err := getCurrentDirPath()
+
+	dir, err := os.Getwd()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get current working directory: %w", err)
 	}
-	utilsPath := filepath.Dir(currentPath)
-	internalPath := filepath.Dir(utilsPath)
-	rootPath := filepath.Dir(internalPath)
-	return rootPath, nil
+	return dir, nil
 }
 
 func GetGeneralConfigDir() (string, error) {
