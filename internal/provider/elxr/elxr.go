@@ -11,6 +11,7 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/ospackage/debutils"
 	"github.com/open-edge-platform/image-composer/internal/provider"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/shell"
 )
 
 // DEB: https://deb.debian.org/debian/dists/bookworm/main/binary-amd64/Packages.gz
@@ -64,12 +65,15 @@ func (p *eLxr) Init(dist, arch string) error {
 }
 
 func (p *eLxr) PreProcess(template *config.ImageTemplate) error {
-	err := p.downloadImagePkgs(template)
-	if err != nil {
+	if err := p.installHostDependency(); err != nil {
+		return fmt.Errorf("failed to install host dependencies: %v", err)
+	}
+
+	if err := p.downloadImagePkgs(template); err != nil {
 		return fmt.Errorf("failed to download image packages: %v", err)
 	}
-	err = chroot.InitChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch)
-	if err != nil {
+
+	if err := chroot.InitChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch); err != nil {
 		return fmt.Errorf("failed to initialize chroot environment: %v", err)
 	}
 	return nil
@@ -98,6 +102,38 @@ func (p *eLxr) PostProcess(template *config.ImageTemplate, err error) error {
 
 	if err := chroot.CleanupChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch); err != nil {
 		return fmt.Errorf("failed to cleanup chroot environment: %v", err)
+	}
+	return nil
+}
+
+func (p *eLxr) installHostDependency() error {
+	log := logger.Logger()
+	var depedencyInfo = map[string]string{
+		"mmdebstrap": "mmdebstrap",    // For the chroot env build
+		"mkfs.fat":   "dosfstools",    // For the FAT32 boot partition creation
+		"xorriso":    "xorriso",       // For ISO image creation
+		"ukify":      "systemd-ukify", // For the UKI image creation
+	}
+	hostPkgManager, err := chroot.GetHostOsPkgManager()
+	if err != nil {
+		return fmt.Errorf("failed to get host package manager: %w", err)
+	}
+
+	for cmd, pkg := range depedencyInfo {
+		cmdExist, err := shell.IsCommandExist(cmd, "")
+		if err != nil {
+			return fmt.Errorf("failed to check command %s existence: %w", cmd, err)
+		}
+		if !cmdExist {
+			cmdStr := fmt.Sprintf("%s install -y %s", hostPkgManager, pkg)
+			_, err := shell.ExecCmdWithStream(cmdStr, true, "", nil)
+			if err != nil {
+				return fmt.Errorf("failed to install host dependency %s: %w", pkg, err)
+			}
+			log.Debugf("Installed host dependency: %s", pkg)
+		} else {
+			log.Debugf("Host dependency %s is already installed", pkg)
+		}
 	}
 	return nil
 }

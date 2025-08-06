@@ -1,6 +1,7 @@
 package chroot
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -87,6 +88,93 @@ func getChrootEnvPackageList(chrootEnvCongfigPath string) ([]string, error) {
 		return nil, fmt.Errorf("packages field not found in chroot environment config")
 	}
 	return pkgList, nil
+}
+
+func getHostOsInfo() (map[string]string, error) {
+	log := logger.Logger()
+	var hostOsInfo = map[string]string{
+		"name":    "",
+		"version": "",
+		"arch":    "",
+	}
+
+	// Get architecture using uname command
+	output, err := shell.ExecCmd("uname -m", false, "", nil)
+	if err != nil {
+		return hostOsInfo, fmt.Errorf("failed to get host architecture: %v", err)
+	} else {
+		hostOsInfo["arch"] = strings.TrimSpace(output)
+	}
+
+	// Read from /etc/os-release if it exists
+	if _, err := os.Stat("/etc/os-release"); err == nil {
+		file, err := os.Open("/etc/os-release")
+		if err == nil {
+			defer file.Close()
+			scanner := bufio.NewScanner(file)
+
+			for scanner.Scan() {
+				line := scanner.Text()
+				if strings.HasPrefix(line, "NAME=") {
+					parts := strings.SplitN(line, "=", 2)
+					if len(parts) == 2 {
+						hostOsInfo["name"] = strings.Trim(strings.TrimSpace(parts[1]), "\"")
+					}
+				} else if strings.HasPrefix(line, "VERSION_ID=") {
+					parts := strings.SplitN(line, "=", 2)
+					if len(parts) == 2 {
+						hostOsInfo["version"] = strings.Trim(strings.TrimSpace(parts[1]), "\"")
+					}
+				}
+			}
+
+			log.Infof("Detected OS info: " + hostOsInfo["name"] + " " +
+				hostOsInfo["version"] + " " + hostOsInfo["arch"])
+
+			return hostOsInfo, nil
+		}
+	}
+
+	output, err = shell.ExecCmd("lsb_release -si", false, "", nil)
+	if err != nil {
+		return hostOsInfo, fmt.Errorf("failed to get host OS name: %v", err)
+	} else {
+		if output != "" {
+			hostOsInfo["name"] = strings.TrimSpace(output)
+			output, err = shell.ExecCmd("lsb_release -sr", false, "", nil)
+			if err != nil {
+				return hostOsInfo, fmt.Errorf("failed to get host OS version: %v", err)
+			} else {
+				if output != "" {
+					hostOsInfo["version"] = strings.TrimSpace(output)
+					log.Infof("Detected OS info: " + hostOsInfo["name"] + " " +
+						hostOsInfo["version"] + " " + hostOsInfo["arch"])
+					return hostOsInfo, nil
+				}
+			}
+		}
+	}
+
+	log.Errorf("Failed to detect host OS info!")
+	return hostOsInfo, fmt.Errorf("failed to detect host OS info")
+}
+
+func GetHostOsPkgManager() (string, error) {
+	hostOsInfo, err := getHostOsInfo()
+	if err != nil {
+		return "", err
+	}
+
+	switch hostOsInfo["name"] {
+	case "Ubuntu", "Debian", "eLxr":
+		return "apt", nil
+	case "Fedora", "CentOS", "Red Hat Enterprise Linux":
+		return "yum", nil
+	case "Microsoft Azure Linux", "Edge Microvisor Toolkit":
+		return "tdnf", nil
+	default:
+		return "", fmt.Errorf("unsupported host OS: %s", hostOsInfo["name"])
+	}
 }
 
 func GetTaRgetOsPkgType(targetOs string) string {
