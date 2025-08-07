@@ -400,7 +400,18 @@ func copyEfiBootloaderFiles(initrdRootfsPath, isoEfiPath string) error {
 	log.Infof("Copying EFI bootloader files...")
 
 	// Copy EFI bootloader files
-	efiBootFilesSrc := filepath.Join(initrdRootfsPath, "/boot/efi/EFI/BOOT/bootx64.efi")
+	var efiBootFilesSrc string
+	var efiGrubFilesSrc string
+	pkgType := chroot.GetTaRgetOsPkgType(config.TargetOs)
+	switch pkgType {
+	case "rpm":
+		efiGrubFilesSrc = filepath.Join(initrdRootfsPath, "/boot/efi/EFI/BOOT/grubx64.efi")
+		efiBootFilesSrc = filepath.Join(initrdRootfsPath, "/boot/efi/EFI/BOOT/bootx64.efi")
+	case "deb":
+		efiBootFilesSrc = filepath.Join(initrdRootfsPath, "/usr/lib/systemd/boot/efi/systemd-bootx64.efi")
+		efiGrubFilesSrc = filepath.Join(initrdRootfsPath, "/usr/lib/grub/x86_64-efi/monolithic/grubx64.efi")
+	}
+
 	if _, err := os.Stat(efiBootFilesSrc); os.IsNotExist(err) {
 		return fmt.Errorf("EFI boot file does not exist: %s", efiBootFilesSrc)
 	}
@@ -410,7 +421,6 @@ func copyEfiBootloaderFiles(initrdRootfsPath, isoEfiPath string) error {
 		return fmt.Errorf("failed to copy EFI bootloader files: %v", err)
 	}
 
-	efiGrubFilesSrc := filepath.Join(initrdRootfsPath, "/boot/efi/EFI/BOOT/grubx64.efi")
 	if _, err := os.Stat(efiGrubFilesSrc); os.IsNotExist(err) {
 		return fmt.Errorf("EFI boot file does not exist: %s", efiGrubFilesSrc)
 	}
@@ -508,6 +518,10 @@ fail:
 func cleanInitrd(initrdRootfsPath, initrdFilePath string) error {
 	log := logger.Logger()
 	log.Infof("Cleaning up initrd rootfs: %s", initrdRootfsPath)
+
+	if err := mount.UmountPath(initrdRootfsPath + "/cdrom/cache-repo"); err != nil {
+		return fmt.Errorf("failed to unmount cache-repo %s: %v", initrdRootfsPath+"/cdrom/cache-repo", err)
+	}
 
 	// Remove the initrd rootfs directory
 	if _, err := shell.ExecCmd("rm -rf "+initrdRootfsPath, true, "", nil); err != nil {
