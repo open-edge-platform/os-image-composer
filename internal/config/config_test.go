@@ -762,3 +762,290 @@ func TestEmptyUsersConfig(t *testing.T) {
 		t.Errorf("expected not to find any user in empty config")
 	}
 }
+
+func TestMergeSystemConfigWithSecureBoot(t *testing.T) {
+	defaultConfig := SystemConfig{
+		Name: "default",
+		Immutability: ImmutabilityConfig{
+			Enabled:         true,
+			SecureBootDBKey: "/default/keys/db.key",
+			SecureBootDBCrt: "/default/certs/db.crt",
+		},
+		Packages: []string{"base-package"},
+	}
+
+	userConfig := SystemConfig{
+		Name: "user",
+		Immutability: ImmutabilityConfig{
+			Enabled:         true,
+			SecureBootDBKey: "/user/keys/custom.key",  // Override key
+			SecureBootDBCer: "/user/certs/custom.cer", // Add new cer
+			// Don't override crt - should keep default
+		},
+		Packages: []string{"user-package"},
+	}
+
+	merged := mergeSystemConfig(defaultConfig, userConfig)
+
+	// Verify immutability merging
+	if !merged.Immutability.Enabled {
+		t.Errorf("expected merged immutability to be enabled")
+	}
+
+	// Verify secure boot key was overridden
+	expectedKey := "/user/keys/custom.key"
+	if merged.Immutability.SecureBootDBKey != expectedKey {
+		t.Errorf("expected merged secureBootDBKey to be '%s', got '%s'", expectedKey, merged.Immutability.SecureBootDBKey)
+	}
+
+	// Verify secure boot crt was preserved from default
+	expectedCrt := "/default/certs/db.crt"
+	if merged.Immutability.SecureBootDBCrt != expectedCrt {
+		t.Errorf("expected merged secureBootDBCrt to be '%s', got '%s'", expectedCrt, merged.Immutability.SecureBootDBCrt)
+	}
+
+	// Verify secure boot cer was added from user
+	expectedCer := "/user/certs/custom.cer"
+	if merged.Immutability.SecureBootDBCer != expectedCer {
+		t.Errorf("expected merged secureBootDBCer to be '%s', got '%s'", expectedCer, merged.Immutability.SecureBootDBCer)
+	}
+
+	if merged.Name != "user" {
+		t.Errorf("expected merged name to be 'user', got %s", merged.Name)
+	}
+}
+
+func TestLoadYAMLTemplateWithSecureBoot(t *testing.T) {
+	yamlContent := `image:
+  name: azl3-x86_64-edge
+  version: "1.0.0"
+
+target:
+  os: azure-linux
+  dist: azl3
+  arch: x86_64
+  imageType: raw
+
+systemConfig:
+  name: edge
+  description: Default yml configuration for edge image with secure boot
+  immutability:
+    enabled: true
+    secureBootDBKey: "/secure/keys/db.key"
+    secureBootDBCrt: "/secure/certs/db.crt"
+    secureBootDBCer: "/secure/certs/db.cer"
+  packages:
+    - openssh-server
+    - docker-ce
+  kernel:
+    version: "6.12"
+    cmdline: "quiet splash"
+`
+
+	tmpFile, err := os.CreateTemp("", "test-*.yml")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(yamlContent); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	tmpFile.Close()
+
+	// Test loading
+	template, err := LoadTemplate(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("failed to load YAML template: %v", err)
+	}
+
+	// Verify immutability configuration
+	if !template.IsImmutabilityEnabled() {
+		t.Errorf("expected immutability to be enabled, got %t", template.IsImmutabilityEnabled())
+	}
+
+	// Test secure boot configuration access via ImageTemplate
+	if !template.HasSecureBootDBConfig() {
+		t.Errorf("expected template to have secure boot DB config")
+	}
+
+	expectedKeyPath := "/secure/keys/db.key"
+	if keyPath := template.GetSecureBootDBKeyPath(); keyPath != expectedKeyPath {
+		t.Errorf("expected secure boot key path '%s', got '%s'", expectedKeyPath, keyPath)
+	}
+
+	expectedCrtPath := "/secure/certs/db.crt"
+	if crtPath := template.GetSecureBootDBCrtPath(); crtPath != expectedCrtPath {
+		t.Errorf("expected secure boot crt path '%s', got '%s'", expectedCrtPath, crtPath)
+	}
+
+	expectedCerPath := "/secure/certs/db.cer"
+	if cerPath := template.GetSecureBootDBCerPath(); cerPath != expectedCerPath {
+		t.Errorf("expected secure boot cer path '%s', got '%s'", expectedCerPath, cerPath)
+	}
+}
+
+func TestSecureBootHelperMethods(t *testing.T) {
+	template := &ImageTemplate{
+		Image: ImageInfo{
+			Name:    "test-image",
+			Version: "1.0.0",
+		},
+		Target: TargetInfo{
+			OS:        "azure-linux",
+			Dist:      "azl3",
+			Arch:      "x86_64",
+			ImageType: "raw",
+		},
+		SystemConfig: SystemConfig{
+			Name:        "test-config",
+			Description: "Test configuration with secure boot",
+			Immutability: ImmutabilityConfig{
+				Enabled:         true,
+				SecureBootDBKey: "/test/keys/db.key",
+				SecureBootDBCrt: "/test/certs/db.crt",
+				SecureBootDBCer: "/test/certs/db.cer",
+			},
+		},
+	}
+
+	// Test ImmutabilityConfig helper methods
+	immutabilityConfig := template.GetImmutability()
+	if !immutabilityConfig.HasSecureBootDBConfig() {
+		t.Errorf("expected immutability config to have secure boot DB config")
+	}
+
+	if !immutabilityConfig.HasSecureBootDBKey() {
+		t.Errorf("expected immutability config to have secure boot DB key")
+	}
+
+	if !immutabilityConfig.HasSecureBootDBCrt() {
+		t.Errorf("expected immutability config to have secure boot DB crt")
+	}
+
+	if !immutabilityConfig.HasSecureBootDBCer() {
+		t.Errorf("expected immutability config to have secure boot DB cer")
+	}
+
+	// Test path retrieval methods
+	if keyPath := immutabilityConfig.GetSecureBootDBKeyPath(); keyPath != "/test/keys/db.key" {
+		t.Errorf("expected key path '/test/keys/db.key', got '%s'", keyPath)
+	}
+
+	if crtPath := immutabilityConfig.GetSecureBootDBCrtPath(); crtPath != "/test/certs/db.crt" {
+		t.Errorf("expected crt path '/test/certs/db.crt', got '%s'", crtPath)
+	}
+
+	if cerPath := immutabilityConfig.GetSecureBootDBCerPath(); cerPath != "/test/certs/db.cer" {
+		t.Errorf("expected cer path '/test/certs/db.cer', got '%s'", cerPath)
+	}
+
+	// Test SystemConfig access methods
+	systemConfig := template.SystemConfig
+	if !systemConfig.HasSecureBootDBConfig() {
+		t.Errorf("expected systemConfig to have secure boot DB config")
+	}
+
+	if keyPath := systemConfig.GetSecureBootDBKeyPath(); keyPath != "/test/keys/db.key" {
+		t.Errorf("expected systemConfig key path '/test/keys/db.key', got '%s'", keyPath)
+	}
+
+	if crtPath := systemConfig.GetSecureBootDBCrtPath(); crtPath != "/test/certs/db.crt" {
+		t.Errorf("expected systemConfig crt path '/test/certs/db.crt', got '%s'", crtPath)
+	}
+
+	if cerPath := systemConfig.GetSecureBootDBCerPath(); cerPath != "/test/certs/db.cer" {
+		t.Errorf("expected systemConfig cer path '/test/certs/db.cer', got '%s'", cerPath)
+	}
+}
+
+func TestSecureBootWithoutConfig(t *testing.T) {
+	template := &ImageTemplate{
+		Image: ImageInfo{
+			Name:    "test-image",
+			Version: "1.0.0",
+		},
+		Target: TargetInfo{
+			OS:        "azure-linux",
+			Dist:      "azl3",
+			Arch:      "x86_64",
+			ImageType: "raw",
+		},
+		SystemConfig: SystemConfig{
+			Name:        "test-config",
+			Description: "Test configuration without secure boot",
+			Immutability: ImmutabilityConfig{
+				Enabled: true,
+				// No secure boot fields set
+			},
+		},
+	}
+
+	// Test that methods work correctly when no secure boot config is provided
+	if template.HasSecureBootDBConfig() {
+		t.Errorf("expected template to not have secure boot DB config")
+	}
+
+	immutabilityConfig := template.GetImmutability()
+	if immutabilityConfig.HasSecureBootDBConfig() {
+		t.Errorf("expected immutability config to not have secure boot DB config")
+	}
+
+	if immutabilityConfig.HasSecureBootDBKey() {
+		t.Errorf("expected immutability config to not have secure boot DB key")
+	}
+
+	if immutabilityConfig.HasSecureBootDBCrt() {
+		t.Errorf("expected immutability config to not have secure boot DB crt")
+	}
+
+	if immutabilityConfig.HasSecureBootDBCer() {
+		t.Errorf("expected immutability config to not have secure boot DB cer")
+	}
+
+	// Test that path methods return empty strings
+	if keyPath := template.GetSecureBootDBKeyPath(); keyPath != "" {
+		t.Errorf("expected empty key path, got '%s'", keyPath)
+	}
+
+	if crtPath := template.GetSecureBootDBCrtPath(); crtPath != "" {
+		t.Errorf("expected empty crt path, got '%s'", crtPath)
+	}
+
+	if cerPath := template.GetSecureBootDBCerPath(); cerPath != "" {
+		t.Errorf("expected empty cer path, got '%s'", cerPath)
+	}
+}
+
+func TestPartialSecureBootConfig(t *testing.T) {
+	template := &ImageTemplate{
+		SystemConfig: SystemConfig{
+			Immutability: ImmutabilityConfig{
+				Enabled:         true,
+				SecureBootDBKey: "/test/keys/db.key",
+				// Only key is set, no certificates
+			},
+		},
+	}
+
+	immutabilityConfig := template.GetImmutability()
+
+	// Should have config because key is set
+	if !immutabilityConfig.HasSecureBootDBConfig() {
+		t.Errorf("expected immutability config to have secure boot DB config")
+	}
+
+	// Should have key
+	if !immutabilityConfig.HasSecureBootDBKey() {
+		t.Errorf("expected immutability config to have secure boot DB key")
+	}
+
+	// Should not have certificates
+	if immutabilityConfig.HasSecureBootDBCrt() {
+		t.Errorf("expected immutability config to not have secure boot DB crt")
+	}
+
+	if immutabilityConfig.HasSecureBootDBCer() {
+		t.Errorf("expected immutability config to not have secure boot DB cer")
+	}
+}
