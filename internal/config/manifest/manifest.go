@@ -206,10 +206,16 @@ func spdxSupplier(origin string) string {
 	}
 	// If it looks like "Name <email>", emit Person form
 	if strings.Contains(o, "<") && strings.Contains(o, ">") {
-		name := strings.TrimSpace(strings.Split(o, "<")[0])
-		email := strings.Trim(strings.Split(strings.Split(o, "<")[1], ">")[0], " ")
-		if name != "" && email != "" {
-			return fmt.Sprintf("Person: %s (%s)", name, email)
+		parts := strings.Split(o, "<")
+		if len(parts) >= 2 {
+			name := strings.TrimSpace(parts[0])
+			emailParts := strings.Split(parts[1], ">")
+			if len(emailParts) >= 1 {
+				email := strings.Trim(emailParts[0], " ")
+				if name != "" && email != "" {
+					return fmt.Sprintf("Person: %s (%s)", name, email)
+				}
+			}
 		}
 	}
 	return fmt.Sprintf("Organization: %s", o)
