@@ -127,6 +127,7 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 		switch key {
 		case "Package":
 			pkg.Name = val
+			pkg.Type = "deb"
 		case "Version":
 			pkg.Version = val
 		case "Pre-Depends":
@@ -162,12 +163,36 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 		case "Filename":
 			pkg.URL, _ = getFullUrl(val, baseURL)
 		case "SHA256":
-			pkg.Checksum = val
-			// Add more fields as needed
+			pkg.Checksums = append(pkg.Checksums, ospackage.Checksum{
+				Algorithm: "SHA256",
+				Value:     val,
+			})
+
+		case "SHA1":
+			pkg.Checksums = append(pkg.Checksums, ospackage.Checksum{
+				Algorithm: "SHA1",
+				Value:     val,
+			})
+		case "SHA512":
+			pkg.Checksums = append(pkg.Checksums, ospackage.Checksum{
+				Algorithm: "SHA512",
+				Value:     val,
+			})
+		case "Description":
+			pkg.Description = val
+		case "Architecture":
+			if val == "all" || val == "any" {
+				pkg.Arch = "noarch"
+			} else {
+				pkg.Arch = val
+			}
+		case "Maintainer":
+			pkg.Origin = val
 		}
 		if err == io.EOF {
 			break
 		}
+
 	}
 
 	// Add the last package if file doesn't end with a blank line

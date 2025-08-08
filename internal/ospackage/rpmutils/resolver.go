@@ -137,12 +137,18 @@ func ResolvePackageInfos(
 
 		// Create a new PackageInfo to hold the cleaned data.
 		cleanedPI := ospackage.PackageInfo{
-			Name:     originalPI.Name,
-			URL:      originalPI.URL,
-			Checksum: originalPI.Checksum,
-			Provides: originalPI.Provides,
-			Files:    originalPI.Files,
-			Requires: []string{}, // Start with an empty requires list.
+			Name:        originalPI.Name,
+			Description: originalPI.Description,
+			Type:        originalPI.Type,
+			Arch:        originalPI.Arch,
+			License:     originalPI.License,
+			Origin:      originalPI.Origin,
+			Version:     originalPI.Version,
+			Checksums:   originalPI.Checksums,
+			URL:         originalPI.URL,
+			Provides:    originalPI.Provides,
+			Files:       originalPI.Files,
+			Requires:    []string{}, // Start with an empty requires list.
 		}
 
 		// For each original requirement, find the concrete package that satisfies it
@@ -234,7 +240,7 @@ func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 			case "package":
 				// start a new PackageInfo
 				curInfo = &ospackage.PackageInfo{}
-
+				curInfo.Type = "rpm" // Set type to rpm by default
 			case "location":
 				// read the href and build full URL + infer Name
 				for _, a := range elem.Attr {
@@ -244,12 +250,56 @@ func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 						break
 					}
 				}
+			case "format":
+				const rpmNS = "http://linux.duke.edu/metadata/rpm"
+
+			FormatLoop:
+				for {
+					tok2, err2 := dec.Token()
+					if err2 != nil {
+						break // EOF or actual error
+					}
+
+					switch inner := tok2.(type) {
+					case xml.StartElement:
+						switch {
+						case inner.Name.Local == "license" && inner.Name.Space == rpmNS:
+							tok3, err := dec.Token()
+							if err == nil {
+								if charData, ok := tok3.(xml.CharData); ok && curInfo != nil {
+									curInfo.License = string(charData)
+								}
+							}
+
+						case inner.Name.Local == "vendor" && inner.Name.Space == rpmNS:
+							tok3, err := dec.Token()
+							if err == nil {
+								if charData, ok := tok3.(xml.CharData); ok && curInfo != nil {
+									curInfo.Origin = string(charData)
+								}
+							}
+						}
+
+					case xml.EndElement:
+						if inner.Name.Local == "format" {
+							break FormatLoop
+						}
+					}
+				}
 			case "name":
 				// Read the canonical package name
 				tok2, err2 := dec.Token()
 				if err2 == nil {
 					if charData, ok := tok2.(xml.CharData); ok && curInfo != nil {
 						curInfo.Name = string(charData)
+					}
+				}
+			case "description":
+				// Read the description text
+				tok2, err2 := dec.Token()
+				if err2 == nil {
+					if charData, ok := tok2.(xml.CharData); ok && curInfo != nil {
+						curInfo.Description = string(charData)
 					}
 				}
 			case "arch":
@@ -261,11 +311,20 @@ func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 					}
 				}
 			case "checksum":
+				// Look through attributes to find 'type'
+				checksum := ospackage.Checksum{}
+				for _, attr := range elem.Attr {
+					if attr.Name.Local == "type" {
+
+						checksum.Algorithm = strings.ToUpper(attr.Value) // e.g. "SHA256"
+					}
+				}
 				// grab the checksum text
 				tok2, err2 := dec.Token()
 				if err2 == nil {
 					if charData, ok := tok2.(xml.CharData); ok {
-						curInfo.Checksum = string(charData)
+						checksum.Value = string(charData)
+						curInfo.Checksums = append(curInfo.Checksums, checksum)
 					}
 				}
 			case "provides":

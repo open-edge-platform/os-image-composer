@@ -9,13 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version information
-var (
-	Version   = "0.1.0"
-	BuildDate = "unknown"
-	CommitSHA = "unknown"
-)
-
 // Command-line flags that can override config file settings
 var (
 	configFile string = "" // Path to config file

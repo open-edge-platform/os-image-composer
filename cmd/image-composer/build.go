@@ -18,7 +18,7 @@ var (
 	cacheDir string = "" // Empty means use config file value
 	workDir  string = "" // Empty means use config file value
 	verbose  bool   = false
-	dotFile  string = ""
+	dotFile  string = "" // Generate a dot file for the dependency graph
 )
 
 // createBuildCommand creates the build subcommand

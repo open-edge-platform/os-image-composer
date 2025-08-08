@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/open-edge-platform/image-composer/internal/config/version"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +20,8 @@ func createVersionCommand() *cobra.Command {
 
 // executeVersion handles the version command logic
 func executeVersion(cmd *cobra.Command, args []string) {
-	fmt.Printf("Image Composer Tool v%s\n", Version)
-	fmt.Printf("Build Date: %s\n", BuildDate)
-	fmt.Printf("Commit: %s\n", CommitSHA)
+	fmt.Printf("%s v%s\n", version.Toolname, version.Version)
+	fmt.Printf("Build Date: %s\n", version.BuildDate)
+	fmt.Printf("Commit: %s\n", version.CommitSHA)
+	fmt.Printf("Organization: %s\n", version.Organization)
 }
