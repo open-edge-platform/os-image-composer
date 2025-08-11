@@ -113,6 +113,7 @@ func (p *eLxr) installHostDependency() error {
 		"mkfs.fat":   "dosfstools",    // For the FAT32 boot partition creation
 		"xorriso":    "xorriso",       // For ISO image creation
 		"ukify":      "systemd-ukify", // For the UKI image creation
+		"sbsign":     "sbsigntool",    // For the UKI image creation
 	}
 	hostPkgManager, err := chroot.GetHostOsPkgManager()
 	if err != nil {

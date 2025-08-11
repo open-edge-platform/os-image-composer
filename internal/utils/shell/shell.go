@@ -108,6 +108,7 @@ var commandMap = map[string]string{
 	"groups":             "/usr/bin/groups",
 	"passwd":             "/usr/bin/passwd",
 	"mv":                 "/usr/bin/mv",
+	"sbsign":             "/usr/bin/sbsign",
 	// Add more mappings as needed
 }
 
