@@ -18,9 +18,10 @@ systemConfig:
 
   immutability:
     enabled: true # default is false
-    secureBootDBKey: "/path/to/secure/db.key"
-    secureBootDBCrt: "/path/to/secure/db.crt"
-    secureBootDBCer: "/path/to/secure/db.cer"
+    # Example values below. Replace with actual file paths for your environment.
+    secureBootDBKey: "${SECURE_BOOT_DB_KEY_PATH}"
+    secureBootDBCrt: "${SECURE_BOOT_DB_CRT_PATH}"
+    secureBootDBCer: "${SECURE_BOOT_DB_CER_PATH}"
 
   # User Configuration
   users:
