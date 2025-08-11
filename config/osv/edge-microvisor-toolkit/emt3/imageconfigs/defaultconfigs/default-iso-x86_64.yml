@@ -25,7 +25,7 @@ disk:
     - id: rootfs
       type: linux-root-amd64
       start: 513MiB
-      end: 0  # 0 means use the rest of the disk space
+      end: "0"  # 0 means use the rest of the disk space
       fsType: ext4
       mountPoint: /
 
