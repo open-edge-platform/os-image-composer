@@ -1,0 +1,60 @@
+name: "CodeQL Advanced"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: [ubuntu-latest]
+    permissions:
+      # required for all workflows
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: go
+            build-mode: autobuild
+          - language: python
+            build-mode: none
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Initializes the CodeQL tools for scanning.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+      - name: Generate Security Report
+        uses: rsdmike/github-security-report-action@v3.0.4
+        with:
+          template: report
+          token: ${{ secrets.SECURITY_TOKEN }}
+
+      - name: Rename Report by Code Matrix
+        run: |
+          mv ./report.pdf ./report-${{ matrix.language }}.pdf
+
+      - name: GitHub Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-${{ matrix.language }}
+          path: |
+           ./report-${{ matrix.language }}.pdf
