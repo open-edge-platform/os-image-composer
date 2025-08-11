@@ -1,32 +1,27 @@
-name: PR Tester
+name: PR Tester (manual only)
 
 on:
-  push:
-    branches:
-      - PR_tester_workflow_rpandya28
-  pull_request:
-    types: [opened, reopened, synchronize]
-    branches:
-      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
 jobs:
   test-prs:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Install QEMU
-        run: sudo apt-get install -y qemu-system-x86 ovmf
-      - name: Show /usr/share folder structure
+      - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y tree
+          sudo apt-get install -y qemu-system-x86 ovmf tree jq
 
       - name: Checkout PR code
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: stable  # or a pinned version you know exists
 
       - name: Copy tester script
         run: |
@@ -42,15 +37,18 @@ jobs:
           ./validate.sh
           echo "Build and tests completed."
 
+      # Runs only for PR-triggered events (not manual), so it's safe to leave in.
       - name: Notify PR author on failure
-        if: failure()
+        if: ${{ failure() && github.event_name == 'pull_request' }}
+        permissions:
+          contents: read
+          issues: write
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REVIEWER_ID: srmungar 
+          REVIEWER_ID: srmungar
         run: |
-          # Get PR author
-          PR_AUTHOR=$(jq --raw-output .pull_request.user.login $GITHUB_EVENT_PATH)
-          COMMENT_BODY="Hey @$PR_AUTHOR and @$REVIEWER_ID — the build and tests for this PR have failed.Please check the logs and help resolve the issues."
+          PR_AUTHOR=$(jq --raw-output .pull_request.user.login "$GITHUB_EVENT_PATH")
+          COMMENT_BODY="Hey @$PR_AUTHOR and @$REVIEWER_ID — the build and tests for this PR have failed. Please check the logs."
           curl -s -X POST \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
