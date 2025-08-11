@@ -14,6 +14,7 @@ jobs:
       contents: read
       issues: write
       security-events: write
+      pull-requests: write
 
     strategy:
       fail-fast: false
