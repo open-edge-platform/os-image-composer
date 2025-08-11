@@ -76,7 +76,7 @@
                     },
                     "then": {
                         "properties": {
-                            "dist": { "enum": ["elxr23"] }
+                            "dist": { "enum": ["elxr12"] }
                         }
                     }
                 }
@@ -303,6 +303,6 @@
             "additionalProperties": false
         }
     },
-    "required": ["image", "target", "systemConfig"],
+    "required": ["image", "target"],
     "additionalProperties": false
 }
