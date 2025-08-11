@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/open-edge-platform/image-composer/internal/config"
+	"github.com/open-edge-platform/image-composer/internal/config/manifest"
 	"github.com/open-edge-platform/image-composer/internal/ospackage"
 	"github.com/open-edge-platform/image-composer/internal/ospackage/pkgfetcher"
 	"github.com/open-edge-platform/image-composer/internal/ospackage/pkgsorter"
@@ -113,9 +114,16 @@ func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospack
 
 	// Adding full packages to the pkgChecksum list
 	for _, pkg := range all {
+		var sha256 string
+		for _, c := range pkg.Checksums {
+			if strings.EqualFold(c.Algorithm, "SHA256") {
+				sha256 = c.Value
+				break
+			}
+		}
 		PkgChecksum = append(PkgChecksum, pkgChecksum{
 			Name:     filepath.Base(pkg.URL),
-			Checksum: pkg.Checksum,
+			Checksum: sha256,
 		})
 	}
 
@@ -194,6 +202,12 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 		return downloadPkgList, fmt.Errorf("resolving packages: %v", err)
 	}
 	log.Infof("resolved %d packages", len(needed))
+
+	// Generate SPDX manifest, generated in temp directory
+	spdxFile := filepath.Join(config.TempDir(), manifest.DefaultSPDXFile)
+	if err := manifest.WriteSPDXToFile(needed, spdxFile); err != nil {
+		return downloadPkgList, fmt.Errorf("SPDX file: %v", err)
+	}
 
 	sorted_pkgs, err := pkgsorter.SortPackages(needed)
 	if err != nil {

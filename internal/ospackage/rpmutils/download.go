@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/open-edge-platform/image-composer/internal/config"
+	"github.com/open-edge-platform/image-composer/internal/config/manifest"
 	"github.com/open-edge-platform/image-composer/internal/ospackage"
 	"github.com/open-edge-platform/image-composer/internal/ospackage/pkgfetcher"
 	"github.com/open-edge-platform/image-composer/internal/ospackage/pkgsorter"
@@ -91,6 +92,7 @@ func MatchRequested(requests []string, all []ospackage.PackageInfo) ([]ospackage
 		})
 		out = append(out, candidates[0])
 	}
+
 	return out, nil
 }
 
@@ -196,7 +198,7 @@ func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospack
 	return needed, nil
 }
 
-func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]string, error) {
+func DownloadPackages(pkgList []string, destDir, dotFile string) ([]string, error) {
 	var downloadPkgList []string
 
 	log := logger.Logger()
@@ -211,7 +213,7 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 	if err != nil {
 		return downloadPkgList, fmt.Errorf("matching packages: %v", err)
 	}
-	log.Infof("matched a total of %d packages", len(req))
+	log.Infof("Matched a total of %d packages", len(req))
 
 	for _, pkg := range req {
 		log.Debugf("-> %s", pkg.Name)
@@ -222,17 +224,22 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 	if err != nil {
 		return downloadPkgList, fmt.Errorf("resolving packages: %v", err)
 	}
-	log.Infof("resolved %d packages", len(needed))
+
+	// Generate SPDX manifest, generated in temp directory
+	spdxFile := filepath.Join(config.TempDir(), manifest.DefaultSPDXFile)
+	if err := manifest.WriteSPDXToFile(needed, spdxFile); err != nil {
+		return downloadPkgList, fmt.Errorf("SPDX file: %v", err)
+	}
 
 	sorted_pkgs, err := pkgsorter.SortPackages(needed)
 	if err != nil {
 		log.Errorf("sorting packages: %v", err)
 	}
-	log.Infof("sorted %d packages for installation", len(sorted_pkgs))
+	log.Infof("Sorted %d packages for installation", len(sorted_pkgs))
 
 	// If a dot file is specified, generate the dependency graph
 	if dotFile != "" {
-		if err := GenerateDot(needed, dotFile); err != nil {
+		if err := GenerateDot(sorted_pkgs, dotFile); err != nil {
 			log.Errorf("generating dot file: %v", err)
 		}
 	}
@@ -254,11 +261,11 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 	}
 
 	// Download packages using configured workers and cache directory
-	log.Infof("downloading %d packages to %s using %d workers", len(urls), absDestDir, config.Workers())
+	log.Infof("Downloading %d packages to %s using %d workers", len(urls), absDestDir, config.Workers())
 	if err := pkgfetcher.FetchPackages(urls, absDestDir, config.Workers()); err != nil {
 		return downloadPkgList, fmt.Errorf("fetch failed: %v", err)
 	}
-	log.Info("all downloads complete")
+	log.Info("All downloads complete")
 
 	// Verify downloaded packages
 	if err := Validate(destDir); err != nil {

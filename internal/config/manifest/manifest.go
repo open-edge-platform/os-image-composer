@@ -5,8 +5,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
+	"github.com/google/uuid"
+	"github.com/open-edge-platform/image-composer/internal/config/version"
+	"github.com/open-edge-platform/image-composer/internal/ospackage"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+)
+
+// Constants used for SDPX metadata generation
+const (
+	SPDXVersion       = "SPDX-2.3"
+	SPDXDataLicense   = "CC0-1.0"
+	SPDXDocumentID    = "SPDXRef-DOCUMENT"
+	SPDXNamespaceBase = "https://spdx.openedge.dev/docs"
+	DefaultSupplier   = "Organization: UNKNOWN"
+	DefaultLicense    = "NOASSERTION"
+	DefaultSPDXFile   = "spdx_manifest.json"
 )
 
 // SoftwarePackageManifest represents the structure of the manifest file.
@@ -23,10 +40,49 @@ type SoftwarePackageManifest struct {
 	MinCurrentVersion string `json:"min_current_version"`
 }
 
+// Holds the SPDX Document header information
+type SPDXDocument struct {
+	SPDXVersion       string        `json:"spdxVersion"`
+	DataLicense       string        `json:"dataLicense"`
+	SPDXID            string        `json:"SPDXID"`
+	DocumentName      string        `json:"name"`
+	DocumentNamespace string        `json:"documentNamespace"`
+	CreationInfo      CreationInfo  `json:"creationInfo"`
+	Packages          []SPDXPackage `json:"packages"`
+}
+
+// Time stamp and creation information
+type CreationInfo struct {
+	Created  string   `json:"created"`
+	Creators []string `json:"creators"`
+}
+
+// Holds an SBOM instance in the SPDX document
+type SPDXPackage struct {
+	SPDXID           string         `json:"SPDXID"`
+	Name             string         `json:"name"`
+	Type             string         `json:"type,omitempty"` // e.g., "deb", "rpm"
+	VersionInfo      string         `json:"versionInfo,omitempty"`
+	DownloadLocation string         `json:"downloadLocation"`
+	FilesAnalyzed    bool           `json:"filesAnalyzed"`
+	LicenseDeclared  string         `json:"licenseDeclared"`
+	LicenseConcluded string         `json:"licenseConcluded"`
+	Supplier         string         `json:"supplier,omitempty"`
+	Checksum         []SPDXChecksum `json:"checksum,omitempty"`
+	Description      string         `json:"description,omitempty"`
+}
+
+// Holds the checksum value for an SBOM instance item
+type SPDXChecksum struct {
+	Algorithm     string `json:"algorithm"`
+	ChecksumValue string `json:"checksumValue"`
+}
+
 // WriteManifestToFile writes the manifest to the specified output file.
 func WriteManifestToFile(manifest SoftwarePackageManifest, outputFile string) error {
 	log := logger.Logger()
 	log.Infof("Writing the Image Manifest to the file: %s", outputFile)
+
 	// Marshal the manifest struct to JSON
 	manifestJSON, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
@@ -47,4 +103,124 @@ func WriteManifestToFile(manifest SoftwarePackageManifest, outputFile string) er
 	}
 
 	return nil
+}
+
+func WriteSPDXToFile(pkgs []ospackage.PackageInfo, outFile string) error {
+
+	logger := logger.Logger()
+	logger.Infof("Generating SPDX manifest for %d packages", len(pkgs))
+
+	// SPDX allows only specific checksum algorithms: SHA1, SHA256, MD5
+	validSPDXAlgos := map[string]bool{
+		"SHA1":   true,
+		"SHA256": true,
+		"MD5":    true,
+	}
+
+	spdx := SPDXDocument{
+		SPDXVersion:       SPDXVersion,
+		DataLicense:       SPDXDataLicense,
+		SPDXID:            SPDXDocumentID,
+		DocumentName:      fmt.Sprintf("%s-%s", version.Toolname, time.Now().UTC().Format("20060102T150405Z")),
+		DocumentNamespace: generateDocumentNamespace(),
+		CreationInfo: CreationInfo{
+			Created: time.Now().UTC().Format("2006-01-02T15:04:05Z"),
+			Creators: []string{
+				fmt.Sprintf("Tool: %s %s", version.Toolname, version.Version),
+				fmt.Sprintf("Organization: %s", version.Organization),
+			},
+		},
+		Packages: make([]SPDXPackage, 0, len(pkgs)),
+	}
+
+	for _, pkg := range pkgs {
+		spdxPkg := SPDXPackage{
+			SPDXID:           fmt.Sprintf("SPDXRef-Package-%s", pkg.Name),
+			Name:             pkg.Name,
+			Type:             pkg.Type,
+			VersionInfo:      pkg.Version,
+			DownloadLocation: pkg.URL,
+			FilesAnalyzed:    false,
+			LicenseDeclared:  fallbackToDefault(pkg.License, "NOASSERTION"),
+			LicenseConcluded: "NOASSERTION",
+			Description:      pkg.Description,
+		}
+
+		// If the supplier is not specified, use a default value, for
+		// anything that appears as an email, use the Person form otherwise
+		// use the Organization form
+		spdxPkg.Supplier = spdxSupplier(pkg.Origin)
+
+		// If the checksum is not specified or missing, leave field out
+		// Valid values according to SPDX spec: SHA1, SHA256, MD5
+		var spdxChecksums []SPDXChecksum
+		for _, c := range pkg.Checksums {
+			algo := strings.ToUpper(c.Algorithm)
+			if validSPDXAlgos[algo] {
+				spdxChecksums = append(spdxChecksums, SPDXChecksum{
+					Algorithm:     algo,
+					ChecksumValue: c.Value,
+				})
+			}
+		}
+
+		if len(spdxChecksums) > 0 {
+			spdxPkg.Checksum = spdxChecksums
+		}
+
+		spdx.Packages = append(spdx.Packages, spdxPkg)
+	}
+
+	// TODO: The relative file path here should be where
+	// the final image is being stored and not under temp
+	if err := os.MkdirAll(filepath.Dir(outFile), 0o755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+	f, err := os.Create(outFile)
+	if err != nil {
+		return fmt.Errorf("failed to create SPDX output file: %w", err)
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(spdx); err != nil {
+		return fmt.Errorf("failed to encode SPDX JSON: %w", err)
+	}
+
+	return nil
+}
+
+func fallbackToDefault(val, fallback string) string {
+	if val == "" {
+		return fallback
+	}
+	return val
+}
+
+func generateDocumentNamespace() string {
+	return fmt.Sprintf("%s/%s-%s", SPDXNamespaceBase, version.Toolname, uuid.New().String())
+}
+
+func spdxSupplier(origin string) string {
+	o := strings.TrimSpace(origin)
+	if o == "" {
+		return "NOASSERTION"
+	}
+	// If it looks like "Name <email>", emit Person form
+	if strings.Contains(o, "<") && strings.Contains(o, ">") {
+		parts := strings.Split(o, "<")
+		if len(parts) >= 2 {
+			name := strings.TrimSpace(parts[0])
+			emailParts := strings.Split(parts[1], ">")
+			if len(emailParts) >= 1 {
+				email := strings.Trim(emailParts[0], " ")
+				if name != "" && email != "" {
+					return fmt.Sprintf("Person: %s (%s)", name, email)
+				}
+			}
+		}
+	}
+	return fmt.Sprintf("Organization: %s", o)
 }
