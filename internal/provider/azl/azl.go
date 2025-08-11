@@ -125,6 +125,7 @@ func (p *AzureLinux) installHostDependency() error {
 		"rpm":      "rpm",        // For the chroot env build RPM pkg installation
 		"mkfs.fat": "dosfstools", // For the FAT32 boot partition creation
 		"xorriso":  "xorriso",    // For ISO image creation
+		"sbsign":   "sbsigntool", // For the UKI image creation
 	}
 	hostPkgManager, err := chroot.GetHostOsPkgManager()
 	if err != nil {
