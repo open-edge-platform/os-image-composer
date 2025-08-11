@@ -9,10 +9,8 @@ on:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    runs-on: [ubuntu-latest]
-    permissions:
-      # required for all workflows
-      security-events: write
+    runs-on: ["ubuntu-latest"]
+    container: ubuntu:24.04
 
     strategy:
       fail-fast: false
