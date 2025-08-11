@@ -42,7 +42,6 @@ jobs:
         if: ${{ failure() && github.event_name == 'pull_request' }}
         permissions:
           contents: read
-          issues: write
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REVIEWER_ID: srmungar
