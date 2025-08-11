@@ -186,10 +186,54 @@
                     "description": "Description of the system configuration"
                 },
                 "immutability": {
-                    "type": "object",
-                    "description": "Immutability configuration",
-                    "additionalProperties": true
-                },
+			"type": "object",
+			"description": "Immutability configuration with UEFI Secure Boot support",
+			"properties": {
+				"enabled": {
+					"type": "boolean",
+					"description": "Whether immutability is enabled",
+					"default": false
+				},
+				"secureBootDBKey": {
+					"type": "string",
+					"description": "The private key file used to sign the bootloader for UEFI Secure Boot",
+					"allOf": [
+						{
+							"pattern": "^[A-Za-z0-9_./-]+\\.(?:key|pem)$"
+						},
+						{
+							"not": { "pattern": "\\.\\." }
+						}
+					]
+				},
+				"secureBootDBCrt": {
+					"type": "string",
+					"description": "The certificate file in PEM format, which corresponds to the private key for UEFI Secure Boot",
+					"allOf": [
+						{
+							"pattern": "^[A-Za-z0-9_./-]+\\.(?:crt|pem)$"
+						},
+						{
+							"not": { "pattern": "\\.\\." }
+						}
+					]
+				},
+				"secureBootDBCer": {
+					"type": "string",
+					"description": "The same certificate file, but provided in DER (binary) format specifically for UEFI firmware",
+					"allOf": [
+						{
+							"pattern": "^[A-Za-z0-9_./-]+\\.cer$"
+						},
+						{
+							"not": { "pattern": "\\.\\." }
+						}
+					]
+				}
+			},
+			"required": ["enabled"],
+			"additionalProperties": false
+		} ,
                 "users": {
                     "type": "array",
                     "description": "User configurations",

@@ -168,7 +168,7 @@ func mergeSystemConfig(defaultConfig, userConfig SystemConfig) SystemConfig {
 	return merged
 }
 
-// mergeImmutabilityConfig merges immutability configurations
+// mergeImmutabilityConfig merges immutability configurations including secure boot settings
 func mergeImmutabilityConfig(defaultImmutability, userImmutability ImmutabilityConfig) ImmutabilityConfig {
 	merged := defaultImmutability // Start with default
 
@@ -177,6 +177,19 @@ func mergeImmutabilityConfig(defaultImmutability, userImmutability ImmutabilityC
 	// Otherwise, keep the default value
 	if userImmutability.Enabled != defaultImmutability.Enabled {
 		merged.Enabled = userImmutability.Enabled
+	}
+
+	// Merge secure boot configuration - user values override defaults
+	if userImmutability.SecureBootDBKey != "" {
+		merged.SecureBootDBKey = userImmutability.SecureBootDBKey
+	}
+
+	if userImmutability.SecureBootDBCrt != "" {
+		merged.SecureBootDBCrt = userImmutability.SecureBootDBCrt
+	}
+
+	if userImmutability.SecureBootDBCer != "" {
+		merged.SecureBootDBCer = userImmutability.SecureBootDBCer
 	}
 
 	return merged

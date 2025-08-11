@@ -52,7 +52,10 @@ type Bootloader struct {
 
 // ImmutabilityConfig holds the immutability configuration
 type ImmutabilityConfig struct {
-	Enabled bool `yaml:"enabled"` // Enabled: whether immutability is enabled (default: false)
+	Enabled         bool   `yaml:"enabled"`                   // Enabled: whether immutability is enabled (default: false)
+	SecureBootDBKey string `yaml:"secureBootDBKey,omitempty"` // SecureBootDBKey: The private key file used to sign the bootloader for UEFI Secure Boot
+	SecureBootDBCrt string `yaml:"secureBootDBCrt,omitempty"` // SecureBootDBCrt: The certificate file in PEM format, which corresponds to the private key for UEFI Secure Boot
+	SecureBootDBCer string `yaml:"secureBootDBCer,omitempty"` // SecureBootDBCer: The same certificate file, but provided in DER (binary) format specifically for UEFI firmware
 }
 
 // UserConfig holds the user configuration
@@ -258,6 +261,26 @@ func (t *ImageTemplate) IsImmutabilityEnabled() bool {
 	return t.SystemConfig.Immutability.Enabled
 }
 
+// GetSecureBootDBKeyPath returns the secure boot DB key path from the immutability config
+func (t *ImageTemplate) GetSecureBootDBKeyPath() string {
+	return t.SystemConfig.Immutability.GetSecureBootDBKeyPath()
+}
+
+// GetSecureBootDBCrtPath returns the secure boot DB certificate path (PEM) from the immutability config
+func (t *ImageTemplate) GetSecureBootDBCrtPath() string {
+	return t.SystemConfig.Immutability.GetSecureBootDBCrtPath()
+}
+
+// GetSecureBootDBCerPath returns the secure boot DB certificate path (DER) from the immutability config
+func (t *ImageTemplate) GetSecureBootDBCerPath() string {
+	return t.SystemConfig.Immutability.GetSecureBootDBCerPath()
+}
+
+// HasSecureBootDBConfig returns whether secure boot DB configuration is available
+func (t *ImageTemplate) HasSecureBootDBConfig() bool {
+	return t.SystemConfig.Immutability.HasSecureBootDBConfig()
+}
+
 // GetImmutability returns the immutability configuration (SystemConfig method)
 func (sc *SystemConfig) GetImmutability() ImmutabilityConfig {
 	return sc.Immutability
@@ -266,6 +289,61 @@ func (sc *SystemConfig) GetImmutability() ImmutabilityConfig {
 // IsImmutabilityEnabled returns whether immutability is enabled (SystemConfig method)
 func (sc *SystemConfig) IsImmutabilityEnabled() bool {
 	return sc.Immutability.Enabled
+}
+
+// GetSecureBootDBKeyPath returns the secure boot DB key path from the immutability config
+func (sc *SystemConfig) GetSecureBootDBKeyPath() string {
+	return sc.Immutability.GetSecureBootDBKeyPath()
+}
+
+// GetSecureBootDBCrtPath returns the secure boot DB certificate path (PEM) from the immutability config
+func (sc *SystemConfig) GetSecureBootDBCrtPath() string {
+	return sc.Immutability.GetSecureBootDBCrtPath()
+}
+
+// GetSecureBootDBCerPath returns the secure boot DB certificate path (DER) from the immutability config
+func (sc *SystemConfig) GetSecureBootDBCerPath() string {
+	return sc.Immutability.GetSecureBootDBCerPath()
+}
+
+// HasSecureBootDBConfig returns whether secure boot DB configuration is available
+func (sc *SystemConfig) HasSecureBootDBConfig() bool {
+	return sc.Immutability.HasSecureBootDBConfig()
+}
+
+// HasSecureBootDBConfig returns whether any secure boot DB configuration is provided
+func (ic *ImmutabilityConfig) HasSecureBootDBConfig() bool {
+	return ic.SecureBootDBKey != "" || ic.SecureBootDBCrt != "" || ic.SecureBootDBCer != ""
+}
+
+// GetSecureBootDBKeyPath returns the secure boot DB private key file path
+func (ic *ImmutabilityConfig) GetSecureBootDBKeyPath() string {
+	return ic.SecureBootDBKey
+}
+
+// GetSecureBootDBCrtPath returns the secure boot DB certificate file path (PEM format)
+func (ic *ImmutabilityConfig) GetSecureBootDBCrtPath() string {
+	return ic.SecureBootDBCrt
+}
+
+// GetSecureBootDBCerPath returns the secure boot DB certificate file path (DER format)
+func (ic *ImmutabilityConfig) GetSecureBootDBCerPath() string {
+	return ic.SecureBootDBCer
+}
+
+// HasSecureBootDBKey returns whether a secure boot DB private key is configured
+func (ic *ImmutabilityConfig) HasSecureBootDBKey() bool {
+	return ic.SecureBootDBKey != ""
+}
+
+// HasSecureBootDBCrt returns whether a secure boot DB certificate (PEM) is configured
+func (ic *ImmutabilityConfig) HasSecureBootDBCrt() bool {
+	return ic.SecureBootDBCrt != ""
+}
+
+// HasSecureBootDBCer returns whether a secure boot DB certificate (DER) is configured
+func (ic *ImmutabilityConfig) HasSecureBootDBCer() bool {
+	return ic.SecureBootDBCer != ""
 }
 
 // GetUsers returns the user configurations from systemConfig
