@@ -2,38 +2,38 @@ name: "CodeQL Advanced"
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    runs-on: ["ubuntu-latest"]
-    container: ubuntu:24.04
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
 
     strategy:
       fail-fast: false
       matrix:
         include:
-          - language: actions
-            build-mode: none
-          - language: go
-            build-mode: autobuild
-          - language: python
-            build-mode: none
+        - language: actions
+          build-mode: none
+        - language: go
+          build-mode: autobuild
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      # Initializes the CodeQL tools for scanning.
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+    # Initializes the CodeQL tools for scanning.
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:${{matrix.language}}"
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
