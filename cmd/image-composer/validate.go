@@ -86,8 +86,16 @@ func executeValidate(cmd *cobra.Command, args []string) error {
 		// Show details about user configuration
 		log.Infof("System Config: %s", template.SystemConfig.Name)
 		log.Infof("   User Packages: %d", len(template.GetPackages()))
-		log.Infof("   Configured Users: %d", len(template.SystemConfig.Users))
-		log.Infof("   Kernel: %s", template.GetKernel().Version)
+		if len(template.GetUsers()) > 0 {
+			log.Infof("   Configured users: %d", len(template.SystemConfig.Users))
+		} else {
+			log.Infof("   No configured users")
+		}
+		if template.GetKernel().Version != "" {
+			log.Infof("   Kernel: %s", template.GetKernel().Version)
+		} else {
+			log.Infof("   No kernel specified")
+		}
 	}
 
 	return nil
