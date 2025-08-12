@@ -10,8 +10,29 @@ import (
 
 func SignImage(installRoot string, template *config.ImageTemplate) error {
 
-	pbKeyPath := "/data/secureboot/keys/DB.key"
-	prKeyPath := "/data/secureboot/keys/DB.crt"
+	//if immutability is not enabled, skip signing
+	if !template.IsImmutabilityEnabled() {
+		return nil
+	}
+
+	// Check if secure boot keys are provided
+	// If not, skip signing
+	if template.GetSecureBootDBKeyPath() == "" ||
+		template.GetSecureBootDBCrtPath() == "" ||
+		template.GetSecureBootDBCerPath() == "" {
+		return nil
+	}
+
+	// pbKeyPath := "/data/secureboot/keys/DB.key"
+	// prKeyPath := "/data/secureboot/keys/DB.crt"
+	pbKeyPath := template.GetSecureBootDBKeyPath()
+	prKeyPath := template.GetSecureBootDBCrtPath()
+	prCerPath := template.GetSecureBootDBCerPath()
+
+	// Check if the key and certificate files exist
+	if _, err := shell.ExecCmd(fmt.Sprintf("test -f %s && test -f %s && test -f %s", pbKeyPath, prKeyPath, prCerPath), true, "", nil); err != nil {
+		return fmt.Errorf("secure boot key or certificate file not found: %w", err)
+	}
 
 	espDir := filepath.Join(installRoot, "boot", "efi")
 	ukiPath := filepath.Join(espDir, "EFI", "Linux", "linux.efi")
