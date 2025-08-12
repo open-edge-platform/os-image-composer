@@ -43,7 +43,7 @@
         "imageType": {
           "type": "string",
           "description": "Type of image to build",
-          "enum": ["raw", "iso", "qcow2", "vhd", "vhdx", "vmdk"]
+          "enum": ["raw", "img", "iso"]
         }
       },
       "required": ["os", "dist", "arch", "imageType"],
@@ -216,7 +216,6 @@
         "cmdline": { "type": "string", "description": "Kernel command line parameters" },
         "uki": { "type": "boolean", "description": "Enable Unified Kernel Image (from defaults)" }
       },
-      "required": ["version"],
       "additionalProperties": false
     },
     "SystemConfig": {
