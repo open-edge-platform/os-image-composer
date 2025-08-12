@@ -1,0 +1,22 @@
+name: Coverity Scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  coverity_scan:
+    runs-on: ubuntu-latest
+    container: amr-registry.caas.intel.com/owr/abi_ubuntu_20.04:main
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Show list
+        run: |
+          ls -la
