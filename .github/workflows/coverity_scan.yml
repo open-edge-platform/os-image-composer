@@ -10,7 +10,7 @@ on:
 
 jobs:
   coverity_scan:
-    runs-on: ubuntu-latest
+    runs-on: ["innersource.prod.amr.dind"]
     container: amr-registry.caas.intel.com/owr/abi_ubuntu_20.04:main
 
     steps:
