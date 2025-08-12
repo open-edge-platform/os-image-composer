@@ -2,6 +2,7 @@ package imagesign
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/open-edge-platform/image-composer/internal/config"
@@ -30,8 +31,14 @@ func SignImage(installRoot string, template *config.ImageTemplate) error {
 	prCerPath := template.GetSecureBootDBCerPath()
 
 	// Check if the key and certificate files exist
-	if _, err := shell.ExecCmd(fmt.Sprintf("test -f %s && test -f %s && test -f %s", pbKeyPath, prKeyPath, prCerPath), true, "", nil); err != nil {
-		return fmt.Errorf("secure boot key or certificate file not found: %w", err)
+	if _, err := os.Stat(pbKeyPath); err != nil {
+		return fmt.Errorf("secure boot key file not found: %w", err)
+	}
+	if _, err := os.Stat(prKeyPath); err != nil {
+		return fmt.Errorf("secure boot certificate file not found: %w", err)
+	}
+	if _, err := os.Stat(prCerPath); err != nil {
+		return fmt.Errorf("secure boot cer file not found: %w", err)
 	}
 
 	espDir := filepath.Join(installRoot, "boot", "efi")
@@ -64,6 +71,20 @@ func SignImage(installRoot string, template *config.ImageTemplate) error {
 	mvCmd = fmt.Sprintf("mv %s %s", bootloaderSignedPath, bootloaderPath)
 	if _, err := shell.ExecCmd(mvCmd, true, "", nil); err != nil {
 		return fmt.Errorf("failed to replace bootloader with signed version: %w", err)
+	}
+
+	//super long logic to get final output path - need a helper function for this
+	globalWorkDir, err := config.WorkDir()
+	if err != nil {
+		return fmt.Errorf("failed to get global work directory: %v", err)
+	}
+	imageBuildDir := filepath.Join(globalWorkDir, config.ProviderId, "imagebuild")
+	sysConfigName := template.GetSystemConfigName()
+	finalCerFilePath := filepath.Join(imageBuildDir, sysConfigName, "DB.cer")
+
+	// Copy the certificate file to the temp directory
+	if _, err := shell.ExecCmd(fmt.Sprintf("cp %s %s", prCerPath, finalCerFilePath), true, "", nil); err != nil {
+		return fmt.Errorf("failed to copy certificate file: %w", err)
 	}
 
 	return nil
