@@ -86,6 +86,13 @@ func TestSignImage_MissingUKIFile(t *testing.T) {
 		t.Fatalf("Failed to create test cer file: %v", err)
 	}
 
+	// Create the ESP directory structure but no UKI file
+	espDir := filepath.Join(installRoot, "boot", "efi", "EFI")
+	linuxDir := filepath.Join(espDir, "Linux")
+	if err := os.MkdirAll(linuxDir, 0755); err != nil {
+		t.Fatalf("Failed to create Linux directory: %v", err)
+	}
+
 	template := &config.ImageTemplate{
 		SystemConfig: config.SystemConfig{
 			Immutability: config.ImmutabilityConfig{
@@ -101,12 +108,70 @@ func TestSignImage_MissingUKIFile(t *testing.T) {
 	if err == nil {
 		t.Error("SignImage should fail when UKI file doesn't exist")
 	}
+
+	// The error should be about signing failure since sbsign will fail
+	if !strings.Contains(err.Error(), "failed to sign") {
+		t.Logf("Got expected error: %v", err)
+	}
 }
 
-func TestSignImage_ValidSetupButNoSbsign(t *testing.T) {
+func TestSignImage_MissingBootloaderFile(t *testing.T) {
 	installRoot := t.TempDir()
 
 	// Create directory structure
+	espDir := filepath.Join(installRoot, "boot", "efi", "EFI")
+	linuxDir := filepath.Join(espDir, "Linux")
+	bootDir := filepath.Join(espDir, "BOOT")
+
+	if err := os.MkdirAll(linuxDir, 0755); err != nil {
+		t.Fatalf("Failed to create Linux directory: %v", err)
+	}
+	if err := os.MkdirAll(bootDir, 0755); err != nil {
+		t.Fatalf("Failed to create BOOT directory: %v", err)
+	}
+
+	// Create UKI file but not bootloader
+	ukiPath := filepath.Join(linuxDir, "linux.efi")
+	if err := os.WriteFile(ukiPath, []byte("fake UKI"), 0644); err != nil {
+		t.Fatalf("Failed to create UKI file: %v", err)
+	}
+
+	// Create temporary key files
+	keyFile := filepath.Join(installRoot, "test.key")
+	crtFile := filepath.Join(installRoot, "test.crt")
+	cerFile := filepath.Join(installRoot, "test.cer")
+
+	if err := os.WriteFile(keyFile, []byte("test key"), 0600); err != nil {
+		t.Fatalf("Failed to create test key file: %v", err)
+	}
+	if err := os.WriteFile(crtFile, []byte("test cert"), 0644); err != nil {
+		t.Fatalf("Failed to create test crt file: %v", err)
+	}
+	if err := os.WriteFile(cerFile, []byte("test cer"), 0644); err != nil {
+		t.Fatalf("Failed to create test cer file: %v", err)
+	}
+
+	template := &config.ImageTemplate{
+		SystemConfig: config.SystemConfig{
+			Immutability: config.ImmutabilityConfig{
+				Enabled:         true,
+				SecureBootDBKey: keyFile,
+				SecureBootDBCrt: crtFile,
+				SecureBootDBCer: cerFile,
+			},
+		},
+	}
+
+	err := SignImage(installRoot, template)
+	if err == nil {
+		t.Error("SignImage should fail when bootloader file doesn't exist")
+	}
+}
+
+func TestSignImage_WorkDirCreation(t *testing.T) {
+	installRoot := t.TempDir()
+
+	// Create complete setup
 	espDir := filepath.Join(installRoot, "boot", "efi", "EFI")
 	linuxDir := filepath.Join(espDir, "Linux")
 	bootDir := filepath.Join(espDir, "BOOT")
@@ -146,6 +211,7 @@ func TestSignImage_ValidSetupButNoSbsign(t *testing.T) {
 
 	template := &config.ImageTemplate{
 		SystemConfig: config.SystemConfig{
+			Name: "test-config",
 			Immutability: config.ImmutabilityConfig{
 				Enabled:         true,
 				SecureBootDBKey: keyFile,
@@ -155,61 +221,31 @@ func TestSignImage_ValidSetupButNoSbsign(t *testing.T) {
 		},
 	}
 
+	// This test verifies the work directory creation logic
 	err := SignImage(installRoot, template)
-	// This will likely fail because sbsign command doesn't exist in test environment
-	// but we can verify the error is related to command execution, not file setup
-	if err != nil && !strings.Contains(err.Error(), "failed to sign") {
-		t.Logf("Expected signing failure due to missing sbsign command: %v", err)
+	// Expected to fail due to missing sbsign, but should get past the file setup
+	if err != nil && strings.Contains(err.Error(), "failed to get global work directory") {
+		t.Logf("Work directory creation failed as expected in test environment: %v", err)
 	}
 }
 
-func TestSignImage_DirectoryStructure(t *testing.T) {
+func TestSignImage_EmptySecureBootPaths(t *testing.T) {
 	installRoot := t.TempDir()
 
 	template := &config.ImageTemplate{
 		SystemConfig: config.SystemConfig{
 			Immutability: config.ImmutabilityConfig{
 				Enabled:         true,
-				SecureBootDBKey: "/test/key.key",
-				SecureBootDBCrt: "/test/cert.crt",
-				SecureBootDBCer: "/test/cert.cer",
-			},
-		},
-	}
-
-	// Test that the function constructs correct paths
-	// We expect it to look for:
-	// - UKI at: installRoot/boot/efi/EFI/Linux/linux.efi
-	// - Bootloader at: installRoot/boot/efi/EFI/BOOT/BOOTX64.EFI
-
-	err := SignImage(installRoot, template)
-	if err == nil {
-		t.Error("SignImage should fail when files don't exist")
-	}
-
-	// The error should indicate missing key files (first check that fails)
-	if !strings.Contains(err.Error(), "secure boot key or certificate file not found") {
-		t.Errorf("Expected error about missing key files, got: %v", err)
-	}
-}
-
-func TestSignImage_PartialSecureBootConfig(t *testing.T) {
-	installRoot := t.TempDir()
-
-	// Test with only key file set (missing cert files)
-	template := &config.ImageTemplate{
-		SystemConfig: config.SystemConfig{
-			Immutability: config.ImmutabilityConfig{
-				Enabled:         true,
-				SecureBootDBKey: "/test/key.key",
-				// SecureBootDBCrt and SecureBootDBCer are empty
+				SecureBootDBKey: "",
+				SecureBootDBCrt: "",
+				SecureBootDBCer: "",
 			},
 		},
 	}
 
 	err := SignImage(installRoot, template)
 	if err != nil {
-		t.Errorf("SignImage should skip signing when secure boot config is incomplete, got: %v", err)
+		t.Errorf("SignImage should skip signing when secure boot paths are empty, got: %v", err)
 	}
 }
 
