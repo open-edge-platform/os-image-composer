@@ -109,6 +109,7 @@ var commandMap = map[string]string{
 	"passwd":             "/usr/bin/passwd",
 	"mv":                 "/usr/bin/mv",
 	"sbsign":             "/usr/bin/sbsign",
+	"test":               "/usr/bin/test",
 	// Add more mappings as needed
 }
 
