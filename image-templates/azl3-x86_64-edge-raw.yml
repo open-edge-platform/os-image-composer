@@ -42,7 +42,7 @@ systemConfig:
       password: ""               # Do not commit real plaintext passwords
       # password: "<PLAIN_PASSWORD>"
       hash_algo: "bcrypt"        # specify cost in production if supported
-      sudo: false                # change to true only if admin rights are required
+      # sudo: true                # Uncomment to grant admin rights
 
   # Package Configuration
   packages:
