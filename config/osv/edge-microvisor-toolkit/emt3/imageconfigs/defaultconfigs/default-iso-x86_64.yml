@@ -62,7 +62,6 @@ systemConfig: # Required
     - tar
     - texinfo
     - usbutils
-    - wget
 
     # virtualization-host-packages
     - qemu-kvm

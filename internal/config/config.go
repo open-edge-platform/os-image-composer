@@ -128,7 +128,7 @@ var (
 )
 
 // LoadTemplate loads an ImageTemplate from the specified YAML template path
-func LoadTemplate(path string) (*ImageTemplate, error) {
+func LoadTemplate(path string, validateFull bool) (*ImageTemplate, error) {
 	log := logger.Logger()
 
 	data, err := os.ReadFile(path)
@@ -142,7 +142,7 @@ func LoadTemplate(path string) (*ImageTemplate, error) {
 		return nil, fmt.Errorf("unsupported file format: %s (only .yml and .yaml are supported)", ext)
 	}
 
-	template, err := parseYAMLTemplate(data)
+	template, err := parseYAMLTemplate(data, validateFull)
 	if err != nil {
 		return nil, fmt.Errorf("loading YAML template: %w", err)
 	}
@@ -157,7 +157,7 @@ func LoadTemplate(path string) (*ImageTemplate, error) {
 }
 
 // parseYAMLTemplate loads an ImageTemplate from YAML data
-func parseYAMLTemplate(data []byte) (*ImageTemplate, error) {
+func parseYAMLTemplate(data []byte, validateFull bool) (*ImageTemplate, error) {
 	// Parse YAML to generic interface for validation
 	var raw interface{}
 	if err := yaml.Unmarshal(data, &raw); err != nil {
@@ -170,9 +170,15 @@ func parseYAMLTemplate(data []byte) (*ImageTemplate, error) {
 		return nil, fmt.Errorf("converting to JSON for validation: %w", err)
 	}
 
-	// Validate against image template schema
-	if err := validate.ValidateImageTemplateJSON(jsonData); err != nil {
-		return nil, fmt.Errorf("template validation error: %w", err)
+	if validateFull {
+		// Validate against image template schema
+		if err := validate.ValidateImageTemplateJSON(jsonData); err != nil {
+			return nil, fmt.Errorf("full template validation error: %w", err)
+		}
+	} else {
+		if err := validate.ValidateUserTemplateJSON(jsonData); err != nil {
+			return nil, fmt.Errorf("user template validation error: %w", err)
+		}
 	}
 
 	// Parse into template structure

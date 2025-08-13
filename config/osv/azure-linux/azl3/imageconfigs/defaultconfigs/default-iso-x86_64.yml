@@ -51,7 +51,6 @@ systemConfig: # Required
     - dracut-hostonly
     - dracut-vrf
     - shadow-utils
-    - dracut-hyperv
     - dracut-virtio
     - dracut-xen
     - initramfs

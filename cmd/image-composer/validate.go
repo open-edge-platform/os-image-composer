@@ -70,7 +70,7 @@ func executeValidate(cmd *cobra.Command, args []string) error {
 		// Validate user template only
 		log.Infof("Validating user template: %s", templateFile)
 
-		template, err := config.LoadTemplate(templateFile)
+		template, err := config.LoadTemplate(templateFile, false)
 		if err != nil {
 			return fmt.Errorf("validation failed: %v", err)
 		}
@@ -85,14 +85,16 @@ func executeValidate(cmd *cobra.Command, args []string) error {
 
 		// Show details about user configuration
 		log.Infof("System Config: %s", template.SystemConfig.Name)
-		if len(template.GetPackages()) > 0 {
-			log.Infof("User Packages: %d", len(template.GetPackages()))
-		}
-		if len(template.SystemConfig.Users) > 0 {
-			log.Infof("Users: %d", len(template.SystemConfig.Users))
+		log.Infof("   User Packages: %d", len(template.GetPackages()))
+		if len(template.GetUsers()) > 0 {
+			log.Infof("   Configured users: %d", len(template.SystemConfig.Users))
+		} else {
+			log.Infof("   No configured users")
 		}
 		if template.GetKernel().Version != "" {
-			log.Infof("Kernel: %s", template.GetKernel().Version)
+			log.Infof("   Kernel: %s", template.GetKernel().Version)
+		} else {
+			log.Infof("   No kernel specified")
 		}
 	}
 

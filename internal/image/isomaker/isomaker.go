@@ -101,7 +101,8 @@ func getInitrdTemplate() (*config.ImageTemplate, error) {
 	if _, err := os.Stat(initrdTemplateFile); os.IsNotExist(err) {
 		return nil, fmt.Errorf("initrd template file does not exist: %s", initrdTemplateFile)
 	}
-	initrdTemplate, err := config.LoadTemplate(initrdTemplateFile)
+	// The initrd template does not conform to the full image schema
+	initrdTemplate, err := config.LoadTemplate(initrdTemplateFile, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load initrd template: %v", err)
 	}
@@ -408,7 +409,7 @@ func copyEfiBootloaderFiles(initrdRootfsPath, isoEfiPath string) error {
 		efiGrubFilesSrc = filepath.Join(initrdRootfsPath, "/boot/efi/EFI/BOOT/grubx64.efi")
 		efiBootFilesSrc = filepath.Join(initrdRootfsPath, "/boot/efi/EFI/BOOT/bootx64.efi")
 	case "deb":
-		efiBootFilesSrc = filepath.Join(initrdRootfsPath, "/usr/lib/systemd/boot/efi/systemd-bootx64.efi")
+		efiBootFilesSrc = filepath.Join(initrdRootfsPath, "/usr/lib/grub/x86_64-efi/monolithic/grubx64.efi")
 		efiGrubFilesSrc = filepath.Join(initrdRootfsPath, "/usr/lib/grub/x86_64-efi/monolithic/grubx64.efi")
 	}
 
@@ -468,7 +469,7 @@ func createEfiFatImage(isoEfiPath, isoImagesPath string) (string, error) {
 	log := logger.Logger()
 	log.Infof("Creating EFI FAT image for UEFI boot...")
 	efiFatImgPath := filepath.Join(isoImagesPath, "efiboot.img")
-	if err := imagedisc.CreateRawFile(efiFatImgPath, "8MiB"); err != nil {
+	if err := imagedisc.CreateRawFile(efiFatImgPath, "9MiB"); err != nil {
 		return "", fmt.Errorf("failed to create EFI FAT image: %v", err)
 	}
 

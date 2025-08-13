@@ -1,352 +1,269 @@
 {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "os-image-template.schema.json",
-    "title": "OS Image Template",
-    "description": "Defines image configuration with defaults applied including target OS, packages, kernel, and system configurations",
-    "type": "object",
-    "properties": {
-        "image": {
-            "type": "object",
-            "description": "Image metadata and versioning",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Name of the image template",
-                    "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9\\-_]*[a-zA-Z0-9])?$"
-                },
-                "version": {
-                    "type": "string",
-                    "description": "Version of the image template",
-                    "pattern": "^[0-9]+(\\.([0-9]+|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)){0,2}(\\+[0-9a-zA-Z-]+(\\.[0-9a-zA-Z-]+)*)?$"
-                }
-            },
-            "required": ["name", "version"],
-            "additionalProperties": false
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "os-image-template.schema.json",
+  "title": "OS Image Template Schemas",
+  "description": "Schemas for validating both user-provided templates and fully merged templates.",
+  "$defs": {
+    "Image": {
+      "type": "object",
+      "description": "Image metadata and versioning",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the image template",
+          "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9\\-_]*[a-zA-Z0-9])?$"
         },
-        "target": {
-            "type": "object",
-            "description": "Target platform and system configuration",
-            "properties": {
-                "os": {
-                    "type": "string",
-                    "description": "Target operating system",
-                    "enum": ["azure-linux", "edge-microvisor-toolkit", "wind-river-elxr"]
-                },
-                "dist": {
-                    "type": "string",
-                    "description": "Target distribution version"
-                },
-                "arch": {
-                    "type": "string",
-                    "description": "Target architecture",
-                    "enum": ["x86_64", "aarch64", "armv7hl"]
-                },
-                "imageType": {
-                    "type": "string",
-                    "description": "Type of image to build",
-                    "enum": ["raw", "iso", "qcow2", "vhd", "vhdx", "vmdk"]
-                }
-            },
-            "required": ["os", "dist", "arch", "imageType"],
-            "additionalProperties": false,
-            "allOf": [
-                {
-                    "if": {
-                        "properties": { "os": { "const": "azure-linux" } }
-                    },
-                    "then": {
-                        "properties": {
-                            "dist": { "enum": ["azl3"] }
-                        }
-                    }
-                },
-                {
-                    "if": {
-                        "properties": { "os": { "const": "edge-microvisor-toolkit" } }
-                    },
-                    "then": {
-                        "properties": {
-                            "dist": { "enum": ["emt3"] }
-                        }
-                    }
-                },
-                {
-                    "if": {
-                        "properties": { "os": { "const": "wind-river-elxr" } }
-                    },
-                    "then": {
-                        "properties": {
-                            "dist": { "enum": ["elxr23"] }
-                        }
-                    }
-                }
-            ]
-        },
-        "disk": {
-            "type": "object",
-            "description": "Disk configuration",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Name of the disk configuration"
-                },
-                "artifacts": {
-                    "type": "array",
-                    "description": "Output artifacts configuration",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "type": {
-                                "type": "string",
-                                "description": "Output format type",
-                                "enum": ["raw", "qcow2", "vhd", "vhdx", "vmdk"]
-                            },
-                            "compression": {
-                                "type": "string",
-                                "description": "Compression format (optional)",
-                                "enum": ["gz", "gzip", "xz", "zstd", "bz2"]
-                            }
-                        },
-                        "required": ["type"],
-                        "additionalProperties": false
-                    }
-                },
-                "size": {
-                    "type": "string",
-                    "description": "Size of the disk (e.g., '4GiB', '8GB')"
-                },
-                "partitionTableType": {
-                    "type": "string",
-                    "description": "Partition table type",
-                    "enum": ["gpt", "mbr"]
-                },
-                "partitions": {
-                    "type": "array",
-                    "description": "Partition layout",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "id": {
-                                "type": "string",
-                                "description": "Partition identifier"
-                            },
-                            "name": {
-                                "type": "string",
-                                "description": "Partition name/label"
-                            },
-                            "type": {
-                                "type": "string",
-                                "description": "Partition type"
-                            },
-                            "fsType": {
-                                "type": "string",
-                                "description": "Filesystem type"
-                            },
-                            "start": {
-                                "type": "string",
-                                "description": "Partition start offset"
-                            },
-                            "end": {
-                                "type": "string",
-                                "description": "Partition end offset (0 = rest of disk)"
-                            },
-                            "mountPoint": {
-                                "type": "string",
-                                "description": "Mount point path"
-                            },
-                            "mountOptions": {
-                                "type": "string",
-                                "description": "Mount options"
-                            },
-                            "flags": {
-                                "type": "array",
-                                "description": "Partition flags",
-                                "items": {
-                                    "type": "string"
-                                }
-                            }
-                        },
-                        "additionalProperties": false
-                    }
-                }
-            },
-            "required": ["name"],
-            "additionalProperties": false
-        },
-        "systemConfig": {
-            "type": "object",
-            "description": "System configuration object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Name of the system configuration"
-                },
-                "description": {
-                    "type": "string",
-                    "description": "Description of the system configuration"
-                },
-                "immutability": {
-			"type": "object",
-			"description": "Immutability configuration with UEFI Secure Boot support",
-			"properties": {
-				"enabled": {
-					"type": "boolean",
-					"description": "Whether immutability is enabled",
-					"default": false
-				},
-				"secureBootDBKey": {
-					"type": "string",
-					"description": "The private key file used to sign the bootloader for UEFI Secure Boot",
-					"allOf": [
-						{
-							"pattern": "^[A-Za-z0-9_./-]+\\.(?:key|pem)$"
-						},
-						{
-							"not": { "pattern": "\\.\\." }
-						}
-					]
-				},
-				"secureBootDBCrt": {
-					"type": "string",
-					"description": "The certificate file in PEM format, which corresponds to the private key for UEFI Secure Boot",
-					"allOf": [
-						{
-							"pattern": "^[A-Za-z0-9_./-]+\\.(?:crt|pem)$"
-						},
-						{
-							"not": { "pattern": "\\.\\." }
-						}
-					]
-				},
-				"secureBootDBCer": {
-					"type": "string",
-					"description": "The same certificate file, but provided in DER (binary) format specifically for UEFI firmware",
-					"allOf": [
-						{
-							"pattern": "^[A-Za-z0-9_./-]+\\.cer$"
-						},
-						{
-							"not": { "pattern": "\\.\\." }
-						}
-					]
-				}
-			},
-			"required": ["enabled"],
-			"additionalProperties": false
-		} ,
-                "users": {
-                    "type": "array",
-                    "description": "User configurations",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "Username for the user account"
-                            },
-                            "password": {
-                                "type": "string",
-                                "description": "Plain text password (discouraged for security)"
-                            },
-                            "hash_algo": {
-                                "type": "string",
-                                "description": "Algorithm to hash the password (e.g., 'sha512', 'bcrypt')"
-                            },
-                            "passwordMaxAge": {
-                                "type": "integer",
-                                "description": "Maximum password age in days"
-                            },
-                            "startupScript": {
-                                "type": "string",
-                                "description": "Shell/script to run on login"
-                            },
-                            "groups": {
-                                "type": "array",
-                                "description": "Additional groups to add user to",
-                                "items": {
-                                    "type": "string"
-                                }
-                            },
-                            "sudo": {
-                                "type": "boolean",
-                                "description": "Whether to grant sudo permissions"
-                            },
-                            "home": {
-                                "type": "string",
-                                "description": "Custom home directory path"
-                            },
-                            "shell": {
-                                "type": "string",
-                                "description": "Login shell (e.g., /bin/bash, /bin/zsh)"
-                            }
-                        },
-                        "required": ["name"],
-                        "additionalProperties": false
-                    }
-                },
-                "bootloader": {
-                    "type": "object",
-                    "description": "Bootloader configuration",
-                    "properties": {
-                        "bootType": {
-                            "type": "string",
-                            "description": "Boot type",
-                            "enum": ["efi", "legacy"]
-                        },
-                        "provider": {
-                            "type": "string",
-                            "description": "Bootloader provider",
-                            "enum": ["grub", "grub2", "systemd-boot"]
-                        }
-                    },
-                    "additionalProperties": false
-                },
-                "packages": {
-                    "type": "array",
-                    "description": "List of packages to include in the system",
-                    "items": {
-                        "type": "string",
-                        "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9\\-_.+]*[a-zA-Z0-9])?$"
-                    },
-                    "uniqueItems": true
-                },
-                "additionalFiles": {
-                    "type": "array",
-                    "description": "Additional files to include in the system",
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": true
-                    }
-                },
-                "kernel": {
-                    "type": "object",
-                    "description": "Kernel configuration",
-                    "properties": {
-                        "name": {
-                            "type": "string",
-                            "description": "Kernel package name (from defaults)"
-                        },
-                        "version": {
-                            "type": "string",
-                            "description": "Kernel version"
-                        },
-                        "cmdline": {
-                            "type": "string",
-                            "description": "Kernel command line parameters"
-                        },
-                        "uki": {
-                            "type": "boolean",
-                            "description": "Enable Unified Kernel Image (from defaults)"
-                        }
-                    },
-                    "required": ["version"],
-                    "additionalProperties": false
-                }
-            },
-            "required": ["name", "packages", "kernel"],
-            "additionalProperties": false
+        "version": {
+          "type": "string",
+          "description": "Version of the image template",
+          "pattern": "^[0-9]+(\\.([0-9]+|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)){0,2}(\\+[0-9a-zA-Z-]+(\\.[0-9a-zA-Z-]+)*)?$"
         }
+      },
+      "required": ["name", "version"],
+      "additionalProperties": false
     },
-    "required": ["image", "target", "systemConfig"],
-    "additionalProperties": false
+    "Target": {
+      "type": "object",
+      "description": "Target platform and system configuration",
+      "properties": {
+        "os": {
+          "type": "string",
+          "description": "Target operating system",
+          "enum": ["azure-linux", "edge-microvisor-toolkit", "wind-river-elxr"]
+        },
+        "dist": {
+          "type": "string",
+          "description": "Target distribution version"
+        },
+        "arch": {
+          "type": "string",
+          "description": "Target architecture",
+          "enum": ["x86_64", "aarch64", "armv7hl"]
+        },
+        "imageType": {
+          "type": "string",
+          "description": "Type of image to build",
+          "enum": ["raw", "img", "iso"]
+        }
+      },
+      "required": ["os", "dist", "arch", "imageType"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "os": { "const": "azure-linux" } } },
+          "then": { "properties": { "dist": { "enum": ["azl3"] } } }
+        },
+        {
+          "if": { "properties": { "os": { "const": "edge-microvisor-toolkit" } } },
+          "then": { "properties": { "dist": { "enum": ["emt3"] } } }
+        },
+        {
+          "if": { "properties": { "os": { "const": "wind-river-elxr" } } },
+          "then": { "properties": { "dist": { "enum": ["elxr12"] } } }
+        }
+      ]
+    },
+    "Disk": {
+      "type": "object",
+      "description": "Disk configuration",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the disk configuration"
+        },
+        "artifacts": {
+          "type": "array",
+          "description": "Output artifacts configuration",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "Output format type",
+                "enum": ["raw", "qcow2", "vhd", "vhdx", "vmdk"]
+              },
+              "compression": {
+                "type": "string",
+                "description": "Compression format (optional)",
+                "enum": ["gz", "gzip", "xz", "zstd", "bz2"]
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": false
+          }
+        },
+        "size": {
+          "type": "string",
+          "description": "Size of the disk (e.g., '4GiB', '8GB')"
+        },
+        "partitionTableType": {
+          "type": "string",
+          "description": "Partition table type",
+          "enum": ["gpt", "mbr"]
+        },
+        "partitions": {
+          "type": "array",
+          "description": "Partition layout",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "description": "Partition identifier" },
+              "name": { "type": "string", "description": "Partition name/label" },
+              "type": { "type": "string", "description": "Partition type" },
+              "fsType": { "type": "string", "description": "Filesystem type" },
+              "start": { "type": "string", "description": "Partition start offset" },
+              "end": { "type": "string", "description": "Partition end offset (0 = rest of disk)" },
+              "mountPoint": { "type": "string", "description": "Mount point path" },
+              "mountOptions": { "type": "string", "description": "Mount options" },
+              "flags": { "type": "array", "description": "Partition flags", "items": { "type": "string" } }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "Immutability": {
+      "type": "object",
+      "description": "Immutability configuration with UEFI Secure Boot support",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether immutability is enabled",
+          "default": false
+        },
+        "secureBootDBKey": {
+          "type": "string",
+          "minLength": 1,
+          "allOf": [
+            { "pattern": "^(?:\\$\\{[A-Za-z0-9_]+\\}|(?:[A-Za-z0-9_./-]|\\$\\{[A-Za-z0-9_]+\\})+\\.(?:key|pem))$" },
+            { "not": { "pattern": "\\.\\." } }
+          ]
+        },
+        "secureBootDBCrt": {
+          "type": "string",
+          "minLength": 1,
+          "allOf": [
+            { "pattern": "^(?:\\$\\{[A-Za-z0-9_]+\\}|(?:[A-Za-z0-9_./-]|\\$\\{[A-Za-z0-9_]+\\})+\\.(?:crt|pem))$" },
+            { "not": { "pattern": "\\.\\." } }
+          ]
+        },
+        "secureBootDBCer": {
+          "type": "string",
+          "minLength": 1,
+          "allOf": [
+            { "pattern": "^(?:\\$\\{[A-Za-z0-9_]+\\}|(?:[A-Za-z0-9_./-]|\\$\\{[A-Za-z0-9_]+\\})+\\.cer)$" },
+            { "not": { "pattern": "\\.\\." } }
+          ]
+        }
+      },
+      "required": ["enabled"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "anyOf": [
+              { "required": ["secureBootDBKey"] },
+              { "required": ["secureBootDBCrt"] },
+              { "required": ["secureBootDBCer"] }
+            ]
+          },
+          "then": {
+            "required": ["secureBootDBKey", "secureBootDBCrt", "secureBootDBCer"],
+            "properties": {
+              "enabled": { "const": true }
+            }
+          }
+        }
+      ]
+    },
+    "Users": {
+      "type": "array",
+      "description": "User configurations",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "Username for the user account" },
+          "password": { "type": "string", "description": "Plain text password (discouraged for security)" },
+          "hash_algo": { "type": "string", "description": "Hash algorithm (e.g., sha512, bcrypt)" },
+          "passwordMaxAge": { "type": "integer", "description": "Maximum password age in days" },
+          "startupScript": { "type": "string", "description": "Shell/script to run on login" },
+          "groups": { "type": "array", "items": { "type": "string" }, "description": "Additional groups" },
+          "sudo": { "type": "boolean", "description": "Grant sudo permissions" },
+          "home": { "type": "string", "description": "Home directory path" },
+          "shell": { "type": "string", "description": "Login shell" }
+        },
+        "required": ["name"],
+        "additionalProperties": false
+      }
+    },
+    "Bootloader": {
+      "type": "object",
+      "description": "Bootloader configuration",
+      "properties": {
+        "bootType": { "type": "string", "enum": ["efi", "legacy"] },
+        "provider": { "type": "string", "enum": ["grub", "grub2", "systemd-boot"] }
+      },
+      "additionalProperties": false
+    },
+    "Kernel": {
+      "type": "object",
+      "description": "Kernel configuration",
+      "properties": {
+        "name": { "type": "string", "description": "Kernel package name (from defaults)" },
+        "version": { "type": "string", "description": "Kernel version" },
+        "cmdline": { "type": "string", "description": "Kernel command line parameters" },
+        "uki": { "type": "boolean", "description": "Enable Unified Kernel Image (from defaults)" }
+      },
+      "additionalProperties": false
+    },
+    "SystemConfig": {
+      "type": "object",
+      "description": "System configuration object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the system configuration" },
+        "description": { "type": "string", "description": "Description of the system configuration" },
+        "immutability": { "$ref": "#/$defs/Immutability" },
+        "users": { "$ref": "#/$defs/Users" },
+        "bootloader": { "$ref": "#/$defs/Bootloader" },
+        "packages": {
+          "type": "array",
+          "description": "List of packages to include in the system",
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9+_.-]*[A-Za-z0-9+])?$" },
+          "uniqueItems": true
+        },
+        "additionalFiles": {
+          "type": "array",
+          "description": "Additional files to include in the system",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "kernel": { "$ref": "#/$defs/Kernel" }
+      },
+      "required": ["name", "packages", "kernel"],
+      "additionalProperties": false
+    },
+    "FullTemplate": {
+      "type": "object",
+      "properties": {
+        "image": { "$ref": "#/$defs/Image" },
+        "target": { "$ref": "#/$defs/Target" },
+        "disk": { "$ref": "#/$defs/Disk" },
+        "systemConfig": { "$ref": "#/$defs/SystemConfig" }
+      },
+      "required": ["image", "target", "systemConfig"],
+      "additionalProperties": false
+    },
+    "UserTemplate": {
+      "type": "object",
+      "properties": {
+        "image": { "$ref": "#/$defs/Image" },
+        "target": { "$ref": "#/$defs/Target" },
+        "disk": { "$ref": "#/$defs/Disk" },
+        "systemConfig": { "$ref": "#/$defs/SystemConfig" }
+      },
+      "required": ["image", "target"],
+      "additionalProperties": false
+    }
+  }
 }

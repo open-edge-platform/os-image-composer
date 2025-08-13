@@ -44,7 +44,7 @@ systemConfig:
 	tmpFile.Close()
 
 	// Test loading
-	template, err := LoadTemplate(tmpFile.Name())
+	template, err := LoadTemplate(tmpFile.Name(), true)
 	if err != nil {
 		t.Fatalf("failed to load YAML template: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestUnsupportedFileFormat(t *testing.T) {
 	tmpFile.Close()
 
 	// Test loading should fail
-	_, err = LoadTemplate(tmpFile.Name())
+	_, err = LoadTemplate(tmpFile.Name(), false)
 	if err == nil {
 		t.Errorf("expected error for unsupported file format")
 	}
@@ -326,7 +326,7 @@ systemConfig:
 	tmpFile.Close()
 
 	// Test loading
-	template, err := LoadTemplate(tmpFile.Name())
+	template, err := LoadTemplate(tmpFile.Name(), true)
 	if err != nil {
 		t.Fatalf("failed to load YAML template: %v", err)
 	}
@@ -456,7 +456,7 @@ systemConfig:
 	tmpFile.Close()
 
 	// Test loading
-	template, err := LoadTemplate(tmpFile.Name())
+	template, err := LoadTemplate(tmpFile.Name(), true)
 	if err != nil {
 		t.Fatalf("failed to load YAML template: %v", err)
 	}
@@ -854,7 +854,7 @@ systemConfig:
 	tmpFile.Close()
 
 	// Test loading
-	template, err := LoadTemplate(tmpFile.Name())
+	template, err := LoadTemplate(tmpFile.Name(), true)
 	if err != nil {
 		t.Fatalf("failed to load YAML template: %v", err)
 	}

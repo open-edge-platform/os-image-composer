@@ -59,7 +59,7 @@ func (d *DefaultConfigLoader) LoadDefaultConfig(imageType string) (*ImageTemplat
 	}
 
 	// Load the default configuration
-	defaultTemplate, err := LoadTemplate(defaultConfigPath)
+	defaultTemplate, err := LoadTemplate(defaultConfigPath, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load default configuration: %w", err)
 	}
@@ -377,7 +377,7 @@ func LoadAndMergeTemplate(templatePath string) (*ImageTemplate, error) {
 	log := logger.Logger()
 
 	// Load the user template first
-	userTemplate, err := LoadTemplate(templatePath)
+	userTemplate, err := LoadTemplate(templatePath, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load user template: %w", err)
 	}

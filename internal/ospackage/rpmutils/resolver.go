@@ -131,6 +131,7 @@ func ResolvePackageInfos(
 
 	// Build the result slice in deterministic order:
 	result := make([]ospackage.PackageInfo, 0, len(neededSet))
+
 	for name := range neededSet {
 		// Get the original package info.
 		originalPI := byName[name]
@@ -221,9 +222,8 @@ func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 	dec := xml.NewDecoder(gr)
 
 	var (
-		infos          []ospackage.PackageInfo
-		currentSection string // "provides", "requires", or ""
-		curInfo        *ospackage.PackageInfo
+		infos   []ospackage.PackageInfo
+		curInfo *ospackage.PackageInfo
 	)
 
 	for {
@@ -240,9 +240,10 @@ func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 			case "package":
 				// start a new PackageInfo
 				curInfo = &ospackage.PackageInfo{}
-				curInfo.Type = "rpm" // Set type to rpm by default
+				curInfo.Type = "rpm"
+
 			case "location":
-				// read the href and build full URL + infer Name
+				// read the href and build full URL + infer Name (filename)
 				for _, a := range elem.Attr {
 					if a.Name.Local == "href" {
 						curInfo.URL = baseURL + a.Value
@@ -250,116 +251,129 @@ func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 						break
 					}
 				}
+
 			case "format":
 				const rpmNS = "http://linux.duke.edu/metadata/rpm"
+
+				// parse everything inside <format> (including rpm:provides/requires)
+				section := "" // "provides" | "requires" | ""
 
 			FormatLoop:
 				for {
 					tok2, err2 := dec.Token()
 					if err2 != nil {
-						break // EOF or actual error
+						break // EOF or error
 					}
-
 					switch inner := tok2.(type) {
 					case xml.StartElement:
 						switch {
 						case inner.Name.Local == "license" && inner.Name.Space == rpmNS:
-							tok3, err := dec.Token()
-							if err == nil {
-								if charData, ok := tok3.(xml.CharData); ok && curInfo != nil {
-									curInfo.License = string(charData)
+							if tok3, err := dec.Token(); err == nil {
+								if cd, ok := tok3.(xml.CharData); ok && curInfo != nil {
+									curInfo.License = strings.TrimSpace(string(cd))
 								}
 							}
 
 						case inner.Name.Local == "vendor" && inner.Name.Space == rpmNS:
-							tok3, err := dec.Token()
-							if err == nil {
-								if charData, ok := tok3.(xml.CharData); ok && curInfo != nil {
-									curInfo.Origin = string(charData)
+							if tok3, err := dec.Token(); err == nil {
+								if cd, ok := tok3.(xml.CharData); ok && curInfo != nil {
+									curInfo.Origin = strings.TrimSpace(string(cd))
+								}
+							}
+
+						case inner.Name.Local == "provides" && inner.Name.Space == rpmNS:
+							section = "provides"
+
+						case inner.Name.Local == "requires" && inner.Name.Space == rpmNS:
+							section = "requires"
+
+						case inner.Name.Local == "entry" && inner.Name.Space == rpmNS:
+							// rpm:entry name="..."
+							var name string
+							for _, a := range inner.Attr {
+								if a.Name.Local == "name" {
+									name = a.Value
+									break
+								}
+							}
+							if name != "" && curInfo != nil {
+								if section == "provides" {
+									curInfo.Provides = append(curInfo.Provides, name)
+								} else if section == "requires" {
+									curInfo.Requires = append(curInfo.Requires, name)
+								}
+							}
+
+						// some repos list <file> entries inside <format> without a namespace
+						case inner.Name.Local == "file" && inner.Name.Space == "":
+							if tok3, err := dec.Token(); err == nil {
+								if cd, ok := tok3.(xml.CharData); ok && curInfo != nil {
+									curInfo.Files = append(curInfo.Files, strings.TrimSpace(string(cd)))
 								}
 							}
 						}
 
 					case xml.EndElement:
-						if inner.Name.Local == "format" {
+						switch {
+						case inner.Name.Local == "provides" && inner.Name.Space == rpmNS:
+							section = ""
+						case inner.Name.Local == "requires" && inner.Name.Space == rpmNS:
+							section = ""
+						case inner.Name.Local == "format":
 							break FormatLoop
 						}
 					}
 				}
+
 			case "name":
-				// Read the canonical package name
-				tok2, err2 := dec.Token()
-				if err2 == nil {
-					if charData, ok := tok2.(xml.CharData); ok && curInfo != nil {
-						curInfo.Name = string(charData)
+				// canonical package name
+				if tok2, err2 := dec.Token(); err2 == nil {
+					if cd, ok := tok2.(xml.CharData); ok && curInfo != nil {
+						curInfo.Name = string(cd)
 					}
 				}
+
 			case "description":
-				// Read the description text
-				tok2, err2 := dec.Token()
-				if err2 == nil {
-					if charData, ok := tok2.(xml.CharData); ok && curInfo != nil {
-						curInfo.Description = string(charData)
+				if tok2, err2 := dec.Token(); err2 == nil {
+					if cd, ok := tok2.(xml.CharData); ok && curInfo != nil {
+						curInfo.Description = string(cd)
 					}
 				}
+
 			case "arch":
-				// Read the arch value
-				tok2, err2 := dec.Token()
-				if err2 == nil {
-					if charData, ok := tok2.(xml.CharData); ok {
-						curInfo.Arch = string(charData)
+				if tok2, err2 := dec.Token(); err2 == nil {
+					if cd, ok := tok2.(xml.CharData); ok && curInfo != nil {
+						curInfo.Arch = string(cd)
 					}
 				}
+
 			case "checksum":
-				// Look through attributes to find 'type'
-				checksum := ospackage.Checksum{}
+				// primary.xml checksum for the rpm payload (outside <format>)
+				cs := ospackage.Checksum{}
 				for _, attr := range elem.Attr {
 					if attr.Name.Local == "type" {
-
-						checksum.Algorithm = strings.ToUpper(attr.Value) // e.g. "SHA256"
-					}
-				}
-				// grab the checksum text
-				tok2, err2 := dec.Token()
-				if err2 == nil {
-					if charData, ok := tok2.(xml.CharData); ok {
-						checksum.Value = string(charData)
-						curInfo.Checksums = append(curInfo.Checksums, checksum)
-					}
-				}
-			case "provides":
-				currentSection = "provides"
-			case "requires":
-				currentSection = "requires"
-
-			case "entry":
-				// grab the name attribute
-				var name string
-				for _, a := range elem.Attr {
-					if a.Name.Local == "name" {
-						name = a.Value
+						cs.Algorithm = strings.ToUpper(attr.Value) // SHA256, etc.
 						break
 					}
 				}
-				if currentSection == "provides" {
-					curInfo.Provides = append(curInfo.Provides, name)
-				} else if currentSection == "requires" {
-					curInfo.Requires = append(curInfo.Requires, name)
+				if tok2, err2 := dec.Token(); err2 == nil {
+					if cd, ok := tok2.(xml.CharData); ok && curInfo != nil {
+						cs.Value = string(cd)
+						curInfo.Checksums = append(curInfo.Checksums, cs)
+					}
 				}
+
 			case "file":
-				// Grab the file path provided by the package
-				tok2, err2 := dec.Token()
-				if err2 == nil {
-					if charData, ok := tok2.(xml.CharData); ok && curInfo != nil {
-						curInfo.Files = append(curInfo.Files, string(charData))
+				// sometimes <file> is outside <format> as well
+				if tok2, err2 := dec.Token(); err2 == nil {
+					if cd, ok := tok2.(xml.CharData); ok && curInfo != nil {
+						curInfo.Files = append(curInfo.Files, strings.TrimSpace(string(cd)))
 					}
 				}
 			}
 
 		case xml.EndElement:
 			switch elem.Name.Local {
-			case "provides", "requires":
-				currentSection = ""
 			case "package":
 				// finish this package
 				infos = append(infos, *curInfo)
