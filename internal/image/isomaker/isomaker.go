@@ -547,3 +547,4 @@ func cleanIsoInstallRoot(installRoot string) error {
 
 	return nil
 }
+
