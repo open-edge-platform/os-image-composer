@@ -47,10 +47,7 @@ jobs:
         ICT_COVERITY_KEY: ${{ secrets.ICT_COVERITY_KEY }}
         ICT_COVERITY_PROJECT_ID: ${{ secrets.ICT_COVERITY_PROJECT_ID }}
       run: |
-        pwd
-        ls -la
-        wget --quiet https://scan.coverity.com/download/linux64 \
-          --post-data "token=${{ $ICT_COVERITY_KEY }}&project=${{ $ICT_COVERITY_PROJECT_ID }}" \
-          -O coverity_tool.tgz
-        mkdir cov-analysis
-        tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
+          cd $HOME
+          wget https://scan.coverity.com/download/linux64 --post-data "token=$ICT_COVERITY_KEY&project=$ICT_COVERITY_PROJECT_ID" -O coverity.tgz
+          tar zxf coverity.tgz
+          mv -T cov-analysis-linux64-* coverity
