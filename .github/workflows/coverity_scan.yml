@@ -20,12 +20,37 @@ jobs:
       run: |
         ls -la
 
+    - name: Debug ICT_COVERITY_KEY
+      run: |
+        if [ -z "$ICT_COVERITY_KEY" ]; then
+          echo "ICT_COVERITY_KEY is not set"
+          exit 1
+        else
+          echo "ICT_COVERITY_KEY is set"
+        fi
+      env:
+          ICT_COVERITY_KEY: ${{ secrets.ICT_COVERITY_KEY }}
+
+    - name: Debug ICT_COVERITY_PROJECT_ID
+      run: |
+        if [ -z "$ICT_COVERITY_PROJECT_ID" ]; then
+          echo "ICT_COVERITY_PROJECT_ID is not set"
+          exit 1
+        else
+          echo "ICT_COVERITY_PROJECT_ID is set"
+        fi
+      env:
+          ICT_COVERITY_PROJECT_ID: ${{ secrets.ICT_COVERITY_PROJECT_ID }}
+
     - name: Download Coverity Scan Tool
+      env:
+        ICT_COVERITY_KEY: ${{ secrets.ICT_COVERITY_KEY }}
+        ICT_COVERITY_PROJECT_ID: ${{ secrets.ICT_COVERITY_PROJECT_ID }}
       run: |
         pwd
         ls -la
         wget --quiet https://scan.coverity.com/download/linux64 \
-          --post-data "token=${{ secrets.ICT_COVERITY_KEY  }}&project=${{ secrets.ICT_COVERITY_PROJECT_ID }}" \
+          --post-data "token=${{ $ICT_COVERITY_KEY }}&project=${{ $ICT_COVERITY_PROJECT_ID }}" \
           -O coverity_tool.tgz
         mkdir cov-analysis
         tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
