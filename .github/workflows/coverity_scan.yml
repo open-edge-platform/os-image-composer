@@ -10,8 +10,7 @@ on:
 
 jobs:
   coverity_scan:
-    runs-on: ["innersource.prod.amr.dind"]
-    container: amr-registry.caas.intel.com/owr/abi_ubuntu_20.04:main
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
@@ -20,3 +19,13 @@ jobs:
     - name: Show list
       run: |
         ls -la
+
+    - name: Download Coverity Scan Tool
+      run: |
+        pwd
+        ls -la
+        wget --quiet https://scan.coverity.com/download/linux64 \
+          --post-data "token=${{ secrets.ICT_COVERITY_KEY  }}&project=${{ secrets.ICT_COVERITY_PROJECT_ID }}" \
+          -O coverity_tool.tgz
+        mkdir cov-analysis
+        tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
