@@ -25,21 +25,24 @@ systemConfig:
 
   # User Configuration
   users:
-    # Pre-hashed password (production approach)
+    # Example: Pre-hashed password (production approach)
     - name: admin
-      password: "$6$rounds=4096$salt$hashedvalue..."
-      groups: ["wheel"]
+      password: ""               # leave empty in sample
+      # password: "<HASHED_PASSWORD>"  # Uncomment and replace in real config
+      groups: ["<REQUIRED_GROUP>"]     # e.g., "wheel" for admin, "users" for non-admin
 
-    # Plain text with algorithm (development approach)
+    # Example: Plain text with algorithm (development/testing only)
     - name: testuser
-      password: "test123"
-      hash_algo: "sha512"
+      password: ""               # Do not commit real plaintext passwords
+      # password: "<PLAIN_PASSWORD>"
+      hash_algo: "sha512"        # or org-approved algorithm
 
-    # Plain text with different algorithm
+    # Example: Plain text with different algorithm (development/testing only)
     - name: secureuser
-      password: "securepass"
-      hash_algo: "bcrypt"
-      sudo: true
+      password: ""               # Do not commit real plaintext passwords
+      # password: "<PLAIN_PASSWORD>"
+      hash_algo: "bcrypt"        # specify cost in production if supported
+      sudo: false                # change to true only if admin rights are required
 
   # Package Configuration
   packages:
