@@ -2,6 +2,7 @@ package imagesign
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -52,8 +53,7 @@ func SignImage(installRoot string, template *config.ImageTemplate) error {
 	}
 
 	// Replace original with signed version
-	mvCmd := fmt.Sprintf("mv %s %s", ukiSignedPath, ukiPath)
-	if _, err := shell.ExecCmd(mvCmd, true, "", nil); err != nil {
+	if err := os.Rename(ukiSignedPath, ukiPath); err != nil {
 		return fmt.Errorf("failed to replace UKI with signed version: %w", err)
 	}
 
@@ -66,12 +66,11 @@ func SignImage(installRoot string, template *config.ImageTemplate) error {
 	}
 
 	// Replace original with signed version
-	mvCmd = fmt.Sprintf("mv %s %s", bootloaderSignedPath, bootloaderPath)
-	if _, err := shell.ExecCmd(mvCmd, true, "", nil); err != nil {
+	if err := os.Rename(bootloaderSignedPath, bootloaderPath); err != nil {
 		return fmt.Errorf("failed to replace bootloader with signed version: %w", err)
 	}
 
-	//super long logic to get final output path - need a helper function for this
+	// Getting image build directory
 	globalWorkDir, err := config.WorkDir()
 	if err != nil {
 		return fmt.Errorf("failed to get global work directory: %v", err)
@@ -80,8 +79,25 @@ func SignImage(installRoot string, template *config.ImageTemplate) error {
 	sysConfigName := template.GetSystemConfigName()
 	finalCerFilePath := filepath.Join(imageBuildDir, sysConfigName, "DB.cer")
 
-	// Copy the certificate file to the temp directory
-	if _, err := shell.ExecCmd(fmt.Sprintf("cp %s %s", prCerPath, finalCerFilePath), true, "", nil); err != nil {
+	// Copy the certificate file to the temp directory using Go's file library
+	input, err := os.Open(prCerPath)
+	if err != nil {
+		return fmt.Errorf("failed to open certificate file: %w", err)
+	}
+	defer input.Close()
+
+	// Ensure the destination directory exists
+	if err := os.MkdirAll(filepath.Dir(finalCerFilePath), 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	output, err := os.Create(finalCerFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to create destination certificate file: %w", err)
+	}
+	defer output.Close()
+
+	if _, err := io.Copy(output, input); err != nil {
 		return fmt.Errorf("failed to copy certificate file: %w", err)
 	}
 
