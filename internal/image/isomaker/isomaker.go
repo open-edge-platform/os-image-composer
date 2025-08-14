@@ -503,7 +503,7 @@ func createGrubStandAlone(template *config.ImageTemplate, initrdRootfsPath, inst
 	if err != nil {
 		return fmt.Errorf("unsupported architecture for GRUB: %s", arch)
 	}
-	grubmkCmd += fmt.Sprintf(" --format=%s", formatName)
+	grubmkCmd += fmt.Sprintf(" --format=%s-efi", formatName)
 	grubmkCmd += fmt.Sprintf(" --output=%s", efiBootFilesDest)
 	grubmkCmd += fmt.Sprintf(" \"boot/grub/grub.cfg=%s\"", grubCfgSrc)
 	if _, err := shell.ExecCmd(grubmkCmd, true, "", nil); err != nil {
