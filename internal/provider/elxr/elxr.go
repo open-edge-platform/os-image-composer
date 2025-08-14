@@ -114,6 +114,7 @@ func (p *eLxr) installHostDependency() error {
 		"xorriso":           "xorriso",       // For ISO image creation
 		"ukify":             "systemd-ukify", // For the UKI image creation
 		"grub-mkstandalone": "grub-common",   // For ISO image UEFI Grub binary creation
+		"veritysetup":       "cryptsetup",    // For the veritysetup command
 	}
 	hostPkgManager, err := chroot.GetHostOsPkgManager()
 	if err != nil {
