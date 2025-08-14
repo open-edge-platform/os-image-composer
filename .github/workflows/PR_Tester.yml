@@ -15,7 +15,7 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 ovmf tree jq systemd-ukify
+          sudo apt-get install -y qemu-system-x86 ovmf tree jq systemd-ukify mmdebstrap
 
       - name: Checkout PR code
         uses: actions/checkout@v4
