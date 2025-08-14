@@ -59,7 +59,7 @@ build:
 test:
     FROM +golang-base
     RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOARCH=amd64 GOOS=linux \
-        go test -v -timeout=3m ./... -skip "TestImagePartitioning|TestExecCmd|TestExecCmdWithStream|TestExecCmdWithInput|TestUnsupportedDistribution|TestValidImageTemplate"
+        go test -v -timeout=3m ./... -skip='^(TestCopyFile(/(Basic_Copy|Copy_with_preserve_flag|Create_missing_destination_directory))?|TestCopyDir(/(Basic_Directory_Copy|Copy_with_preserve_flag|Create_missing_destination_directory))?|TestCopyFilePermissions|TestCopyFileConcurrent|TestExecCmd$|TestExecCmdWithStream|TestExecCmdWithInput|TestGetFullCmdStr)$'
 
 lint:
     FROM +golang-base

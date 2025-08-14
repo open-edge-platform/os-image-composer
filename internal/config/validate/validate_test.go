@@ -131,7 +131,7 @@ systemConfig:
 		t.Fatalf("json marshaling error: %v", err)
 	}
 
-	if err := ValidateConfigJSON(dataJSON); err != nil {
+	if err := ValidateImageTemplateJSON(dataJSON); err != nil {
 		t.Errorf("expected merged template to pass validation, but got: %v", err)
 	}
 }
@@ -163,7 +163,7 @@ target:
 		t.Fatalf("json marshaling error: %v", err)
 	}
 
-	if err := ValidateConfigJSON(dataJSON); err == nil {
+	if err := ValidateImageTemplateJSON(dataJSON); err == nil {
 		t.Errorf("expected invalid merged template to fail validation")
 	}
 }
@@ -362,7 +362,7 @@ systemConfig:
 				t.Fatalf("failed to marshal to JSON: %v", err)
 			}
 
-			err = ValidateConfigJSON(dataJSON)
+			err = ValidateImageTemplateJSON(dataJSON)
 			if tt.shouldPass && err != nil {
 				t.Errorf("expected %s to pass validation (%s), but got error: %v", tt.name, tt.description, err)
 			} else if !tt.shouldPass && err == nil {
