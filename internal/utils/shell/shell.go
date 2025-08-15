@@ -114,6 +114,17 @@ var commandMap = map[string]string{
 	// Add more mappings as needed
 }
 
+type Executor interface {
+	ExecCmd(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error)
+	ExecCmdSilent(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error)
+	ExecCmdWithStream(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error)
+	ExecCmdWithInput(inputStr string, cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error)
+}
+
+type DefaultExecutor struct{}
+
+var Default Executor = &DefaultExecutor{}
+
 // GetOSEnvirons returns the system environment variables
 func GetOSEnvirons() map[string]string {
 	// Convert os.Environ() to a map
@@ -331,7 +342,7 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 }
 
 // ExecCmd executes a command and returns its output
-var ExecCmd = func(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+func (d *DefaultExecutor) ExecCmd(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
 	log := logger.Logger()
 	fullCmdStr, err := GetFullCmdStr(cmdStr, sudo, chrootPath, envVal)
 	if err != nil {
@@ -358,7 +369,7 @@ var ExecCmd = func(cmdStr string, sudo bool, chrootPath string, envVal []string)
 }
 
 // ExecCmdSilent executes a command without logging its output
-var ExecCmdSilent = func(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+func (d *DefaultExecutor) ExecCmdSilent(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
 	fullCmdStr, err := GetFullCmdStr(cmdStr, sudo, chrootPath, envVal)
 	if err != nil {
 		return "", fmt.Errorf("failed to get full command string: %w", err)
@@ -370,7 +381,7 @@ var ExecCmdSilent = func(cmdStr string, sudo bool, chrootPath string, envVal []s
 }
 
 // ExecCmdWithStream executes a command and streams its output
-var ExecCmdWithStream = func(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+func (d *DefaultExecutor) ExecCmdWithStream(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
 	var outputStr string
 	log := logger.Logger()
 
@@ -429,7 +440,7 @@ var ExecCmdWithStream = func(cmdStr string, sudo bool, chrootPath string, envVal
 }
 
 // ExecCmdWithInput executes a command with input string
-var ExecCmdWithInput = func(inputStr string, cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+func (d *DefaultExecutor) ExecCmdWithInput(inputStr string, cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
 	log := logger.Logger()
 	fullCmdStr, err := GetFullCmdStr(cmdStr, sudo, chrootPath, envVal)
 	if err != nil {
@@ -453,4 +464,21 @@ var ExecCmdWithInput = func(inputStr string, cmdStr string, sudo bool, chrootPat
 		}
 		return outputStr, nil
 	}
+}
+
+// Convenience functions for backward compatibility
+func ExecCmd(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	return Default.ExecCmd(cmdStr, sudo, chrootPath, envVal)
+}
+
+func ExecCmdSilent(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	return Default.ExecCmdSilent(cmdStr, sudo, chrootPath, envVal)
+}
+
+func ExecCmdWithStream(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	return Default.ExecCmdWithStream(cmdStr, sudo, chrootPath, envVal)
+}
+
+func ExecCmdWithInput(inputStr string, cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	return Default.ExecCmdWithInput(inputStr, cmdStr, sudo, chrootPath, envVal)
 }
