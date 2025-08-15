@@ -109,6 +109,8 @@ var commandMap = map[string]string{
 	"passwd":             "/usr/bin/passwd",
 	"mv":                 "/usr/bin/mv",
 	"grub-mkstandalone":  "/usr/bin/grub-mkstandalone",
+	"sbsign":             "/usr/bin/sbsign",
+	"test":               "/usr/bin/test",
 	// Add more mappings as needed
 }
 

@@ -115,6 +115,7 @@ func (p *eLxr) installHostDependency() error {
 		"ukify":             "systemd-ukify", // For the UKI image creation
 		"grub-mkstandalone": "grub-common",   // For ISO image UEFI Grub binary creation
 		"veritysetup":       "cryptsetup",    // For the veritysetup command
+		"sbsign":            "sbsigntool",    // For the UKI image creation
 	}
 	hostPkgManager, err := chroot.GetHostOsPkgManager()
 	if err != nil {
