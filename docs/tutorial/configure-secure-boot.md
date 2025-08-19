@@ -168,5 +168,3 @@ You've successfully:
 - ✅ Built an image with Secure Boot enabled
 - ✅ Enrolled keys in UEFI firmware
 - ✅ Verified Secure Boot functionality
-
-Your OS image is now protected by Secure Boot and will only boot with trusted, signed
