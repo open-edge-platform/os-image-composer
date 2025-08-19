@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/open-edge-platform/image-composer/internal/chroot"
 	"github.com/open-edge-platform/image-composer/internal/config"
 	"github.com/open-edge-platform/image-composer/internal/image/imageboot"
@@ -547,6 +549,9 @@ func updateInitrdConfig(installRoot string, template *config.ImageTemplate) erro
 	if err := addImageAdditionalFiles(installRoot, template); err != nil {
 		return fmt.Errorf("failed to add additional files to image: %w", err)
 	}
+	if err := addImageIDFile(installRoot, template); err != nil {
+		return fmt.Errorf("failed to add image ID file: %w", err)
+	}
 	return nil
 }
 
@@ -562,6 +567,9 @@ func updateImageConfig(installRoot string, diskPathIdMap map[string]string, temp
 	}
 	if err := addImageAdditionalFiles(installRoot, template); err != nil {
 		return fmt.Errorf("failed to add additional files to image: %w", err)
+	}
+	if err := addImageIDFile(installRoot, template); err != nil {
+		return fmt.Errorf("failed to add image ID file: %w", err)
 	}
 	if err := updateImageFstab(installRoot, diskPathIdMap, template); err != nil {
 		return fmt.Errorf("failed to update image fstab: %w", err)
@@ -588,6 +596,22 @@ func updateImageUsrGroup(installRoot string, template *config.ImageTemplate) err
 }
 
 func updateImageNetwork(installRoot string, template *config.ImageTemplate) error {
+	return nil
+}
+
+func addImageIDFile(installRoot string, template *config.ImageTemplate) error {
+	log := logger.Logger()
+	log.Infof("Adding image ID file for image: %s", template.GetImageName())
+	imageIDFilePath := filepath.Join(installRoot, "etc", "image-id")
+	// Get the current time in UTC and in format "YYYYMMDDHHMMSS"
+	imageBuildDate := time.Now().UTC().Format("20060102150405")
+	imageIDContent := fmt.Sprintf("IMAGE_BUILD_DATE=%s\nIMAGE_UUID=%s\n", imageBuildDate, uuid.New().String())
+	if err := file.Write(imageIDContent, imageIDFilePath); err != nil {
+		return fmt.Errorf("failed to write file %s: %w", imageIDFilePath, err)
+	}
+	if _, err := shell.ExecCmd("chmod 0444 "+imageIDFilePath, true, "", nil); err != nil {
+		return fmt.Errorf("failed to set permissions for image ID file %s: %w", imageIDFilePath, err)
+	}
 	return nil
 }
 
