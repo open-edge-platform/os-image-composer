@@ -21,24 +21,25 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/utils/shell"
 )
 
-func InstallInitrd(template *config.ImageTemplate) (string, error) {
+func InstallInitrd(template *config.ImageTemplate) (string, string, error) {
+	var versionInfo string
 	log := logger.Logger()
 	log.Infof("Installing initrd for image: %s", template.GetImageName())
 
 	installRoot, err := InitChrootInstallRoot(template)
 	if err != nil {
-		return installRoot, fmt.Errorf("failed to initialize chroot install root: %w", err)
+		return installRoot, versionInfo, fmt.Errorf("failed to initialize chroot install root: %w", err)
 	}
 
 	pkgType := chroot.GetTaRgetOsPkgType(config.TargetOs)
 	if pkgType == "deb" {
 		if err := initRootfsForDeb(installRoot); err != nil {
-			return installRoot, fmt.Errorf("failed to initialize rootfs for deb: %w", err)
+			return installRoot, versionInfo, fmt.Errorf("failed to initialize rootfs for deb: %w", err)
 		}
 	}
 
 	if err := mountSysfsToRootfs(installRoot); err != nil {
-		return installRoot, err
+		return installRoot, versionInfo, err
 	}
 
 	log.Infof("Image installation pre-processing...")
@@ -63,40 +64,41 @@ func InstallInitrd(template *config.ImageTemplate) (string, error) {
 	}
 
 	log.Infof("Image installation post-processing...")
-	err = postImageOsInstall(installRoot, template)
+	versionInfo, err = postImageOsInstall(installRoot, template)
 	if err != nil {
 		err = fmt.Errorf("post-install failed: %w", err)
 		goto fail
 	}
 
 	if err := umountSysfsFromRootfs(installRoot); err != nil {
-		return installRoot, err
+		return installRoot, versionInfo, err
 	}
 
-	return installRoot, nil
+	return installRoot, versionInfo, nil
 
 fail:
 	if umountErr := umountSysfsFromRootfs(installRoot); umountErr != nil {
 		log.Errorf("Failed to unmount sysfs from rootfs after error: %v", umountErr)
 	}
-	return installRoot, fmt.Errorf("initrd installation failed: %w", err)
+	return installRoot, versionInfo, fmt.Errorf("initrd installation failed: %w", err)
 }
 
-func InstallImageOs(diskPathIdMap map[string]string, template *config.ImageTemplate) error {
+func InstallImageOs(diskPathIdMap map[string]string, template *config.ImageTemplate) (string, error) {
 	var err error
+	var versionInfo string
 	var mountPointInfoList []map[string]string
 	log := logger.Logger()
 	log.Infof("Installing OS for image: %s", template.GetImageName())
 
 	installRoot, err := InitChrootInstallRoot(template)
 	if err != nil {
-		return fmt.Errorf("failed to initialize chroot install root: %w", err)
+		return versionInfo, fmt.Errorf("failed to initialize chroot install root: %w", err)
 	}
 
 	pkgType := chroot.GetTaRgetOsPkgType(config.TargetOs)
 	if pkgType == "deb" {
 		if err = mountDiskRootToChroot(installRoot, diskPathIdMap, template); err != nil {
-			return fmt.Errorf("failed to mount disk root to chroot: %w", err)
+			return versionInfo, fmt.Errorf("failed to mount disk root to chroot: %w", err)
 		}
 
 		if err = initRootfsForDeb(installRoot); err != nil {
@@ -107,7 +109,7 @@ func InstallImageOs(diskPathIdMap map[string]string, template *config.ImageTempl
 
 	mountPointInfoList, err = mountDiskToChroot(installRoot, diskPathIdMap, template)
 	if err != nil {
-		return fmt.Errorf("failed to mount disk to chroot: %w", err)
+		return versionInfo, fmt.Errorf("failed to mount disk to chroot: %w", err)
 	}
 
 	log.Infof("Image installation pre-processing...")
@@ -158,23 +160,23 @@ func InstallImageOs(diskPathIdMap map[string]string, template *config.ImageTempl
 	}
 
 	log.Infof("Image installation post-processing...")
-	err = postImageOsInstall(installRoot, template)
+	versionInfo, err = postImageOsInstall(installRoot, template)
 	if err != nil {
 		err = fmt.Errorf("post-install failed: %w", err)
 		goto fail
 	}
 
 	if err = umountDiskFromChroot(installRoot, mountPointInfoList); err != nil {
-		return fmt.Errorf("failed to unmount disk from chroot: %w", err)
+		return versionInfo, fmt.Errorf("failed to unmount disk from chroot: %w", err)
 	}
 
-	return nil
+	return versionInfo, nil
 
 fail:
 	if umountErr := umountDiskFromChroot(installRoot, mountPointInfoList); umountErr != nil {
 		log.Errorf("Failed to unmount disk from chroot after error: %v", umountErr)
 	}
-	return fmt.Errorf("image OS installation failed: %w", err)
+	return versionInfo, fmt.Errorf("image OS installation failed: %w", err)
 }
 
 func InitChrootInstallRoot(template *config.ImageTemplate) (string, error) {
@@ -577,8 +579,51 @@ func updateImageConfig(installRoot string, diskPathIdMap map[string]string, temp
 	return nil
 }
 
-func postImageOsInstall(installRoot string, template *config.ImageTemplate) error {
-	return nil
+func getImageVersionInfo(installRoot string, template *config.ImageTemplate) (string, error) {
+	var versionInfo string
+	var prefix string
+	log := logger.Logger()
+	log.Infof("Getting image version info for: %s", template.GetImageName())
+	imageVersionFilePath := filepath.Join(installRoot, "etc", "os-release")
+	if _, err := os.Stat(imageVersionFilePath); os.IsNotExist(err) {
+		return "", fmt.Errorf("os-release file does not exist: %s", imageVersionFilePath)
+	}
+	content, err := file.Read(imageVersionFilePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read image version file: %w", err)
+	}
+
+	switch config.TargetOs {
+	case "azure-linux", "edge-microvisor-toolkit":
+		prefix = "VERSION="
+	case "wind-river-elxr":
+		prefix = "VERSION_ID="
+	default:
+		prefix = "VERSION_ID="
+	}
+	// Parse the content to extract version information
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, prefix) {
+			// Remove prefix, quotes and trim whitespace
+			line = strings.TrimPrefix(line, prefix)
+			versionInfo = strings.TrimSpace(strings.Trim(line, "\""))
+		}
+	}
+	if versionInfo == "" {
+		log.Debugf("Version info not found in %s", imageVersionFilePath)
+	} else {
+		log.Infof("Extracted version info: %s", versionInfo)
+	}
+	return versionInfo, nil
+}
+
+func postImageOsInstall(installRoot string, template *config.ImageTemplate) (string, error) {
+	versionInfo, err := getImageVersionInfo(installRoot, template)
+	if err != nil {
+		return versionInfo, fmt.Errorf("failed to get image version info: %w", err)
+	}
+	return versionInfo, nil
 }
 
 func updateImageHostname(installRoot string, template *config.ImageTemplate) error {

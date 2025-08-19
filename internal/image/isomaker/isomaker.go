@@ -44,22 +44,23 @@ func BuildISOImage(template *config.ImageTemplate) error {
 		return fmt.Errorf("failed to initialize ISO maker workspace: %w", err)
 	}
 
-	imageName := template.GetImageName()
 	sysConfigName := template.GetSystemConfigName()
-	isoFilePath := filepath.Join(ImageBuildDir, sysConfigName, fmt.Sprintf("%s.iso", imageName))
+
 	initrdFileDir := filepath.Join(ImageBuildDir, sysConfigName)
 	if _, err := os.Stat(initrdFileDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(initrdFileDir, 0755); err != nil {
 			return fmt.Errorf("failed to create initrd file directory: %w", err)
 		}
 	}
-	initrdFilePath := filepath.Join(initrdFileDir, "iso-initrd.img")
 
 	log.Infof("Creating ISO Initrd image...")
-	initrdRootfsPath, err := buildISOInitrd(initrdFilePath)
+	initrdRootfsPath, initrdFilePath, versionInfo, err := buildISOInitrd(initrdFileDir)
 	if err != nil {
 		return fmt.Errorf("failed to build ISO initrd: %v", err)
 	}
+
+	ImageName := fmt.Sprintf("%s-%s", template.GetImageName(), versionInfo)
+	isoFilePath := filepath.Join(ImageBuildDir, sysConfigName, fmt.Sprintf("%s.iso", ImageName))
 
 	log.Infof("Creating ISO image...")
 	if err := createISO(template, initrdRootfsPath, initrdFilePath, isoFilePath); err != nil {
@@ -68,27 +69,28 @@ func BuildISOImage(template *config.ImageTemplate) error {
 	return nil
 }
 
-func buildISOInitrd(initrdFilePath string) (string, error) {
+func buildISOInitrd(initrdFileDir string) (string, string, string, error) {
 	initrdTemplate, err := getInitrdTemplate()
 	if err != nil {
-		return "", fmt.Errorf("failed to get initrd template: %v", err)
+		return "", "", "", fmt.Errorf("failed to get initrd template: %v", err)
 	}
 	if err := downloadInitrdPkgs(initrdTemplate); err != nil {
-		return "", fmt.Errorf("failed to download initrd packages: %v", err)
+		return "", "", "", fmt.Errorf("failed to download initrd packages: %v", err)
 	}
-	initrdRootfsPath, err := imageos.InstallInitrd(initrdTemplate)
+	initrdRootfsPath, versionInfo, err := imageos.InstallInitrd(initrdTemplate)
 	if err != nil {
-		return initrdRootfsPath, fmt.Errorf("failed to install initrd: %v", err)
+		return initrdRootfsPath, "", versionInfo, fmt.Errorf("failed to install initrd: %v", err)
 	}
 
 	if err := addInitScriptsToInitrd(initrdRootfsPath); err != nil {
-		return initrdRootfsPath, fmt.Errorf("failed to add init scripts to initrd: %v", err)
+		return initrdRootfsPath, "", versionInfo, fmt.Errorf("failed to add init scripts to initrd: %v", err)
 	}
 
-	if err := createInitrdImg(initrdRootfsPath, initrdFilePath); err != nil {
-		return initrdRootfsPath, fmt.Errorf("failed to create initrd image: %v", err)
+	initrdFilePath, err := createInitrdImg(initrdRootfsPath, versionInfo, initrdFileDir)
+	if err != nil {
+		return initrdRootfsPath, "", versionInfo, fmt.Errorf("failed to create initrd image: %v", err)
 	}
-	return initrdRootfsPath, nil
+	return initrdRootfsPath, initrdFilePath, versionInfo, nil
 }
 
 func getInitrdTemplate() (*config.ImageTemplate, error) {
@@ -150,13 +152,18 @@ func addInitScriptsToInitrd(initrdRootfsPath string) error {
 	return file.CopyFile(rcLocalSrc, rcLocalDest, "--preserve=mode", true)
 }
 
-func createInitrdImg(initrdRootfsPath string, outputPath string) error {
+func createInitrdImg(initrdRootfsPath, versionInfo, initrdFileDir string) (string, error) {
+	initrdFileName := "iso-initrd-" + versionInfo + ".img"
+	initrdFilePath := filepath.Join(initrdFileDir, initrdFileName)
 	cmdStr := fmt.Sprintf("cd %s && sudo find . | sudo cpio -o -H newc | sudo gzip > %s",
-		initrdRootfsPath, outputPath)
+		initrdRootfsPath, initrdFilePath)
 	if _, err := shell.ExecCmdWithStream(cmdStr, false, "", nil); err != nil {
-		return fmt.Errorf("failed to create initrd image: %v", err)
+		return initrdFilePath, fmt.Errorf("failed to create initrd image: %v", err)
 	}
-	return nil
+	if _, err := os.Stat(initrdFilePath); os.IsNotExist(err) {
+		return initrdFilePath, fmt.Errorf("initrd image file does not exist: %s", initrdFilePath)
+	}
+	return initrdFilePath, nil
 }
 
 func createISO(template *config.ImageTemplate, initrdRootfsPath, initrdFilePath, isoFilePath string) error {
