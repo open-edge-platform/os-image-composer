@@ -56,14 +56,107 @@ build:
             ./cmd/image-composer
     SAVE ARTIFACT build/image-composer AS LOCAL ./build/image-composer
 
-test:
-    FROM +golang-base
-    RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOARCH=amd64 GOOS=linux \
-        go test -v -timeout=3m ./... -skip='^(TestCopyFile(/(Basic_Copy|Copy_with_preserve_flag|Create_missing_destination_directory))?|TestCopyDir(/(Basic_Directory_Copy|Copy_with_preserve_flag|Create_missing_destination_directory))?|TestCopyFilePermissions|TestCopyFileConcurrent|TestExecCmd$|TestExecCmdWithStream|TestExecCmdWithInput|TestGetFullCmdStr)$'
-
 lint:
     FROM +golang-base
     WORKDIR /work
     COPY . /work
     RUN --mount=type=cache,target=/root/.cache \
         golangci-lint run ./...
+
+test:
+    FROM +golang-base
+    ARG COV_THRESHOLD=0
+    ARG PRINT_TS=0
+    RUN apk add --no-cache gawk
+
+    # 1) Run tests & build coverage artifacts (never fail this step)
+    RUN --mount=type=cache,target=/root/.cache/go-build sh -u -c '
+      set -u
+
+      # Discover all packages (exclude cmd/)
+      ALL_PKGS="$(go list ./... | grep -Ev "/cmd($|/)")"
+      printf "%s\n" "$ALL_PKGS" > pkgs_all.txt
+      COVERPKG="$(printf "%s\n" "$ALL_PKGS" | paste -sd, -)"
+
+      # Run tests; capture exit code but do not exit
+      TEST_RC=0
+      if ! go test -timeout=3m \
+             -covermode=atomic \
+             -coverpkg="$COVERPKG" \
+             -coverprofile=coverage.out \
+             -skip='"'"'^(TestCopyFile(/(Basic_Copy|Copy_with_preserve_flag|Create_missing_destination_directory))?|TestCopyDir(/(Basic_Directory_Copy|Copy_with_preserve_flag|Create_missing_destination_directory))?|TestCopyFilePermissions|TestCopyFileConcurrent|TestExecCmd$|TestExecCmdWithStream|TestExecCmdWithInput|TestGetFullCmdStr)$'"'"' \
+             $ALL_PKGS > test_raw.log 2>&1; then
+        TEST_RC=$?
+      fi
+
+      # Ensure coverage file exists so downstream tools work
+      [ -s coverage.out ] || echo "mode: atomic" > coverage.out
+
+      # Build per-package coverage list
+      /usr/bin/gawk '"'"'BEGIN{OFS="";FS="[ \t]+"}
+        FNR==NR {want[$0]=1; next}                 # pkgs_all.txt
+        $0 ~ /^mode:/ {next}
+        $1 !~ /:[0-9]+\.[0-9]+,/ {next}
+        { split($1,a,":"); path=a[1]
+          n=split(path,parts,"/"); if(n<2) next
+          pkg=parts[1]; for(i=2;i<=n-1;i++) pkg=pkg"/"parts[i]
+          stmts=$2+0; hits=$3+0
+          total[pkg]+=stmts; if(hits>0) covered[pkg]+=stmts }
+        END{
+          for(p in want){
+            t=total[p]+0; c=covered[p]+0; pct=(t>0)?(c/t*100.0):0.0
+            printf "%.6f\t%s\n", pct, p
+          }
+        }'"'"' pkgs_all.txt coverage.out \
+      | sort -t "$(printf "\t")" -k1,1n > pkgs_pct_sorted.tsv
+
+      # Compute total; fall back to 0.00% if cover tool errors
+      if ! go tool cover -func=coverage.out > coverage_total.txt 2>/dev/null; then
+        echo "total: (statements) 0.0%" > coverage_total.txt
+      fi
+      TOTAL="$(/usr/bin/gawk '"'"'/^total:/ {print substr($3,1,length($3)-1)}'"'"' coverage_total.txt)"
+      [ -n "$TOTAL" ] || TOTAL=0
+
+      # Render a clean text table file
+      PKG_W="$(/usr/bin/gawk '"'"'BEGIN{w=7} { if (length($0)>w) w=length($0) } END{print w}'"'"' pkgs_all.txt)"
+      /usr/bin/gawk -F "\t" -v W="$PKG_W" -v TOT="$TOTAL" '"'"'
+        BEGIN{
+          covW=7
+          print ""
+          printf "%-*s  %*s\n", W, "Package", covW, "Coverage"
+          for(i=0;i<W;i++) printf "-"; printf "  "; for(i=0;i<covW;i++) printf "-"; print ""
+        }
+        { printf "%-*s  %6.2f%%\n", W, $2, $1+0 }
+        END{
+          for(i=0;i<W;i++) printf "-"; printf "  "; for(i=0;i<7;i++) printf "-"; print ""
+          printf "%-*s  %6.2f%%\n", W, "total", TOT+0
+          print ""
+        }'"'"' pkgs_pct_sorted.tsv > coverage_packages.txt
+
+      # Threshold check WITHOUT aborting the script
+      COV_RC=0
+      if /usr/bin/gawk -v total="$TOTAL" -v thr="$COV_THRESHOLD" '"'"'BEGIN{ exit(total+0 < thr+0 ? 0 : 1) }'"'"'; then
+        # gawk exit 0 => total < threshold => mark coverage failure
+        COV_RC=1
+      fi
+
+      echo "$TEST_RC" > .test_rc
+      echo "$COV_RC"  > .cov_rc
+    '
+
+    # 2) Save artifacts (always)
+    SAVE ARTIFACT coverage.out AS LOCAL ./coverage.out
+    SAVE ARTIFACT coverage_total.txt AS LOCAL ./coverage_total.txt
+    SAVE ARTIFACT coverage_packages.txt AS LOCAL ./coverage_packages.txt
+    SAVE ARTIFACT test_raw.log AS LOCAL ./test_raw.log
+
+    # 3) Always print table + verdict; then fail if tests failed or under threshold
+    RUN echo "print-ts=$PRINT_TS" >/dev/null && \
+        cat coverage_packages.txt && \
+        /usr/bin/gawk "/^total:/ {print; found=1} END{ if(!found) print \"total: (statements) N/A\" }" coverage_total.txt && \
+        TOTAL2="$(/usr/bin/gawk "/^total:/ {print substr(\$3,1,length(\$3)-1)}" coverage_total.txt)" && \
+        /usr/bin/gawk -v total="$TOTAL2" -v thr="$COV_THRESHOLD" \
+            "BEGIN{ if (total+0 < thr+0) { printf(\"❌ Coverage %.2f%% is below threshold %.2f%%\\n\", total, thr) } else { printf(\"✅ Coverage %.2f%% meets threshold %.2f%%\\n\", total, thr) } }" && \
+        TEST_RC="$(cat .test_rc 2>/dev/null || echo 0)" && \
+        COV_RC="$(cat .cov_rc 2>/dev/null || echo 0)" && \
+        if [ "$TEST_RC" -ne 0 ] || [ "$COV_RC" -ne 0 ]; then exit 1; fi

@@ -1,4 +1,4 @@
-package imagesign
+package imagesign_test
 
 import (
 	"os"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/open-edge-platform/image-composer/internal/config"
+	"github.com/open-edge-platform/image-composer/internal/image/imagesign"
 )
 
 func TestSignImage_ImmutabilityDisabled(t *testing.T) {
@@ -20,7 +21,7 @@ func TestSignImage_ImmutabilityDisabled(t *testing.T) {
 		},
 	}
 
-	err := SignImage(installRoot, template)
+	err := imagesign.SignImage(installRoot, template)
 	if err != nil {
 		t.Errorf("SignImage should succeed when immutability is disabled, got: %v", err)
 	}
@@ -38,7 +39,7 @@ func TestSignImage_NoSecureBootKeys(t *testing.T) {
 		},
 	}
 
-	err := SignImage(installRoot, template)
+	err := imagesign.SignImage(installRoot, template)
 	if err != nil {
 		t.Errorf("SignImage should succeed when no secure boot keys are provided, got: %v", err)
 	}
@@ -80,7 +81,7 @@ func TestSignImage_MissingUKIFile(t *testing.T) {
 		},
 	}
 
-	err := SignImage(installRoot, template)
+	err := imagesign.SignImage(installRoot, template)
 	if err == nil {
 		t.Error("SignImage should fail when UKI file doesn't exist")
 	}
@@ -138,7 +139,7 @@ func TestSignImage_MissingBootloaderFile(t *testing.T) {
 		},
 	}
 
-	err := SignImage(installRoot, template)
+	err := imagesign.SignImage(installRoot, template)
 	if err == nil {
 		t.Error("SignImage should fail when bootloader file doesn't exist")
 	}
@@ -198,7 +199,7 @@ func TestSignImage_WorkDirCreation(t *testing.T) {
 	}
 
 	// This test verifies the work directory creation logic
-	err := SignImage(installRoot, template)
+	err := imagesign.SignImage(installRoot, template)
 	// Expected to fail due to missing sbsign, but should get past the file setup
 	if err != nil && strings.Contains(err.Error(), "failed to get global work directory") {
 		t.Logf("Work directory creation failed as expected in test environment: %v", err)
@@ -219,7 +220,7 @@ func TestSignImage_EmptySecureBootPaths(t *testing.T) {
 		},
 	}
 
-	err := SignImage(installRoot, template)
+	err := imagesign.SignImage(installRoot, template)
 	if err != nil {
 		t.Errorf("SignImage should skip signing when secure boot paths are empty, got: %v", err)
 	}
