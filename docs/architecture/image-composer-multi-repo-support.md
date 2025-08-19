@@ -104,15 +104,16 @@ In simple terms, dependencies are other packages that a software package needs t
 - A media player might depend on codec packages to play different video formats
 - A database application might depend on networking libraries to communicate over the internet
 
+
 #### Dependency Resolution in Multi-Repository Environment
 
-The dependency resolution system ensures package consistency by maintaining repository affinity between parent packages and their dependencies.
+ICT automatically resolves dependencies according to the rules below, ensuring package consistency by keeping parent packages and their dependencies from the same repository.
 
 #### Dependency Resolution Rules
 
 1. **Repository Affinity**: Dependencies are always pulled from the same repository as their parent package, regardless of newer versions available in other repositories.
 
-2. **Dependency Chain Consistency**: All dependencies in a package's dependency tree maintain the same repository source as the root parent package.
+2. **Fallback to Base Repository**: If a dependency cannot be resolved within the same repository as the parent package (i.e., not found at all), ICT will attempt to resolve the dependency from the base OS repository.
 
 3. **Conflict Prevention**: This approach prevents version mismatches and compatibility issues that could arise from mixing dependencies across different repositories.
 
@@ -131,11 +132,17 @@ The dependency resolution system ensures package consistency by maintaining repo
 - `libxml-2.0.0` → depends on `zlib-1.2.5` (available in base repo as 1.2.8 and intel2 as 1.2.5)
 - **Result**: All dependencies (`libxml-2.0.0`, `zlib-1.2.5`) pulled from intel2 repo
 
-##### Example 3: Missing dependencies
+##### Example 3: Fallback to Base Repository
 - User specifies: `specialpackage-1.0.0` (from intel1 repo)
 - `specialpackage-1.0.0` depends on `missinglib-1.0.0`
 - `missinglib-1.0.0` not available in intel1 repo but exists in base repo
-- **Result**: ICT reports dependency resolution failure and suggests adding missing package to intel1 repo or using alternative
+- **Result**: ICT pulls `specialpackage-1.0.0` from intel1 repo and `missinglib-1.0.0` from base repo (fallback rule)
+
+##### Example 4: Unresolvable dependency
+- User specifies: `anotherpackage-2.0.0` (from intel2 repo)
+- `anotherpackage-2.0.0` depends on `unknownlib-3.0.0`
+- `unknownlib-3.0.0` not available in any repository
+- **Result**: ICT reports dependency resolution failure and suggests adding missing package to the relevant repository or using an alternative
 
 #### Benefits of Repository Affinity
 
