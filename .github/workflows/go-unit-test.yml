@@ -8,8 +8,8 @@ on:
     branches:
       - main
 jobs:
-  lint:
-    name: Linting
+  Unit-Tester:
+    name: Unit Testing
     runs-on: ["ubuntu-latest"]
     container: ubuntu:24.04
 
@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y curl ca-certificates
+          apt-get install -y curl ca-certificates sudo
           update-ca-certificates
 
       - name: Set up Go
