@@ -159,4 +159,7 @@ test:
         TEST_RC="$(cat .test_rc 2>/dev/null || echo 0)" && \
         COV_RC="$(cat .cov_rc 2>/dev/null || echo 0)" && \
         if [ "$TEST_RC" -ne 0 ]; then echo "❌ Unit tests failed (exit $TEST_RC)"; exit 1; fi && \
-        if [ "$COV_RC" -ne 0 ]; then exit 1; fi
+        if [ "$TEST_RC" -ne 0 ] || [ "$COV_RC" -ne 0 ]; then \
+            if [ "$TEST_RC" -ne 0 ]; then echo "❌ Unit tests failed (exit $TEST_RC)"; fi; \
+            exit 1; \
+        fi
