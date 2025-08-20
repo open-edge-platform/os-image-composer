@@ -15,9 +15,9 @@ systemConfig:
   immutability:
     enabled: false # default is false
     # To enable Secure Boot, provide the actual file paths for your environment below and uncomment the relevant lines.
-    # secureBootDBKey: "${SECURE_BOOT_DB_KEY_PATH}"
-    # secureBootDBCrt: "${SECURE_BOOT_DB_CRT_PATH}"
-    # secureBootDBCer: "${SECURE_BOOT_DB_CER_PATH}"
+    # secureBootDBKey: "<SECURE_BOOT_DB_KEY_PATH>"
+    # secureBootDBCrt: "<SECURE_BOOT_DB_CRT_PATH>"
+    # secureBootDBCer: "<SECURE_BOOT_DB_CER_PATH>"
 
   packages:
     - systemd-boot
