@@ -1,10 +1,12 @@
-name: PR Tester (manual only)
+name: PR Tester
 
 on:
-  workflow_dispatch: {}
-
-permissions:
-  contents: read
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   test-prs:
@@ -13,7 +15,7 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 ovmf tree jq
+          sudo apt-get install -y qemu-system-x86 ovmf tree jq systemd-ukify mmdebstrap systemd-boot
 
       - name: Checkout PR code
         uses: actions/checkout@v4
@@ -40,8 +42,6 @@ jobs:
       # Runs only for PR-triggered events (not manual), so it's safe to leave in.
       - name: Notify PR author on failure
         if: ${{ failure() && github.event_name == 'pull_request' }}
-        permissions:
-          contents: read
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REVIEWER_ID: srmungar

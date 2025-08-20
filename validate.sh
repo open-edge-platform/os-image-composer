@@ -72,20 +72,164 @@ go build ./cmd/image-composer
 
 # Run tests
 echo "Building the Linux image..."
-output=$( sudo -S ./image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1)
-# Check for the success message in the output
-if echo "$output" | grep -q "image build completed successfully"; then
-  echo "Image build passed. Proceeding to QEMU boot test..."
-  
-  if run_qemu_boot_test; then # call qemu boot function
-    echo "QEMU boot test PASSED"
-    exit 0
+build_azl3_raw_image() {
+  echo "building AZL3 raw Image."
+  output=$( sudo -S ./image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+    echo "AZL3 raw Image build passed."
   else
-    echo "QEMU boot test FAILED"
-    exit 0 # returning exist status 0 instead of 1 until code is fully debugged.  ERRRORRR
+    echo "AZL3 raw Image build failed."
+    exit 1 # Exit with error if build fails
   fi
+}
 
-else
-  echo "Build did not complete successfully. Skipping QEMU test."
-  exit 0 # returning exist status 0 instead of 1 unti code is fully debugged. ERRRORRR
-fi
+build_azl3_iso_image() {
+  echo "building AZL3 iso Image."
+  output=$( sudo -S ./image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-iso-x86_64.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+    echo "AZL3 iso Image build passed."
+  else
+    echo "AZL3 iso Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+
+build_emt3_raw_image() {
+  echo "building EMT3 raw Image."
+  output=$( sudo -S ./image-composer build config/osv/edge-microvisor-toolkit/emt3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+    echo "EMT3 raw Image build passed."
+  else
+    echo "EMT3 raw Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+build_emt3_iso_image() {
+  echo "building EMT3 iso Image."
+  output=$( sudo -S ./image-composer build config/osv/edge-microvisor-toolkit/emt3/imageconfigs/defaultconfigs/default-iso-x86_64.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+    echo "EMT3 iso Image build passed."
+  else
+    echo "EMT3 iso Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+build_elxr12_raw_image() {
+  echo "building ELXR12 raw Image."
+  output=$( sudo -S ./image-composer build config/osv/wind-river-elxr/elxr12/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+
+    echo "ELXR12 raw Image build passed."
+  else
+    echo "ELXR12 raw Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+build_elxr12_iso_image() {
+  echo "building ELXR12 iso Image."
+  output=$( sudo -S ./image-composer build config/osv/wind-river-elxr/elxr12/imageconfigs/defaultconfigs/default-iso-x86_64.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+
+    echo "ELXR12 iso Image build passed."
+  else
+    echo "ELXR12 iso Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+build_elxr12_secure_raw_image() {
+  echo "building ELXR12 secure raw Image."
+  output=$( sudo -S ./image-composer build testData/elxr12/default-raw-x86_64.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+
+    echo "ELXR12 secure raw Image build passed."
+  else
+    echo "ELXR12 secure raw Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+build_emt3_secure_raw_image() {
+  echo "building EMT3 secure raw Image."
+  output=$( sudo -S ./image-composer build testData/emt3/default-raw-x86_64.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+
+    echo "EMT3 secure raw Image build passed."
+  else
+    echo "EMT3 secure raw Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+build_azl3_secure_raw_image() {
+  echo "building AZL3 secure raw Image."
+  output=$( sudo -S ./image-composer build testData/azl3/default-raw-x86_64.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+
+    echo "AZL3 secure raw Image build passed."
+  else
+    echo "AZL3 secure raw Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+clean_build_dirs() {
+  echo "Cleaning build directories: cache/ and tmp/"
+  sudo rm -rf cache/ tmp/
+}
+
+# Call the build functions with cleaning before each except the first one
+build_azl3_raw_image
+
+clean_build_dirs
+build_azl3_iso_image
+
+clean_build_dirs
+build_emt3_raw_image
+
+clean_build_dirs
+build_emt3_iso_image
+
+clean_build_dirs
+build_elxr12_raw_image
+
+clean_build_dirs
+build_elxr12_iso_image
+
+clean_build_dirs
+build_elxr12_secure_raw_image
+
+clean_build_dirs
+build_emt3_secure_raw_image
+
+clean_build_dirs
+build_azl3_secure_raw_image
+
+# # Check for the success message in the output
+# if echo "$output" | grep -q "image build completed successfully"; then
+#   echo "Image build passed. Proceeding to QEMU boot test..."
+  
+#   if run_qemu_boot_test; then # call qemu boot function
+#     echo "QEMU boot test PASSED"
+#     exit 0
+#   else
+#     echo "QEMU boot test FAILED"
+#     exit 0 # returning exist status 0 instead of 1 until code is fully debugged.  ERRRORRR
+#   fi
+
+# else
+#   echo "Build did not complete successfully. Skipping QEMU test."
+#   exit 1 
+# fi
