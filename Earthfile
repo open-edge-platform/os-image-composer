@@ -67,10 +67,13 @@ test:
     FROM +golang-base
     ARG COV_THRESHOLD=0
     ARG PRINT_TS=0
-    RUN apk add --no-cache gawk
+    # Need bash to reliably capture pipeline status with PIPESTATUS
+    RUN apk add --no-cache bash gawk
 
-    # 1) Run tests & build coverage artifacts (never fail this step)
-    RUN --mount=type=cache,target=/root/.cache/go-build sh -u -c '
+    # 1) Run tests, capture exit code, and build coverage artifacts
+    #    - tee => console + test_raw.log
+    #    - bash -o pipefail => pipeline returns failing command's status
+    RUN --mount=type=cache,target=/root/.cache/go-build bash -o pipefail -c '
       set -u
 
       # Discover all packages (exclude cmd/)
@@ -78,30 +81,30 @@ test:
       printf "%s\n" "$ALL_PKGS" > pkgs_all.txt
       COVERPKG="$(printf "%s\n" "$ALL_PKGS" | paste -sd, -)"
 
-      # Run tests; capture exit code but do not exit
-      TEST_RC=0
-      if ! go test -timeout=3m \
-             -covermode=atomic \
-             -coverpkg="$COVERPKG" \
-             -coverprofile=coverage.out \
-             -skip='"'"'^(TestCopyFile(/(Basic_Copy|Copy_with_preserve_flag|Create_missing_destination_directory))?|TestCopyDir(/(Basic_Directory_Copy|Copy_with_preserve_flag|Create_missing_destination_directory))?|TestCopyFilePermissions|TestCopyFileConcurrent|TestExecCmd$|TestExecCmdWithStream|TestExecCmdWithInput|TestGetFullCmdStr)$'"'"' \
-             $ALL_PKGS > test_raw.log 2>&1; then
-        TEST_RC=$?
-      fi
+      # Stream test output to console AND log; record go test exit code
+      go test -v -timeout=3m \
+         -covermode=atomic \
+         -coverpkg="$COVERPKG" \
+         -coverprofile=coverage.out \
+         -skip='"'"'^(TestCopyFile(/(Basic_Copy|Copy_with_preserve_flag|Create_missing_destination_directory))?|TestCopyDir(/(Basic_Directory_Copy|Copy_with_preserve_flag|Create_missing_destination_directory))?|TestCopyFilePermissions|TestCopyFileConcurrent|TestExecCmd$|TestExecCmdWithStream|TestExecCmdWithInput|TestGetFullCmdStr)$'"'"' \
+         $ALL_PKGS 2>&1 | tee test_raw.log
+      TEST_RC=${PIPESTATUS[0]}
 
-      # Ensure coverage file exists so downstream tools work
+      # Ensure coverage file exists so downstream steps always work
       [ -s coverage.out ] || echo "mode: atomic" > coverage.out
 
-      # Build per-package coverage list
+      # Build per-package coverage table (lowest -> highest)
       /usr/bin/gawk '"'"'BEGIN{OFS="";FS="[ \t]+"}
         FNR==NR {want[$0]=1; next}                 # pkgs_all.txt
         $0 ~ /^mode:/ {next}
         $1 !~ /:[0-9]+\.[0-9]+,/ {next}
-        { split($1,a,":"); path=a[1]
+        {
+          split($1,a,":"); path=a[1]
           n=split(path,parts,"/"); if(n<2) next
           pkg=parts[1]; for(i=2;i<=n-1;i++) pkg=pkg"/"parts[i]
           stmts=$2+0; hits=$3+0
-          total[pkg]+=stmts; if(hits>0) covered[pkg]+=stmts }
+          total[pkg]+=stmts; if(hits>0) covered[pkg]+=stmts
+        }
         END{
           for(p in want){
             t=total[p]+0; c=covered[p]+0; pct=(t>0)?(c/t*100.0):0.0
@@ -110,7 +113,7 @@ test:
         }'"'"' pkgs_all.txt coverage.out \
       | sort -t "$(printf "\t")" -k1,1n > pkgs_pct_sorted.tsv
 
-      # Compute total; fall back to 0.00% if cover tool errors
+      # Compute total; safe fallback if cover tool errors
       if ! go tool cover -func=coverage.out > coverage_total.txt 2>/dev/null; then
         echo "total: (statements) 0.0%" > coverage_total.txt
       fi
@@ -133,12 +136,9 @@ test:
           print ""
         }'"'"' pkgs_pct_sorted.tsv > coverage_packages.txt
 
-      # Threshold check WITHOUT aborting the script
+      # Threshold check -> set COV_RC=1 if total < threshold
       COV_RC=0
-      if /usr/bin/gawk -v total="$TOTAL" -v thr="$COV_THRESHOLD" '"'"'BEGIN{ exit(total+0 < thr+0 ? 0 : 1) }'"'"'; then
-        # gawk exit 0 => total < threshold => mark coverage failure
-        COV_RC=1
-      fi
+      /usr/bin/gawk -v total="$TOTAL" -v thr="$COV_THRESHOLD" '"'"'BEGIN{ exit( (total+0 < thr+0) ? 1 : 0 ) }'"'"' || COV_RC=1
 
       echo "$TEST_RC" > .test_rc
       echo "$COV_RC"  > .cov_rc
@@ -150,13 +150,13 @@ test:
     SAVE ARTIFACT coverage_packages.txt AS LOCAL ./coverage_packages.txt
     SAVE ARTIFACT test_raw.log AS LOCAL ./test_raw.log
 
-    # 3) Always print table + verdict; then fail if tests failed or under threshold
-    RUN echo "print-ts=$PRINT_TS" >/dev/null && \
-        cat coverage_packages.txt && \
+    # 3) Always print table + verdict, then fail if tests failed or under threshold
+    RUN cat coverage_packages.txt && \
         /usr/bin/gawk "/^total:/ {print; found=1} END{ if(!found) print \"total: (statements) N/A\" }" coverage_total.txt && \
         TOTAL2="$(/usr/bin/gawk "/^total:/ {print substr(\$3,1,length(\$3)-1)}" coverage_total.txt)" && \
         /usr/bin/gawk -v total="$TOTAL2" -v thr="$COV_THRESHOLD" \
             "BEGIN{ if (total+0 < thr+0) { printf(\"❌ Coverage %.2f%% is below threshold %.2f%%\\n\", total, thr) } else { printf(\"✅ Coverage %.2f%% meets threshold %.2f%%\\n\", total, thr) } }" && \
         TEST_RC="$(cat .test_rc 2>/dev/null || echo 0)" && \
         COV_RC="$(cat .cov_rc 2>/dev/null || echo 0)" && \
-        if [ "$TEST_RC" -ne 0 ] || [ "$COV_RC" -ne 0 ]; then exit 1; fi
+        if [ "$TEST_RC" -ne 0 ]; then echo "❌ Unit tests failed (exit $TEST_RC)"; exit 1; fi && \
+        if [ "$COV_RC" -ne 0 ]; then exit 1; fi

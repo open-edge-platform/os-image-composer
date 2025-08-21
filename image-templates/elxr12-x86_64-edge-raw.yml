@@ -11,6 +11,14 @@ target:
 systemConfig:
   name: edge
   description: Minimal eLxr image with immutable rootfs
+
+  immutability:
+    enabled: false # default is false
+    # To enable Secure Boot, provide the actual file paths for your environment below and uncomment the relevant lines.
+    # secureBootDBKey: "<SECURE_BOOT_DB_KEY_PATH>"
+    # secureBootDBCrt: "<SECURE_BOOT_DB_CRT_PATH>"
+    # secureBootDBCer: "<SECURE_BOOT_DB_CER_PATH>"
+
   packages:
     - systemd-boot
     - dracut
@@ -34,6 +42,7 @@ systemConfig:
     - systemd-resolved
     - cloud-guest-utils
     - xterm
+
   kernel:
     version: "6.12"
-    cmdline: "quiet splash"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"

@@ -17,8 +17,12 @@ systemConfig:
   description: Default yml configuration for edge image
 
   immutability:
-    enabled: true # default is false
-
+    enabled: false # default is false
+    # To enable Secure Boot, provide the actual file paths for your environment below and uncomment the relevant lines.
+    # secureBootDBKey: "<SECURE_BOOT_DB_KEY_PATH>"
+    # secureBootDBCrt: "<SECURE_BOOT_DB_CRT_PATH>"
+    # secureBootDBCer: "<SECURE_BOOT_DB_CER_PATH>"
+   
   # Package Configuration
   packages:
     # Additional packages beyond the base system
@@ -28,7 +32,7 @@ systemConfig:
   # Kernel Configuration
   kernel:
     version: "6.12"
-    cmdline: "security=selinux selinux=1 sysctl.vm.overcommit_memory=1 sysctl.kernel.panic=10 sysctl.kernel.panic_on_oops=1 sysctl.fs.inotify.max_user_instances=8192 rd.shell=0 rd.timeout=200 rd.emergency=reboot i915.force_probe=*"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
 
   # Everything else uses defaults from the default template:
   # Network: Uses DHCP on first interface

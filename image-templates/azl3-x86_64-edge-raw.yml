@@ -17,11 +17,11 @@ systemConfig:
   description: Default yml configuration for edge image
 
   immutability:
-    enabled: true # default is false
-    # Example values below. Replace with actual file paths for your environment.
-    secureBootDBKey: "${SECURE_BOOT_DB_KEY_PATH}"
-    secureBootDBCrt: "${SECURE_BOOT_DB_CRT_PATH}"
-    secureBootDBCer: "${SECURE_BOOT_DB_CER_PATH}"
+    enabled: false # default is false
+    # To enable Secure Boot, provide the actual file paths for your environment below and uncomment the relevant lines.
+    # secureBootDBKey: "<SECURE_BOOT_DB_KEY_PATH>"
+    # secureBootDBCrt: "<SECURE_BOOT_DB_CRT_PATH>"
+    # secureBootDBCer: "<SECURE_BOOT_DB_CER_PATH>"
 
   # User Configuration
   users:
@@ -53,7 +53,7 @@ systemConfig:
   # Kernel Configuration
   kernel:
     version: "6.12"
-    cmdline: "quiet splash"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
 
   # Everything else uses defaults from the default template:
   # Network: Uses DHCP on first interface
