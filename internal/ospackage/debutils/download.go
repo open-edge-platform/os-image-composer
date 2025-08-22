@@ -61,18 +61,28 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", "user package list")
+	// Declare a list containing two repo configs
+	repoList := []struct {
+		ID  string
+		URL string
+	}{
+		{ID: "testrepo1", URL: "http://localhost:8080"},
+		{ID: "testrepo2", URL: "http://localhost:8081"},
+	}
 
-	baseURL := "http://localhost:8080"
+	// baseURL := "http://localhost:8080"
 	pkNm := "public.gpg.key"
 
 	var userRepo []RepoConfig
-	userRepoSpec := []string{"userrepo01"} // Replace with user mutl repo input
+	// userRepoSpec := []string{"userrepo01"} // Replace with user mutl repo input
 
-	for _, name := range userRepoSpec {
+	for _, repoItem := range repoList {
+		name := repoItem.ID
+		baseURL := repoItem.URL
 		repo := RepoConfig{
-			PkgList:      baseURL + "/dists/testrepo1/main/binary-amd64/Packages.gz",
-			ReleaseFile:  fmt.Sprintf("%s/dists/testrepo1/Release", baseURL),
-			ReleaseSign:  fmt.Sprintf("%s/dists/testrepo1/Release.gpg", baseURL),
+			PkgList:      baseURL + "/dists/" + name + "/main/binary-amd64/Packages.gz",
+			ReleaseFile:  fmt.Sprintf("%s/dists/%s/Release", baseURL, name),
+			ReleaseSign:  fmt.Sprintf("%s/dists/%s/Release.gpg", baseURL, name),
 			PkgPrefix:    baseURL,
 			Name:         name,
 			GPGCheck:     true,
@@ -84,19 +94,23 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 		userRepo = append(userRepo, repo)
 	}
 
-	fmt.Println("PkgList value:", userRepo[0].PbGPGKey)
-
-	rpItx := userRepo[0]
-	packages1, err := ParsePrimary(rpItx.PkgPrefix, rpItx.PkgList, rpItx.ReleaseFile, rpItx.ReleaseSign, rpItx.PbGPGKey, rpItx.BuildPath)
-	if err != nil {
-		log.Errorf("parsing user repo failed: %v", err)
-	} else {
-		for _, pkg := range packages1 {
-			fmt.Printf("Package: %-40s URL: %s\n", pkg.Name, pkg.URL)
+	var allUserPackages []ospackage.PackageInfo
+	for _, rpItx := range userRepo {
+		userPkgs, err := ParsePrimary(rpItx.PkgPrefix, rpItx.PkgList, rpItx.ReleaseFile, rpItx.ReleaseSign, rpItx.PbGPGKey, rpItx.BuildPath)
+		if err != nil {
+			log.Errorf("parsing user repo failed: %v", err)
+			continue
 		}
+		allUserPackages = append(allUserPackages, userPkgs...)
 	}
 
-	return nil, fmt.Errorf("yockgen: dummy error for testing")
+	// Print all user packages with their name and URL
+	for _, pkg := range allUserPackages {
+		fmt.Printf("Package: %-40s URL: %s\n", pkg.Name, pkg.URL)
+	}
+
+	return allUserPackages, nil
+	// return nil, fmt.Errorf("yockgen: dummy error for testing")
 
 }
 
@@ -230,11 +244,18 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 	}
 
 	// Fetch the entire user repos package list
-	user01, err := UserPackages()
-	fmt.Println(len(user01))
+	// user01, err := UserPackages()
+	// fmt.Println(len(user01))
+	userpkg, err := UserPackages()
+	if err == nil {
+		all = append(all, userpkg...)
+	}
+
 	if err != nil {
 		log.Warnf("getting user packages failed: %v", err)
 		// Continue even if user packages failed
+		return downloadPkgList, fmt.Errorf("yockgen: user package fetch failed: %v", err)
+
 	}
 
 	// Match the packages in the template against all the packages
