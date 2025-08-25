@@ -109,11 +109,11 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 	}
 
 	// Print all user packages with their name and URL
-	fmt.Printf("\n\nStart:\n\n")
-	for _, pkg := range allUserPackages {
-		fmt.Printf("Package: %-40s URL: %s\n", pkg.Name, pkg.URL)
-	}
-	fmt.Printf("\n\nEND\n\n")
+	// fmt.Printf("\n\nStart:\n\n")
+	// for _, pkg := range allUserPackages {
+	// 	fmt.Printf("yockgen: Package: %-40s URL: %s\n", pkg.Name, pkg.URL)
+	// }
+	// fmt.Printf("\n\nEND\n\n")
 
 	return allUserPackages, nil
 	// return nil, fmt.Errorf("yockgen: dummy error for testing")
@@ -192,8 +192,110 @@ func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospack
 	return needed, nil
 }
 
+// compareVersions compares two Debian package versions
+// Returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal
+func compareVersions(v1, v2 string) int {
+
+	// Extract version from Debian package names like "acct_6.6.4-5+b1_amd64.deb"
+	extractVersion := func(name string) string {
+		// Find first underscore, then take everything until the next underscore
+		parts := strings.Split(name, "_")
+		if len(parts) >= 2 {
+			return parts[1] // This is the version part
+		}
+		return name
+	}
+
+	ver1 := extractVersion(v1)
+	ver2 := extractVersion(v2)
+
+	// Simple string comparison works for most cases like "6.6.4-5+b1" vs "7.6.4-5+b1"
+	if ver1 > ver2 {
+		return 1
+	} else if ver1 < ver2 {
+		return -1
+	}
+	return 0
+}
+
 // MatchRequested matches requested packages
 func MatchRequested(requests []string, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
+	log := logger.Logger()
+
+	// Write all package info to /data/yockgen/allrepo.txt
+	// f, err := os.Create("/data/yockgen/allrepo.txt")
+	// if err != nil {
+	// 	log.Errorf("failed to create allrepo.txt: %v", err)
+	// } else {
+	// 	defer f.Close()
+	// 	for _, itx := range all {
+	// 		// Write package name and URL (if available)
+	// 		line := fmt.Sprintf("Name: %s\tURL: %s\n", itx.Name, itx.URL)
+	// 		_, _ = f.WriteString(line)
+	// 	}
+	// }
+
+	var out []ospackage.PackageInfo
+
+	for _, want := range requests {
+		var candidates []ospackage.PackageInfo
+		for _, pi := range all {
+			// 1) exact name and version matched with .deb filenamae, e.g. acct_7.6.4-5+b1_amd64
+			if filepath.Base(pi.URL) == want+".deb" {
+				candidates = append(candidates, pi)
+				break
+			}
+			// 2) exact name, e.g. acct
+			if pi.Name == want {
+				candidates = append(candidates, pi)
+				continue
+			}
+			// 2) prefix by want-version ("acl-")
+			if strings.HasPrefix(pi.Name, want+"-") {
+				candidates = append(candidates, pi)
+				continue
+			}
+			// 3) prefix by want.release ("acl-2.3.1-2.")
+			if strings.HasPrefix(pi.Name, want+".") {
+				candidates = append(candidates, pi)
+			}
+			// 4) Debian package format (packagename_version_arch.deb)
+			if strings.HasPrefix(pi.Name, want+"_") {
+				candidates = append(candidates, pi)
+			}
+		}
+
+		// fmt.Printf("yockgen2: %s %d\n", want, len(candidates))
+
+		if len(candidates) == 0 {
+			log.Infof("requested package %q not found in repo", want)
+			continue
+		}
+		// If we got an exact match in step (1), it's the only candidate
+		if len(candidates) == 1 && (candidates[0].Name == want || candidates[0].Name == want+".deb") {
+			out = append(out, candidates[0])
+			continue
+		}
+
+		// Sort by version (highest version first)
+		sort.Slice(candidates, func(i, j int) bool {
+			return compareVersions(candidates[i].URL, candidates[j].URL) > 0
+		})
+		out = append(out, candidates[0])
+	}
+
+	// fmt.Printf("\n\nStart:\n\n")
+	// for itx := range out {
+	// 	fmt.Printf("yockgen: Found package: %s %s %s\n", out[itx].Name, out[itx].Version, out[itx].URL)
+	// }
+	// fmt.Printf("\n\nEND\n\n")
+	// return nil, fmt.Errorf("yockgen test failed")
+
+	log.Infof("found %d packages in request of %d", len(out), len(requests))
+	return out, nil
+}
+
+func MatchRequested1(requests []string, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 
 	var out []ospackage.PackageInfo
@@ -249,8 +351,6 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 	}
 
 	// Fetch the entire user repos package list
-	// user01, err := UserPackages()
-	// fmt.Println(len(user01))
 	userpkg, err := UserPackages()
 	if err == nil {
 		all = append(all, userpkg...)

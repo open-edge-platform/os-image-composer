@@ -53,76 +53,8 @@ func VerifyPackagegz(relPath string, pkggzPath string) (bool, error) {
 	return true, nil
 }
 
-func VerifyRelease1(relPath string, relSignPath string, pKeyPath string) (bool, error) {
-	log := logger.Logger()
-
-	// Read the public key
-	keyringBytes, err := os.ReadFile(pKeyPath)
-	if err != nil {
-		return false, fmt.Errorf("failed to read public key: %w", err)
-	}
-
-	// Read the Release file and its signature
-	release, err := os.ReadFile(relPath)
-	if err != nil {
-		return false, fmt.Errorf("failed to read Release file: %w", err)
-	}
-	signature, err := os.ReadFile(relSignPath)
-	if err != nil {
-		return false, fmt.Errorf("failed to read Release signature: %w", err)
-	}
-
-	// Add debugging information
-	log.Infof("Release file size: %d bytes", len(release))
-	log.Infof("Signature file size: %d bytes", len(signature))
-	log.Infof("Public key size: %d bytes", len(keyringBytes))
-
-	// Check if signature file starts with proper PGP armor
-	sigStr := string(signature)
-	if !strings.Contains(sigStr, "-----BEGIN PGP SIGNATURE-----") {
-		log.Errorf("Signature file doesn't contain PGP armor headers")
-		return false, fmt.Errorf("invalid signature format: missing PGP armor headers")
-	}
-
-	// Log first few lines of signature for debugging
-	lines := strings.Split(sigStr, "\n")
-	for i, line := range lines {
-		if i < 5 {
-			log.Infof("Signature line %d: %s", i, line)
-		}
-	}
-
-	// Import the public key
-	keyring, err := openpgp.ReadArmoredKeyRing(bytes.NewReader(keyringBytes))
-	if err != nil {
-		return false, fmt.Errorf("failed to parse public key: %w", err)
-	}
-
-	// Verify the signature
-	sigReader := bytes.NewReader(signature)
-	releaseReader := bytes.NewReader(release)
-	_, err = openpgp.CheckArmoredDetachedSignature(
-		openpgp.EntityList(keyring),
-		releaseReader,
-		sigReader,
-		&packet.Config{},
-	)
-	if err != nil {
-		if strings.Contains(err.Error(), "unknown entity") || strings.Contains(err.Error(), "signature made by unknown entity") {
-			log.Warnf("Signature verification failed due to unknown entity, but allowing: %v", err)
-			return true, nil
-		}
-		return false, fmt.Errorf("signature verification failed: %w\n\nRelease file: %s\nSignature file: %s\nPublic key: %s", err, relPath, relSignPath, pKeyPath)
-	}
-
-	log.Infof("Release file verified successfully")
-	return true, nil
-}
-
 func VerifyRelease(relPath string, relSignPath string, pKeyPath string) (bool, error) {
 	log := logger.Logger()
-
-	fmt.Printf("\n\nyockgen: %s %s %s\n\n", relPath, relSignPath, pKeyPath)
 
 	// Read the public key
 	keyringBytes, err := os.ReadFile(pKeyPath)
