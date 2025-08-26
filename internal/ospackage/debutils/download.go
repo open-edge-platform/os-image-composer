@@ -255,7 +255,7 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 	if err != nil {
 		log.Warnf("getting user packages failed: %v", err)
 		// Continue even if user packages failed
-		return downloadPkgList, fmt.Errorf("User package fetch failed: %v", err)
+		return downloadPkgList, fmt.Errorf("user package fetch failed: %v", err)
 
 	}
 
