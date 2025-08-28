@@ -9,7 +9,7 @@ ARG HTTPS_PROXY=$(echo $HTTPS_PROXY)
 ARG NO_PROXY=$(echo $NO_PROXY)
 ARG REGISTRY
 
-FROM ${REGISTRY}golang:1.24.1-alpine3.21
+FROM ${REGISTRY}ubuntu:latest
 ENV http_proxy=$http_proxy
 ENV https_proxy=$https_proxy
 ENV no_proxy=$no_proxy
@@ -17,8 +17,71 @@ ENV HTTP_PROXY=$HTTP_PROXY
 ENV HTTPS_PROXY=$HTTPS_PROXY
 ENV NO_PROXY=$NO_PROXY
 
+# Install Go and other required package manually
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NONINTERACTIVE_SEEN=true
+
+# Pre-configure debconf to avoid prompts
+RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+
+# Install basic tools 
+RUN apt-get update && apt-get install -y \
+    wget curl git build-essential \
+    && rm -rf /var/lib/apt/lists/*
+    
+# Install system tools
+RUN apt-get update && apt-get install -y \
+    util-linux e2fsprogs dosfstools \
+    && rm -rf /var/lib/apt/lists/*
+    
+# Install compression tools
+RUN apt-get update && apt-get install -y \
+    bzip2 xz-utils zstd \
+    && rm -rf /var/lib/apt/lists/*
+   
+# Install disk tools
+RUN apt-get update && apt-get install -y \
+    parted gdisk cryptsetup lvm2 psmisc \
+    && rm -rf /var/lib/apt/lists/*
+    
+# Install package management tools
+RUN apt-get update && apt-get install -y \
+    dpkg-dev rpm lsb-release createrepo-c mmdebstrap \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install boot and GRUB tools
+RUN apt-get update && apt-get install -y \
+    systemd-boot grub2-common grub-common grub-efi-amd64-bin dracut \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install security and signing tools
+RUN apt-get update && apt-get install -y \
+    sbsigntool gnupg2 systemd-ukify \
+    && rm -rf /var/lib/apt/lists/*
+    
+# Install virtualization and ISO tools
+RUN apt-get update && apt-get install -y \
+    xorriso qemu-utils qemu-system-x86 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download and install Go 1.24.1
+RUN wget https://go.dev/dl/go1.24.1.linux-amd64.tar.gz \
+    && tar -C /usr/local -xzf go1.24.1.linux-amd64.tar.gz \
+    && rm go1.24.1.linux-amd64.tar.gz
+
+# Set Go environment variables
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOPATH="/go"
+ENV GOBIN="/go/bin"
+ENV PATH="${GOBIN}:${PATH}"
+
 golang-base:
+    # Create Go workspace
+    RUN mkdir -p /go/src /go/bin /go/pkg && chmod -R 777 /go
+    
+    # Install golangci-lint
     RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.7
+    
     WORKDIR /work
     COPY go.mod .
     COPY go.sum .
@@ -31,7 +94,7 @@ all:
     BUILD +build
 
 fetch-golang:
-    RUN apk add curl && curl -fsSLO https://go.dev/dl/go1.24.1.linux-amd64.tar.gz
+    RUN apt-get update && apt-get install -y curl && curl -fsSLO https://go.dev/dl/go1.24.1.linux-amd64.tar.gz
     SAVE ARTIFACT go1.24.1.linux-amd64.tar.gz
 
 build:
@@ -69,7 +132,7 @@ test:
     ARG FAIL_ON_NO_TESTS=false
     
     # Install dependencies required by the coverage script
-    RUN apk add --no-cache bc bash
+    RUN apt-get update && apt-get install -y bc bash
     
     # Copy the entire project (including scripts directory)
     COPY . /work
@@ -93,7 +156,7 @@ test-debug:
     ARG FAIL_ON_NO_TESTS=false
     
     # Install dependencies required by the coverage script
-    RUN apk add --no-cache bc bash
+    RUN apt-get update && apt-get install -y bc bash
     
     # Copy the entire project (including scripts directory)
     COPY . /work
