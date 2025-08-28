@@ -41,6 +41,10 @@ func (debInstaller *DebInstaller) cleanupOnError(chrootEnvPath, repoPath string,
 }
 
 func (debInstaller *DebInstaller) UpdateLocalDebRepo(repoPath, targetArch string) error {
+	if repoPath == "" {
+		return fmt.Errorf("repository path cannot be empty")
+	}
+
 	switch targetArch {
 	case "amd64", "x86_64":
 		targetArch = "amd64"
