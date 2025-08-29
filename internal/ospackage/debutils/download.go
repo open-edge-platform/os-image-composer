@@ -65,19 +65,6 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", "user package list")
 
-	// Declare a list containing 3 repo configs, will be replace by user input
-	// repoList := []struct {
-	// 	id       string
-	// 	codename string
-	// 	url      string
-	// 	pkey     string
-	// }{
-	// 	{id: "testrepo1", codename: "testrepo1", url: "http://localhost:8080", pkey: "http://localhost:8080/public.gpg.key"},
-	// 	{id: "testrepo2", codename: "testrepo2", url: "http://localhost:8081", pkey: "http://localhost:8081/public.gpg.key"},
-	// 	{id: "openvino", codename: "ubuntu22", url: "https://apt.repos.intel.com/openvino/2024", pkey: "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"},
-	// 	//{id: "openvino", codename: "ubuntu22", url: "https://apt.repos.intel.com/openvino/2024", pkey: "http://localhost:8080/intel-openvino.gpg"},
-	// }
-
 	repoList := make([]struct {
 		id       string
 		codename string
@@ -260,15 +247,11 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 
 	// Fetch the entire user repos package list
 	userpkg, err := UserPackages()
-	if err == nil {
-		all = append(all, userpkg...)
-	}
-
 	if err != nil {
 		log.Warnf("getting user packages failed: %v", err)
 		return downloadPkgList, fmt.Errorf("user package fetch failed: %v", err)
-
 	}
+	all = append(all, userpkg...)
 
 	// Match the packages in the template against all the packages
 	req, err := MatchRequested(pkgList, all)
