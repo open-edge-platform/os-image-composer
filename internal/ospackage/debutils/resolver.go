@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,8 +19,8 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string) error {
 	return nil
 }
 
-// ParsePrimary parses the Packages.gz file from gzHref.
-func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign string, pbGPGKey string, buildPath string) ([]ospackage.PackageInfo, error) {
+// ParseRepositoryMetadata parses the Packages.gz file from gzHref.
+func ParseRepositoryMetadata(baseURL string, pkggz string, releaseFile string, releaseSign string, pbGPGKey string, buildPath string, arch string) ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 
 	// Ensure pkgMetaDir exists, create if not
@@ -60,7 +61,7 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 	}
 
 	// verify the sham256 checksum of the Packages.gz file
-	pkggzVryResult, err := VerifyPackagegz(localReleaseFile, localPkggzFile)
+	pkggzVryResult, err := VerifyPackagegz(localReleaseFile, localPkggzFile, arch)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify pkg file: %v", err)
 	}
@@ -142,6 +143,7 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 		case "Depends":
 			// Split dependencies by comma and clean each dependency
 			deps := strings.Split(val, ",")
+			pkg.RequiresVer = append(pkg.RequiresVer, deps...)
 			for _, dep := range deps {
 				cleanedDep := CleanDependencyName(dep)
 				if cleanedDep != "" {
@@ -203,10 +205,10 @@ func ParsePrimary(baseURL string, pkggz string, releaseFile string, releaseSign 
 	return pkgs, nil
 }
 
-// ResolvePackageInfos takes a seed list of PackageInfos (the exact versions
+// ResolveDependencies takes a seed list of PackageInfos (the exact versions
 // matched) and the full list of all PackageInfos from the repo, and
 // returns the minimal closure of PackageInfos needed to satisfy all Requires.
-func ResolvePackageInfos(requested []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
+func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
 	// Build maps for fast lookup
 	byNameVer := make(map[string]ospackage.PackageInfo, len(all))
 	byProvides := make(map[string]ospackage.PackageInfo)
@@ -275,83 +277,26 @@ func ResolvePackageInfos(requested []ospackage.PackageInfo, all []ospackage.Pack
 		// Traverse dependencies
 		for _, dep := range cur.Requires {
 			depName := CleanDependencyName(dep)
-			depVersion := ""
-
-			// Extract version information if present (for more precise matching)
-			originalDep := strings.TrimSpace(dep)
-			if idx := strings.Index(originalDep, "("); idx > 0 {
-				verPart := strings.TrimSpace(originalDep[idx:])
-				verPart = strings.Trim(verPart, "() ")
-				if strings.HasPrefix(verPart, "=") {
-					depVersion = strings.TrimSpace(strings.TrimPrefix(verPart, "="))
-				}
-			}
-
 			if depName == "" || neededSet[depName] != struct{}{} {
 				continue
 			}
 			if _, seen := neededSet[depName]; seen {
 				continue
 			}
-			// If version is enforced, match by name+version or latest >= version
-			if depVersion != "" {
-				key := fmt.Sprintf("%s=%s", depName, depVersion)
-				if depPkg, ok := byNameVer[key]; ok {
-					queue = append(queue, depPkg)
-					continue
+
+			candidates := findAllCandidates(depName, all)
+			if len(candidates) >= 1 {
+
+				// Pick the candidate using the resolver and add it to the queue
+				chosenCandidate, err := resolveMultiCandidates(cur, candidates)
+				if err != nil {
+					return nil, fmt.Errorf("failed to resolve multiple candidates for dependency %q of package %q: %v", depName, cur.Name, err)
 				}
-				var found *ospackage.PackageInfo
-				for _, pi := range all {
-					if pi.Name == depName {
-						cmp, err := compareDebianVersions(pi.Version, depVersion)
-						if err != nil {
-							return nil, fmt.Errorf("failed to compare versions: %v", err)
-						}
-						if cmp >= 0 {
-							if found == nil {
-								tmp := pi
-								found = &tmp
-							} else {
-								cmp2, err := compareDebianVersions(pi.Version, found.Version)
-								if err != nil {
-									return nil, fmt.Errorf("failed to compare versions: %v", err)
-								}
-								if cmp2 > 0 {
-									tmp := pi
-									found = &tmp
-								}
-							}
-						}
-					}
-				}
-				if found != nil {
-					queue = append(queue, *found)
-					continue
-				}
-				return nil, fmt.Errorf("dependency %q (version %q or higher) required by %q not found in repo", depName, depVersion, cur.Name)
+				queue = append(queue, chosenCandidate)
+				continue
 			}
-			// Always pull the latest version for unconstrained dependencies
-			var latest *ospackage.PackageInfo
-			for _, pi := range all {
-				if pi.Name == depName {
-					if latest == nil {
-						tmp := pi
-						latest = &tmp
-					} else {
-						cmp, err := compareDebianVersions(pi.Version, latest.Version)
-						if err != nil {
-							return nil, fmt.Errorf("failed to compare versions: %v", err)
-						}
-						if cmp > 0 {
-							tmp := pi
-							latest = &tmp
-						}
-					}
-				}
-			}
-			if latest != nil {
-				queue = append(queue, *latest)
-			} else if provPkg, ok := byProvides[depName]; ok {
+
+			if provPkg, ok := byProvides[depName]; ok {
 				// Find the latest version of provPkg.Name based on provPkg.Version
 				var latestProv *ospackage.PackageInfo
 				for _, pi := range all {
@@ -538,4 +483,212 @@ func CleanDependencyName(dep string) string {
 	}
 
 	return strings.TrimSpace(depName)
+}
+
+// compareVersions compares two Debian package versions
+// Returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal
+func compareVersions(v1, v2 string) int {
+	// Extract version from Debian package names like "acct_6.6.4-5+b1_amd64.deb"
+	extractVersion := func(name string) string {
+		parts := strings.Split(name, "_")
+		if len(parts) >= 2 {
+			return parts[1]
+		}
+		return name
+	}
+	ver1 := extractVersion(v1)
+	ver2 := extractVersion(v2)
+	cmp, _ := compareDebianVersions(ver1, ver2)
+	return cmp
+}
+
+// ResolvePackage finds the best matching package for a given package name
+func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospackage.PackageInfo, bool) {
+	var candidates []ospackage.PackageInfo
+	for _, pi := range all {
+		// 1) exact name and version matched with .deb filenamae, e.g. acct_7.6.4-5+b1_amd64
+		if filepath.Base(pi.URL) == want+".deb" {
+			candidates = append(candidates, pi)
+			break
+		}
+		// 2) exact name, e.g. acct
+		if pi.Name == want {
+			candidates = append(candidates, pi)
+			break
+		}
+		// 3) prefix by want-version ("acl-")
+		if strings.HasPrefix(pi.Name, want+"-") {
+			candidates = append(candidates, pi)
+			continue
+		}
+		// 4) prefix by want.release ("acl-2.3.1-2.")
+		if strings.HasPrefix(pi.Name, want+".") {
+			candidates = append(candidates, pi)
+			continue
+		}
+		// 5) Debian package format (packagename_version_arch.deb)
+		if strings.HasPrefix(pi.Name, want+"_") {
+			candidates = append(candidates, pi)
+		}
+	}
+
+	if len(candidates) == 0 {
+		return ospackage.PackageInfo{}, false
+	}
+
+	// If we got an exact match in step (1), it's the only candidate
+	if len(candidates) == 1 && (candidates[0].Name == want || candidates[0].Name == want+".deb") {
+		return candidates[0], true
+	}
+
+	// Sort by version (highest version first)
+	sort.Slice(candidates, func(i, j int) bool {
+		return compareVersions(candidates[i].URL, candidates[j].URL) > 0
+	})
+
+	return candidates[0], true
+}
+
+// Helper function to find all candidates for a dependency
+func findAllCandidates(depName string, all []ospackage.PackageInfo) []ospackage.PackageInfo {
+	var candidates []ospackage.PackageInfo
+
+	for _, pi := range all {
+		if pi.Name == depName {
+			candidates = append(candidates, pi)
+		}
+	}
+
+	return candidates
+}
+
+// Helper function to resolve multiple candidates by picking the last one
+// extractRepoBase extracts the Debian repo base URL (everything up to /pool/)
+func extractRepoBase(rawURL string) (string, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+
+	// Split path by "/pool/"
+	parts := strings.SplitN(u.Path, "/pool/", 2)
+	if len(parts) < 2 {
+		return "", fmt.Errorf("URL does not contain /pool/: %s", rawURL)
+	}
+
+	// Rebuild base URL: scheme + host + prefix before /pool/
+	base := fmt.Sprintf("%s://%s%s/", u.Scheme, u.Host, parts[0])
+	return base, nil
+}
+
+func extractVersionRequirement(reqVers []string) (op string, ver string, found bool) {
+	for _, reqVer := range reqVers {
+		reqVer = strings.TrimSpace(reqVer)
+
+		// Find version constraint inside parentheses
+		if idx := strings.Index(reqVer, "("); idx != -1 {
+			verConstraint := reqVer[idx+1:]
+			if idx2 := strings.Index(verConstraint, ")"); idx2 != -1 {
+				verConstraint = verConstraint[:idx2]
+			}
+
+			// Split into operator and version
+			parts := strings.Fields(verConstraint)
+			if len(parts) == 2 {
+				op := parts[0]
+				ver := parts[1]
+				return op, ver, true
+			}
+		}
+	}
+
+	return "", "", false
+}
+
+func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospackage.PackageInfo) (ospackage.PackageInfo, error) {
+
+	/////////////////////////////////////
+	//A: if version is specified
+	/////////////////////////////////////
+
+	op, ver, _ := extractVersionRequirement(parentPkg.RequiresVer)
+	var selectedCandidate ospackage.PackageInfo
+	for _, candidate := range candidates {
+		cmp, err := compareDebianVersions(candidate.Version, ver)
+		if err != nil {
+			return ospackage.PackageInfo{}, fmt.Errorf("failed to compare versions for candidate %q: %v", candidate.Name, err)
+		}
+		if cmp == 0 && op == "=" {
+			selectedCandidate = candidate
+			break
+		} else if cmp < 0 && (op == "<<" || op == "<") {
+			selectedCandidate = candidate
+			break
+		} else if cmp <= 0 && op == "<=" {
+			selectedCandidate = candidate
+			break
+		} else if cmp > 0 && (op == ">>" || op == ">") {
+			selectedCandidate = candidate
+			break
+		} else if cmp >= 0 && op == ">=" {
+			selectedCandidate = candidate
+			break
+		}
+	}
+
+	if selectedCandidate.Name != "" {
+		return selectedCandidate, nil
+	}
+
+	/////////////////////////////////////
+	// B: if version is not specificied
+	//////////////////////////////////////
+
+	// Check for empty candidates list
+	if len(candidates) == 0 {
+		return ospackage.PackageInfo{}, fmt.Errorf("no candidates provided for selection")
+	}
+
+	// If only one candidate, return it
+	if len(candidates) == 1 {
+		return candidates[0], nil
+	}
+
+	parentBase, err := extractRepoBase(parentPkg.URL)
+	if err != nil {
+		return ospackage.PackageInfo{}, fmt.Errorf("failed to extract repo base from parent package URL: %v", err)
+	}
+
+	// Rule 1: find all candidates with the same base URL and return the latest version
+	var sameBaseCandidates []ospackage.PackageInfo
+	for _, candidate := range candidates {
+		candidateBase, err := extractRepoBase(candidate.URL)
+		if err != nil {
+			continue
+		}
+		if candidateBase == parentBase {
+			sameBaseCandidates = append(sameBaseCandidates, candidate)
+		}
+	}
+
+	// If we found candidates with the same base URL, return the one with the latest version
+	if len(sameBaseCandidates) > 0 {
+		if len(sameBaseCandidates) == 1 {
+			return sameBaseCandidates[0], nil
+		}
+
+		// Find the candidate with the latest version
+		latest := sameBaseCandidates[0]
+		for _, candidate := range sameBaseCandidates[1:] {
+			cmp := compareVersions(candidate.Version, latest.Version)
+			if cmp > 0 {
+				latest = candidate
+			}
+		}
+
+		return latest, nil
+	}
+
+	// Rule 2: If no candidate has the same repo, return the first candidate in other repos (base repo + )
+	return candidates[0], nil
 }

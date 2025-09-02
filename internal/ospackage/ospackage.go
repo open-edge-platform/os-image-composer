@@ -13,6 +13,7 @@ type PackageInfo struct {
 	Checksums   []Checksum
 	Provides    []string // capabilities this package provides (rpm:entry names)
 	Requires    []string // capabilities this package requires
+	RequiresVer []string // version constraints for the required capabilities
 	Files       []string // list of files in this package (rpm:files)
 }
 

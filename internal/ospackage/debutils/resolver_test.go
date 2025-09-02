@@ -11,7 +11,7 @@ func TestDEBResolver(t *testing.T) {
 	resolvertest.RunResolverTestsFunc(
 		t,
 		"debutils",
-		debutils.ResolvePackageInfos, // directly passing your function
+		debutils.ResolveDependencies, // directly passing your function
 	)
 }
 

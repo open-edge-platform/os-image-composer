@@ -2,9 +2,9 @@ package debutils
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -29,6 +29,7 @@ type RepoConfig struct {
 	ReleaseFile  string
 	ReleaseSign  string
 	BuildPath    string // path to store builds, relative to the root of the repo
+	Arch         string // architecture, e.g., amd64, all
 }
 
 type pkgChecksum struct {
@@ -37,17 +38,19 @@ type pkgChecksum struct {
 }
 
 var (
-	RepoCfg     RepoConfig
-	PkgChecksum []pkgChecksum
-	GzHref      string
+	RepoCfg      RepoConfig
+	PkgChecksum  []pkgChecksum
+	GzHref       string
+	Architecture string
+	UserRepo     []config.PackageRepository
 )
 
-// Packages returns the list of packages
+// Packages returns the list of base packages
 func Packages() ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", RepoCfg.PkgList)
 
-	packages, err := ParsePrimary(RepoCfg.PkgPrefix, GzHref, RepoCfg.ReleaseFile, RepoCfg.ReleaseSign, RepoCfg.PbGPGKey, RepoCfg.BuildPath)
+	packages, err := ParseRepositoryMetadata(RepoCfg.PkgPrefix, GzHref, RepoCfg.ReleaseFile, RepoCfg.ReleaseSign, RepoCfg.PbGPGKey, RepoCfg.BuildPath, RepoCfg.Arch)
 	if err != nil {
 		log.Errorf("parsing %s failed: %v", GzHref, err)
 		return nil, err
@@ -55,6 +58,88 @@ func Packages() ([]ospackage.PackageInfo, error) {
 
 	log.Infof("found %d packages in deb repo", len(packages))
 	return packages, nil
+}
+
+func UserPackages() ([]ospackage.PackageInfo, error) {
+
+	log := logger.Logger()
+	log.Infof("fetching packages from %s", "user package list")
+
+	repoList := make([]struct {
+		id       string
+		codename string
+		url      string
+		pkey     string
+	}, len(UserRepo))
+	for i, repo := range UserRepo {
+		repoList[i] = struct {
+			id       string
+			codename string
+			url      string
+			pkey     string
+		}{
+			id:       fmt.Sprintf("custrepo%d", i+1),
+			codename: repo.Codename,
+			url:      repo.URL,
+			pkey:     repo.PKey,
+		}
+	}
+
+	var userRepo []RepoConfig
+	for _, repoItem := range repoList {
+		id := repoItem.id
+		codename := repoItem.codename
+		baseURL := repoItem.url
+		pkey := repoItem.pkey
+		archs := Architecture + ",all"
+		for _, arch := range strings.Split(archs, ",") {
+			// check if package list exist for each arch
+			package_list_url := baseURL + "/dists/" + codename + "/main/binary-" + arch + "/Packages.gz"
+			if !checkFileExists(package_list_url) {
+				log.Warnf("package list does not exist for arch %s at %s, skipping", arch, package_list_url)
+				continue
+			}
+			repo := RepoConfig{
+				PkgList:      package_list_url,
+				ReleaseFile:  fmt.Sprintf("%s/dists/%s/Release", baseURL, codename),
+				ReleaseSign:  fmt.Sprintf("%s/dists/%s/Release.gpg", baseURL, codename),
+				PkgPrefix:    baseURL,
+				Name:         id,
+				GPGCheck:     true,
+				RepoGPGCheck: true,
+				Enabled:      true,
+				PbGPGKey:     pkey,
+				BuildPath:    fmt.Sprintf("./builds/%s_%s", id, arch),
+				Arch:         arch,
+			}
+			userRepo = append(userRepo, repo)
+		}
+	}
+
+	var allUserPackages []ospackage.PackageInfo
+	for _, rpItx := range userRepo {
+
+		userPkgs, err := ParseRepositoryMetadata(rpItx.PkgPrefix, rpItx.PkgList, rpItx.ReleaseFile, rpItx.ReleaseSign, rpItx.PbGPGKey, rpItx.BuildPath, rpItx.Arch)
+		if err != nil {
+			log.Errorf("parsing user repo failed: %v %s %s", err, rpItx.ReleaseFile, rpItx.ReleaseSign)
+			continue
+		}
+		allUserPackages = append(allUserPackages, userPkgs...)
+	}
+
+	return allUserPackages, nil
+}
+
+// CheckFileExists sends a HEAD request to the given URL and
+// returns true if the file exists (status 200).
+func checkFileExists(url string) bool {
+	resp, err := http.Head(url)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
 }
 
 // Validate verifies the downloaded files
@@ -99,7 +184,7 @@ func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospack
 
 	log.Infof("resolving dependencies for %d DEBIANs", len(req))
 	// Resolve all the required dependencies for the initial seed of Debian packages
-	needed, err := ResolvePackageInfos(req, all)
+	needed, err := ResolveDependencies(req, all)
 	if err != nil {
 		log.Errorf("resolving dependencies failed: %v", err)
 		return nil, err
@@ -137,38 +222,12 @@ func MatchRequested(requests []string, all []ospackage.PackageInfo) ([]ospackage
 	var out []ospackage.PackageInfo
 
 	for _, want := range requests {
-		var candidates []ospackage.PackageInfo
-		for _, pi := range all {
-			// 1) exact name match
-			if pi.Name == want || pi.Name == want+".deb" {
-				candidates = append(candidates, pi)
-				break
-			}
-			// 2) prefix by want-version ("acl-")
-			if strings.HasPrefix(pi.Name, want+"-") {
-				candidates = append(candidates, pi)
-				continue
-			}
-			// 3) prefix by want.release ("acl-2.3.1-2.")
-			if strings.HasPrefix(pi.Name, want+".") {
-				candidates = append(candidates, pi)
-			}
-		}
-
-		if len(candidates) == 0 {
+		if pkg, found := ResolveTopPackageConflicts(want, all); found {
+			out = append(out, pkg)
+		} else {
 			log.Infof("requested package %q not found in repo", want)
-			continue
+			return nil, fmt.Errorf("requested package '%q' not found in repo", want)
 		}
-		// If we got an exact match in step (1), it's the only candidate
-		if len(candidates) == 1 && (candidates[0].Name == want || candidates[0].Name == want+".deb") {
-			out = append(out, candidates[0])
-			continue
-		}
-		// Otherwise pick the "highest" by lex sort
-		sort.Slice(candidates, func(i, j int) bool {
-			return candidates[i].Name > candidates[j].Name
-		})
-		out = append(out, candidates[0])
 	}
 
 	log.Infof("found %d packages in request of %d", len(out), len(requests))
@@ -179,11 +238,20 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 	var downloadPkgList []string
 
 	log := logger.Logger()
-	// Fetch the entire package list
+
+	// Fetch the entire base package list
 	all, err := Packages()
 	if err != nil {
 		return downloadPkgList, fmt.Errorf("getting packages: %v", err)
 	}
+
+	// Fetch the entire user repos package list
+	userpkg, err := UserPackages()
+	if err != nil {
+		log.Warnf("getting user packages failed: %v", err)
+		return downloadPkgList, fmt.Errorf("user package fetch failed: %v", err)
+	}
+	all = append(all, userpkg...)
 
 	// Match the packages in the template against all the packages
 	req, err := MatchRequested(pkgList, all)

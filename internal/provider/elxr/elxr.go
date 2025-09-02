@@ -45,11 +45,11 @@ func (p *eLxr) Init(dist, arch string) error {
 
 	//todo: need to correct of how to get the arch once finalized
 	if arch == "x86_64" {
-		arch = "binary-amd64"
+		arch = "amd64"
 	}
-	p.repoURL = baseURL + arch + "/" + configName
+	p.repoURL = baseURL + "binary-" + arch + "/" + configName
 
-	cfg, err := loadRepoConfig(p.repoURL)
+	cfg, err := loadRepoConfig(p.repoURL, arch)
 	if err != nil {
 		log.Errorf("parsing repo config failed: %v", err)
 		return err
@@ -151,6 +151,8 @@ func (p *eLxr) downloadImagePkgs(template *config.ImageTemplate) error {
 	pkgCacheDir := filepath.Join(globalCache, "pkgCache", providerId)
 	debutils.RepoCfg = p.repoCfg
 	debutils.GzHref = p.gzHref
+	debutils.Architecture = p.repoCfg.Arch
+	debutils.UserRepo = template.GetPackageRepositories()
 	config.FullPkgList, err = debutils.DownloadPackages(pkgList, pkgCacheDir, "")
 	return err
 }
@@ -159,7 +161,7 @@ func GetProviderId(dist, arch string) string {
 	return "wind-river-elxr" + "-" + dist + "-" + arch
 }
 
-func loadRepoConfig(repoUrl string) (debutils.RepoConfig, error) {
+func loadRepoConfig(repoUrl string, arch string) (debutils.RepoConfig, error) {
 	log := logger.Logger()
 
 	var rc debutils.RepoConfig
@@ -176,6 +178,7 @@ func loadRepoConfig(repoUrl string) (debutils.RepoConfig, error) {
 	rc.ReleaseSign = "https://mirror.elxr.dev/elxr/dists/aria/Release.gpg"
 	rc.Section = "main"
 	rc.BuildPath = "./builds/elxr12"
+	rc.Arch = arch
 
 	log.Infof("repo config: %+v", rc)
 
