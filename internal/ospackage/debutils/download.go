@@ -97,7 +97,8 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 			// check if package list exist for each arch
 			package_list_url := baseURL + "/dists/" + codename + "/main/binary-" + arch + "/Packages.gz"
 			if !checkFileExists(package_list_url) {
-				return nil, fmt.Errorf("package list does not exist for arch %s at %s", arch, package_list_url)
+				log.Warnf("package list does not exist for arch %s at %s, skipping", arch, package_list_url)
+				continue
 			}
 			repo := RepoConfig{
 				PkgList:      package_list_url,
