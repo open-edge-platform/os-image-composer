@@ -607,39 +607,6 @@ func extractVersionRequirement(reqVers []string) (op string, ver string, found b
 	return "", "", false
 }
 
-func verifyVersionRequirementMet1(reqVers []string, filter string) (op string, ver string, found bool) {
-	for _, reqVer := range reqVers {
-		reqVer = strings.TrimSpace(reqVer)
-		name := reqVer
-		op = ""
-		ver = ""
-
-		// Find version constraint inside parentheses
-		if idx := strings.Index(reqVer, "("); idx != -1 {
-			name = strings.TrimSpace(reqVer[:idx])
-			verConstraint := reqVer[idx+1:]
-			if idx2 := strings.Index(verConstraint, ")"); idx2 != -1 {
-				verConstraint = verConstraint[:idx2]
-			}
-
-			// Split into operator and version
-			parts := strings.Fields(verConstraint)
-			if len(parts) == 2 {
-				op = parts[0]
-				ver = parts[1]
-			}
-		}
-
-		// Check if this requirement matches the filter
-		if name == filter {
-			return op, ver, true
-		}
-
-	}
-
-	return "", "", false
-}
-
 func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospackage.PackageInfo) (ospackage.PackageInfo, error) {
 
 	/////////////////////////////////////
