@@ -94,12 +94,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 		pkey := repoItem.pkey
 		archs := Architecture + ",all"
 		for _, arch := range strings.Split(archs, ",") {
-			// check if package list exist for each arch
-			package_list_url := baseURL + "/dists/" + codename + "/main/binary-" + arch + "/Packages.gz"
-			if !checkFileExists(package_list_url) {
-				log.Warnf("package list does not exist for arch %s at %s, skipping", arch, package_list_url)
-				continue
-			}
+			package_list_url := GetPackagesNames(baseURL, codename, arch)
 			repo := RepoConfig{
 				PkgList:      package_list_url,
 				ReleaseFile:  fmt.Sprintf("%s/dists/%s/Release", baseURL, codename),
