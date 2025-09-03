@@ -166,7 +166,7 @@ func executeInstallCompletion(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// at top-level (helper)
+// dirWritable checks if the specified directory is writable by attempting to create and remove a temporary file.
 func dirWritable(p string) bool {
 	tf, err := os.CreateTemp(p, ".probe-*")
 	if err != nil {
