@@ -35,3 +35,16 @@ func Decompress(inFile string, outFile string) ([]string, error) {
 
 	return []string{decompressedFile}, nil
 }
+
+func GetPackagesNames(baseURL string, codename string, arch string) string {
+	possibleFiles := []string{"Packages.gz", "Packages.xz"}
+	var foundFile string
+	for _, fname := range possibleFiles {
+		packageListURL := baseURL + "/dists/" + codename + "/main/binary-" + arch + "/" + fname
+		if checkFileExists(packageListURL) {
+			foundFile = packageListURL
+			break
+		}
+	}
+	return foundFile
+}
