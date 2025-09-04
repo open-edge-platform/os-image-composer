@@ -146,10 +146,13 @@ func WriteSPDXToFile(pkgs []ospackage.PackageInfo, outFile string) error {
 			Description:      pkg.Description,
 		}
 
-		// If the supplier is not specified, use a default value
+		// If the supplier is not specified, use a default value, for
+		// anything that appears as an email, use the Person form otherwise
+		// use the Organization form
 		spdxPkg.Supplier = spdxSupplier(pkg.Origin)
 
-		// Process checksums
+		// If the checksum is not specified or missing, leave field out
+		// Valid values according to SPDX spec: SHA1, SHA256, MD5
 		var spdxChecksums []SPDXChecksum
 		for _, c := range pkg.Checksums {
 			algo := strings.ToUpper(c.Algorithm)
@@ -168,7 +171,8 @@ func WriteSPDXToFile(pkgs []ospackage.PackageInfo, outFile string) error {
 		spdx.Packages = append(spdx.Packages, spdxPkg)
 	}
 
-	// IMPORTANT: Create output directory BEFORE calling SafeOpenFile
+	// TODO: The relative file path here should be where
+	// the final image is being stored and not under temp
 	if err := os.MkdirAll(filepath.Dir(outFile), 0700); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
