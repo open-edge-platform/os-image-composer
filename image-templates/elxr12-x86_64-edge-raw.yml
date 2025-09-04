@@ -22,7 +22,7 @@ packageRepositories:
   - codename: "intel-openvino"
     url: "<URL>"
     pkey: "<PUBLIC_KEY_URL>" # Uncomment and replace in real config
-    component: "restrcted"
+    component: "restricted"
 
 systemConfig:
   name: edge
