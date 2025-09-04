@@ -3,12 +3,12 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/open-edge-platform/image-composer/internal/config/validate"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/security"
 	"gopkg.in/yaml.v3"
 )
 
@@ -139,9 +139,10 @@ var (
 func LoadTemplate(path string, validateFull bool) (*ImageTemplate, error) {
 	log := logger.Logger()
 
-	data, err := os.ReadFile(path)
+	// Use safe file reading to prevent symlink attacks
+	data, err := security.SafeReadFile(path, security.RejectSymlinks)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading template file %s: %w", path, err)
 	}
 
 	// Only support YAML/YML files
