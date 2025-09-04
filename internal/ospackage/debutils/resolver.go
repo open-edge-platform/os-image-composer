@@ -303,6 +303,7 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 
 		// Traverse dependencies
 		for _, dep := range cur.Requires {
+
 			depName := CleanDependencyName(dep)
 			if depName == "" || neededSet[depName] != struct{}{} {
 				continue
@@ -312,13 +313,6 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 			}
 
 			candidates := findAllCandidates(depName, all)
-
-			if len(candidates) > 0 {
-				// if depName == "libpam-systemd" {
-				yockgen("/tmp/yockgen.log", fmt.Sprintf("name: %s, version: %s, url: %v", candidates[0].Name, candidates[0].Version, candidates[0].URL))
-				// return nil, fmt.Errorf("yockgen debug libpam-systemd")
-			}
-
 			if len(candidates) >= 1 {
 				// Pick the candidate using the resolver and add it to the queue
 				chosenCandidate, err := resolveMultiCandidates(cur, candidates)
@@ -333,33 +327,20 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 				continue
 			}
 
+			//if nothing found by name, try provides
 			if provPkg, ok := byProvides[depName]; ok {
-				// Find the latest version of provPkg.Name based on provPkg.Version
-				var latestProv *ospackage.PackageInfo
-				for _, pi := range all {
-					if pi.Name == provPkg.Name {
-						if latestProv == nil {
-							tmp := pi
-							latestProv = &tmp
-						} else {
-							cmp, err := compareDebianVersions(pi.Version, latestProv.Version)
-							if err != nil {
-								return nil, fmt.Errorf("failed to compare versions: %w", err)
-							}
-							if cmp > 0 {
-								tmp := pi
-								latestProv = &tmp
-							}
-						}
-					}
+				prvPkgNm := provPkg.Name
+				candidates := findAllCandidates(prvPkgNm, all)
+				chosenCandidate, err := resolveMultiCandidates(cur, candidates)
+				if err != nil {
+					gotMissingPkg = true
+					AddParentMissingChildPair(cur, depName+"(missing)", &parentChildPairs)
+					log.Warnf("failed to resolve multiple candidates for dependency %q of package %q: %w", depName, cur.Name, err)
+					continue
 				}
-				if latestProv != nil {
-					queue = append(queue, *latestProv)
-					AddParentChildPair(cur, *latestProv, &parentChildPairs)
-				} else {
-					queue = append(queue, provPkg)
-					AddParentChildPair(cur, provPkg, &parentChildPairs)
-				}
+				queue = append(queue, chosenCandidate)
+				AddParentChildPair(cur, chosenCandidate, &parentChildPairs)
+				continue
 			} else {
 				gotMissingPkg = true
 				AddParentMissingChildPair(cur, depName+"(missing)", &parentChildPairs)
