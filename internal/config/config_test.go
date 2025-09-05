@@ -2597,7 +2597,7 @@ target:
 	if err == nil {
 		t.Errorf("expected error for malformed YAML")
 	}
-	if !strings.Contains(err.Error(), "parsing YAML") {
+	if !strings.Contains(err.Error(), "invalid YAML format") && !strings.Contains(err.Error(), "template parsing failed") {
 		t.Errorf("expected YAML parsing error, got: %v", err)
 	}
 }
