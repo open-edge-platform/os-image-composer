@@ -1,4 +1,3 @@
-
 package manifest
 
 import (
