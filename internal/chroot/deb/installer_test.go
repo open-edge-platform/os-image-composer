@@ -296,6 +296,7 @@ func TestInstallDebPkg_ChrootEnvCreation(t *testing.T) {
 	originalExecutor := shell.Default
 	defer func() { shell.Default = originalExecutor }()
 	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "mkdir", Output: "override-test\n", Error: nil},
 		{Pattern: "mount", Output: "override-test\n", Error: nil},
 		{Pattern: "umount", Output: "override-test\n", Error: nil},
 		{Pattern: "mmdebstrap", Output: "override-test\n", Error: fmt.Errorf("command not found")},
@@ -311,10 +312,8 @@ func TestInstallDebPkg_ChrootEnvCreation(t *testing.T) {
 	}
 
 	// Should fail on mount or mmdebstrap, not on directory creation
-	if _, err = os.Stat(chrootEnvPath); os.IsNotExist(err) {
-		if _, err := shell.ExecCmd("mkdir -p "+chrootEnvPath, false, "", nil); err != nil {
-			t.Fatalf("Failed to create chroot environment directory: %v", err)
-		}
+	if err != nil && strings.Contains(err.Error(), "failed to create chroot environment directory") {
+		t.Errorf("Should not fail on directory creation, got: %v", err)
 	}
 }
 

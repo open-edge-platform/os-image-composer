@@ -91,14 +91,6 @@ func (debInstaller *DebInstaller) InstallDebPkg(targetOsConfigDir, chrootEnvPath
 		return fmt.Errorf("local repository config file does not exist: %s", localRepoConfigPath)
 	}
 
-	// Ensure the chroot build dir exists even if the bind mount fails later.
-	if _, statErr := os.Stat(chrootEnvPath); os.IsNotExist(statErr) {
-		if mkErr := os.MkdirAll(chrootEnvPath, 0755); mkErr != nil {
-			log.Errorf("Failed to create chroot environment directory: %v", mkErr)
-			return fmt.Errorf("failed to create chroot environment directory: %w", mkErr)
-		}
-	}
-
 	if err := mount.MountPath(chrootPkgCacheDir, repoPath, "--bind"); err != nil {
 		log.Errorf("Failed to mount debian local repository: %v", err)
 		return fmt.Errorf("failed to mount debian local repository: %w", err)
@@ -111,6 +103,13 @@ func (debInstaller *DebInstaller) InstallDebPkg(targetOsConfigDir, chrootEnvPath
 			debInstaller.cleanupOnError(chrootEnvPath, repoPath, &err)
 		}
 	}()
+
+	if _, err := os.Stat(chrootEnvPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(chrootEnvPath, 0755); err != nil {
+			log.Errorf("Failed to create chroot environment directory: %v", err)
+			return fmt.Errorf("failed to create chroot environment directory: %w", err)
+		}
+	}
 
 	cmd := fmt.Sprintf("mmdebstrap "+
 		"--variant=custom "+
