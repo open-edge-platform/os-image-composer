@@ -142,9 +142,7 @@ func LoadTemplate(path string, validateFull bool) (*ImageTemplate, error) {
 	// Use safe file reading to prevent symlink attacks
 	data, err := security.SafeReadFile(path, security.RejectSymlinks)
 	if err != nil {
-		// Log actual error in debug mode but return sanitized error
-		log.Debugf("Failed to read template file %s: %v", path, err)
-		return nil, fmt.Errorf("reading template file %s: %w", path, err)
+		return nil, fmt.Errorf("failed to read template file")
 	}
 
 	// Only support YAML/YML files
