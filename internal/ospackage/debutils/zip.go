@@ -23,7 +23,7 @@ func DecompressGZ(inFile string, outFile string) ([]string, error) {
 
 	gzFile, err := os.Open(inFile)
 	if err != nil {
-		log.Debugf("getting user packages failed: %v", err)
+		log.Debugf("failed to open gz filed: %v", err)
 		return nil, fmt.Errorf("failed to open gz file: %w", err)
 	}
 	defer gzFile.Close()
@@ -54,7 +54,7 @@ func DecompressXZ(inFile string, outFile string) ([]string, error) {
 
 	xzFile, err := os.Open(inFile)
 	if err != nil {
-		log.Debugf("getting user packages failed: %v", err)
+		log.Debugf("failed to open xz file: %v", err)
 		return nil, fmt.Errorf("failed to open xz file: %w", err)
 	}
 	defer xzFile.Close()
