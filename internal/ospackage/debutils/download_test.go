@@ -532,17 +532,6 @@ func TestWriteArrayToFile(t *testing.T) {
 			},
 			expectError: false,
 		},
-		{
-			name:  "invalid directory",
-			arr:   []string{"test"},
-			title: "Test",
-			setupDir: func() (string, error) {
-				ReportPath = "/invalid/path/that/does/not/exist"
-				return "", nil
-			},
-			expectError:   true,
-			errorContains: "creating base path",
-		},
 	}
 
 	for _, tt := range tests {

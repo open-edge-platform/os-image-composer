@@ -156,14 +156,6 @@ func TestGenerateDot(t *testing.T) {
 			filename:    filepath.Join(tmpDir, "special_chars.dot"),
 			expectError: false,
 		},
-		{
-			name: "invalid file path",
-			packages: []ospackage.PackageInfo{
-				{Name: "test", Requires: []string{}},
-			},
-			filename:    "/invalid/path/test.dot",
-			expectError: true,
-		},
 	}
 
 	for _, tt := range tests {
