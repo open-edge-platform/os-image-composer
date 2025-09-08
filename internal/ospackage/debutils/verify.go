@@ -30,8 +30,13 @@ func VerifyPackagegz(relPath string, pkggzPath string, arch string) (bool, error
 	log := logger.Logger()
 	log.Infof("Verifying package %s", pkggzPath)
 
+	// Get the base filename and determine what to look for in Release file
+	baseFile := filepath.Base(pkggzPath)
+
 	// Get expected checksum from Release file
-	checksum, err := findChecksumInRelease(relPath, "SHA256", fmt.Sprintf("main/binary-%s/Packages.gz", arch))
+	pkgPathSrch := fmt.Sprintf("main/binary-%s/%s", arch, baseFile)
+	log.Infof("Searching for %s in Release file %s", pkgPathSrch, relPath)
+	checksum, err := findChecksumInRelease(relPath, "SHA256", pkgPathSrch)
 	log.Infof("Checksum from Release file (%s): %s Err:%s", relPath, checksum, err)
 	if err != nil {
 		return false, fmt.Errorf("failed to get checksum from Release: %w", err)
@@ -251,7 +256,7 @@ func computeFileSHA256(path string) (string, error) {
 func findChecksumInRelease(releasePath, checksumType, fileName string) (string, error) {
 	f, err := os.Open(releasePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to open release file: %v", err)
+		return "", fmt.Errorf("failed to open release file: %w", err)
 	}
 	defer f.Close()
 
