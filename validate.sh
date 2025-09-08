@@ -185,6 +185,79 @@ build_azl3_secure_raw_image() {
   fi
 }
 
+build_azl3_iso_image_user_template() {
+  echo "building AZL3 iso Image."
+  output=$( sudo -S ./image-composer build image-templates/azl3-x86_64-edge-iso.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+    echo "AZL3 iso Image build passed."
+  else
+    echo "AZL3 iso Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+build_emt3_iso_image_user_template() {
+  echo "building AZL3 iso Image."
+  output=$( sudo -S ./image-composer build image-templates/emt3-x86_64-edge-iso.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+    echo "EMT3 iso Image build passed."
+  else
+    echo "EMT3 iso Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+build_elxr12_iso_image_user_template() {
+  echo "building AZL3 iso Image."
+  output=$( sudo -S ./image-composer build image-templates/elxr12-x86_64-edge-iso.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+    echo "eLxr12 iso Image build passed."
+  else
+    echo "eLxr12 iso Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+build_elxr12_raw_image_user_template() {
+  echo "building AZL3 iso Image."
+  output=$( sudo -S ./image-composer build image-templates/azl3-x86_64-edge-raw.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+    echo "eLxr12 raw Image build passed."
+  else
+    echo "eLxr12 raw Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+build_emt3_raw_image_user_template() {
+  echo "building AZL3 iso Image."
+  output=$( sudo -S ./image-composer build image-templates/emt3-x86_64-edge-raw.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+    echo "EMT3 raw Image build passed."
+  else
+    echo "EMT3 raw Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+build_azl3_raw_image_user_template() {
+  echo "building AZL3 iso Image."
+  output=$( sudo -S ./image-composer build image-templates/azl3-x86_64-edge-raw.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+    echo "AZL3 raw Image build passed."
+  else
+    echo "AZL3 raw Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+
 clean_build_dirs() {
   echo "Cleaning build directories: cache/ and tmp/"
   sudo rm -rf cache/ tmp/
@@ -216,6 +289,25 @@ build_emt3_secure_raw_image
 
 clean_build_dirs
 build_azl3_secure_raw_image
+
+clean_build_dirs
+build_azl3_iso_image_user_template
+
+clean_build_dirs
+build_emt3_iso_image_user_template
+
+clean_build_dirs
+build_elxr12_iso_image_user_template
+
+clean_build_dirs
+build_azl3_raw_image_user_template
+
+clean_build_dirs
+build_emt3_raw_image_user_template
+
+clean_build_dirs
+build_elxr12_raw_image_user_template
+
 
 # # Check for the success message in the output
 # if echo "$output" | grep -q "image build completed successfully"; then

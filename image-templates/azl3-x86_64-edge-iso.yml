@@ -1,0 +1,79 @@
+image:
+  name: azl3-x86_64-edge
+  version: "1.0.0"
+
+target:
+  os: azure-linux # Target OS name
+  dist: azl3 # Target OS distribution
+  arch: x86_64 # Target OS architecture
+  imageType: iso # Image type, valid value: [raw, iso].
+
+# Disk configuration can be omitted to use defaults from default template
+# If specified, it will override the default disk configuration completely
+
+# Additional package repositories for this image
+# Sample list of additional package repositories; replace codename, url, and pkey values as needed
+packageRepositories:
+  - codename: "company-internal"
+    url: "<URL>"
+    pkey: "<PUBLIC_KEY_URL>" # Uncomment and replace in real config
+    component: "main"
+
+  - codename: "dev-tools"
+    url: "<URL>"
+    pkey: "<PUBLIC_KEY_URL>" # Uncomment and replace in real config
+
+  - codename: "intel-openvino"
+    url: "<URL>"
+    pkey: "<PUBLIC_KEY_URL>" # Uncomment and replace in real config
+    component: "restricted"
+
+# System configuration
+systemConfig:
+  name: edge
+  description: Default yml configuration for edge image
+
+  immutability:
+    enabled: false # default is false
+    # To enable Secure Boot, provide the actual file paths for your environment below and uncomment the relevant lines.
+    # secureBootDBKey: "<SECURE_BOOT_DB_KEY_PATH>"
+    # secureBootDBCrt: "<SECURE_BOOT_DB_CRT_PATH>"
+    # secureBootDBCer: "<SECURE_BOOT_DB_CER_PATH>"
+
+  # User Configuration
+  users:
+    # Example: Pre-hashed password (production approach)
+    - name: admin
+      password: ""               # leave empty in sample
+      # password: "<HASHED_PASSWORD>"  # Uncomment and replace in real config
+      groups: ["<REQUIRED_GROUP>"]     # e.g., "wheel" for admin, "users" for non-admin
+
+    # Example: Plain text with algorithm (development/testing only)
+    - name: testuser
+      password: ""               # Do not commit real plaintext passwords
+      # password: "<PLAIN_PASSWORD>"
+      hash_algo: "sha512"        # or org-approved algorithm
+
+    # Example: Plain text with different algorithm (development/testing only)
+    - name: secureuser
+      password: ""               # Do not commit real plaintext passwords
+      # password: "<PLAIN_PASSWORD>"
+      hash_algo: "bcrypt"        # specify cost in production if supported
+      # sudo: true                # Uncomment to grant admin rights
+
+  # Package Configuration
+  packages:
+    # Additional packages beyond the base system
+    - cloud-init
+    - rsyslog
+
+  # Kernel Configuration
+  kernel:
+    version: "6.12"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+
+  # Everything else uses defaults from the default template:
+  # Network: Uses DHCP on first interface
+  # Security: Enables distro-appropriate security (SELinux for AzureLinux)
+  # Services: Enables SSH, disables unnecessary services
+  # Users: Creates default admin user with sudo access

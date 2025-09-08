@@ -1,0 +1,57 @@
+image:
+  name: emt3-x86_64-edge
+  version: "1.0.0"
+
+target:
+  os: edge-microvisor-toolkit # Target OS name
+  dist: emt3 # Target OS distribution
+  arch: x86_64 # Target OS architecture
+  imageType: iso # Image type, valid value: [raw, iso].
+
+# Sample list of additional package repositories; replace codename, url, and pkey values as needed
+packageRepositories:
+  - codename: "company-internal"
+    url: "<URL>"
+    pkey: "<PUBLIC_KEY_URL>" # Uncomment and replace in real config
+    component: "main"
+
+  - codename: "dev-tools"
+    url: "<URL>"
+    pkey: "<PUBLIC_KEY_URL>" # Uncomment and replace in real config
+
+  - codename: "intel-openvino"
+    url: "<URL>"
+    pkey: "<PUBLIC_KEY_URL>" # Uncomment and replace in real config
+    component: "restricted"
+
+# Disk configuration can be omitted to use defaults from default template
+# If specified, it will override the default disk configuration completely
+
+# System configuration
+systemConfig:
+  name: edge
+  description: Default yml configuration for edge image
+
+  immutability:
+    enabled: false # default is false
+    # To enable Secure Boot, provide the actual file paths for your environment below and uncomment the relevant lines.
+    # secureBootDBKey: "<SECURE_BOOT_DB_KEY_PATH>"
+    # secureBootDBCrt: "<SECURE_BOOT_DB_CRT_PATH>"
+    # secureBootDBCer: "<SECURE_BOOT_DB_CER_PATH>"
+   
+  # Package Configuration
+  packages:
+    # Additional packages beyond the base system
+    - cloud-init
+    - rsyslog
+
+  # Kernel Configuration
+  kernel:
+    version: "6.12"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+
+  # Everything else uses defaults from the default template:
+  # Network: Uses DHCP on first interface
+  # Security: Enables distro-appropriate security
+  # Services: Enables SSH, disables unnecessary services
+  # Users: Creates default admin user with sudo access
