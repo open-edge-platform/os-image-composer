@@ -157,23 +157,39 @@ func TestValidateFlagsAndArgs(t *testing.T) {
 	if err := validateFlagsAndArgs(cmd, args, lim); err != nil {
 		t.Fatalf("valid flags/args rejected: %v", err)
 	}
-	cmd.Flags().Set("name", "bad\x00")
+	if err := cmd.Flags().Set("name", "bad\x00"); err != nil {
+		t.Fatalf("failed to set flag: %v", err)
+	}
 	if err := validateFlagsAndArgs(cmd, args, lim); err == nil {
 		t.Fatal("expected NUL in flag to be rejected")
 	}
-	cmd.Flags().Set("name", "ok")
-	cmd.Flags().Set("file", "bad\x00")
+	if err := cmd.Flags().Set("name", "ok"); err != nil {
+		t.Fatalf("failed to set flag: %v", err)
+	}
+	if err := cmd.Flags().Set("file", "bad\x00"); err != nil {
+		t.Fatalf("failed to set flag: %v", err)
+	}
 	if err := validateFlagsAndArgs(cmd, args, lim); err == nil {
 		t.Fatal("expected NUL in file flag to be rejected")
 	}
-	cmd.Flags().Set("file", "/tmp/ok")
-	cmd.Flags().Set("paths", "/tmp/a,bad\x00")
+	if err := cmd.Flags().Set("file", "/tmp/ok"); err != nil {
+		t.Fatalf("failed to set flag: %v", err)
+	}
+	if err := cmd.Flags().Set("paths", "/tmp/a,bad\x00"); err != nil {
+		t.Fatalf("failed to set flag: %v", err)
+	}
 	if err := validateFlagsAndArgs(cmd, args, lim); err == nil {
 		t.Fatal("expected NUL in stringSlice flag to be rejected")
 	}
-	cmd.Flags().Set("paths", "/tmp/a,/tmp/b")
-	cmd.Flags().Set("names", "foo")
-	cmd.Flags().Set("names", "bad\x00")
+	if err := cmd.Flags().Set("paths", "/tmp/a,/tmp/b"); err != nil {
+		t.Fatalf("failed to set flag: %v", err)
+	}
+	if err := cmd.Flags().Set("names", "foo"); err != nil {
+		t.Fatalf("failed to set flag: %v", err)
+	}
+	if err := cmd.Flags().Set("names", "bad\x00"); err != nil {
+		t.Fatalf("failed to set flag: %v", err)
+	}
 	if err := validateFlagsAndArgs(cmd, args, lim); err == nil {
 		t.Fatal("expected NUL in stringArray flag to be rejected")
 	}
@@ -191,7 +207,9 @@ func TestAttachRecursive_PersistentPreRunE(t *testing.T) {
 	if err := root.PersistentPreRunE(root, []string{"ok"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	child.Flags().Set("name", "bad\x00")
+	if err := child.Flags().Set("name", "bad\x00"); err != nil {
+		t.Fatalf("failed to set flag: %v", err)
+	}
 	if err := child.PersistentPreRunE(child, []string{"ok"}); err == nil {
 		t.Fatal("expected error for bad flag in child")
 	}
