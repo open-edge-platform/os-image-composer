@@ -142,31 +142,31 @@ build_azl3_iso_image_user_template() {
 build_emt3_iso_image_user_template() {
   echo "building EMT3 iso Image from user template."
   output=$( sudo -S ./image-composer build image-templates/emt3-x86_64-edge-iso.yml 2>&1)
-  check_build_result "$output" "EMT3 ISO User_Template"
+  check_build_result "$output" "EMT3 ISO User Template"
 }
 
 build_elxr12_iso_image_user_template() {
   echo "building eLxr12 iso Image from user template."
   output=$( sudo -S ./image-composer build image-templates/elxr12-x86_64-edge-iso.yml 2>&1)
-  check_build_result "$output" "eLxr12 ISO User_Template"
+  check_build_result "$output" "eLxr12 ISO User Template"
 }
 
 build_elxr12_raw_image_user_template() {
   echo "building eLxr12 raw Image from user template."
   output=$( sudo -S ./image-composer build image-templates/azl3-x86_64-edge-raw.yml 2>&1)
-  check_build_result "$output" "eLxr Raw User_Template"
+  check_build_result "$output" "eLxr Raw User Template"
 }
 
 build_emt3_raw_image_user_template() {
   echo "building EMT3 raw Image from user template."
   output=$( sudo -S ./image-composer build image-templates/emt3-x86_64-edge-raw.yml 2>&1)
-  check_build_result "$output" "EMT3 Raw User_Template"
+  check_build_result "$output" "EMT3 Raw User Template"
 }
 
 build_azl3_raw_image_user_template() {
   echo "building AZL3 raw Image from user template."
   output=$( sudo -S ./image-composer build image-templates/azl3-x86_64-edge-raw.yml 2>&1)
-check_build_result "$output" "AZL3 Raw User_Template"
+check_build_result "$output" "AZL3 Raw User Template"
 }
 
 clean_build_dirs() {
