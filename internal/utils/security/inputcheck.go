@@ -61,9 +61,6 @@ func ValidatePath(name, s string, lim Limits) error {
 	if err := ValidateString(name, s, lim); err != nil {
 		return err
 	}
-	if len(s) > lim.MaxPath {
-		return fmt.Errorf("%s: path too long (%d > %d)", name, len(s), lim.MaxPath)
-	}
 	_ = filepath.Clean(s) // keep behavior stable; we only validate, not mutate
 	return nil
 }
