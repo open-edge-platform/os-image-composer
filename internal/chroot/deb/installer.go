@@ -22,20 +22,20 @@ func NewDebInstaller() *DebInstaller {
 
 func (debInstaller *DebInstaller) cleanupOnSuccess(repoPath string, err *error) {
 	if umountErr := mount.UmountPath(repoPath); umountErr != nil {
-		log.Errorf("failed to unmount debian local repository: %v", umountErr)
+		log.Errorf("Failed to unmount debian local repository: %v", umountErr)
 		*err = fmt.Errorf("failed to unmount debian local repository: %w", umountErr)
 	}
 }
 
 func (debInstaller *DebInstaller) cleanupOnError(chrootEnvPath, repoPath string, err *error) {
 	if umountErr := mount.UmountPath(repoPath); umountErr != nil {
-		log.Errorf("failed to unmount debian local repository: %v", umountErr)
+		log.Errorf("Failed to unmount debian local repository: %v", umountErr)
 		*err = fmt.Errorf("operation failed: %w, cleanup errors: %v", *err, umountErr)
 		return
 	}
 
 	if _, RemoveErr := shell.ExecCmd("rm -rf "+chrootEnvPath, true, "", nil); RemoveErr != nil {
-		log.Errorf("failed to remove chroot environment build path: %v", RemoveErr)
+		log.Errorf("Failed to remove chroot environment build path: %v", RemoveErr)
 		*err = fmt.Errorf("operation failed: %w, cleanup errors: %v", *err, RemoveErr)
 	}
 }

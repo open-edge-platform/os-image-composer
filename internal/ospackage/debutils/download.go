@@ -15,6 +15,7 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/ospackage/pkgfetcher"
 	"github.com/open-edge-platform/image-composer/internal/ospackage/pkgsorter"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/slice"
 )
 
 // repoConfig hold repo related info
@@ -67,22 +68,25 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 	log.Infof("fetching packages from %s", "user package list")
 
 	repoList := make([]struct {
-		id       string
-		codename string
-		url      string
-		pkey     string
+		id        string
+		codename  string
+		url       string
+		pkey      string
+		component string
 	}, len(UserRepo))
 	for i, repo := range UserRepo {
 		repoList[i] = struct {
-			id       string
-			codename string
-			url      string
-			pkey     string
+			id        string
+			codename  string
+			url       string
+			pkey      string
+			component string
 		}{
-			id:       fmt.Sprintf("custrepo%d", i+1),
-			codename: repo.Codename,
-			url:      repo.URL,
-			pkey:     repo.PKey,
+			id:        fmt.Sprintf("custrepo%d", i+1),
+			codename:  repo.Codename,
+			url:       repo.URL,
+			pkey:      repo.PKey,
+			component: repo.Component,
 		}
 	}
 
@@ -94,25 +98,31 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 		pkey := repoItem.pkey
 		archs := Architecture + ",all"
 		releaseNm := "Release"
-		for _, arch := range strings.Split(archs, ",") {
-			package_list_url := GetPackagesNames(baseURL, codename, arch)
-			if package_list_url == "" {
-				continue // No valid package list found (packages.gz/packages.xz) for this arch, repo not exist
+		component := repoItem.component
+		if strings.TrimSpace(component) == "" {
+			component = "main"
+		}
+		for _, componentName := range slice.SplitBySpace(component) {
+			for _, arch := range strings.Split(archs, ",") {
+				package_list_url := GetPackagesNames(baseURL, codename, arch, componentName)
+				if package_list_url == "" {
+					continue // No valid package list found for this arch/component
+				}
+				repo := RepoConfig{
+					PkgList:      package_list_url,
+					ReleaseFile:  fmt.Sprintf("%s/dists/%s/%s", baseURL, codename, releaseNm),
+					ReleaseSign:  fmt.Sprintf("%s/dists/%s/%s.gpg", baseURL, codename, releaseNm),
+					PkgPrefix:    baseURL,
+					Name:         id,
+					GPGCheck:     true,
+					RepoGPGCheck: true,
+					Enabled:      true,
+					PbGPGKey:     pkey,
+					BuildPath:    fmt.Sprintf("./builds/%s_%s_%s", id, arch, componentName),
+					Arch:         arch,
+				}
+				userRepo = append(userRepo, repo)
 			}
-			repo := RepoConfig{
-				PkgList:      package_list_url,
-				ReleaseFile:  fmt.Sprintf("%s/dists/%s/%s", baseURL, codename, releaseNm),
-				ReleaseSign:  fmt.Sprintf("%s/dists/%s/%s.gpg", baseURL, codename, releaseNm),
-				PkgPrefix:    baseURL,
-				Name:         id,
-				GPGCheck:     true,
-				RepoGPGCheck: true,
-				Enabled:      true,
-				PbGPGKey:     pkey,
-				BuildPath:    fmt.Sprintf("./builds/%s_%s", id, arch),
-				Arch:         arch,
-			}
-			userRepo = append(userRepo, repo)
 		}
 	}
 

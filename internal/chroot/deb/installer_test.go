@@ -296,6 +296,7 @@ func TestInstallDebPkg_ChrootEnvCreation(t *testing.T) {
 	originalExecutor := shell.Default
 	defer func() { shell.Default = originalExecutor }()
 	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "mkdir", Output: "override-test\n", Error: nil},
 		{Pattern: "mount", Output: "override-test\n", Error: nil},
 		{Pattern: "umount", Output: "override-test\n", Error: nil},
 		{Pattern: "mmdebstrap", Output: "override-test\n", Error: fmt.Errorf("command not found")},

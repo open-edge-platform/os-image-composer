@@ -4,7 +4,7 @@ set -euo pipefail
 # Script to run Go tests with per-directory coverage reporting
 # Usage: ./run_coverage_tests.sh [COVERAGE_THRESHOLD] [PRINT_TS] [FAIL_ON_NO_TESTS] [DEBUG]
 
-COV_THRESHOLD=24.9
+COV_THRESHOLD=38.9
 PRINT_TS=${1:-""}
 FAIL_ON_NO_TESTS=${2:-false}  # Set to true if directories without tests should fail the build
 DEBUG=${3:-false}  # Set to true for verbose debugging
