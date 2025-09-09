@@ -309,7 +309,7 @@ func ValidateChrootenvYAML(data []byte) error {
 	// Parse YAML to generic interface for validation
 	var raw interface{}
 	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return fmt.Errorf("invalid YAML format: chrootenv parsing failed")
+		return fmt.Errorf("invalid YAML format: %w", err)
 	}
 
 	// Convert to JSON for schema validation
