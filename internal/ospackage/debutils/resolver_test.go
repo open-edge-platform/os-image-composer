@@ -1,10 +1,9 @@
-package debutils_test
+package debutils
 
 import (
 	"testing"
 
 	"github.com/open-edge-platform/image-composer/internal/ospackage"
-	"github.com/open-edge-platform/image-composer/internal/ospackage/debutils"
 )
 
 func TestResolveDependenciesAdvanced(t *testing.T) {
@@ -65,7 +64,7 @@ func TestResolveDependenciesAdvanced(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := debutils.ResolveDependencies(tc.requested, tc.all)
+			result, err := ResolveDependencies(tc.requested, tc.all)
 
 			if tc.expectError {
 				if err == nil {
@@ -131,7 +130,7 @@ func TestGenerateDot(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := debutils.GenerateDot(tc.pkgs, tc.filename)
+			err := GenerateDot(tc.pkgs, tc.filename)
 
 			if tc.expectError {
 				if err == nil {
@@ -193,7 +192,7 @@ func TestCleanDependencyName(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.input, func(t *testing.T) {
-			result := debutils.CleanDependencyName(tc.input)
+			result := CleanDependencyName(tc.input)
 			if result != tc.expected {
 				t.Errorf("cleanDependencyName(%q) = %q, expected %q", tc.input, result, tc.expected)
 			}
@@ -245,13 +244,21 @@ func TestCompareDebianVersions(t *testing.T) {
 		{"6.6.4-5+b1", "6.6.4-5", 1},
 		{"7.6.4-5+b1", "6.6.4-5+b1", 1},
 		{"2.34-0ubuntu3.2", "2.35-0ubuntu1", -1},
+
+		// User requested test case
+		{"1.5.9+dfsg-3.1build1", "1.5r6", 1},
+		{"1.20.7-10+b1", "1.20.7", 1},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.a+"_vs_"+tc.b, func(t *testing.T) {
-			// Note: compareDebianVersions is not exported, so we'll need a different approach
-			// For now, let's skip this test until we can test it via exported functions
-			t.Skip("compareDebianVersions is not exported")
+			got, err := CompareDebianVersions(tc.a, tc.b)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.expected {
+				t.Errorf("CompareDebianVersions(%q, %q) = %d, want %d", tc.a, tc.b, got, tc.expected)
+			}
 		})
 	}
 }
@@ -309,7 +316,7 @@ func TestResolveTopPackageConflicts(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, found := debutils.ResolveTopPackageConflicts(tc.want, all)
+			result, found := ResolveTopPackageConflicts(tc.want, all)
 
 			if found != tc.expectFound {
 				t.Errorf("ResolveTopPackageConflicts(%q) found=%v, expected found=%v", tc.want, found, tc.expectFound)

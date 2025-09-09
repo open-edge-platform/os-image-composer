@@ -26,7 +26,7 @@ type Result struct {
 	Error    error         // any error (signature fail, I/O, etc)
 }
 
-func VerifyPackagegz(relPath string, pkggzPath string, arch string) (bool, error) {
+func VerifyPackagegz(relPath string, pkggzPath string, arch string, component string) (bool, error) {
 	log := logger.Logger()
 	log.Infof("Verifying package %s", pkggzPath)
 
@@ -34,7 +34,7 @@ func VerifyPackagegz(relPath string, pkggzPath string, arch string) (bool, error
 	baseFile := filepath.Base(pkggzPath)
 
 	// Get expected checksum from Release file
-	pkgPathSrch := fmt.Sprintf("main/binary-%s/%s", arch, baseFile)
+	pkgPathSrch := fmt.Sprintf("%s/binary-%s/%s", component, arch, baseFile)
 	log.Infof("Searching for %s in Release file %s", pkgPathSrch, relPath)
 	checksum, err := findChecksumInRelease(relPath, "SHA256", pkgPathSrch)
 	log.Infof("Checksum from Release file (%s): %s Err:%s", relPath, checksum, err)

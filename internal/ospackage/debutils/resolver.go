@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/open-edge-platform/image-composer/internal/ospackage"
 	"github.com/open-edge-platform/image-composer/internal/ospackage/pkgfetcher"
@@ -62,7 +63,14 @@ func ParseRepositoryMetadata(baseURL string, pkggz string, releaseFile string, r
 
 	// verify the sham256 checksum of the Packages.gz file
 	log.Infof("verifying checksum of package metadata file %s %s", baseURL, localPkggzFile)
-	pkggzVryResult, err := VerifyPackagegz(localReleaseFile, localPkggzFile, arch)
+	// get component from buildPath
+	component := "main"
+	// Detect last underscore and extract the word after it as component
+	if idx := strings.LastIndex(buildPath, "_"); idx != -1 && len(buildPath) > idx+1 {
+		component = buildPath[idx+1:]
+	}
+	//
+	pkggzVryResult, err := VerifyPackagegz(localReleaseFile, localPkggzFile, arch, component)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify pkg file: %w", err)
 	}
@@ -305,9 +313,20 @@ func getFullUrl(filePath string, baseUrl string) (string, error) {
 	return fullURL, nil
 }
 
-// compareDebianVersions compares two Debian version strings.
+// CompareDebianVersions compares two Debian version strings.
 // Returns -1 if a < b, 0 if a == b, 1 if a > b.
-func compareDebianVersions(a, b string) (int, error) {
+func CompareDebianVersions(a, b string) (int, error) {
+	// Empty-version handling: empty < any non-empty
+	if a == "" && b == "" {
+		return 0, nil
+	}
+	if a == "" {
+		return -1, nil
+	}
+	if b == "" {
+		return 1, nil
+	}
+
 	// Helper to split epoch
 	splitEpoch := func(ver string) (epoch int, rest string) {
 		parts := strings.SplitN(ver, ":", 2)
@@ -323,11 +342,20 @@ func compareDebianVersions(a, b string) (int, error) {
 		return
 	}
 
-	// Helper to get next segment (numeric or non-numeric)
+	// Split upstream_version and debian_revision at last hyphen
+	splitRevision := func(ver string) (upstream string, debian string) {
+		if i := strings.LastIndex(ver, "-"); i >= 0 {
+			return ver[:i], ver[i+1:]
+		}
+		return ver, ""
+	}
+
+	// nextSegment returns the next contiguous numeric or non-numeric segment.
 	nextSegment := func(s string) (seg string, rest string, numeric bool) {
 		if s == "" {
 			return "", "", false
 		}
+		// numeric segment
 		if s[0] >= '0' && s[0] <= '9' {
 			i := 0
 			for i < len(s) && s[i] >= '0' && s[i] <= '9' {
@@ -335,11 +363,89 @@ func compareDebianVersions(a, b string) (int, error) {
 			}
 			return s[:i], s[i:], true
 		}
+		// non-numeric segment
 		i := 0
 		for i < len(s) && (s[i] < '0' || s[i] > '9') {
 			i++
 		}
 		return s[:i], s[i:], false
+	}
+
+	// Character ordering per Debian: '~' < end-of-string < letters < other characters
+	charOrder := func(r rune) int {
+		if r == '~' {
+			return -2
+		}
+		if r == 0 {
+			return -1
+		}
+		if unicode.IsLetter(r) {
+			return int(r)
+		}
+		return 0x100 + int(r)
+	}
+
+	// Compare two non-digit segments using Debian ordering
+	compareNonDigitSegments := func(aSeg, bSeg string) int {
+		ai, bi := 0, 0
+		for {
+			var ra, rb rune
+			if ai < len(aSeg) {
+				ra = rune(aSeg[ai])
+			} else {
+				ra = 0
+			}
+			if bi < len(bSeg) {
+				rb = rune(bSeg[bi])
+			} else {
+				rb = 0
+			}
+			// both ended
+			if ra == 0 && rb == 0 {
+				return 0
+			}
+			if ra != rb {
+				oa := charOrder(ra)
+				ob := charOrder(rb)
+				if oa < ob {
+					return -1
+				}
+				return 1
+			}
+			ai++
+			bi++
+		}
+	}
+
+	// Compare numeric segments (as dpkg: strip leading zeros, compare length, then lexicographically)
+	compareNumericSegments := func(aSeg, bSeg string) int {
+		aTrim := strings.TrimLeft(aSeg, "0")
+		bTrim := strings.TrimLeft(bSeg, "0")
+		// treat empty as zero
+		if aTrim == "" && bTrim == "" {
+			return 0
+		}
+		if aTrim == "" {
+			return -1
+		}
+		if bTrim == "" {
+			return 1
+		}
+		// longer numeric (more digits) is greater
+		if len(aTrim) > len(bTrim) {
+			return 1
+		}
+		if len(aTrim) < len(bTrim) {
+			return -1
+		}
+		// same length -> lexical compare works
+		if aTrim > bTrim {
+			return 1
+		}
+		if aTrim < bTrim {
+			return -1
+		}
+		return 0
 	}
 
 	// Handle epoch
@@ -352,63 +458,79 @@ func compareDebianVersions(a, b string) (int, error) {
 		return 1, nil
 	}
 
-	// Compare the rest
-	sa, sb := restA, restB
-	for sa != "" || sb != "" {
-		// Handle tilde (~)
-		if len(sa) > 0 && sa[0] == '~' {
-			if len(sb) == 0 || sb[0] != '~' {
-				return -1, nil
-			}
-			sa = sa[1:]
-			sb = sb[1:]
-			continue
-		}
-		if len(sb) > 0 && sb[0] == '~' {
-			return 1, nil
-		}
+	// Split upstream and debian revisions
+	upA, debA := splitRevision(restA)
+	upB, debB := splitRevision(restB)
 
-		segA, restA, numA := nextSegment(sa)
-		segB, restB, numB := nextSegment(sb)
+	// Compare iterative parts (used for upstream version and debian revision)
+	compareParts := func(sa, sb string) int {
+		for sa != "" || sb != "" {
+			// Handle tilde first: '~' sorts before everything (including end-of-string)
+			if (len(sa) > 0 && sa[0] == '~') || (len(sb) > 0 && sb[0] == '~') {
+				if len(sa) > 0 && sa[0] == '~' && !(len(sb) > 0 && sb[0] == '~') {
+					return -1
+				}
+				if len(sb) > 0 && sb[0] == '~' && !(len(sa) > 0 && sa[0] == '~') {
+					return 1
+				}
+				// both have tilde: consume and continue
+				if len(sa) > 0 && sa[0] == '~' && len(sb) > 0 && sb[0] == '~' {
+					sa = sa[1:]
+					sb = sb[1:]
+					continue
+				}
+			}
 
-		if segA == "" && segB == "" {
-			sa, sb = restA, restB
-			continue
-		}
+			// After tilde handling, if either side is exhausted, the exhausted side is less
+			if sa == "" && sb == "" {
+				break
+			}
+			if sa == "" {
+				return -1
+			}
+			if sb == "" {
+				return 1
+			}
 
-		if numA && numB {
-			// Remove leading zeros
-			segA = strings.TrimLeft(segA, "0")
-			segB = strings.TrimLeft(segB, "0")
-			// Compare by length
-			if len(segA) > len(segB) {
-				return 1, nil
+			segA, restASeg, numA := nextSegment(sa)
+			segB, restBSeg, numB := nextSegment(sb)
+
+			// both empty segments -> continue
+			if segA == "" && segB == "" {
+				sa, sb = restASeg, restBSeg
+				continue
 			}
-			if len(segA) < len(segB) {
-				return -1, nil
+
+			// numeric vs non-numeric: numeric < non-numeric
+			if numA != numB {
+				if numA {
+					return -1
+				}
+				return 1
 			}
-			// Compare lexicographically
-			if segA > segB {
-				return 1, nil
+
+			// both numeric
+			if numA && numB {
+				if cmp := compareNumericSegments(segA, segB); cmp != 0 {
+					return cmp
+				}
+			} else { // both non-numeric
+				if cmp := compareNonDigitSegments(segA, segB); cmp != 0 {
+					return cmp
+				}
 			}
-			if segA < segB {
-				return -1, nil
-			}
-		} else if !numA && !numB {
-			if segA > segB {
-				return 1, nil
-			}
-			if segA < segB {
-				return -1, nil
-			}
-		} else {
-			// Numeric segments are always less than non-numeric
-			if numA {
-				return -1, nil
-			}
-			return 1, nil
+
+			sa, sb = restASeg, restBSeg
 		}
-		sa, sb = restA, restB
+		return 0
+	}
+
+	// Compare upstream versions first, then debian revisions
+	if cmp := compareParts(upA, upB); cmp != 0 {
+		return cmp, nil
+	}
+	if cmp := compareParts(debA, debB); cmp != 0 {
+		return cmp, nil
 	}
 	return 0, nil
 }
@@ -457,7 +579,7 @@ func compareVersions(v1, v2 string) int {
 	}
 	ver1 := extractVersion(v1)
 	ver2 := extractVersion(v2)
-	cmp, _ := compareDebianVersions(ver1, ver2)
+	cmp, _ := CompareDebianVersions(ver1, ver2)
 	return cmp
 }
 
@@ -621,7 +743,7 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 			}
 
 			// Check if version constraint is satisfied
-			cmp, err := compareDebianVersions(candidate.Version, ver)
+			cmp, err := CompareDebianVersions(candidate.Version, ver)
 			if err != nil {
 				continue
 			}
