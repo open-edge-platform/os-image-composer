@@ -500,6 +500,91 @@ systemConfigs:
       version: "6.12"
       cmdline: "quiet splash systemd.unified_cgroup_hierarchy=0"
 ```
+## Fuzz Test
+
+### Fuzz Test Functions
+
+#### FuzzCreateRootCommand
+
+Tests the `createRootCommand()` function with various global configuration values:
+
+- **Global flag handling**: Tests different values for `configFile` and `logLevel` global variables
+- **Command structure creation**: Ensures the root command is properly initialized
+- **Subcommand registration**: Verifies all subcommands are added correctly
+- **Edge cases**: Tests with empty values, invalid paths, system files, and unusual log levels
+- **State management**: Properly restores original global variable values after each test
+
+**Test scenarios include:**
+- Empty configuration paths and log levels
+- Invalid file paths and non-existent directories
+- System files as configuration (e.g., `/etc/passwd`, `/dev/null`)
+- Very long path names that might cause buffer issues
+- Invalid log level values
+
+#### FuzzCommandLineArgs
+
+Tests command line argument parsing and handling:
+
+- **Argument parsing**: Tests various command line argument patterns
+- **Command structure integrity**: Ensures command object remains valid during argument processing
+- **Edge case handling**: Tests with empty, invalid, and malformed arguments
+- **Subcommand testing**: Tests individual subcommands (build, validate, config, etc.)
+
+**Test scenarios include:**
+- Help and version flags
+- Individual subcommands (build, validate, config)
+- Flag combinations (--config, --log-level)
+- Invalid commands and empty arguments
+- Complex argument strings
+
+### How to Run
+
+#### Quick Test (30 seconds default)
+```bash
+./run_main_fuzz_test.sh
+```
+
+#### Custom Duration
+```bash
+FUZZ_TIME=60s ./run_main_fuzz_test.sh
+```
+
+#### Individual Test Functions
+```bash
+# Test only createRootCommand function
+go test -run='^$' -fuzz=FuzzCreateRootCommand -fuzztime=30s ./cmd/image-composer
+
+# Test only command line args function
+go test -run='^$' -fuzz=FuzzCommandLineArgs -fuzztime=30s ./cmd/image-composer
+```
+
+### Expected Behavior
+
+Both fuzz tests should:
+- ✅ **Never crash** regardless of input values
+- ✅ **Always return valid structures** (non-nil command objects)
+- ✅ **Include all required components** (subcommands, flags, descriptions)
+- ✅ **Handle edge cases gracefully** (invalid paths, malformed arguments)
+- ✅ **Maintain state integrity** (proper cleanup of global variables)
+
+### Test Coverage
+
+The fuzz tests provide coverage for:
+
+#### FuzzCreateRootCommand
+- Global variable handling (`configFile`, `logLevel`)
+- Command object creation and validation
+- Subcommand registration verification
+- Edge case handling (empty/invalid paths, system files)
+- State cleanup and restoration
+
+#### FuzzCommandLineArgs  
+- CLI argument parsing robustness
+- Command structure integrity during argument processing
+- Subcommand accessibility testing
+- Invalid argument handling
+- Empty and malformed input scenarios
+
 
 ## Get Help
 
