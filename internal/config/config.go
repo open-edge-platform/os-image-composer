@@ -199,9 +199,7 @@ func parseYAMLTemplate(data []byte, validateFull bool) (*ImageTemplate, error) {
 	if err := yaml.Unmarshal(data, &template); err != nil {
 		return nil, fmt.Errorf("template parsing failed: invalid structure")
 	}
-	if err := security.ValidateStructStrings(&template, security.DefaultLimits()); err != nil {
-		return nil, fmt.Errorf("invalid config: %w", err)
-	}
+
 	return &template, nil
 }
 
