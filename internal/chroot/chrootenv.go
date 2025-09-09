@@ -354,7 +354,7 @@ func (chrootEnv *ChrootEnv) CleanupChrootEnv(targetOs, targetDist, targetArch st
 			return fmt.Errorf("failed to unmount path for chroot environment: %w", err)
 		}
 	} else {
-		log.Infof("chroot environment root %s does not exist, skipping cleanup", chrootEnv.ChrootEnvRoot)
+		log.Infof("Chroot environment root %s does not exist, skipping cleanup", chrootEnv.ChrootEnvRoot)
 	}
 	return nil
 }

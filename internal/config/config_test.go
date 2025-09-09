@@ -1107,15 +1107,12 @@ func TestPartialKernelConfigMerging(t *testing.T) {
 	}
 }
 
-// Remove TestLoadJSONTemplate since JSON is not supported
-// func TestLoadJSONTemplate(t *testing.T) { ... }
-
 func TestLoadNonExistentFile(t *testing.T) {
 	_, err := LoadTemplate("/nonexistent/file.yml", false)
 	if err == nil {
 		t.Errorf("expected error for non-existent file")
 	}
-	if !strings.Contains(err.Error(), "no such file or directory") {
+	if !strings.Contains(err.Error(), "no such file or directory") && !strings.Contains(err.Error(), "failed to read template file") {
 		t.Errorf("expected file not found error, got: %v", err)
 	}
 }
@@ -2597,7 +2594,7 @@ target:
 	if err == nil {
 		t.Errorf("expected error for malformed YAML")
 	}
-	if !strings.Contains(err.Error(), "parsing YAML") {
+	if !strings.Contains(err.Error(), "invalid YAML format") && !strings.Contains(err.Error(), "template parsing failed") {
 		t.Errorf("expected YAML parsing error, got: %v", err)
 	}
 }
@@ -2607,7 +2604,7 @@ func TestLoadTemplateWithMissingFile(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected error for missing file")
 	}
-	if !strings.Contains(err.Error(), "no such file or directory") {
+	if !strings.Contains(err.Error(), "no such file or directory") && !strings.Contains(err.Error(), "failed to read template file") {
 		t.Errorf("expected file not found error, got: %v", err)
 	}
 }

@@ -1,4 +1,3 @@
-// internal/manifest/manifest.go
 package manifest
 
 import (
@@ -13,6 +12,7 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/config/version"
 	"github.com/open-edge-platform/image-composer/internal/ospackage"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/security"
 )
 
 // Constants used for SDPX metadata generation
@@ -89,25 +89,30 @@ func WriteManifestToFile(manifest SoftwarePackageManifest, outputFile string) er
 		return fmt.Errorf("error marshaling manifest to JSON: %w", err)
 	}
 
-	// Create or open the output file with restrictive permissions
-	file, err := os.OpenFile(outputFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
-
+	// Create or open the output file with restrictive permissions and symlink protection
+	file, err := security.SafeOpenFile(outputFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600, security.RejectSymlinks)
 	if err != nil {
-		return fmt.Errorf("error creating/opening file: %w", err)
+		// Don't expose the full file path in error messages
+		log.Errorf("Failed to create manifest file: %v", err)
+		return fmt.Errorf("error creating manifest file: file access denied")
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			log.Warnf("Failed to close manifest file: %v", closeErr)
+		}
+	}()
 
 	// Write the JSON data to the file
 	_, err = file.Write(manifestJSON)
 	if err != nil {
-		return fmt.Errorf("error writing to file: %w", err)
+		log.Errorf("Failed to write manifest data: %v", err)
+		return fmt.Errorf("error writing manifest data")
 	}
 
 	return nil
 }
 
 func WriteSPDXToFile(pkgs []ospackage.PackageInfo, outFile string) error {
-
 	logger := logger.Logger()
 	logger.Infof("Generating SPDX manifest for %d packages", len(pkgs))
 
@@ -174,21 +179,22 @@ func WriteSPDXToFile(pkgs []ospackage.PackageInfo, outFile string) error {
 
 	// TODO: The relative file path here should be where
 	// the final image is being stored and not under temp
-	if err := os.MkdirAll(filepath.Dir(outFile), 0700); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-	// Create the output file with restrictive permissions
-	f, err := os.OpenFile(outFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
-	if err != nil {
-		return fmt.Errorf("failed to create SPDX output file: %w", err)
-	}
-	defer f.Close()
 
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(spdx); err != nil {
-		return fmt.Errorf("failed to encode SPDX JSON: %w", err)
+	if err := os.MkdirAll(filepath.Dir(outFile), 0700); err != nil {
+		logger.Errorf("Failed to create SPDX output directory: %v", err)
+		return fmt.Errorf("failed to create output directory")
+	}
+
+	// Use SafeWriteFile instead of SafeOpenFile for simpler file creation with symlink protection
+	jsonData, err := json.MarshalIndent(spdx, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal SPDX JSON: %w", err)
+	}
+
+	// Write file with symlink protection
+	if err := security.SafeWriteFile(outFile, jsonData, 0600, security.RejectSymlinks); err != nil {
+		logger.Errorf("Failed to write SPDX file: %v", err)
+		return fmt.Errorf("failed to create SPDX output file")
 	}
 
 	return nil

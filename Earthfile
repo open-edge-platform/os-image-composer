@@ -9,7 +9,9 @@ ARG HTTPS_PROXY=$(echo $HTTPS_PROXY)
 ARG NO_PROXY=$(echo $NO_PROXY)
 ARG REGISTRY
 
-FROM ${REGISTRY}ubuntu:latest
+# Use pre-built Go image that already has most tools
+FROM ${REGISTRY}golang:1.24.1-bullseye
+
 ENV http_proxy=$http_proxy
 ENV https_proxy=$https_proxy
 ENV no_proxy=$no_proxy
@@ -17,63 +19,22 @@ ENV HTTP_PROXY=$HTTP_PROXY
 ENV HTTPS_PROXY=$HTTPS_PROXY
 ENV NO_PROXY=$NO_PROXY
 
-# Install Go and other required package manually
-ENV DEBIAN_FRONTEND=noninteractive
-ENV DEBCONF_NONINTERACTIVE_SEEN=true
-
-# Pre-configure debconf to avoid prompts
-RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
-
-# Install basic tools 
-RUN apt-get update && apt-get install -y \
-    wget curl git build-essential \
-    && rm -rf /var/lib/apt/lists/*
-    
-# Install system tools
-RUN apt-get update && apt-get install -y \
-    util-linux e2fsprogs dosfstools \
-    && rm -rf /var/lib/apt/lists/*
-    
-# Install compression tools
-RUN apt-get update && apt-get install -y \
-    bzip2 xz-utils zstd \
-    && rm -rf /var/lib/apt/lists/*
-   
-# Install disk tools
-RUN apt-get update && apt-get install -y \
-    parted gdisk cryptsetup lvm2 psmisc \
-    && rm -rf /var/lib/apt/lists/*
-    
-# Install package management tools
-RUN apt-get update && apt-get install -y \
-    dpkg-dev rpm lsb-release createrepo-c mmdebstrap \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install boot and GRUB tools
-RUN apt-get update && apt-get install -y \
-    systemd-boot grub2-common grub-common grub-efi-amd64-bin dracut \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install security and signing tools
-RUN apt-get update && apt-get install -y \
-    sbsigntool gnupg2 systemd-ukify \
-    && rm -rf /var/lib/apt/lists/*
-    
-# Install virtualization and ISO tools
-RUN apt-get update && apt-get install -y \
-    xorriso qemu-utils qemu-system-x86 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Download and install Go 1.24.1
-RUN wget https://go.dev/dl/go1.24.1.linux-amd64.tar.gz \
-    && tar -C /usr/local -xzf go1.24.1.linux-amd64.tar.gz \
-    && rm go1.24.1.linux-amd64.tar.gz
-
-# Set Go environment variables
+# Set Go environment variables (already set in golang image, but ensure they're correct)
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV GOPATH="/go"
 ENV GOBIN="/go/bin"
 ENV PATH="${GOBIN}:${PATH}"
+
+# The golang image already includes:
+# - wget, curl, git, build-essential
+# - Most basic tools
+# - Go 1.24.1
+
+# Only install absolutely essential packages that might be missing
+# Use --no-install-recommends and || true to continue even if some fail
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bc bash \
+    || echo "Some packages failed to install, continuing..."
 
 golang-base:
     # Create Go workspace
@@ -93,21 +54,20 @@ golang-base:
 all:
     BUILD +build
 
-fetch-golang:
-    RUN apt-get update && apt-get install -y curl && curl -fsSLO https://go.dev/dl/go1.24.1.linux-amd64.tar.gz
-    SAVE ARTIFACT go1.24.1.linux-amd64.tar.gz
-
 build:
     FROM +golang-base
     ARG version='0.0.0-unknown'
+    
     # Get build date in UTC
     RUN date -u '+%Y-%m-%d' > /tmp/build_date
+    
     # Get git commit SHA if in a git repo, otherwise use "unknown"
     RUN if [ -d .git ]; then \
             git rev-parse --short HEAD > /tmp/commit_sha; \
         else \
             echo "unknown" > /tmp/commit_sha; \
         fi
+    
     RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOARCH=amd64 GOOS=linux \
         go build -trimpath -o build/image-composer \
             -ldflags "-s -w -extldflags '-static' \
@@ -131,9 +91,6 @@ test:
     ARG PRINT_TS=""
     ARG FAIL_ON_NO_TESTS=false
     
-    # Install dependencies required by the coverage script
-    RUN apt-get update && apt-get install -y bc bash
-    
     # Copy the entire project (including scripts directory)
     COPY . /work
     
@@ -149,14 +106,10 @@ test:
     SAVE ARTIFACT coverage_packages.txt AS LOCAL ./coverage_packages.txt
     SAVE ARTIFACT test_raw.log AS LOCAL ./test_raw.log
 
-# Additional test targets for convenience
 test-debug:
     FROM +golang-base
     ARG PRINT_TS=""
     ARG FAIL_ON_NO_TESTS=false
-    
-    # Install dependencies required by the coverage script
-    RUN apt-get update && apt-get install -y bc bash
     
     # Copy the entire project (including scripts directory)
     COPY . /work

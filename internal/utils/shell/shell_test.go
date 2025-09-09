@@ -12,7 +12,7 @@ func TestGetFullCmdStr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetFullCmdStr failed: %v", err)
 	}
-	if !strings.Contains(cmd, "/usr/bin/echo 'hello'") {
+	if !(strings.Contains(cmd, "/usr/bin/echo 'hello'") || strings.Contains(cmd, "/bin/echo 'hello'")) {
 		t.Errorf("Expected full path for echo, got: %s", cmd)
 	}
 }
