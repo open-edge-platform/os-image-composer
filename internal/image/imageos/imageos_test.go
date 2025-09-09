@@ -508,10 +508,6 @@ ID=test`,
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Set target OS for this test
-			originalTargetOs := config.TargetOs
-			defer func() { config.TargetOs = originalTargetOs }()
-			config.TargetOs = tc.targetOs
 
 			// Write test os-release file
 			osReleasePath := filepath.Join(testDir, "etc", "os-release")
@@ -567,11 +563,6 @@ ID=test`
 		t.Skipf("Cannot write test os-release file: %v", err)
 		return
 	}
-
-	// Set target OS to trigger the version extraction
-	originalTargetOs := config.TargetOs
-	defer func() { config.TargetOs = originalTargetOs }()
-	config.TargetOs = "azure-linux"
 
 	template := createTestImageTemplate()
 	chrootEnv := &chroot.ChrootEnv{}

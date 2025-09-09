@@ -13,37 +13,60 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/image/imageos"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/image-composer/internal/utils/shell"
+	"github.com/open-edge-platform/image-composer/internal/utils/system"
 )
 
+type RawMakerInterface interface {
+	Init(template *config.ImageTemplate) error
+	BuildRawImage(template *config.ImageTemplate) error
+}
+
 type RawMaker struct {
-	imageBuildDir string
-	chrootEnv     *chroot.ChrootEnv
-	imageOs       *imageos.ImageOs
+	ImageBuildDir string
+	ChrootEnv     chroot.ChrootEnvInterface
+	LoopDev       imagedisc.LoopDevInterface
+	ImageOs       imageos.ImageOsInterface
+	ImageConvert  imageconvert.ImageConvertInterface
 }
 
 var log = logger.Logger()
 
-func NewRawMaker(chrootEnv *chroot.ChrootEnv) (*RawMaker, error) {
+func NewRawMaker(chrootEnv chroot.ChrootEnvInterface) (*RawMaker, error) {
+	return &RawMaker{
+		ChrootEnv: chrootEnv,
+		LoopDev:   imagedisc.NewLoopDev(),
+	}, nil
+}
+
+func (rawMaker *RawMaker) Init(template *config.ImageTemplate) error {
+	imageOs, err := imageos.NewImageOs(rawMaker.ChrootEnv, template)
+	if err != nil {
+		return fmt.Errorf("failed to create image OS instance: %w", err)
+	}
+	rawMaker.ImageOs = imageOs
+
+	imageConvert := imageconvert.NewImageConvert()
+	rawMaker.ImageConvert = imageConvert
+
 	globalWorkDir, err := config.WorkDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get global work directory: %w", err)
+		return fmt.Errorf("failed to get global work directory: %w", err)
 	}
 
-	imageBuildDir := filepath.Join(globalWorkDir, config.ProviderId, "imagebuild")
-	if err := os.MkdirAll(imageBuildDir, 0755); err != nil {
-		log.Errorf("Failed to create imagebuild directory %s: %v", imageBuildDir, err)
-		return nil, fmt.Errorf("failed to create imagebuild directory: %w", err)
+	providerId := system.GetProviderId(template.Target.OS, template.Target.Dist,
+		template.Target.Arch)
+	rawMaker.ImageBuildDir = filepath.Join(globalWorkDir, providerId, "imagebuild")
+	if err := os.MkdirAll(rawMaker.ImageBuildDir, 0700); err != nil {
+		log.Errorf("Failed to create imagebuild directory %s: %v", rawMaker.ImageBuildDir, err)
+		return fmt.Errorf("failed to create imagebuild directory: %w", err)
 	}
 
-	return &RawMaker{
-		imageBuildDir: imageBuildDir,
-		chrootEnv:     chrootEnv,
-	}, nil
+	return nil
 }
 
 func (rawMaker *RawMaker) cleanupOnSuccess(loopDevPath string, err *error) {
 	if loopDevPath != "" {
-		if detachErr := imagedisc.LoopSetupDelete(loopDevPath); detachErr != nil {
+		if detachErr := rawMaker.LoopDev.LoopSetupDelete(loopDevPath); detachErr != nil {
 			log.Errorf("Failed to detach loopback device: %v", detachErr)
 			*err = fmt.Errorf("failed to detach loopback device: %w", detachErr)
 		}
@@ -52,7 +75,7 @@ func (rawMaker *RawMaker) cleanupOnSuccess(loopDevPath string, err *error) {
 
 func (rawMaker *RawMaker) cleanupOnError(loopDevPath, imagePath string, err *error) {
 	if loopDevPath != "" {
-		detachErr := imagedisc.LoopSetupDelete(loopDevPath)
+		detachErr := rawMaker.LoopDev.LoopSetupDelete(loopDevPath)
 		if detachErr != nil {
 			log.Errorf("Failed to detach loopback device after error: %v", detachErr)
 			*err = fmt.Errorf("operation failed: %w, cleanup errors: %v", *err, detachErr)
@@ -74,10 +97,10 @@ func (rawMaker *RawMaker) BuildRawImage(template *config.ImageTemplate) (err err
 	log.Infof("Building raw image for: %s", template.GetImageName())
 	imageName := template.GetImageName()
 	sysConfigName := template.GetSystemConfigName()
-	filePath := filepath.Join(rawMaker.imageBuildDir, sysConfigName, fmt.Sprintf("%s.raw", imageName))
+	filePath := filepath.Join(rawMaker.ImageBuildDir, sysConfigName, fmt.Sprintf("%s.raw", imageName))
 
 	log.Infof("Creating raw image disk...")
-	loopDevPath, diskPathIdMap, err := imagedisc.CreateRawImage(filePath, template)
+	loopDevPath, diskPathIdMap, err := rawMaker.LoopDev.CreateRawImageLoopDev(filePath, template)
 	if err != nil {
 		return fmt.Errorf("failed to create raw image: %w", err)
 	}
@@ -90,30 +113,25 @@ func (rawMaker *RawMaker) BuildRawImage(template *config.ImageTemplate) (err err
 		}
 	}()
 
-	rawMaker.imageOs, err = imageos.NewImageOs(rawMaker.chrootEnv, template)
-	if err != nil {
-		return fmt.Errorf("failed to create image OS instance: %w", err)
-	}
-
-	versionInfo, err = rawMaker.imageOs.InstallImageOs(diskPathIdMap)
+	versionInfo, err = rawMaker.ImageOs.InstallImageOs(diskPathIdMap)
 	if err != nil {
 		return fmt.Errorf("failed to install image OS: %w", err)
 	}
 
-	err = imagedisc.LoopSetupDelete(loopDevPath)
+	err = rawMaker.LoopDev.LoopSetupDelete(loopDevPath)
 	loopDevPath = ""
 	if err != nil {
 		return fmt.Errorf("failed to detach loopback device: %w", err)
 	}
 
-	newFilePath = filepath.Join(rawMaker.imageBuildDir, sysConfigName, fmt.Sprintf("%s-%s.raw", imageName, versionInfo))
+	newFilePath = filepath.Join(rawMaker.ImageBuildDir, sysConfigName, fmt.Sprintf("%s-%s.raw", imageName, versionInfo))
 	if _, err := shell.ExecCmd(fmt.Sprintf("mv %s %s", filePath, newFilePath), true, "", nil); err != nil {
 		log.Errorf("Failed to rename raw image file: %v", err)
 		return fmt.Errorf("failed to rename raw image file: %w", err)
 	}
 	filePath = newFilePath
 
-	err = imageconvert.ConvertImageFile(filePath, template)
+	err = rawMaker.ImageConvert.ConvertImageFile(filePath, template)
 	if err != nil {
 		return fmt.Errorf("failed to convert image file: %w", err)
 	}

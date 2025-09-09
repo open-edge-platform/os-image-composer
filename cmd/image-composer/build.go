@@ -9,6 +9,7 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/provider/elxr"
 	"github.com/open-edge-platform/image-composer/internal/provider/emt"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/system"
 	"github.com/spf13/cobra"
 )
 
@@ -81,7 +82,7 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading and merging template: %v", err)
 	}
 
-	p, err := InitProvider(config.TargetOs, config.TargetDist, config.TargetArch)
+	p, err := InitProvider(template.Target.OS, template.Target.Dist, template.Target.Arch)
 	if err != nil {
 		buildErr = fmt.Errorf("initializing provider failed: %v", err)
 		goto post
@@ -115,25 +116,23 @@ post:
 func InitProvider(os, dist, arch string) (provider.Provider, error) {
 	var p provider.Provider
 	switch os {
-	case "azure-linux":
-		config.ProviderId = azl.GetProviderId(dist, arch)
+	case azl.OsName:
 		if err := azl.Register(os, dist, arch); err != nil {
 			return nil, fmt.Errorf("registering azl provider failed: %v", err)
 		}
-	case "edge-microvisor-toolkit":
-		config.ProviderId = emt.GetProviderId(dist, arch)
+	case emt.OsName:
 		if err := emt.Register(os, dist, arch); err != nil {
 			return nil, fmt.Errorf("registering emt provider failed: %v", err)
 		}
-	case "wind-river-elxr":
-		config.ProviderId = elxr.GetProviderId(dist, arch)
+	case elxr.OsName:
 		if err := elxr.Register(os, dist, arch); err != nil {
 			return nil, fmt.Errorf("registering elxr provider failed: %v", err)
 		}
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", os)
 	}
-	p, ok := provider.Get(config.ProviderId)
+	providerId := system.GetProviderId(os, dist, arch)
+	p, ok := provider.Get(providerId)
 	if !ok {
 		return nil, fmt.Errorf("provider not found for %s %s %s", os, dist, arch)
 	}

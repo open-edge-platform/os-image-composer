@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/open-edge-platform/image-composer/internal/chroot/chrootbuild"
 	"github.com/open-edge-platform/image-composer/internal/config"
 	"github.com/open-edge-platform/image-composer/internal/utils/compression"
 	"github.com/open-edge-platform/image-composer/internal/utils/file"
@@ -23,10 +24,35 @@ const (
 	DefaultArchitecture = "amd64"
 )
 
+var log = logger.Logger()
+
+type ChrootEnvInterface interface {
+	GetChrootEnvRoot() string
+	GetChrootImageBuildDir() string
+	GetTargetOsPkgType() string
+	GetTargetOsConfigDir() string
+	GetTargetOsReleaseVersion() string
+	GetChrootPkgCacheDir() string
+	GetChrootEnvEssentialPackageList() ([]string, error)
+	GetChrootEnvHostPath(chrootPath string) (string, error)
+	GetChrootEnvPath(ChrootEnvHostPath string) (string, error)
+	MountChrootSysfs(chrootPath string) error
+	UmountChrootSysfs(chrootPath string) error
+	MountChrootPath(hostFullPath, chrootPath, mountFlags string) error
+	UmountChrootPath(chrootPath string) error
+	CopyFileFromHostToChroot(hostFilePath, chrootPath string) error
+	CopyFileFromChrootToHost(hostFilePath, chrootPath string) error
+	RefreshLocalCacheRepo(targetArch string) error
+	InitChrootEnv(targetOs, targetDist, targetArch string) error
+	CleanupChrootEnv(targetOs, targetDist, targetArch string) error
+	TdnfInstallPackage(packageName, installRoot string, repositoryIDList []string) error
+	AptInstallPackage(packageName, installRoot string, repoSrcList []string) error
+}
+
 type ChrootEnv struct {
 	ChrootEnvRoot       string
 	ChrootImageBuildDir string
-	chrootBuilder       *ChrootBuilder
+	ChrootBuilder       chrootbuild.ChrootBuilderInterface
 }
 
 func NewChrootEnv(targetOs, targetDist, targetArch string) (*ChrootEnv, error) {
@@ -34,49 +60,61 @@ func NewChrootEnv(targetOs, targetDist, targetArch string) (*ChrootEnv, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get global work directory: %v", err)
 	}
-	chrootEnvRoot := filepath.Join(globalWorkDir, config.ProviderId, "chrootenv")
+	providerId := system.GetProviderId(targetOs, targetDist, targetArch)
+	chrootEnvRoot := filepath.Join(globalWorkDir, providerId, "chrootenv")
 	if _, err := os.Stat(chrootEnvRoot); os.IsNotExist(err) {
-		if err = os.MkdirAll(chrootEnvRoot, 0755); err != nil {
+		if err = os.MkdirAll(chrootEnvRoot, 0700); err != nil {
 			return nil, fmt.Errorf("failed to create chroot environment root directory: %w", err)
 		}
 	}
 
-	chrootBuilder, err := NewChrootBuilder(targetOs, targetDist, targetArch)
+	chrootBuilder, err := chrootbuild.NewChrootBuilder(targetOs, targetDist, targetArch)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create chroot builder: %w", err)
 	}
 
 	return &ChrootEnv{
 		ChrootEnvRoot: chrootEnvRoot,
-		chrootBuilder: chrootBuilder,
+		ChrootBuilder: chrootBuilder,
 	}, nil
 }
 
+func (chrootEnv *ChrootEnv) GetChrootEnvRoot() string {
+	return chrootEnv.ChrootEnvRoot
+}
+
+func (chrootEnv *ChrootEnv) GetChrootImageBuildDir() string {
+	return chrootEnv.ChrootImageBuildDir
+}
+
 func (chrootEnv *ChrootEnv) GetTargetOsPkgType() string {
-	return chrootEnv.chrootBuilder.getTargetOsPkgType()
+	return chrootEnv.ChrootBuilder.GetTargetOsPkgType()
 }
 
 func (chrootEnv *ChrootEnv) GetTargetOsConfigDir() string {
-	return chrootEnv.chrootBuilder.targetOsConfigDir
+	return chrootEnv.ChrootBuilder.GetTargetOsConfigDir()
 }
 
 func (chrootEnv *ChrootEnv) GetTargetOsReleaseVersion() string {
-	releaseVersion, ok := chrootEnv.chrootBuilder.targetOsConfig["releaseVersion"]
+	targetOsConfig := chrootEnv.ChrootBuilder.GetTargetOsConfig()
+	releaseVersion, ok := targetOsConfig["releaseVersion"]
 	if !ok {
+		log.Errorf("releaseVersion not found in target OS config")
 		return "unknown"
 	}
 	if s, ok := releaseVersion.(string); ok {
 		return s
 	}
+	log.Errorf("releaseVersion is not a string")
 	return "unknown"
 }
 
 func (chrootEnv *ChrootEnv) GetChrootPkgCacheDir() string {
-	return chrootEnv.chrootBuilder.chrootPkgCacheDir
+	return chrootEnv.ChrootBuilder.GetChrootPkgCacheDir()
 }
 
 func (chrootEnv *ChrootEnv) GetChrootEnvEssentialPackageList() ([]string, error) {
-	return chrootEnv.chrootBuilder.getChrootEnvEssentialPackageList()
+	return chrootEnv.ChrootBuilder.GetChrootEnvEssentialPackageList()
 }
 
 func (chrootEnv *ChrootEnv) GetChrootEnvHostPath(chrootPath string) (string, error) {
@@ -195,11 +233,11 @@ func (chrootEnv *ChrootEnv) updateChrootLocalRPMRepo(chrootRepoDir string) error
 	return nil
 }
 
-func (chrootEnv *ChrootEnv) updateChrootLocalDebRepo(chrootPkgCacheDir string) error {
-	return chrootEnv.chrootBuilder.debInstaller.UpdateLocalDebRepo(chrootPkgCacheDir, config.TargetArch)
+func (chrootEnv *ChrootEnv) updateChrootLocalDebRepo(chrootPkgCacheDir, targetArch string) error {
+	return chrootEnv.ChrootBuilder.UpdateLocalDebRepo(chrootPkgCacheDir, targetArch)
 }
 
-func (chrootEnv *ChrootEnv) RefreshLocalCacheRepo() error {
+func (chrootEnv *ChrootEnv) RefreshLocalCacheRepo(targetArch string) error {
 	// From local.repo
 	pkgType := chrootEnv.GetTargetOsPkgType()
 	if pkgType == "rpm" {
@@ -213,7 +251,8 @@ func (chrootEnv *ChrootEnv) RefreshLocalCacheRepo() error {
 			return fmt.Errorf("failed to refresh cache for chroot repository: %w", err)
 		}
 	} else if pkgType == "deb" {
-		if err := chrootEnv.updateChrootLocalDebRepo(chrootEnv.chrootBuilder.chrootPkgCacheDir); err != nil {
+		chrootPkgCacheDir := chrootEnv.GetChrootPkgCacheDir()
+		if err := chrootEnv.updateChrootLocalDebRepo(chrootPkgCacheDir, targetArch); err != nil {
 			return fmt.Errorf("failed to update debian local cache repository: %v", err)
 		}
 
@@ -227,22 +266,24 @@ func (chrootEnv *ChrootEnv) RefreshLocalCacheRepo() error {
 	return nil
 }
 
-func (chrootEnv *ChrootEnv) initChrootLocalRepo() error {
-	if err := chrootEnv.MountChrootPath(chrootEnv.chrootBuilder.chrootPkgCacheDir, ChrootRepoDir, "--bind"); err != nil {
+func (chrootEnv *ChrootEnv) initChrootLocalRepo(targetArch string) error {
+	chrootPkgCacheDir := chrootEnv.GetChrootPkgCacheDir()
+	if err := chrootEnv.MountChrootPath(chrootPkgCacheDir, ChrootRepoDir, "--bind"); err != nil {
 		return fmt.Errorf("failed to mount package cache directory %s to chroot repo directory %s: %w",
-			chrootEnv.chrootBuilder.chrootPkgCacheDir, ChrootRepoDir, err)
+			chrootPkgCacheDir, ChrootRepoDir, err)
 	}
 
-	if err := chrootEnv.RefreshLocalCacheRepo(); err != nil {
+	if err := chrootEnv.RefreshLocalCacheRepo(targetArch); err != nil {
 		return fmt.Errorf("failed to refresh local cache repository: %w", err)
 	}
 	return nil
 }
 
 func (chrootEnv *ChrootEnv) createChrootRepo(targetOs, targetDist string) error {
+	targetOsConfigDir := chrootEnv.GetTargetOsConfigDir()
 	pkgType := chrootEnv.GetTargetOsPkgType()
 	if pkgType == "rpm" {
-		chrootRepoCongfigPath := filepath.Join(chrootEnv.chrootBuilder.targetOsConfigDir, "chrootenvconfigs", "local.repo")
+		chrootRepoCongfigPath := filepath.Join(targetOsConfigDir, "chrootenvconfigs", "local.repo")
 		if _, err := os.Stat(chrootRepoCongfigPath); os.IsNotExist(err) {
 			return fmt.Errorf("chroot repo config file does not exist: %s", chrootRepoCongfigPath)
 		}
@@ -259,7 +300,7 @@ func (chrootEnv *ChrootEnv) createChrootRepo(targetOs, targetDist string) error 
 			return fmt.Errorf("failed to remove existing local repo config files: %w", err)
 		}
 
-		RepoCongfigPath := filepath.Join(chrootEnv.chrootBuilder.targetOsConfigDir, "chrootenvconfigs", "local.list")
+		RepoCongfigPath := filepath.Join(targetOsConfigDir, "chrootenvconfigs", "local.list")
 		if _, err := os.Stat(RepoCongfigPath); os.IsNotExist(err) {
 			return fmt.Errorf("chroot repo config file does not exist: %s", RepoCongfigPath)
 		}
@@ -290,11 +331,11 @@ func (chrootEnv *ChrootEnv) InitChrootEnv(targetOs, targetDist, targetArch strin
 
 	if files, _ := os.ReadDir(chrootEnv.ChrootEnvRoot); len(files) == 0 {
 		chrootRootfsExist = false
-
-		chrootEnvTarPath := filepath.Join(chrootEnv.chrootBuilder.chrootBuildDir, "chrootenv.tar.gz")
+		chrootBuildDir := chrootEnv.ChrootBuilder.GetChrootBuildDir()
+		chrootEnvTarPath := filepath.Join(chrootBuildDir, "chrootenv.tar.gz")
 		if _, err := os.Stat(chrootEnvTarPath); os.IsNotExist(err) {
 			// Build chroot environment tarball
-			if err = chrootEnv.chrootBuilder.BuildChrootEnv(targetOs, targetDist, targetArch); err != nil {
+			if err = chrootEnv.ChrootBuilder.BuildChrootEnv(targetOs, targetDist, targetArch); err != nil {
 				return fmt.Errorf("failed to build chroot environment: %w", err)
 			}
 		}
@@ -337,7 +378,7 @@ func (chrootEnv *ChrootEnv) InitChrootEnv(targetOs, targetDist, targetArch strin
 		}
 	}
 
-	if err = chrootEnv.initChrootLocalRepo(); err != nil {
+	if err = chrootEnv.initChrootLocalRepo(targetArch); err != nil {
 		return fmt.Errorf("failed to initialize chroot local repository: %w", err)
 	}
 

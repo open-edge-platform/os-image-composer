@@ -87,7 +87,7 @@ func TestInstallRpmPkg_PackageNotFound(t *testing.T) {
 	chrootPkgCacheDir := filepath.Join(tempDir, "cache")
 
 	// Create cache directory but don't create the package file
-	if err := os.MkdirAll(chrootPkgCacheDir, 0755); err != nil {
+	if err := os.MkdirAll(chrootPkgCacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -123,7 +123,7 @@ func TestInstallRpmPkg_SuccessfulInstallation(t *testing.T) {
 	chrootPkgCacheDir := filepath.Join(tempDir, "cache")
 
 	// Create cache directory and package files
-	if err := os.MkdirAll(chrootPkgCacheDir, 0755); err != nil {
+	if err := os.MkdirAll(chrootPkgCacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -168,7 +168,7 @@ func TestUpdateRpmDB_SameBackend(t *testing.T) {
 	rpmList := []string{"test-package.rpm"}
 
 	// Create cache directory and package files
-	if err := os.MkdirAll(chrootPkgCacheDir, 0755); err != nil {
+	if err := os.MkdirAll(chrootPkgCacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -211,7 +211,7 @@ func TestUpdateRpmDB_DifferentBackend(t *testing.T) {
 	chrootPkgCacheDir := filepath.Join(tempDir, "cache")
 
 	// Create package cache directory and test package
-	if err := os.MkdirAll(chrootPkgCacheDir, 0755); err != nil {
+	if err := os.MkdirAll(chrootPkgCacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -257,7 +257,7 @@ func TestUpdateRpmDB_FailedHostBackendQuery(t *testing.T) {
 	rpmList := []string{"test-package.rpm"}
 
 	// Create package cache directory and test package
-	if err := os.MkdirAll(chrootPkgCacheDir, 0755); err != nil {
+	if err := os.MkdirAll(chrootPkgCacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -299,7 +299,7 @@ func TestUpdateRpmDB_FailedChrootBackendQuery(t *testing.T) {
 	rpmList := []string{"test-package.rpm"}
 
 	// Create package cache directory and test package
-	if err := os.MkdirAll(chrootPkgCacheDir, 0755); err != nil {
+	if err := os.MkdirAll(chrootPkgCacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -341,7 +341,7 @@ func TestUpdateRpmDB_DatabaseRebuildFailure(t *testing.T) {
 	chrootPkgCacheDir := filepath.Join(tempDir, "cache")
 
 	// Create package file
-	if err := os.MkdirAll(chrootPkgCacheDir, 0755); err != nil {
+	if err := os.MkdirAll(chrootPkgCacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -402,7 +402,7 @@ func TestImportGpgKeys_EdgeMicrovisorToolkit(t *testing.T) {
 
 	// Create a package file to pass initial validation
 	cacheDir := filepath.Join(tempDir, "cache")
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -444,7 +444,7 @@ func TestImportGpgKeys_AzureLinux(t *testing.T) {
 
 	// Create test package
 	cacheDir := filepath.Join(tempDir, "cache")
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -483,7 +483,7 @@ func TestImportGpgKeys_NoGpgKeysFound(t *testing.T) {
 
 	// Create test package
 	cacheDir := filepath.Join(tempDir, "cache")
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -525,7 +525,7 @@ func TestImportGpgKeys_GpgQueryFailure(t *testing.T) {
 
 	// Create test package
 	cacheDir := filepath.Join(tempDir, "cache")
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -553,7 +553,7 @@ func TestInstallRpmPkg_MultiplePackages(t *testing.T) {
 	chrootPkgCacheDir := filepath.Join(tempDir, "cache")
 
 	// Create cache directory and multiple package files
-	if err := os.MkdirAll(chrootPkgCacheDir, 0755); err != nil {
+	if err := os.MkdirAll(chrootPkgCacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 

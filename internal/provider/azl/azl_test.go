@@ -11,6 +11,7 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/ospackage/rpmutils"
 	"github.com/open-edge-platform/image-composer/internal/provider"
 	"github.com/open-edge-platform/image-composer/internal/utils/shell"
+	"github.com/open-edge-platform/image-composer/internal/utils/system"
 )
 
 // Helper function to create a test ImageTemplate
@@ -96,7 +97,7 @@ func TestGetProviderId(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%s-%s", tc.dist, tc.arch), func(t *testing.T) {
-			result := GetProviderId(tc.dist, tc.arch)
+			result := system.GetProviderId(OsName, tc.dist, tc.arch)
 			if result != tc.expected {
 				t.Errorf("Expected %s, got %s", tc.expected, result)
 			}
@@ -313,11 +314,6 @@ func TestAzureLinuxProviderPreProcess(t *testing.T) {
 
 	template := createTestImageTemplate()
 
-	// Set up global config variables that PreProcess depends on
-	config.TargetOs = "azure-linux"
-	config.TargetDist = "azl3"
-	config.TargetArch = "x86_64"
-
 	// This test will likely fail due to dependencies on chroot, rpmutils, etc.
 	// but it demonstrates the testing approach
 	err := azl.PreProcess(template)
@@ -328,12 +324,6 @@ func TestAzureLinuxProviderPreProcess(t *testing.T) {
 
 // TestAzureLinuxProviderBuildImage tests BuildImage method
 func TestAzureLinuxProviderBuildImage(t *testing.T) {
-	// Set up global configuration required for registration
-	config.TargetOs = "azure-linux"
-	config.TargetDist = "azl3"
-	config.TargetArch = "x86_64"
-	config.TargetImageType = "qcow2"
-
 	// Try to register and get a properly initialized provider
 	err := Register("azure-linux", "azl3", "x86_64")
 	if err != nil {
@@ -341,7 +331,7 @@ func TestAzureLinuxProviderBuildImage(t *testing.T) {
 		return
 	}
 
-	providerName := GetProviderId("azl3", "x86_64")
+	providerName := system.GetProviderId(OsName, "azl3", "x86_64")
 	azl, exists := provider.Get(providerName)
 	if !exists {
 		t.Skipf("Cannot get registered Azure Linux provider")
@@ -364,10 +354,6 @@ func TestAzureLinuxProviderBuildImage(t *testing.T) {
 
 // TestAzureLinuxProviderBuildImageISO tests BuildImage method with ISO type
 func TestAzureLinuxProviderBuildImageISO(t *testing.T) {
-	// Set up global configuration required for registration
-	config.TargetOs = "azure-linux"
-	config.TargetDist = "azl3"
-	config.TargetArch = "x86_64"
 
 	// Try to register and get a properly initialized provider
 	err := Register("azure-linux", "azl3", "x86_64")
@@ -376,7 +362,7 @@ func TestAzureLinuxProviderBuildImageISO(t *testing.T) {
 		return
 	}
 
-	providerName := GetProviderId("azl3", "x86_64")
+	providerName := system.GetProviderId(OsName, "azl3", "x86_64")
 	azl, exists := provider.Get(providerName)
 	if !exists {
 		t.Skipf("Cannot get registered Azure Linux provider")
@@ -386,9 +372,9 @@ func TestAzureLinuxProviderBuildImageISO(t *testing.T) {
 	template := createTestImageTemplate()
 
 	// Set up global config for ISO
-	originalImageType := config.TargetImageType
-	defer func() { config.TargetImageType = originalImageType }()
-	config.TargetImageType = "iso"
+	originalImageType := template.Target.ImageType
+	defer func() { template.Target.ImageType = originalImageType }()
+	template.Target.ImageType = "iso"
 
 	err = azl.BuildImage(template)
 	if err != nil {
@@ -402,10 +388,6 @@ func TestAzureLinuxProviderBuildImageISO(t *testing.T) {
 
 // TestAzureLinuxProviderPostProcess tests PostProcess method
 func TestAzureLinuxProviderPostProcess(t *testing.T) {
-	// Set up global configuration required for registration
-	config.TargetOs = "azure-linux"
-	config.TargetDist = "azl3"
-	config.TargetArch = "x86_64"
 
 	// Try to register and get a properly initialized provider
 	err := Register("azure-linux", "azl3", "x86_64")
@@ -414,7 +396,7 @@ func TestAzureLinuxProviderPostProcess(t *testing.T) {
 		return
 	}
 
-	providerName := GetProviderId("azl3", "x86_64")
+	providerName := system.GetProviderId(OsName, "azl3", "x86_64")
 	azl, exists := provider.Get(providerName)
 	if !exists {
 		t.Skipf("Cannot get registered Azure Linux provider")
@@ -499,7 +481,7 @@ func TestAzureLinuxProviderRegister(t *testing.T) {
 	}
 
 	// Try to retrieve the registered provider
-	providerName := GetProviderId("azl3", "x86_64")
+	providerName := system.GetProviderId(OsName, "azl3", "x86_64")
 	retrievedProvider, exists := provider.Get(providerName)
 
 	if !exists {
@@ -548,12 +530,6 @@ func TestAzureLinuxProviderWorkflow(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockCommands)
 
 	azl := &AzureLinux{}
-
-	// Set up global configuration
-	config.TargetOs = "azure-linux"
-	config.TargetDist = "azl3"
-	config.TargetArch = "x86_64"
-	config.TargetImageType = "qcow2"
 
 	// Test provider name generation
 	name := azl.Name("azl3", "x86_64")

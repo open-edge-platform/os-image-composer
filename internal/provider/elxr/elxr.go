@@ -20,18 +20,21 @@ import (
 // eLxr: https://mirror.elxr.dev/elxr/dists/aria/main/binary-amd64/Packages.gz
 // eLxr Download Path: https://mirror.elxr.dev/elxr/pool/main/p/python3-defaults/2to3_3.11.2-1_all.deb
 const (
+	OsName     = "wind-river-elxr"
 	baseURL    = "https://mirror.elxr.dev/elxr/dists/aria/main/"
 	configName = "Packages.gz"
 )
+
+var log = logger.Logger()
 
 // eLxr implements provider.Provider
 type eLxr struct {
 	repoURL   string
 	repoCfg   debutils.RepoConfig
 	gzHref    string
-	chrootEnv *chroot.ChrootEnv
-	rawMaker  *rawmaker.RawMaker
-	isoMaker  *isomaker.IsoMaker
+	chrootEnv chroot.ChrootEnvInterface
+	rawMaker  rawmaker.RawMakerInterface
+	isoMaker  isomaker.IsoMakerInterface
 }
 
 func Register(targetOs, targetDist, targetArch string) error {
@@ -58,12 +61,11 @@ func Register(targetOs, targetDist, targetArch string) error {
 
 // Name returns the unique name of the provider
 func (p *eLxr) Name(dist, arch string) string {
-	return GetProviderId(dist, arch)
+	return system.GetProviderId(OsName, dist, arch)
 }
 
 // Init will initialize the provider, fetching repo configuration
 func (p *eLxr) Init(dist, arch string) error {
-	log := logger.Logger()
 
 	//todo: need to correct of how to get the arch once finalized
 	if arch == "x86_64" {
@@ -73,13 +75,13 @@ func (p *eLxr) Init(dist, arch string) error {
 
 	cfg, err := loadRepoConfig(p.repoURL, arch)
 	if err != nil {
-		log.Errorf("parsing repo config failed: %v", err)
+		log.Errorf("Parsing repo config failed: %v", err)
 		return err
 	}
 	p.repoCfg = cfg
 	p.gzHref = cfg.PkgList
 
-	log.Infof("initialized eLxr provider repo section=%s", cfg.Section)
+	log.Infof("Initialized eLxr provider repo section=%s", cfg.Section)
 	log.Infof("name=%s", cfg.Name)
 	log.Infof("package list url=%s", cfg.PkgList)
 	log.Infof("package download url=%s", cfg.PkgPrefix)
@@ -95,21 +97,26 @@ func (p *eLxr) PreProcess(template *config.ImageTemplate) error {
 		return fmt.Errorf("failed to download image packages: %w", err)
 	}
 
-	if err := p.chrootEnv.InitChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch); err != nil {
+	if err := p.chrootEnv.InitChrootEnv(template.Target.OS,
+		template.Target.Dist, template.Target.Arch); err != nil {
 		return fmt.Errorf("failed to initialize chroot environment: %w", err)
 	}
 	return nil
 }
 
 func (p *eLxr) BuildImage(template *config.ImageTemplate) error {
-	if config.TargetImageType == "iso" {
-		err := p.isoMaker.BuildIsoImage(template)
-		if err != nil {
+	if template.Target.ImageType == "iso" {
+		if err := p.isoMaker.Init(template); err != nil {
+			return fmt.Errorf("failed to initialize ISO image maker: %w", err)
+		}
+		if err := p.isoMaker.BuildIsoImage(template); err != nil {
 			return fmt.Errorf("failed to build ISO image: %w", err)
 		}
 	} else {
-		err := p.rawMaker.BuildRawImage(template)
-		if err != nil {
+		if err := p.rawMaker.Init(template); err != nil {
+			return fmt.Errorf("failed to initialize raw image maker: %w", err)
+		}
+		if err := p.rawMaker.BuildRawImage(template); err != nil {
 			return fmt.Errorf("failed to build raw image: %w", err)
 		}
 	}
@@ -117,14 +124,14 @@ func (p *eLxr) BuildImage(template *config.ImageTemplate) error {
 }
 
 func (p *eLxr) PostProcess(template *config.ImageTemplate, err error) error {
-	if err := p.chrootEnv.CleanupChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch); err != nil {
+	if err := p.chrootEnv.CleanupChrootEnv(template.Target.OS,
+		template.Target.Dist, template.Target.Arch); err != nil {
 		return fmt.Errorf("failed to cleanup chroot environment: %w", err)
 	}
 	return nil
 }
 
 func (p *eLxr) installHostDependency() error {
-	log := logger.Logger()
 	var depedencyInfo = map[string]string{
 		"mmdebstrap":        "mmdebstrap",    // For the chroot env build
 		"mkfs.fat":          "dosfstools",    // For the FAT32 boot partition creation
@@ -146,8 +153,7 @@ func (p *eLxr) installHostDependency() error {
 		}
 		if !cmdExist {
 			cmdStr := fmt.Sprintf("%s install -y %s", hostPkgManager, pkg)
-			_, err := shell.ExecCmdWithStream(cmdStr, true, "", nil)
-			if err != nil {
+			if _, err := shell.ExecCmdWithStream(cmdStr, true, "", nil); err != nil {
 				return fmt.Errorf("failed to install host dependency %s: %w", pkg, err)
 			}
 			log.Debugf("Installed host dependency: %s", pkg)
@@ -160,7 +166,7 @@ func (p *eLxr) installHostDependency() error {
 
 func (p *eLxr) downloadImagePkgs(template *config.ImageTemplate) error {
 	pkgList := template.GetPackages()
-	providerId := p.Name(config.TargetDist, config.TargetArch)
+	providerId := p.Name(template.Target.Dist, template.Target.Arch)
 	globalCache, err := config.CacheDir()
 	if err != nil {
 		return fmt.Errorf("failed to get global cache dir: %w", err)
@@ -170,16 +176,11 @@ func (p *eLxr) downloadImagePkgs(template *config.ImageTemplate) error {
 	debutils.GzHref = p.gzHref
 	debutils.Architecture = p.repoCfg.Arch
 	debutils.UserRepo = template.GetPackageRepositories()
-	config.FullPkgList, err = debutils.DownloadPackages(pkgList, pkgCacheDir, "")
+	template.FullPkgList, err = debutils.DownloadPackages(pkgList, pkgCacheDir, "")
 	return err
 }
 
-func GetProviderId(dist, arch string) string {
-	return "wind-river-elxr" + "-" + dist + "-" + arch
-}
-
 func loadRepoConfig(repoUrl string, arch string) (debutils.RepoConfig, error) {
-	log := logger.Logger()
 
 	var rc debutils.RepoConfig
 
@@ -197,7 +198,7 @@ func loadRepoConfig(repoUrl string, arch string) (debutils.RepoConfig, error) {
 	rc.BuildPath = "./builds/elxr12"
 	rc.Arch = arch
 
-	log.Infof("repo config: %+v", rc)
+	log.Infof("Repo config: %+v", rc)
 
 	return rc, nil
 }

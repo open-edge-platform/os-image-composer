@@ -10,7 +10,10 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/utils/shell"
 )
 
-var log = logger.Logger()
+var (
+	log           = logger.Logger()
+	OsReleaseFile = "/etc/os-release"
+)
 
 func GetHostOsInfo() (map[string]string, error) {
 	var hostOsInfo = map[string]string{
@@ -29,8 +32,8 @@ func GetHostOsInfo() (map[string]string, error) {
 	}
 
 	// Read from /etc/os-release if it exists
-	if _, err := os.Stat("/etc/os-release"); err == nil {
-		file, err := os.Open("/etc/os-release")
+	if _, err := os.Stat(OsReleaseFile); err == nil {
+		file, err := os.Open(OsReleaseFile)
 		if err == nil {
 			defer file.Close()
 			scanner := bufio.NewScanner(file)
@@ -100,6 +103,10 @@ func GetHostOsPkgManager() (string, error) {
 		log.Errorf("Unsupported host OS: %s", hostOsInfo["name"])
 		return "", fmt.Errorf("unsupported host OS: %s", hostOsInfo["name"])
 	}
+}
+
+func GetProviderId(os, dist, arch string) string {
+	return os + "-" + dist + "-" + arch
 }
 
 func StopGPGComponents(chrootPath string) error {

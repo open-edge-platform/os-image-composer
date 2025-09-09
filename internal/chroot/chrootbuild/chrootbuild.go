@@ -1,4 +1,4 @@
-package chroot
+package chrootbuild
 
 import (
 	"fmt"
@@ -14,17 +14,31 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/utils/file"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/image-composer/internal/utils/shell"
+	"github.com/open-edge-platform/image-composer/internal/utils/system"
 )
 
 var log = logger.Logger()
 
+type ChrootBuilderInterface interface {
+	GetTargetOsPkgType() string
+	GetTargetOsConfigDir() string
+	GetChrootBuildDir() string
+	GetChrootPkgCacheDir() string
+	GetTargetOsConfig() map[string]interface{}
+	GetChrootEnvConfig() (map[interface{}]interface{}, error)
+	GetChrootEnvPackageList() ([]string, error)
+	GetChrootEnvEssentialPackageList() ([]string, error)
+	UpdateLocalDebRepo(repoPath, targetArch string) error
+	BuildChrootEnv(targetOs string, targetDist string, targetArch string) error
+}
+
 type ChrootBuilder struct {
-	targetOsConfigDir string
-	targetOsConfig    map[string]interface{}
-	chrootBuildDir    string
-	chrootPkgCacheDir string
-	rpmInstaller      *rpm.RpmInstaller
-	debInstaller      *deb.DebInstaller
+	TargetOsConfigDir string
+	TargetOsConfig    map[string]interface{}
+	ChrootBuildDir    string
+	ChrootPkgCacheDir string
+	RpmInstaller      rpm.RpmInstallerInterface
+	DebInstaller      deb.DebInstallerInterface
 }
 
 func NewChrootBuilder(targetOs string, targetDist string, targetArch string) (*ChrootBuilder, error) {
@@ -41,8 +55,9 @@ func NewChrootBuilder(targetOs string, targetDist string, targetArch string) (*C
 		return nil, fmt.Errorf("failed to get global cache dir: %w", err)
 	}
 
-	chrootBuildDir := filepath.Join(globalWorkDir, config.ProviderId, "chrootbuild")
-	chrootPkgCacheDir := filepath.Join(globalCache, "pkgCache", config.ProviderId)
+	providerId := system.GetProviderId(targetOs, targetDist, targetArch)
+	chrootBuildDir := filepath.Join(globalWorkDir, providerId, "chrootbuild")
+	chrootPkgCacheDir := filepath.Join(globalCache, "pkgCache", providerId)
 
 	targetOsConfigDir, err := config.GetTargetOsConfigDir(targetOs, targetDist)
 	if err != nil {
@@ -66,17 +81,17 @@ func NewChrootBuilder(targetOs string, targetDist string, targetArch string) (*C
 	}
 
 	return &ChrootBuilder{
-		targetOsConfigDir: targetOsConfigDir,
-		targetOsConfig:    targetOsConfig,
-		chrootBuildDir:    chrootBuildDir,
-		chrootPkgCacheDir: chrootPkgCacheDir,
-		rpmInstaller:      rpm.NewRpmInstaller(),
-		debInstaller:      deb.NewDebInstaller(),
+		TargetOsConfigDir: targetOsConfigDir,
+		TargetOsConfig:    targetOsConfig,
+		ChrootBuildDir:    chrootBuildDir,
+		ChrootPkgCacheDir: chrootPkgCacheDir,
+		RpmInstaller:      rpm.NewRpmInstaller(),
+		DebInstaller:      deb.NewDebInstaller(),
 	}, nil
 }
 
-func (chrootBuilder *ChrootBuilder) getTargetOsPkgType() string {
-	pkgType, ok := chrootBuilder.targetOsConfig["pkgType"]
+func (chrootBuilder *ChrootBuilder) GetTargetOsPkgType() string {
+	pkgType, ok := chrootBuilder.TargetOsConfig["pkgType"]
 	if !ok {
 		return "unknown"
 	}
@@ -86,23 +101,44 @@ func (chrootBuilder *ChrootBuilder) getTargetOsPkgType() string {
 	return "unknown"
 }
 
-func (chrootBuilder *ChrootBuilder) getChrootEnvConfig() (map[interface{}]interface{}, error) {
-	chrootEnvConfigFile, ok := chrootBuilder.targetOsConfig["chrootenvConfigFile"]
+func (chrootBuilder *ChrootBuilder) GetTargetOsConfigDir() string {
+	return chrootBuilder.TargetOsConfigDir
+}
+
+func (chrootBuilder *ChrootBuilder) GetTargetOsConfig() map[string]interface{} {
+	return chrootBuilder.TargetOsConfig
+}
+
+func (chrootBuilder *ChrootBuilder) GetChrootPkgCacheDir() string {
+	return chrootBuilder.ChrootPkgCacheDir
+}
+
+func (chrootBuilder *ChrootBuilder) GetChrootBuildDir() string {
+	return chrootBuilder.ChrootBuildDir
+}
+
+func (chrootBuilder *ChrootBuilder) GetChrootEnvConfig() (map[interface{}]interface{}, error) {
+	chrootEnvConfigFile, ok := chrootBuilder.TargetOsConfig["chrootenvConfigFile"]
 	if !ok {
 		log.Errorf("Chroot environment config file not found in target OS config")
 		return nil, fmt.Errorf("chroot config file not found in target OS config")
 	}
-	chrootEnvConfigPath := filepath.Join(chrootBuilder.targetOsConfigDir, chrootEnvConfigFile.(string))
+	chrootEnvConfigPath := filepath.Join(chrootBuilder.TargetOsConfigDir, chrootEnvConfigFile.(string))
 	if _, err := os.Stat(chrootEnvConfigPath); os.IsNotExist(err) {
 		log.Errorf("Chroot environment config file does not exist: %s", chrootEnvConfigPath)
 		return nil, fmt.Errorf("chroot environment config file does not exist: %s", chrootEnvConfigPath)
 	}
-	return file.ReadFromYaml(chrootEnvConfigPath)
+	targetOsConfig, err := file.ReadFromYaml(chrootEnvConfigPath)
+	if err != nil {
+		log.Errorf("Failed to read chroot environment config file: %v", err)
+		return nil, fmt.Errorf("failed to read chroot environment config file: %w", err)
+	}
+	return targetOsConfig, nil
 }
 
-func (chrootBuilder *ChrootBuilder) getChrootEnvEssentialPackageList() ([]string, error) {
+func (chrootBuilder *ChrootBuilder) GetChrootEnvEssentialPackageList() ([]string, error) {
 	pkgList := []string{}
-	chrootEnvConfig, err := chrootBuilder.getChrootEnvConfig()
+	chrootEnvConfig, err := chrootBuilder.GetChrootEnvConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read chroot environment config: %w", err)
 	}
@@ -124,9 +160,9 @@ func (chrootBuilder *ChrootBuilder) getChrootEnvEssentialPackageList() ([]string
 	return pkgList, nil
 }
 
-func (chrootBuilder *ChrootBuilder) getChrootEnvPackageList() ([]string, error) {
+func (chrootBuilder *ChrootBuilder) GetChrootEnvPackageList() ([]string, error) {
 	pkgList := []string{}
-	chrootEnvConfig, err := chrootBuilder.getChrootEnvConfig()
+	chrootEnvConfig, err := chrootBuilder.GetChrootEnvConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read chroot environment config: %w", err)
 	}
@@ -155,34 +191,34 @@ func (chrootBuilder *ChrootBuilder) downloadChrootEnvPackages() ([]string, []str
 	var pkgsList []string
 	var allPkgsList []string
 
-	pkgType := chrootBuilder.getTargetOsPkgType()
-	essentialPkgsList, err := chrootBuilder.getChrootEnvEssentialPackageList()
+	pkgType := chrootBuilder.GetTargetOsPkgType()
+	essentialPkgsList, err := chrootBuilder.GetChrootEnvEssentialPackageList()
 	if err != nil {
 		return pkgsList, allPkgsList, fmt.Errorf("failed to get essential packages list: %w", err)
 	}
-	pkgsList, err = chrootBuilder.getChrootEnvPackageList()
+	pkgsList, err = chrootBuilder.GetChrootEnvPackageList()
 	if err != nil {
 		return pkgsList, allPkgsList, fmt.Errorf("failed to get chroot environment package list: %w", err)
 	}
 	pkgsList = append(essentialPkgsList, pkgsList...)
 
-	if _, err := os.Stat(chrootBuilder.chrootPkgCacheDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(chrootBuilder.chrootPkgCacheDir, 0755); err != nil {
+	if _, err := os.Stat(chrootBuilder.ChrootPkgCacheDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(chrootBuilder.ChrootPkgCacheDir, 0700); err != nil {
 			log.Errorf("Failed to create chroot package cache directory: %v", err)
 			return pkgsList, allPkgsList, fmt.Errorf("failed to create chroot package cache directory: %w", err)
 		}
 	}
 
-	dotFilePath := filepath.Join(chrootBuilder.chrootPkgCacheDir, "chrootpkgs.dot")
+	dotFilePath := filepath.Join(chrootBuilder.ChrootPkgCacheDir, "chrootpkgs.dot")
 
 	if pkgType == "rpm" {
-		allPkgsList, err = rpmutils.DownloadPackages(pkgsList, chrootBuilder.chrootPkgCacheDir, dotFilePath)
+		allPkgsList, err = rpmutils.DownloadPackages(pkgsList, chrootBuilder.ChrootPkgCacheDir, dotFilePath)
 		if err != nil {
 			return pkgsList, allPkgsList, fmt.Errorf("failed to download chroot environment packages: %w", err)
 		}
 		return pkgsList, allPkgsList, nil
 	} else if pkgType == "deb" {
-		allPkgsList, err = debutils.DownloadPackages(pkgsList, chrootBuilder.chrootPkgCacheDir, dotFilePath)
+		allPkgsList, err = debutils.DownloadPackages(pkgsList, chrootBuilder.ChrootPkgCacheDir, dotFilePath)
 		if err != nil {
 			return pkgsList, allPkgsList, fmt.Errorf("failed to download chroot environment packages: %w", err)
 		}
@@ -192,15 +228,19 @@ func (chrootBuilder *ChrootBuilder) downloadChrootEnvPackages() ([]string, []str
 	}
 }
 
-func (chrootBuilder *ChrootBuilder) BuildChrootEnv(targetOs string, targetDist string, targetArch string) error {
-	pkgType := chrootBuilder.getTargetOsPkgType()
+func (chrootBuilder *ChrootBuilder) UpdateLocalDebRepo(repoPath, targetArch string) error {
+	return chrootBuilder.DebInstaller.UpdateLocalDebRepo(repoPath, targetArch)
+}
 
-	chrootTarPath := filepath.Join(chrootBuilder.chrootBuildDir, "chrootenv.tar.gz")
+func (chrootBuilder *ChrootBuilder) BuildChrootEnv(targetOs string, targetDist string, targetArch string) error {
+	pkgType := chrootBuilder.GetTargetOsPkgType()
+
+	chrootTarPath := filepath.Join(chrootBuilder.ChrootBuildDir, "chrootenv.tar.gz")
 	if _, err := os.Stat(chrootTarPath); err == nil {
 		log.Infof("Chroot tarball already exists at %s", chrootTarPath)
 		return nil
 	}
-	chrootEnvPath := filepath.Join(chrootBuilder.chrootBuildDir, "chroot")
+	chrootEnvPath := filepath.Join(chrootBuilder.ChrootBuildDir, "chroot")
 
 	pkgsList, allPkgsList, err := chrootBuilder.downloadChrootEnvPackages()
 	if err != nil {
@@ -208,16 +248,19 @@ func (chrootBuilder *ChrootBuilder) BuildChrootEnv(targetOs string, targetDist s
 	}
 	log.Infof("Downloaded %d packages for chroot environment", len(allPkgsList))
 
+	chrootPkgCacheDir := chrootBuilder.GetChrootPkgCacheDir()
 	if pkgType == "rpm" {
-		if err := chrootBuilder.rpmInstaller.InstallRpmPkg(targetOs, chrootEnvPath, chrootBuilder.chrootPkgCacheDir, allPkgsList); err != nil {
+		if err := chrootBuilder.RpmInstaller.InstallRpmPkg(targetOs, chrootEnvPath,
+			chrootPkgCacheDir, allPkgsList); err != nil {
 			return fmt.Errorf("failed to install packages in chroot environment: %w", err)
 		}
 	} else if pkgType == "deb" {
-		if err = chrootBuilder.debInstaller.UpdateLocalDebRepo(chrootBuilder.chrootPkgCacheDir, targetArch); err != nil {
+		if err = chrootBuilder.DebInstaller.UpdateLocalDebRepo(chrootPkgCacheDir, targetArch); err != nil {
 			return fmt.Errorf("failed to create debian local repository: %w", err)
 		}
 
-		if err := chrootBuilder.debInstaller.InstallDebPkg(chrootBuilder.targetOsConfigDir, chrootEnvPath, chrootBuilder.chrootPkgCacheDir, pkgsList); err != nil {
+		if err := chrootBuilder.DebInstaller.InstallDebPkg(chrootBuilder.TargetOsConfigDir,
+			chrootEnvPath, chrootPkgCacheDir, pkgsList); err != nil {
 			return fmt.Errorf("failed to install packages in chroot environment: %w", err)
 		}
 	} else {

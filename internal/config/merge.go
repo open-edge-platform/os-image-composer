@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/open-edge-platform/image-composer/internal/utils/logger"
 )
 
 // DefaultConfigLoader handles loading and merging default configurations
@@ -28,7 +26,6 @@ func NewDefaultConfigLoader(os, dist, arch string) *DefaultConfigLoader {
 
 // LoadDefaultConfig loads the appropriate default configuration based on image type
 func (d *DefaultConfigLoader) LoadDefaultConfig(imageType string) (*ImageTemplate, error) {
-	log := logger.Logger()
 
 	// Determine the default config file based on image type
 	var defaultConfigFile string
@@ -38,6 +35,7 @@ func (d *DefaultConfigLoader) LoadDefaultConfig(imageType string) (*ImageTemplat
 	case "iso":
 		defaultConfigFile = fmt.Sprintf("default-iso-%s.yml", d.targetArch)
 	default:
+		log.Errorf("Unsupported image type: %s", imageType)
 		return nil, fmt.Errorf("unsupported image type: %s", imageType)
 	}
 
@@ -54,6 +52,7 @@ func (d *DefaultConfigLoader) LoadDefaultConfig(imageType string) (*ImageTemplat
 
 	// Check if the file exists
 	if _, err := os.Stat(defaultConfigPath); os.IsNotExist(err) {
+		log.Errorf("Default config file not found: %s", defaultConfigPath)
 		return nil, fmt.Errorf("default config file not found: %s", defaultConfigPath)
 	}
 
@@ -72,9 +71,9 @@ func (d *DefaultConfigLoader) LoadDefaultConfig(imageType string) (*ImageTemplat
 // MergeConfigurations merges user template with default configuration
 // User configuration takes precedence over default configuration
 func MergeConfigurations(userTemplate, defaultTemplate *ImageTemplate) (*ImageTemplate, error) {
-	log := logger.Logger()
 
 	if userTemplate == nil {
+		log.Errorf("User template cannot be nil")
 		return nil, fmt.Errorf("user template cannot be nil")
 	}
 
@@ -392,7 +391,6 @@ func isEmptyBootloader(bootloader Bootloader) bool {
 
 // LoadAndMergeTemplate loads a user template and merges it with the appropriate default config
 func LoadAndMergeTemplate(templatePath string) (*ImageTemplate, error) {
-	log := logger.Logger()
 
 	// Load the user template first
 	userTemplate, err := LoadTemplate(templatePath, false)

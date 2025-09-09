@@ -78,14 +78,17 @@ type SPDXChecksum struct {
 	ChecksumValue string `json:"checksumValue"`
 }
 
+var log = logger.Logger()
+
 // WriteManifestToFile writes the manifest to the specified output file.
 func WriteManifestToFile(manifest SoftwarePackageManifest, outputFile string) error {
-	log := logger.Logger()
+
 	log.Infof("Writing the Image Manifest to the file: %s", outputFile)
 
 	// Marshal the manifest struct to JSON
 	manifestJSON, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
+		log.Errorf("Error marshaling manifest to JSON: %v", err)
 		return fmt.Errorf("error marshaling manifest to JSON: %w", err)
 	}
 
@@ -94,7 +97,7 @@ func WriteManifestToFile(manifest SoftwarePackageManifest, outputFile string) er
 	if err != nil {
 		// Don't expose the full file path in error messages
 		log.Errorf("Failed to create manifest file: %v", err)
-		return fmt.Errorf("error creating manifest file: file access denied")
+		return fmt.Errorf("error creating manifest file: file access denied: %w", err)
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil {
@@ -106,15 +109,15 @@ func WriteManifestToFile(manifest SoftwarePackageManifest, outputFile string) er
 	_, err = file.Write(manifestJSON)
 	if err != nil {
 		log.Errorf("Failed to write manifest data: %v", err)
-		return fmt.Errorf("error writing manifest data")
+		return fmt.Errorf("error writing manifest data: %w", err)
 	}
 
 	return nil
 }
 
 func WriteSPDXToFile(pkgs []ospackage.PackageInfo, outFile string) error {
-	logger := logger.Logger()
-	logger.Infof("Generating SPDX manifest for %d packages", len(pkgs))
+
+	log.Infof("Generating SPDX manifest for %d packages", len(pkgs))
 
 	// SPDX allows only specific checksum algorithms: SHA1, SHA256, MD5
 	validSPDXAlgos := map[string]bool{
@@ -181,8 +184,8 @@ func WriteSPDXToFile(pkgs []ospackage.PackageInfo, outFile string) error {
 	// the final image is being stored and not under temp
 
 	if err := os.MkdirAll(filepath.Dir(outFile), 0700); err != nil {
-		logger.Errorf("Failed to create SPDX output directory: %v", err)
-		return fmt.Errorf("failed to create output directory")
+		log.Errorf("Failed to create SPDX output directory: %v", err)
+		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	// Use SafeWriteFile instead of SafeOpenFile for simpler file creation with symlink protection
@@ -193,8 +196,8 @@ func WriteSPDXToFile(pkgs []ospackage.PackageInfo, outFile string) error {
 
 	// Write file with symlink protection
 	if err := security.SafeWriteFile(outFile, jsonData, 0600, security.RejectSymlinks); err != nil {
-		logger.Errorf("Failed to write SPDX file: %v", err)
-		return fmt.Errorf("failed to create SPDX output file")
+		log.Errorf("Failed to write SPDX file: %v", err)
+		return fmt.Errorf("failed to create SPDX output file: %w", err)
 	}
 
 	return nil
@@ -202,6 +205,7 @@ func WriteSPDXToFile(pkgs []ospackage.PackageInfo, outFile string) error {
 
 func fallbackToDefault(val, fallback string) string {
 	if val == "" {
+		log.Debugf("Value is empty, using fallback: %s", fallback)
 		return fallback
 	}
 	return val

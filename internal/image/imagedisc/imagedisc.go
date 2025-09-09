@@ -97,7 +97,7 @@ func TranslateSizeStrToBytes(sizeStr string) (int, error) {
 	return 0, fmt.Errorf("size format incorrect: " + sizeStr)
 }
 
-func CreateRawFile(filePath string, fileSize string) error {
+func CreateRawFile(filePath string, fileSize string, sudo bool) error {
 	fileSizeStr, err := VerifyFileSize(fileSize)
 	if err != nil {
 		log.Errorf("Invalid file size %s: %v", fileSize, err)
@@ -105,13 +105,13 @@ func CreateRawFile(filePath string, fileSize string) error {
 	}
 	fileDir := filepath.Dir(filePath)
 	if _, err := os.Stat(fileDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(fileDir, 0755); err != nil {
+		if err := os.MkdirAll(fileDir, 0700); err != nil {
 			log.Errorf("Failed to create directory %s: %v", fileDir, err)
 			return fmt.Errorf("failed to create directory %s: %w", fileDir, err)
 		}
 	}
 	cmd := fmt.Sprintf("fallocate -l %s %s", fileSizeStr, filePath)
-	if _, err = shell.ExecCmd(cmd, true, "", nil); err != nil {
+	if _, err = shell.ExecCmd(cmd, sudo, "", nil); err != nil {
 		log.Errorf("Failed to create raw file %s: %v", filePath, err)
 		return fmt.Errorf("failed to create raw file %s: %w", filePath, err)
 	}
