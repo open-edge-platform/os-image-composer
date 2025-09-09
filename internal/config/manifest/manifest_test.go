@@ -12,9 +12,11 @@ import (
 )
 
 func TestWriteSPDXToFile(t *testing.T) {
+	// Create a temporary directory for the test
+	tmpDir := t.TempDir()
 
-	// Temporary override of TempDir to ensure deterministic output path
-	outFile := filepath.Join(t.TempDir(), "sbom.spdx.json")
+	// Create the output file path directly in tmpDir (no subdirectory)
+	outFile := filepath.Join(tmpDir, "sbom.spdx.json")
 
 	pkgs := []ospackage.PackageInfo{
 		{
@@ -64,5 +66,58 @@ func TestWriteSPDXToFile(t *testing.T) {
 	}
 	if len(p.Checksum) != 1 || p.Checksum[0].Algorithm != "SHA256" {
 		t.Errorf("Expected SHA256 checksum, got %+v", p.Checksum)
+	}
+}
+
+// Alternative test that creates subdirectories to match the original behavior
+func TestWriteSPDXToFile_WithSubdirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create output file path with subdirectory (like the original test)
+	outFile := filepath.Join(tmpDir, "subdir", "sbom.spdx.json")
+
+	pkgs := []ospackage.PackageInfo{
+		{
+			Name:        "testpkg",
+			Type:        "deb",
+			Version:     "2.0.0",
+			URL:         "https://example.com/testpkg.deb",
+			Description: "Test package with subdirectory",
+			License:     "MIT",
+			Origin:      "Test Organization",
+			Checksums: []ospackage.Checksum{
+				{Algorithm: "md5", Value: "d41d8cd98f00b204e9800998ecf8427e"},
+			},
+		},
+	}
+
+	err := WriteSPDXToFile(pkgs, outFile)
+	if err != nil {
+		t.Fatalf("WriteSPDXToFile with subdirectory failed: %v", err)
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(outFile); err != nil {
+		t.Fatalf("Output file was not created: %v", err)
+	}
+
+	// Verify content
+	data, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("Failed to read SPDX output: %v", err)
+	}
+
+	var doc SPDXDocument
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("Failed to parse SPDX JSON: %v", err)
+	}
+
+	if len(doc.Packages) != 1 {
+		t.Errorf("Expected 1 package, got %d", len(doc.Packages))
+	}
+
+	p := doc.Packages[0]
+	if p.Name != "testpkg" {
+		t.Errorf("Expected package name 'testpkg', got %q", p.Name)
 	}
 }

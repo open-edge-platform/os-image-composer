@@ -3,12 +3,12 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/open-edge-platform/image-composer/internal/config/validate"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/security"
 	"gopkg.in/yaml.v3"
 )
 
@@ -140,9 +140,10 @@ var (
 func LoadTemplate(path string, validateFull bool) (*ImageTemplate, error) {
 	log := logger.Logger()
 
-	data, err := os.ReadFile(path)
+	// Use safe file reading to prevent symlink attacks
+	data, err := security.SafeReadFile(path, security.RejectSymlinks)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read template file")
 	}
 
 	// Only support YAML/YML files
@@ -153,15 +154,15 @@ func LoadTemplate(path string, validateFull bool) (*ImageTemplate, error) {
 
 	template, err := parseYAMLTemplate(data, validateFull)
 	if err != nil {
-		return nil, fmt.Errorf("loading YAML template: %w", err)
+		return nil, fmt.Errorf("failed to load template: %w", err)
 	}
 
 	TargetOs = template.Target.OS
 	TargetDist = template.Target.Dist
 	TargetArch = template.Target.Arch
 	TargetImageType = template.Target.ImageType
-	log.Infof("loaded image template from %s: name=%s, os=%s, dist=%s, arch=%s",
-		path, template.Image.Name, template.Target.OS, template.Target.Dist, template.Target.Arch)
+	log.Infof("loaded image template: name=%s, os=%s, dist=%s, arch=%s",
+		template.Image.Name, template.Target.OS, template.Target.Dist, template.Target.Arch)
 	return template, nil
 }
 
@@ -170,30 +171,30 @@ func parseYAMLTemplate(data []byte, validateFull bool) (*ImageTemplate, error) {
 	// Parse YAML to generic interface for validation
 	var raw interface{}
 	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("parsing YAML: %w", err)
+		return nil, fmt.Errorf("invalid YAML format: template parsing failed")
 	}
 
 	// Convert to JSON for schema validation
 	jsonData, err := json.Marshal(raw)
 	if err != nil {
-		return nil, fmt.Errorf("converting to JSON for validation: %w", err)
+		return nil, fmt.Errorf("template validation error: unable to process template")
 	}
 
 	if validateFull {
 		// Validate against image template schema
 		if err := validate.ValidateImageTemplateJSON(jsonData); err != nil {
-			return nil, fmt.Errorf("full template validation error: %w", err)
+			return nil, fmt.Errorf("template validation error: %w", err)
 		}
 	} else {
 		if err := validate.ValidateUserTemplateJSON(jsonData); err != nil {
-			return nil, fmt.Errorf("user template validation error: %w", err)
+			return nil, fmt.Errorf("template validation error: %w", err)
 		}
 	}
 
 	// Parse into template structure
 	var template ImageTemplate
 	if err := yaml.Unmarshal(data, &template); err != nil {
-		return nil, fmt.Errorf("parsing template: %w", err)
+		return nil, fmt.Errorf("template parsing failed: invalid structure")
 	}
 
 	return &template, nil

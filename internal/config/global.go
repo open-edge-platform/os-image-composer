@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/open-edge-platform/image-composer/internal/config/validate"
+	"github.com/open-edge-platform/image-composer/internal/utils/security"
 	"gopkg.in/yaml.v3"
 )
 
@@ -89,8 +90,8 @@ func LoadGlobalConfig(configPath string) (*GlobalConfig, error) {
 		return config, nil // Return defaults if file doesn't exist
 	}
 
-	// Load and merge config file values
-	data, err := os.ReadFile(configPath)
+	// Load and merge config file values with symlink protection
+	data, err := security.SafeReadFile(configPath, security.RejectSymlinks)
 	if err != nil {
 		return nil, fmt.Errorf("reading config file %s: %w", configPath, err)
 	}
@@ -152,7 +153,8 @@ func (gc *GlobalConfig) SaveGlobalConfig(configPath string) error {
 		return fmt.Errorf("marshaling config to YAML: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, data, 0600); err != nil {
+	// Use safe write to prevent symlink attacks
+	if err := security.SafeWriteFile(configPath, data, 0600, security.RejectSymlinks); err != nil {
 		return fmt.Errorf("writing config file: %w", err)
 	}
 

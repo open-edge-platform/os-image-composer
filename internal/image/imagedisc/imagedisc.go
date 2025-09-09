@@ -17,6 +17,7 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/utils/slice"
 )
 
+var log = logger.Logger()
 var sizeSuffixesList = []string{"KiB", "MiB", "GiB", "K", "M", "G", "KB", "MB", "GB"}
 var sizeBytesMap = []int{1024, 1048576, 1073741824, 1024, 1048576, 1073741824, 1000, 1000000, 1000000000}
 var partitionTypeNameToGUID = map[string]string{
@@ -99,17 +100,22 @@ func TranslateSizeStrToBytes(sizeStr string) (int, error) {
 func CreateRawFile(filePath string, fileSize string) error {
 	fileSizeStr, err := VerifyFileSize(fileSize)
 	if err != nil {
+		log.Errorf("Invalid file size %s: %v", fileSize, err)
 		return err
 	}
 	fileDir := filepath.Dir(filePath)
 	if _, err := os.Stat(fileDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(fileDir, 0755); err != nil {
-			return fmt.Errorf("failed to create directory %s: %v", fileDir, err)
+			log.Errorf("Failed to create directory %s: %v", fileDir, err)
+			return fmt.Errorf("failed to create directory %s: %w", fileDir, err)
 		}
 	}
 	cmd := fmt.Sprintf("fallocate -l %s %s", fileSizeStr, filePath)
-	_, err = shell.ExecCmd(cmd, true, "", nil)
-	return err
+	if _, err = shell.ExecCmd(cmd, true, "", nil); err != nil {
+		log.Errorf("Failed to create raw file %s: %v", filePath, err)
+		return fmt.Errorf("failed to create raw file %s: %w", filePath, err)
+	}
+	return nil
 }
 
 func GetDiskNameFromDiskPath(diskPath string) (string, error) {
@@ -126,6 +132,7 @@ func DiskGetHwSectorSize(diskName string) (int, error) {
 	cmd := fmt.Sprintf("cat /sys/block/%s/queue/hw_sector_size", diskName)
 	output, err := shell.ExecCmd(cmd, true, "", nil)
 	if err != nil {
+		log.Errorf("Failed to get hw sector size for disk %s: %v", diskName, err)
 		return 0, err
 	}
 	return strconv.Atoi(strings.TrimSpace(output))
@@ -135,6 +142,7 @@ func DiskGetPhysicalBlockSize(diskName string) (int, error) {
 	cmd := fmt.Sprintf("cat /sys/block/%s/queue/physical_block_size", diskName)
 	output, err := shell.ExecCmd(cmd, true, "", nil)
 	if err != nil {
+		log.Errorf("Failed to get physical block size for disk %s: %v", diskName, err)
 		return 0, err
 	}
 	return strconv.Atoi(strings.TrimSpace(output))
@@ -144,10 +152,12 @@ func DiskGetDevInfo(diskPath string) (map[string]interface{}, error) {
 	cmd := fmt.Sprintf("lsblk %s --json --list --output NAME,PATH,PARTTYPE,FSTYPE,UUID,MOUNTPOINT,PARTUUID,PARTLABEL,TYPE", diskPath)
 	output, err := shell.ExecCmd(cmd, true, "", nil)
 	if err != nil {
+		log.Errorf("Failed to get device info for disk %s: %v", diskPath, err)
 		return nil, err
 	}
 	var partitionsInfo map[string]interface{}
 	if err := json.Unmarshal([]byte(output), &partitionsInfo); err != nil {
+		log.Errorf("Failed to parse device info for disk %s: %v", diskPath, err)
 		return nil, err
 	}
 	if blockDevices, ok := partitionsInfo["blockdevices"].([]interface{}); ok {
@@ -158,6 +168,7 @@ func DiskGetDevInfo(diskPath string) (map[string]interface{}, error) {
 			}
 		}
 	}
+	log.Errorf("Device info not found for disk %s", diskPath)
 	return nil, errors.New("device not found")
 }
 
@@ -165,10 +176,12 @@ func DiskGetPartitionsInfo(diskPath string) ([]map[string]interface{}, error) {
 	cmd := fmt.Sprintf("lsblk %s --json --list --output NAME,PATH,PARTTYPE,FSTYPE,UUID,MOUNTPOINT,PARTUUID,PARTLABEL,TYPE", diskPath)
 	output, err := shell.ExecCmd(cmd, true, "", nil)
 	if err != nil {
+		log.Errorf("Failed to get partitions info for disk %s: %v", diskPath, err)
 		return nil, err
 	}
 	var partitionsInfo map[string]interface{}
 	if err := json.Unmarshal([]byte(output), &partitionsInfo); err != nil {
+		log.Errorf("Failed to parse partitions info for disk %s: %v", diskPath, err)
 		return nil, err
 	}
 	var partitions []map[string]interface{}
@@ -187,6 +200,7 @@ func DiskGetInfo(diskPath string) (map[string]interface{}, error) {
 	cmd := fmt.Sprintf("fdisk -l %s", diskPath)
 	output, err := shell.ExecCmd(cmd, true, "", nil)
 	if err != nil {
+		log.Errorf("Failed to get disk info for disk %s: %v", diskPath, err)
 		return nil, err
 	}
 	diskInfo := make(map[string]interface{})
@@ -252,7 +266,7 @@ func IsDiskPartitionExist(diskPath string) (bool, error) {
 
 func CheckDiskIOStats(diskPath string) (bool, error) {
 	ioIsBusy := false
-	log := logger.Logger()
+
 	diskName, err := GetDiskNameFromDiskPath(diskPath)
 	if err != nil {
 		return false, err
@@ -260,6 +274,7 @@ func CheckDiskIOStats(diskPath string) (bool, error) {
 	cmd := fmt.Sprintf("cat /proc/diskstats | grep %s*", diskName)
 	output, err := shell.ExecCmd(cmd, true, "", nil)
 	if err != nil {
+		log.Errorf("Failed to get io stats for disk %s: %v", diskPath, err)
 		return false, err
 	}
 	lines := strings.Split(output, "\n")
@@ -334,7 +349,7 @@ func getSectorOffsetFromSize(diskName, sizeStr string) (int, error) {
 		alignedSize := ((byteSize / physicalBlockSize) + 1) * physicalBlockSize
 		return alignedSize / hwSectorSize, nil
 	}
-	return 0, errors.New("invalid size alignment")
+	return 0, fmt.Errorf("size %s is not aligned to physical block size %d", sizeStr, physicalBlockSize)
 }
 
 func PartitionTypeStrToGUID(partitionTypeStr string) (string, error) {
@@ -362,7 +377,6 @@ func diskPartitionCreate(
 
 	partitionTypeList := []string{"primary", "extended", "logical"}
 	fsTypeList := []string{"fat32", "fat16", "vfat", "ext2", "ext3", "ext4", "xfs", "linux-swap"}
-	log := logger.Logger()
 
 	// Partition info
 	partitionName := partitionInfo.Name
@@ -371,6 +385,7 @@ func diskPartitionCreate(
 	// Validate partition type
 	if partitionTableType == "mbr" {
 		if !slice.Contains(partitionTypeList, partitionType) {
+			log.Errorf("Unknown partition type for MBR: %s", partitionType)
 			return "", fmt.Errorf("unknown partition type: %s", partitionType)
 		}
 	} else if partitionTableType == "gpt" {
@@ -387,19 +402,23 @@ func diskPartitionCreate(
 
 	startSizeStr, err := VerifyFileSize(partitionInfo.Start)
 	if err != nil {
-		return "", fmt.Errorf("invalid start size: %v", err)
+		log.Errorf("Invalid start size %s for partition %d: %v", partitionInfo.Start, partitionNum, err)
+		return "", fmt.Errorf("invalid start size %s for partition %d: %w", partitionInfo.Start, partitionNum, err)
 	}
 	endSizeStr, err := VerifyFileSize(partitionInfo.End)
 	if err != nil {
-		return "", fmt.Errorf("invalid end size: %v", err)
+		log.Errorf("Invalid end size %s for partition %d: %v", partitionInfo.End, partitionNum, err)
+		return "", fmt.Errorf("invalid end size %s for partition %d: %w", partitionInfo.End, partitionNum, err)
 	}
 
 	if !slice.Contains(fsTypeList, partitionInfo.FsType) {
-		return "", fmt.Errorf("unknown fs type: %s", partitionInfo.FsType)
+		log.Errorf("Unknown fs type for partition %d: %s", partitionNum, partitionInfo.FsType)
+		return "", fmt.Errorf("unknown fs type for partition %d: %s", partitionNum, partitionInfo.FsType)
 	}
 
 	diskName, err := GetDiskNameFromDiskPath(diskPath)
 	if err != nil {
+		log.Errorf("Failed to get disk name from path %s: %v", diskPath, err)
 		return "", fmt.Errorf("failed to get disk name from path: %s", diskPath)
 	}
 	startSector, _ := getSectorOffsetFromSize(diskName, startSizeStr)
@@ -473,14 +492,16 @@ func diskPartitionCreate(
 		sfdiskScript.String(), diskPath)
 	_, err = shell.ExecCmd(cmdStr, false, "", nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to create partition %d: %v", partitionNum, err)
+		log.Errorf("Failed to create partition %d on disk %s: %v", partitionNum, diskPath, err)
+		return "", fmt.Errorf("failed to create partition %d on disk %s: %w", partitionNum, diskPath, err)
 	}
 
 	// Refresh partition table using partx
 	cmdStr = fmt.Sprintf("partx -u %s", diskPath)
 	_, err = shell.ExecCmd(cmdStr, true, "", nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to refresh partition table after creating partition %d: %v", partitionNum, err)
+		log.Errorf("Failed to refresh partition table after creating partition %d: %v", partitionNum, err)
+		return "", fmt.Errorf("failed to refresh partition table after creating partition %d: %w", partitionNum, err)
 	}
 
 	// Format partition
@@ -495,7 +516,8 @@ func diskPartitionCreate(
 		cmdStr = fmt.Sprintf("mkfs -t vfat %s", diskPartDev)
 		_, err := shell.ExecCmd(cmdStr, true, "", nil)
 		if err != nil {
-			return "", fmt.Errorf("failed to format partition %d with fs type %s: %v", partitionNum, partitionInfo.FsType, err)
+			log.Errorf("Failed to format partition %d with fs type %s: %v", partitionNum, partitionInfo.FsType, err)
+			return "", fmt.Errorf("failed to format partition %d with fs type %s: %w", partitionNum, partitionInfo.FsType, err)
 		}
 	} else if partitionInfo.FsType == "ext2" || partitionInfo.FsType == "ext3" || partitionInfo.FsType == "ext4" || partitionInfo.FsType == "xfs" {
 		var additionalFlags string
@@ -514,18 +536,21 @@ func diskPartitionCreate(
 		}
 		_, err := shell.ExecCmd(cmdStr, true, "", nil)
 		if err != nil {
-			return "", fmt.Errorf("failed to format partition %d with fs type %s: %v", partitionNum, partitionInfo.FsType, err)
+			log.Errorf("Failed to format partition %d with fs type %s: %v", partitionNum, partitionInfo.FsType, err)
+			return "", fmt.Errorf("failed to format partition %d with fs type %s: %w", partitionNum, partitionInfo.FsType, err)
 		}
 	} else if partitionInfo.FsType == "linux-swap" {
 		cmdStr = fmt.Sprintf("mkswap %s", diskPartDev)
 		_, err := shell.ExecCmd(cmdStr, true, "", nil)
 		if err != nil {
-			return "", fmt.Errorf("failed to format partition %d with fs type %s: %v", partitionNum, partitionInfo.FsType, err)
+			log.Errorf("Failed to format partition %d with fs type %s: %v", partitionNum, partitionInfo.FsType, err)
+			return "", fmt.Errorf("failed to format partition %d with fs type %s: %w", partitionNum, partitionInfo.FsType, err)
 		}
 		cmdStr = fmt.Sprintf("swapon %s", diskPartDev)
 		_, err = shell.ExecCmd(cmdStr, true, "", nil)
 		if err != nil {
-			return "", fmt.Errorf("failed to enable swap on partition %d: %v", partitionNum, err)
+			log.Errorf("Failed to enable swap on partition %d: %v", partitionNum, err)
+			return "", fmt.Errorf("failed to enable swap on partition %d: %w", partitionNum, err)
 		}
 	}
 
@@ -533,14 +558,15 @@ func diskPartitionCreate(
 }
 
 func diskPartitionDelete(diskPath string, partitionNum int) error {
-	log := logger.Logger()
 	if partitionNum < 1 {
+		log.Errorf("Invalid partition number: %d", partitionNum)
 		return fmt.Errorf("invalid partition number: %d", partitionNum)
 	}
 	cmdStr := fmt.Sprintf("sfdisk --delete %s %d", diskPath, partitionNum)
 	_, err := shell.ExecCmd(cmdStr, true, "", nil)
 	if err != nil {
-		return fmt.Errorf("failed to delete partition %d: %v", partitionNum, err)
+		log.Errorf("Failed to delete partition %d: %v", partitionNum, err)
+		return fmt.Errorf("failed to delete partition %d: %w", partitionNum, err)
 	}
 
 	// Refresh partition table
@@ -556,17 +582,16 @@ func diskPartitionDelete(diskPath string, partitionNum int) error {
 
 func DiskPartitionsCreate(diskPath string, partitionsList []config.PartitionInfo, partitionTableType string) (map[string]string, error) {
 	partIDDiskDevMap := make(map[string]string)
-	log := logger.Logger()
 
 	partitionExist, err := IsDiskPartitionExist(diskPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check if disk %s has partitions: %v", diskPath, err)
+		return nil, fmt.Errorf("failed to check if disk %s has partitions: %w", diskPath, err)
 	}
 	if partitionExist {
 		// Wipe the disk first
 		log.Infof(fmt.Sprintf("Disk %s already has partitions, wiping it before creating new partitions", diskPath))
-		if err := DiskPartitionsWipe(diskPath, false); err != nil {
-			return nil, fmt.Errorf("failed to wipe disk before creating partitions: %v", err)
+		if err := WipePartitions(diskPath); err != nil {
+			return nil, fmt.Errorf("failed to wipe disk before creating partitions: %w", err)
 		}
 	}
 
@@ -574,7 +599,8 @@ func DiskPartitionsCreate(diskPath string, partitionsList []config.PartitionInfo
 		cmdStr := fmt.Sprintf("echo 'label: gpt' | sudo sfdisk %s", diskPath)
 		_, err := shell.ExecCmd(cmdStr, false, "", nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create GPT partition table on disk %s: %v", diskPath, err)
+			log.Errorf("Failed to create GPT partition table on disk %s: %v", diskPath, err)
+			return nil, fmt.Errorf("failed to create GPT partition table on disk %s: %w", diskPath, err)
 		}
 
 		for i, partitionInfo := range partitionsList {
@@ -587,7 +613,7 @@ func DiskPartitionsCreate(diskPath string, partitionsList []config.PartitionInfo
 						log.Errorf(fmt.Sprintf("%v", err))
 					}
 				}
-				return nil, fmt.Errorf("failed to create partition %d: %v", partitionNum, err)
+				return nil, fmt.Errorf("failed to create partition %d: %w", partitionNum, err)
 			}
 			partIDDiskDevMap[partitionInfo.ID] = diskPartDev
 		}
@@ -598,7 +624,8 @@ func DiskPartitionsCreate(diskPath string, partitionsList []config.PartitionInfo
 		cmdStr := fmt.Sprintf("echo 'label: dos' | sudo sfdisk %s", diskPath)
 		_, err := shell.ExecCmd(cmdStr, false, "", nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create MBR partition table on disk %s: %v", diskPath, err)
+			log.Errorf("Failed to create MBR partition table on disk %s: %v", diskPath, err)
+			return nil, fmt.Errorf("failed to create MBR partition table on disk %s: %w", diskPath, err)
 		}
 
 		partitionCount := len(partitionsList)
@@ -619,7 +646,7 @@ func DiskPartitionsCreate(diskPath string, partitionsList []config.PartitionInfo
 								log.Errorf(fmt.Sprintf("%v", err))
 							}
 						}
-						return nil, fmt.Errorf("failed to create extended partition %d: %v", partitionNum, err)
+						return nil, fmt.Errorf("failed to create extended partition %d: %w", partitionNum, err)
 					}
 					partitionInfo.End = logicalPartitionEnd
 					partitionType = "logical"
@@ -642,7 +669,7 @@ func DiskPartitionsCreate(diskPath string, partitionsList []config.PartitionInfo
 						log.Errorf(fmt.Sprintf("%v", err))
 					}
 				}
-				return nil, fmt.Errorf("failed to create partition %d: %v", partitionNum, err)
+				return nil, fmt.Errorf("failed to create partition %d: %w", partitionNum, err)
 			}
 			partIDDiskDevMap[partitionInfo.ID] = diskPartDev
 		}
@@ -650,43 +677,28 @@ func DiskPartitionsCreate(diskPath string, partitionsList []config.PartitionInfo
 	return partIDDiskDevMap, nil
 }
 
-func DiskPartDevGetUUID(diskPartDev string, verbose bool) (string, error) {
-	cmdStr := fmt.Sprintf("blkid %s -s UUID -o value", diskPartDev)
-	uuid, err := shell.ExecCmd(cmdStr, true, "", nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to get partition UUID for %s: %v", diskPartDev, err)
-	}
-	return strings.TrimSpace(uuid), nil
-}
-
-func DiskPartDevGetPartitionUUID(diskPartDev string, verbose bool) (string, error) {
-	cmdStr := fmt.Sprintf("blkid %s -s PARTUUID -o value", diskPartDev)
-	uuid, err := shell.ExecCmd(cmdStr, true, "", nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to get partition UUID for %s: %v", diskPartDev, err)
-	}
-	return strings.TrimSpace(uuid), nil
-}
-
-func DiskPartDevGetPartitionLabel(diskPartDev string, verbose bool) (string, error) {
+func GetPartitionLabel(diskPartDev string) (string, error) {
 	cmdStr := fmt.Sprintf("blkid %s -s PARTLABEL -o value", diskPartDev)
 	label, err := shell.ExecCmd(cmdStr, true, "", nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to get partition label for %s: %v", diskPartDev, err)
+		log.Errorf("Failed to get partition label for %s: %v", diskPartDev, err)
+		return "", fmt.Errorf("failed to get partition label for %s: %w", diskPartDev, err)
 	}
 	return strings.TrimSpace(label), nil
 }
 
-func DiskPartitionsWipe(diskPath string, verbose bool) error {
+func WipePartitions(diskPath string) error {
 	// Wipe filesystem signatures
 	_, err := shell.ExecCmd(fmt.Sprintf("wipefs -a -f %s", diskPath), true, "", nil)
 	if err != nil {
-		return fmt.Errorf("failed to wipe disk %s: %v", diskPath, err)
+		log.Errorf("Failed to wipe filesystem signatures on disk %s: %v", diskPath, err)
+		return fmt.Errorf("failed to wipe disk %s: %w", diskPath, err)
 	}
 
 	_, err = shell.ExecCmd("sync", true, "", nil)
 	if err != nil {
-		return fmt.Errorf("failed to sync after wiping disk %s: %v", diskPath, err)
+		log.Errorf("Failed to sync after wiping disk %s: %v", diskPath, err)
+		return fmt.Errorf("failed to sync after wiping disk %s: %w", diskPath, err)
 	}
 	return nil
 }
@@ -695,6 +707,7 @@ func GetUUID(diskPartitionPath string) (string, error) {
 	cmd := fmt.Sprintf("blkid %s -s UUID -o value", diskPartitionPath)
 	output, err := shell.ExecCmd(cmd, true, "", nil)
 	if err != nil {
+		log.Errorf("Failed to get UUID for %s: %v", diskPartitionPath, err)
 		return output, fmt.Errorf("failed to get partition UUID for %s: %w", diskPartitionPath, err)
 	}
 	return strings.TrimSpace(output), nil
@@ -704,6 +717,7 @@ func GetPartUUID(diskPartitionPath string) (string, error) {
 	cmd := fmt.Sprintf("blkid %s -s PARTUUID -o value", diskPartitionPath)
 	output, err := shell.ExecCmd(cmd, true, "", nil)
 	if err != nil {
+		log.Errorf("Failed to get PARTUUID for %s: %v", diskPartitionPath, err)
 		return output, fmt.Errorf("failed to get partition UUID for %s: %w", diskPartitionPath, err)
 	}
 	return strings.TrimSpace(output), nil
