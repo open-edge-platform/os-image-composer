@@ -265,7 +265,7 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 				if err != nil {
 					gotMissingPkg = true
 					AddParentMissingChildPair(cur, depName+"(missing)", &parentChildPairs)
-					log.Warnf("failed to resolve multiple candidates for dependency %q of package %q: %w", depName, cur.Name, err)
+					log.Warnf("failed to resolve multiple candidates for dependency %q of package %q: %v", depName, cur.Name, err)
 					continue
 				}
 				queue = append(queue, chosenCandidate)
@@ -552,24 +552,40 @@ func extractRepoBase(rawURL string) (string, error) {
 	return base, nil
 }
 
-func extractVersionRequirement(reqVers []string) (op string, ver string, found bool) {
+func extractVersionRequirement(reqVers []string, depName string) (op string, ver string, found bool) {
 	for _, reqVer := range reqVers {
 		reqVer = strings.TrimSpace(reqVer)
 
-		// Find version constraint inside parentheses
-		if idx := strings.Index(reqVer, "("); idx != -1 {
-			verConstraint := reqVer[idx+1:]
-			if idx2 := strings.Index(verConstraint, ")"); idx2 != -1 {
-				verConstraint = verConstraint[:idx2]
+		// Handle alternatives (|) - check if our depName is in any of the alternatives
+		alternatives := strings.Split(reqVer, "|")
+		for _, alt := range alternatives {
+			alt = strings.TrimSpace(alt)
+
+			// Check if this alternative starts with the dependency name we're looking for
+			cleanReqName := CleanDependencyName(alt)
+			if cleanReqName != depName {
+				continue // Skip to next alternative
 			}
 
-			// Split into operator and version
-			parts := strings.Fields(verConstraint)
-			if len(parts) == 2 {
-				op := parts[0]
-				ver := parts[1]
-				return op, ver, true
+			// Found our dependency in this alternative, now extract version constraint
+			// Find version constraint inside parentheses
+			if idx := strings.Index(alt, "("); idx != -1 {
+				verConstraint := alt[idx+1:]
+				if idx2 := strings.Index(verConstraint, ")"); idx2 != -1 {
+					verConstraint = verConstraint[:idx2]
+				}
+
+				// Split into operator and version
+				parts := strings.Fields(verConstraint)
+				if len(parts) == 2 {
+					op := parts[0]
+					ver := parts[1]
+					return op, ver, true
+				}
 			}
+
+			// If we found the dependency but no version constraint, return found=false
+			return "", "", false
 		}
 	}
 
@@ -585,7 +601,14 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 	/////////////////////////////////////
 	//A: if version is specified
 	/////////////////////////////////////
-	op, ver, hasVersionConstraint := extractVersionRequirement(parentPkg.RequiresVer)
+	// All candidates have the same .Name, so just use candidates[0].Name for version extraction
+	op := ""
+	ver := ""
+	hasVersionConstraint := false
+	if len(candidates) > 0 {
+		op, ver, hasVersionConstraint = extractVersionRequirement(parentPkg.RequiresVer, candidates[0].Name)
+	}
+
 	if hasVersionConstraint {
 		// First pass: look for candidates from the same repo that meet version constraint
 		var sameRepoMatches []ospackage.PackageInfo
@@ -635,6 +658,8 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 		if len(otherRepoMatches) > 0 {
 			return otherRepoMatches[0], nil
 		}
+
+		return ospackage.PackageInfo{}, fmt.Errorf("no candidates satisfy version constraint = %s%s", op, ver)
 	}
 
 	/////////////////////////////////////
