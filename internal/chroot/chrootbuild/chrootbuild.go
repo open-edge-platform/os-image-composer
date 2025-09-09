@@ -315,7 +315,7 @@ func ValidateChrootenvYAML(data []byte) error {
 	// Convert to JSON for schema validation
 	jsonData, err := json.Marshal(raw)
 	if err != nil {
-		return fmt.Errorf("chrootenv validation error: unable to process config")
+		return fmt.Errorf("chrootenv validation error: unable to process config: %w", err)
 	}
 
 	return ValidateChrootenvJSON(jsonData)
