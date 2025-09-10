@@ -172,15 +172,20 @@ func VerifyDEBs(paths []string, pkgChecksum map[string][]string, workers int) []
 				start := time.Now()
 
 				var err error
-				for _, checksum := range pkgChecksum[filepath.Base(debPath)] {
-					// retry verification with each checksum saved for debPath
-					// (there can be multiple checksums for the same package name)
-					err = verifyWithGoDeb(debPath, map[string]string{filepath.Base(debPath): checksum})
-					if err == nil {
-						break // stop at first successful verification
+				checksums, ok := pkgChecksum[filepath.Base(debPath)]
+				if !ok || len(checksums) == 0 {
+					err = fmt.Errorf("no checksums found for package %s", debPath)
+				} else {
+					for _, checksum := range checksums {
+						// retry verification with each checksum saved for debPath
+						// (there can be multiple checksums for the same package name)
+						err = verifyWithGoDeb(debPath, map[string]string{filepath.Base(debPath): checksum})
+						if err == nil {
+							break // stop at first successful verification
+						}
 					}
 				}
-				ok := err == nil
+				ok = err == nil
 
 				if err != nil {
 					log.Errorf("verification %s failed: %v", debPath, err)
