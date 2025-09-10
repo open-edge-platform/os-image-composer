@@ -132,7 +132,7 @@ func VerifyRelease(relPath string, relSignPath string, pKeyPath string) (bool, e
 
 // VerifyAll takes a slice of DEB file paths, verifies each one in parallel,
 // and returns a slice of results in the same order.
-func VerifyDEBs(paths []string, pkgChecksum map[string]string, workers int) []Result {
+func VerifyDEBs(paths []string, pkgChecksum map[string][]string, workers int) []Result {
 	log := logger.Logger()
 
 	log.Infof("Verifying %d packages with %d workers", len(paths), workers)
@@ -171,7 +171,15 @@ func VerifyDEBs(paths []string, pkgChecksum map[string]string, workers int) []Re
 
 				start := time.Now()
 
-				err := verifyWithGoDeb(debPath, pkgChecksum)
+				var err error
+				for _, checksum := range pkgChecksum[filepath.Base(debPath)] {
+					// retry verification with each checksum saved for debPath
+					// (there can be multiple checksums for the same package name)
+					err = verifyWithGoDeb(debPath, map[string]string{filepath.Base(debPath): checksum})
+					if err == nil {
+						break // stop at first successful verification
+					}
+				}
 				ok := err == nil
 
 				if err != nil {
