@@ -1916,7 +1916,7 @@ func TestValidateImageTemplateJSON(t *testing.T) {
 		"image": {"name": "test", "version": "1.0.0"},
 		"target": {"os": "azure-linux", "dist": "azl3", "arch": "x86_64", "imageType": "raw"},
 		"systemConfig": {
-			"name": "test-config", 
+			"name": "test-config",
 			"packages": ["test-pkg"],
 			"kernel": {"version": "6.12", "cmdline": "quiet"}
 		}
@@ -2069,7 +2069,7 @@ func TestLoadTemplateWithJSONValidation(t *testing.T) {
   version: "1.0.0"
 target:
   os: azure-linux
-  dist: azl3  
+  dist: azl3
   arch: x86_64
   imageType: raw
 systemConfig:
@@ -2456,35 +2456,23 @@ systemConfig:
 	}
 	tmpFile.Close()
 
-	// Save original global variables
-	origOs := TargetOs
-	origDist := TargetDist
-	origArch := TargetArch
-	origImageType := TargetImageType
-	defer func() {
-		TargetOs = origOs
-		TargetDist = origDist
-		TargetArch = origArch
-		TargetImageType = origImageType
-	}()
-
 	template, err := LoadTemplate(tmpFile.Name(), false)
 	if err != nil {
 		t.Fatalf("LoadTemplate failed: %v", err)
 	}
 
 	// Check that global variables were set
-	if TargetOs != "wind-river-elxr" {
-		t.Errorf("expected TargetOs = 'wind-river-elxr', got '%s'", TargetOs)
+	if template.Target.OS != "wind-river-elxr" {
+		t.Errorf("expected TargetOs = 'wind-river-elxr', got '%s'", template.Target.OS)
 	}
-	if TargetDist != "elxr12" {
-		t.Errorf("expected TargetDist = 'elxr12', got '%s'", TargetDist)
+	if template.Target.Dist != "elxr12" {
+		t.Errorf("expected TargetDist = 'elxr12', got '%s'", template.Target.Dist)
 	}
-	if TargetArch != "x86_64" {
-		t.Errorf("expected TargetArch = 'x86_64', got '%s'", TargetArch)
+	if template.Target.Arch != "x86_64" {
+		t.Errorf("expected TargetArch = 'x86_64', got '%s'", template.Target.Arch)
 	}
-	if TargetImageType != "raw" {
-		t.Errorf("expected TargetImageType = 'raw', got '%s'", TargetImageType)
+	if template.Target.ImageType != "raw" {
+		t.Errorf("expected TargetImageType = 'raw', got '%s'", template.Target.ImageType)
 	}
 
 	if template.Image.Name != "global-test" {
@@ -3184,5 +3172,232 @@ func TestPackageRepositoriesWithDuplicateCodenames(t *testing.T) {
 		if uniqueRepo.URL != "https://unique.com" {
 			t.Errorf("expected unique repo URL, got '%s'", uniqueRepo.URL)
 		}
+	}
+}
+func TestGetImageNameAndTargetInfo(t *testing.T) {
+	template := &ImageTemplate{
+		Image: ImageInfo{Name: "img", Version: "1.2"},
+		Target: TargetInfo{
+			OS:        "os",
+			Dist:      "dist",
+			Arch:      "arch",
+			ImageType: "type",
+		},
+	}
+	if got := template.GetImageName(); got != "img" {
+		t.Errorf("GetImageName() = %s, want img", got)
+	}
+	ti := template.GetTargetInfo()
+	if ti.OS != "os" || ti.Dist != "dist" || ti.Arch != "arch" || ti.ImageType != "type" {
+		t.Errorf("GetTargetInfo() = %+v, want all fields set", ti)
+	}
+}
+
+func TestGetDiskConfigAndSystemConfig(t *testing.T) {
+	disk := DiskConfig{Name: "disk1"}
+	sys := SystemConfig{Name: "sys1"}
+	template := &ImageTemplate{Disk: disk, SystemConfig: sys}
+	if got := template.GetDiskConfig(); got.Name != "disk1" {
+		t.Errorf("GetDiskConfig() = %v, want disk1", got.Name)
+	}
+	if got := template.GetSystemConfig(); got.Name != "sys1" {
+		t.Errorf("GetSystemConfig() = %v, want sys1", got.Name)
+	}
+}
+
+func TestGetBootloaderConfig(t *testing.T) {
+	bl := Bootloader{BootType: "efi", Provider: "grub2"}
+	template := &ImageTemplate{SystemConfig: SystemConfig{Bootloader: bl}}
+	got := template.GetBootloaderConfig()
+	if got.BootType != "efi" || got.Provider != "grub2" {
+		t.Errorf("GetBootloaderConfig() = %+v, want efi/grub2", got)
+	}
+}
+
+func TestGetPackagesAndKernel(t *testing.T) {
+	sys := SystemConfig{
+		Packages: []string{"a", "b"},
+		Kernel:   KernelConfig{Version: "v", Cmdline: "c"},
+	}
+	template := &ImageTemplate{SystemConfig: sys}
+	if pkgs := template.GetPackages(); len(pkgs) != 2 || pkgs[0] != "a" {
+		t.Errorf("GetPackages() = %v, want [a b]", pkgs)
+	}
+	k := template.GetKernel()
+	if k.Version != "v" || k.Cmdline != "c" {
+		t.Errorf("GetKernel() = %+v, want v/c", k)
+	}
+}
+
+func TestGetSystemConfigName(t *testing.T) {
+	sys := SystemConfig{Name: "sys"}
+	template := &ImageTemplate{SystemConfig: sys}
+	if got := template.GetSystemConfigName(); got != "sys" {
+		t.Errorf("GetSystemConfigName() = %s, want sys", got)
+	}
+}
+
+func TestImmutabilityConfigMethods(t *testing.T) {
+	ic := ImmutabilityConfig{
+		Enabled:         true,
+		SecureBootDBKey: "/key",
+		SecureBootDBCrt: "/crt",
+		SecureBootDBCer: "/cer",
+	}
+	if !ic.HasSecureBootDBConfig() {
+		t.Error("HasSecureBootDBConfig() = false, want true")
+	}
+	if !ic.HasSecureBootDBKey() {
+		t.Error("HasSecureBootDBKey() = false, want true")
+	}
+	if !ic.HasSecureBootDBCrt() {
+		t.Error("HasSecureBootDBCrt() = false, want true")
+	}
+	if !ic.HasSecureBootDBCer() {
+		t.Error("HasSecureBootDBCer() = false, want true")
+	}
+	if ic.GetSecureBootDBKeyPath() != "/key" {
+		t.Errorf("GetSecureBootDBKeyPath() = %s, want /key", ic.GetSecureBootDBKeyPath())
+	}
+	if ic.GetSecureBootDBCrtPath() != "/crt" {
+		t.Errorf("GetSecureBootDBCrtPath() = %s, want /crt", ic.GetSecureBootDBCrtPath())
+	}
+	if ic.GetSecureBootDBCerPath() != "/cer" {
+		t.Errorf("GetSecureBootDBCerPath() = %s, want /cer", ic.GetSecureBootDBCerPath())
+	}
+}
+
+func TestImmutabilityConfigMethodsEmpty(t *testing.T) {
+	ic := ImmutabilityConfig{}
+	if ic.HasSecureBootDBConfig() {
+		t.Error("HasSecureBootDBConfig() = true, want false")
+	}
+	if ic.HasSecureBootDBKey() {
+		t.Error("HasSecureBootDBKey() = true, want false")
+	}
+	if ic.HasSecureBootDBCrt() {
+		t.Error("HasSecureBootDBCrt() = true, want false")
+	}
+	if ic.HasSecureBootDBCer() {
+		t.Error("HasSecureBootDBCer() = true, want false")
+	}
+	if ic.GetSecureBootDBKeyPath() != "" {
+		t.Errorf("GetSecureBootDBKeyPath() = %s, want empty", ic.GetSecureBootDBKeyPath())
+	}
+	if ic.GetSecureBootDBCrtPath() != "" {
+		t.Errorf("GetSecureBootDBCrtPath() = %s, want empty", ic.GetSecureBootDBCrtPath())
+	}
+	if ic.GetSecureBootDBCerPath() != "" {
+		t.Errorf("GetSecureBootDBCerPath() = %s, want empty", ic.GetSecureBootDBCerPath())
+	}
+}
+
+func TestSystemConfigImmutabilityHelpers(t *testing.T) {
+	ic := ImmutabilityConfig{Enabled: true, SecureBootDBKey: "k"}
+	sc := SystemConfig{Immutability: ic}
+	if !sc.GetImmutability().Enabled {
+		t.Error("GetImmutability().Enabled = false, want true")
+	}
+	if !sc.IsImmutabilityEnabled() {
+		t.Error("IsImmutabilityEnabled() = false, want true")
+	}
+	if sc.GetSecureBootDBKeyPath() != "k" {
+		t.Errorf("GetSecureBootDBKeyPath() = %s, want k", sc.GetSecureBootDBKeyPath())
+	}
+	if !sc.HasSecureBootDBConfig() {
+		t.Error("HasSecureBootDBConfig() = false, want true")
+	}
+}
+
+func TestImageTemplateImmutabilityHelpers(t *testing.T) {
+	ic := ImmutabilityConfig{Enabled: true, SecureBootDBKey: "k"}
+	template := &ImageTemplate{SystemConfig: SystemConfig{Immutability: ic}}
+	if !template.GetImmutability().Enabled {
+		t.Error("GetImmutability().Enabled = false, want true")
+	}
+	if !template.IsImmutabilityEnabled() {
+		t.Error("IsImmutabilityEnabled() = false, want true")
+	}
+	if template.GetSecureBootDBKeyPath() != "k" {
+		t.Errorf("GetSecureBootDBKeyPath() = %s, want k", template.GetSecureBootDBKeyPath())
+	}
+	if !template.HasSecureBootDBConfig() {
+		t.Error("HasSecureBootDBConfig() = false, want true")
+	}
+}
+
+func TestGetUsersAndUserByName(t *testing.T) {
+	users := []UserConfig{
+		{Name: "alice", Sudo: true},
+		{Name: "bob"},
+	}
+	template := &ImageTemplate{SystemConfig: SystemConfig{Users: users}}
+	if len(template.GetUsers()) != 2 {
+		t.Errorf("GetUsers() = %d, want 2", len(template.GetUsers()))
+	}
+	if u := template.GetUserByName("alice"); u == nil || u.Name != "alice" {
+		t.Errorf("GetUserByName(alice) = %v, want alice", u)
+	}
+	if u := template.GetUserByName("notfound"); u != nil {
+		t.Errorf("GetUserByName(notfound) = %v, want nil", u)
+	}
+	if !template.HasUsers() {
+		t.Error("HasUsers() = false, want true")
+	}
+}
+
+func TestSystemConfigUserHelpers(t *testing.T) {
+	users := []UserConfig{{Name: "root"}, {Name: "user"}}
+	sc := SystemConfig{Users: users}
+	if len(sc.GetUsers()) != 2 {
+		t.Errorf("GetUsers() = %d, want 2", len(sc.GetUsers()))
+	}
+	if u := sc.GetUserByName("root"); u == nil || u.Name != "root" {
+		t.Errorf("GetUserByName(root) = %v, want root", u)
+	}
+	if u := sc.GetUserByName("none"); u != nil {
+		t.Errorf("GetUserByName(none) = %v, want nil", u)
+	}
+	if !sc.HasUsers() {
+		t.Error("HasUsers() = false, want true")
+	}
+}
+
+func TestGetPackageRepositoriesAndHelpers(t *testing.T) {
+	repos := []PackageRepository{
+		{Codename: "main", URL: "http://a"},
+		{Codename: "extra", URL: "http://b"},
+	}
+	template := &ImageTemplate{PackageRepositories: repos}
+	if !template.HasPackageRepositories() {
+		t.Error("HasPackageRepositories() = false, want true")
+	}
+	if len(template.GetPackageRepositories()) != 2 {
+		t.Errorf("GetPackageRepositories() = %d, want 2", len(template.GetPackageRepositories()))
+	}
+	if repo := template.GetRepositoryByCodename("main"); repo == nil || repo.URL != "http://a" {
+		t.Errorf("GetRepositoryByCodename(main) = %v, want http://a", repo)
+	}
+	if repo := template.GetRepositoryByCodename("none"); repo != nil {
+		t.Errorf("GetRepositoryByCodename(none) = %v, want nil", repo)
+	}
+}
+
+func TestGetProviderNameAndDistroVersionUnknown(t *testing.T) {
+	template := &ImageTemplate{
+		Target: TargetInfo{OS: "unknown", Dist: "unknown"},
+	}
+	if got := template.GetProviderName(); got != "" {
+		t.Errorf("GetProviderName() = %s, want empty", got)
+	}
+	if got := template.GetDistroVersion(); got != "" {
+		t.Errorf("GetDistroVersion() = %s, want empty", got)
+	}
+}
+
+func TestSaveUpdatedConfigFileStub(t *testing.T) {
+	template := &ImageTemplate{}
+	if err := SaveUpdatedConfigFile("dummy", template); err != nil {
+		t.Errorf("SaveUpdatedConfigFile() = %v, want nil", err)
 	}
 }

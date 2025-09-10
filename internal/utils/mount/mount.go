@@ -158,7 +158,7 @@ func MountSysfs(mountPoint string) error {
 	}
 
 	devMountPoint := filepath.Join(mountPoint, "dev")
-	if err := MountPath("devtmpfs", devMountPoint, "-t devtmpfs -o mode=0755,nosuid"); err != nil {
+	if err := MountPath("devtmpfs", devMountPoint, "-t devtmpfs -o mode=0700,nosuid"); err != nil {
 		return fmt.Errorf("failed to mount /dev to %s: %w", devMountPoint, err)
 	}
 
@@ -168,12 +168,12 @@ func MountSysfs(mountPoint string) error {
 	}
 
 	devShmMountPoint := filepath.Join(mountPoint, "dev/shm")
-	if err := MountPath("tmpfs", devShmMountPoint, "-t tmpfs -o mode=1777"); err != nil {
+	if err := MountPath("tmpfs", devShmMountPoint, "-t tmpfs -o mode=1700"); err != nil {
 		return fmt.Errorf("failed to mount /dev/shm to %s: %w", devShmMountPoint, err)
 	}
 
 	runMountPoint := filepath.Join(mountPoint, "run")
-	if err := MountPath("tmpfs", runMountPoint, "-t tmpfs -o mode=0755"); err != nil {
+	if err := MountPath("tmpfs", runMountPoint, "-t tmpfs -o mode=0700"); err != nil {
 		return fmt.Errorf("failed to mount /run to %s: %w", runMountPoint, err)
 	}
 
@@ -181,7 +181,7 @@ func MountSysfs(mountPoint string) error {
 	if _, err := shell.ExecCmd("mkdir -p "+runShmMountPoint, true, "", nil); err != nil {
 		return fmt.Errorf("failed to create %s: %w", runShmMountPoint, err)
 	}
-	if _, err := shell.ExecCmd("chmod 1777 "+runShmMountPoint, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("chmod 1700 "+runShmMountPoint, true, "", nil); err != nil {
 		return fmt.Errorf("failed to set permissions on %s: %w", runShmMountPoint, err)
 	}
 
@@ -236,9 +236,11 @@ func CleanSysfs(mountPoint string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get mount path list: %w", err)
 	}
-	if len(mountPathList) == 0 {
-		log.Debugf("No mount points found")
-		return nil
+
+	for _, path := range mountPathList {
+		if strings.Contains(path, mountPoint) {
+			pathList = append(pathList, path)
+		}
 	}
 
 	for _, _mountPoint := range []string{"run", "sys", "proc", "dev"} {

@@ -13,6 +13,16 @@ import (
 
 var log = logger.Logger()
 
+type ImageBootInterface interface {
+	InstallImageBoot(installRoot string, diskPathIdMap map[string]string, template *config.ImageTemplate) error
+}
+
+type ImageBoot struct{}
+
+func NewImageBoot() *ImageBoot {
+	return &ImageBoot{}
+}
+
 func getDiskPartDevByMountPoint(mountPoint string, diskPathIdMap map[string]string, template *config.ImageTemplate) string {
 	diskInfo := template.GetDiskConfig()
 	partions := diskInfo.Partitions
@@ -235,7 +245,7 @@ func updateBootConfigTemplate(installRoot, rootDevID, bootUUID, bootPrefix, hash
 	return nil
 }
 
-func InstallImageBoot(installRoot string, diskPathIdMap map[string]string, template *config.ImageTemplate) error {
+func (imageBoot *ImageBoot) InstallImageBoot(installRoot string, diskPathIdMap map[string]string, template *config.ImageTemplate) error {
 	var bootUUID string
 	var bootPrefix string = ""
 	var rootDev string

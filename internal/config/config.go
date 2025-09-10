@@ -52,6 +52,9 @@ type ImageTemplate struct {
 	Disk                DiskConfig          `yaml:"disk,omitempty"`
 	SystemConfig        SystemConfig        `yaml:"systemConfig"`
 	PackageRepositories []PackageRepository `yaml:"packageRepositories,omitempty"`
+
+	// Explicitly excluded from YAML serialization/deserialization
+	FullPkgList []string `yaml:"-"`
 }
 
 type Bootloader struct {
@@ -127,28 +130,22 @@ type Disk struct {
 	Partitions         []PartitionInfo `yaml:"partitions"`         // List of partitions to create in the disk image
 }
 
-var (
-	TargetOs        string
-	TargetDist      string
-	TargetArch      string
-	TargetImageType string
-	ProviderId      string
-	FullPkgList     []string
-)
+var log = logger.Logger()
 
 // LoadTemplate loads an ImageTemplate from the specified YAML template path
 func LoadTemplate(path string, validateFull bool) (*ImageTemplate, error) {
-	log := logger.Logger()
 
 	// Use safe file reading to prevent symlink attacks
 	data, err := security.SafeReadFile(path, security.RejectSymlinks)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read template file")
+		log.Errorf("Failed to read template file: %v", err)
+		return nil, fmt.Errorf("failed to read template file: %w", err)
 	}
 
 	// Only support YAML/YML files
 	ext := strings.ToLower(filepath.Ext(path))
 	if ext != ".yml" && ext != ".yaml" {
+		log.Errorf("Unsupported file format: %s", ext)
 		return nil, fmt.Errorf("unsupported file format: %s (only .yml and .yaml are supported)", ext)
 	}
 
@@ -157,12 +154,8 @@ func LoadTemplate(path string, validateFull bool) (*ImageTemplate, error) {
 		return nil, fmt.Errorf("failed to load template: %w", err)
 	}
 
-	TargetOs = template.Target.OS
-	TargetDist = template.Target.Dist
-	TargetArch = template.Target.Arch
-	TargetImageType = template.Target.ImageType
-	log.Infof("loaded image template: name=%s, os=%s, dist=%s, arch=%s",
-		template.Image.Name, template.Target.OS, template.Target.Dist, template.Target.Arch)
+	log.Infof("Loaded image template from %s: name=%s, os=%s, dist=%s, arch=%s",
+		path, template.Image.Name, template.Target.OS, template.Target.Dist, template.Target.Arch)
 	return template, nil
 }
 
@@ -171,13 +164,18 @@ func parseYAMLTemplate(data []byte, validateFull bool) (*ImageTemplate, error) {
 	// Parse YAML to generic interface for validation
 	var raw interface{}
 	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("invalid YAML format: template parsing failed")
+		log.Errorf("Invalid YAML format: template parsing failed: %v", err)
+		return nil, fmt.Errorf("invalid YAML format: template parsing failed: %w", err)
 	}
 
+	if err := security.ValidateStructStrings(&raw, security.DefaultLimits()); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
 	// Convert to JSON for schema validation
 	jsonData, err := json.Marshal(raw)
 	if err != nil {
-		return nil, fmt.Errorf("template validation error: unable to process template")
+		log.Errorf("Template validation error: unable to process template: %v", err)
+		return nil, fmt.Errorf("template validation error: unable to process template: %w", err)
 	}
 
 	if validateFull {
@@ -194,7 +192,8 @@ func parseYAMLTemplate(data []byte, validateFull bool) (*ImageTemplate, error) {
 	// Parse into template structure
 	var template ImageTemplate
 	if err := yaml.Unmarshal(data, &template); err != nil {
-		return nil, fmt.Errorf("template parsing failed: invalid structure")
+		log.Errorf("Template parsing failed: invalid structure: %v", err)
+		return nil, fmt.Errorf("template parsing failed: invalid structure: %w", err)
 	}
 
 	return &template, nil

@@ -8,6 +8,7 @@ import (
 
 	"github.com/open-edge-platform/image-composer/internal/config"
 	"github.com/open-edge-platform/image-composer/internal/utils/shell"
+	"github.com/open-edge-platform/image-composer/internal/utils/system"
 )
 
 func SignImage(installRoot string, template *config.ImageTemplate) error {
@@ -75,7 +76,9 @@ func SignImage(installRoot string, template *config.ImageTemplate) error {
 	if err != nil {
 		return fmt.Errorf("failed to get global work directory: %w", err)
 	}
-	imageBuildDir := filepath.Join(globalWorkDir, config.ProviderId, "imagebuild")
+	providerId := system.GetProviderId(template.Target.OS, template.Target.Dist,
+		template.Target.Arch)
+	imageBuildDir := filepath.Join(globalWorkDir, providerId, "imagebuild")
 	sysConfigName := template.GetSystemConfigName()
 	finalCerFilePath := filepath.Join(imageBuildDir, sysConfigName, "DB.cer")
 

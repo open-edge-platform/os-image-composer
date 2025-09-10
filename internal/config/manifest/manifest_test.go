@@ -121,3 +121,166 @@ func TestWriteSPDXToFile_WithSubdirectory(t *testing.T) {
 		t.Errorf("Expected package name 'testpkg', got %q", p.Name)
 	}
 }
+func TestFallbackToDefault(t *testing.T) {
+	tests := []struct {
+		val      string
+		fallback string
+		want     string
+	}{
+		{"", "fallback", "fallback"},
+		{"value", "fallback", "value"},
+	}
+	for _, tt := range tests {
+		got := fallbackToDefault(tt.val, tt.fallback)
+		if got != tt.want {
+			t.Errorf("fallbackToDefault(%q, %q) = %q; want %q", tt.val, tt.fallback, got, tt.want)
+		}
+	}
+}
+
+func TestGenerateDocumentNamespace(t *testing.T) {
+	ns1 := generateDocumentNamespace()
+	ns2 := generateDocumentNamespace()
+	if ns1 == ns2 {
+		t.Errorf("Expected different namespaces, got %q and %q", ns1, ns2)
+	}
+	if !strings.HasPrefix(ns1, SPDXNamespaceBase+"/") {
+		t.Errorf("Namespace does not start with SPDXNamespaceBase: %q", ns1)
+	}
+}
+
+func TestSpdxSupplier(t *testing.T) {
+	tests := []struct {
+		origin string
+		want   string
+	}{
+		{"", "NOASSERTION"},
+		{"Intel", "Organization: Intel"},
+		{"John Doe <john@example.com>", "Person: John Doe (john@example.com)"},
+		{"Acme Corp", "Organization: Acme Corp"},
+		{"Jane <jane@corp.com>", "Person: Jane (jane@corp.com)"},
+		{"  ", "NOASSERTION"},
+	}
+	for _, tt := range tests {
+		got := spdxSupplier(tt.origin)
+		if got != tt.want {
+			t.Errorf("spdxSupplier(%q) = %q; want %q", tt.origin, got, tt.want)
+		}
+	}
+}
+
+func TestWriteManifestToFile_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	outFile := filepath.Join(tmpDir, "manifest.json")
+	manifest := SoftwarePackageManifest{
+		SchemaVersion:     "1.0",
+		ImageVersion:      "v1.2.3",
+		BuiltAt:           "2024-01-01T00:00:00Z",
+		Arch:              "amd64",
+		SizeBytes:         123456,
+		Hash:              "deadbeef",
+		HashAlg:           "sha256",
+		Signature:         "sig",
+		SigAlg:            "rsa",
+		MinCurrentVersion: "v1.0.0",
+	}
+	err := WriteManifestToFile(manifest, outFile)
+	if err != nil {
+		t.Fatalf("WriteManifestToFile failed: %v", err)
+	}
+	data, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("Failed to read manifest file: %v", err)
+	}
+	var got SoftwarePackageManifest
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Failed to unmarshal manifest: %v", err)
+	}
+	if got.ImageVersion != manifest.ImageVersion {
+		t.Errorf("Expected ImageVersion %q, got %q", manifest.ImageVersion, got.ImageVersion)
+	}
+}
+
+func TestWriteManifestToFile_InvalidPath(t *testing.T) {
+	// Try to write to a directory that doesn't exist and can't be created
+	// On Unix, /root/ is usually not writable by non-root users
+	badPath := "/root/should_not_exist/manifest.json"
+	manifest := SoftwarePackageManifest{}
+	err := WriteManifestToFile(manifest, badPath)
+	if err == nil {
+		t.Errorf("Expected error when writing to unwritable path")
+	}
+}
+
+func TestWriteSPDXToFile_InvalidChecksumAlgorithm(t *testing.T) {
+	tmpDir := t.TempDir()
+	outFile := filepath.Join(tmpDir, "sbom.spdx.json")
+	pkgs := []ospackage.PackageInfo{
+		{
+			Name:        "pkg",
+			Type:        "deb",
+			Version:     "1.0",
+			URL:         "https://example.com/pkg.deb",
+			Description: "desc",
+			License:     "MIT",
+			Origin:      "Org",
+			Checksums: []ospackage.Checksum{
+				{Algorithm: "sha512", Value: "notused"},
+				{Algorithm: "sha256", Value: "used"},
+			},
+		},
+	}
+	err := WriteSPDXToFile(pkgs, outFile)
+	if err != nil {
+		t.Fatalf("WriteSPDXToFile failed: %v", err)
+	}
+	data, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("Failed to read SPDX output: %v", err)
+	}
+	var doc SPDXDocument
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("Failed to parse SPDX JSON: %v", err)
+	}
+	if len(doc.Packages) != 1 {
+		t.Fatalf("Expected 1 package, got %d", len(doc.Packages))
+	}
+	if len(doc.Packages[0].Checksum) != 1 {
+		t.Errorf("Expected only 1 valid checksum, got %d", len(doc.Packages[0].Checksum))
+	}
+	if doc.Packages[0].Checksum[0].Algorithm != "SHA256" {
+		t.Errorf("Expected SHA256 checksum, got %q", doc.Packages[0].Checksum[0].Algorithm)
+	}
+}
+
+func TestWriteSPDXToFile_MissingFields(t *testing.T) {
+	tmpDir := t.TempDir()
+	outFile := filepath.Join(tmpDir, "sbom.spdx.json")
+	pkgs := []ospackage.PackageInfo{
+		{
+			Name: "empty",
+		},
+	}
+	err := WriteSPDXToFile(pkgs, outFile)
+	if err != nil {
+		t.Fatalf("WriteSPDXToFile failed: %v", err)
+	}
+	data, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("Failed to read SPDX output: %v", err)
+	}
+	var doc SPDXDocument
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("Failed to parse SPDX JSON: %v", err)
+	}
+	if len(doc.Packages) != 1 {
+		t.Fatalf("Expected 1 package, got %d", len(doc.Packages))
+	}
+	p := doc.Packages[0]
+	if p.LicenseDeclared != "NOASSERTION" {
+		t.Errorf("Expected LicenseDeclared to be NOASSERTION, got %q", p.LicenseDeclared)
+	}
+	if p.Supplier != "NOASSERTION" {
+		t.Errorf("Expected Supplier to be NOASSERTION, got %q", p.Supplier)
+	}
+}

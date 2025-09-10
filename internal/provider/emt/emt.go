@@ -21,19 +21,22 @@ import (
 )
 
 const (
+	OsName    = "edge-microvisor-toolkit"
 	configURL = "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/edge-base.repo"
 	gpgkeyURL = "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY"
 	repomdURL = "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0/repodata/repomd.xml"
 )
+
+var log = logger.Logger()
 
 // Emt implements provider.Provider
 type Emt struct {
 	repoURL   string
 	repoCfg   rpmutils.RepoConfig
 	zstHref   string
-	chrootEnv *chroot.ChrootEnv
-	rawMaker  *rawmaker.RawMaker
-	isoMaker  *isomaker.IsoMaker
+	chrootEnv chroot.ChrootEnvInterface
+	rawMaker  rawmaker.RawMakerInterface
+	isoMaker  isomaker.IsoMakerInterface
 }
 
 func Register(targetOs, targetDist, targetArch string) error {
@@ -60,29 +63,28 @@ func Register(targetOs, targetDist, targetArch string) error {
 
 // Name returns the unique name of the provider
 func (p *Emt) Name(dist, arch string) string {
-	return GetProviderId(dist, arch)
+	return system.GetProviderId(OsName, dist, arch)
 }
 
 // Init will initialize the provider, fetching repo configuration
 func (p *Emt) Init(dist, arch string) error {
-	log := logger.Logger()
 
 	resp, err := http.Get(configURL)
 	if err != nil {
-		log.Errorf("downloading repo config %s failed: %v", configURL, err)
+		log.Errorf("Downloading repo config %s failed: %v", configURL, err)
 		return err
 	}
 	defer resp.Body.Close()
 
 	cfg, err := loadRepoConfig(resp.Body)
 	if err != nil {
-		log.Errorf("parsing repo config failed: %v", err)
+		log.Errorf("Parsing repo config failed: %v", err)
 		return err
 	}
 
 	href, err := fetchPrimaryURL(repomdURL)
 	if err != nil {
-		log.Errorf("fetch primary.xml.zst failed: %v", err)
+		log.Errorf("Fetch primary.xml.zst failed: %v", err)
 		return err
 	}
 
@@ -90,7 +92,7 @@ func (p *Emt) Init(dist, arch string) error {
 	p.repoCfg = cfg
 	p.zstHref = href
 
-	log.Infof("initialized EMT3.0 provider repo section=%s", cfg.Section)
+	log.Infof("Initialized EMT3.0 provider repo section=%s", cfg.Section)
 	log.Infof("name=%s", cfg.Name)
 	log.Infof("url=%s", cfg.URL)
 	log.Infof("primary.xml.zst=%s", p.zstHref)
@@ -106,21 +108,26 @@ func (p *Emt) PreProcess(template *config.ImageTemplate) error {
 		return fmt.Errorf("failed to download image packages: %w", err)
 	}
 
-	if err := p.chrootEnv.InitChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch); err != nil {
+	if err := p.chrootEnv.InitChrootEnv(template.Target.OS,
+		template.Target.Dist, template.Target.Arch); err != nil {
 		return fmt.Errorf("failed to initialize chroot environment: %w", err)
 	}
 	return nil
 }
 
 func (p *Emt) BuildImage(template *config.ImageTemplate) error {
-	if config.TargetImageType == "iso" {
-		err := p.isoMaker.BuildIsoImage(template)
-		if err != nil {
+	if template.Target.ImageType == "iso" {
+		if err := p.isoMaker.Init(template); err != nil {
+			return fmt.Errorf("failed to initialize ISO image maker: %w", err)
+		}
+		if err := p.isoMaker.BuildIsoImage(template); err != nil {
 			return fmt.Errorf("failed to build ISO image: %w", err)
 		}
 	} else {
-		err := p.rawMaker.BuildRawImage(template)
-		if err != nil {
+		if err := p.rawMaker.Init(template); err != nil {
+			return fmt.Errorf("failed to initialize raw image maker: %w", err)
+		}
+		if err := p.rawMaker.BuildRawImage(template); err != nil {
 			return fmt.Errorf("failed to build raw image: %w", err)
 		}
 	}
@@ -128,14 +135,14 @@ func (p *Emt) BuildImage(template *config.ImageTemplate) error {
 }
 
 func (p *Emt) PostProcess(template *config.ImageTemplate, err error) error {
-	if err := p.chrootEnv.CleanupChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch); err != nil {
+	if err := p.chrootEnv.CleanupChrootEnv(template.Target.OS,
+		template.Target.Dist, template.Target.Arch); err != nil {
 		return fmt.Errorf("failed to cleanup chroot environment: %w", err)
 	}
 	return err
 }
 
 func (p *Emt) installHostDependency() error {
-	log := logger.Logger()
 	var depedencyInfo = map[string]string{
 		"rpm":      "rpm",        // For the chroot env build RPM pkg installation
 		"mkfs.fat": "dosfstools", // For the FAT32 boot partition creation
@@ -154,8 +161,7 @@ func (p *Emt) installHostDependency() error {
 		}
 		if !cmdExist {
 			cmdStr := fmt.Sprintf("%s install -y %s", hostPkgManager, pkg)
-			_, err := shell.ExecCmdWithStream(cmdStr, true, "", nil)
-			if err != nil {
+			if _, err := shell.ExecCmdWithStream(cmdStr, true, "", nil); err != nil {
 				return fmt.Errorf("failed to install host dependency %s: %w", pkg, err)
 			}
 			log.Debugf("Installed host dependency: %s", pkg)
@@ -168,7 +174,7 @@ func (p *Emt) installHostDependency() error {
 
 func (p *Emt) downloadImagePkgs(template *config.ImageTemplate) error {
 	pkgList := template.GetPackages()
-	providerId := p.Name(config.TargetDist, config.TargetArch)
+	providerId := p.Name(template.Target.Dist, template.Target.Arch)
 	globalCache, err := config.CacheDir()
 	if err != nil {
 		return fmt.Errorf("failed to get global cache dir: %w", err)
@@ -176,12 +182,8 @@ func (p *Emt) downloadImagePkgs(template *config.ImageTemplate) error {
 	pkgCacheDir := filepath.Join(globalCache, "pkgCache", providerId)
 	rpmutils.RepoCfg = p.repoCfg
 	rpmutils.GzHref = p.zstHref
-	config.FullPkgList, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, "")
+	template.FullPkgList, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, "")
 	return err
-}
-
-func GetProviderId(dist, arch string) string {
-	return "edge-microvisor-toolkit" + "-" + dist + "-" + arch
 }
 
 // loadRepoConfig parses the repo configuration data

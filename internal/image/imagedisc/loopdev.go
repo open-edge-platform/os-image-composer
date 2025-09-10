@@ -11,7 +11,18 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/utils/shell"
 )
 
-func LoopSetupCreate(imagePath string) (string, error) {
+type LoopDevInterface interface {
+	LoopSetupDelete(loopDevPath string) error
+	CreateRawImageLoopDev(filePath string, template *config.ImageTemplate) (string, map[string]string, error)
+}
+
+type LoopDev struct{}
+
+func NewLoopDev() *LoopDev {
+	return &LoopDev{}
+}
+
+func loopSetupCreate(imagePath string) (string, error) {
 	cmd := fmt.Sprintf("losetup --direct-io=on --show -f -P %s", imagePath)
 	loopDevPath, err := shell.ExecCmd(cmd, true, "", nil)
 	if err != nil {
@@ -29,19 +40,20 @@ func LoopSetupCreate(imagePath string) (string, error) {
 	}
 }
 
-func LoopSetupCreateEmptyRawDisk(filePath, fileSize string) (string, error) {
-	if err := CreateRawFile(filePath, fileSize); err != nil {
+func loopSetupCreateEmptyRawDisk(filePath, fileSize string) (string, error) {
+	// For the raw image file, create it without sudo as the folder is owned by user.
+	if err := CreateRawFile(filePath, fileSize, false); err != nil {
 		return "", err
 	}
 
 	if _, err := os.Stat(filePath); err == nil {
-		return LoopSetupCreate(filePath)
+		return loopSetupCreate(filePath)
 	}
 	log.Errorf("Can't find %s after creating raw file", filePath)
 	return "", fmt.Errorf("can't find %s", filePath)
 }
 
-func LoopSetupDelete(loopDevPath string) error {
+func (loopDev *LoopDev) LoopSetupDelete(loopDevPath string) error {
 	cmd := fmt.Sprintf("losetup -d %s", loopDevPath)
 	if _, err := shell.ExecCmd(cmd, true, "", nil); err != nil {
 		log.Errorf("Failed to delete loop device %s: %v", loopDevPath, err)
@@ -122,12 +134,12 @@ func GetLoopDevPathFromLoopDevPart(loopDevPart string) (string, error) {
 	}
 }
 
-func CreateRawImage(filePath string, template *config.ImageTemplate) (string, map[string]string, error) {
+func (loopDev *LoopDev) CreateRawImageLoopDev(filePath string, template *config.ImageTemplate) (string, map[string]string, error) {
 	var diskPathIdMap map[string]string
 	var loopDevPath string
 
 	diskInfo := template.GetDiskConfig()
-	loopDevPath, err := LoopSetupCreateEmptyRawDisk(filePath, diskInfo.Size)
+	loopDevPath, err := loopSetupCreateEmptyRawDisk(filePath, diskInfo.Size)
 	if err != nil {
 		return loopDevPath, diskPathIdMap, fmt.Errorf("failed to create loop device: %w", err)
 	}

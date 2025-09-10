@@ -13,6 +13,11 @@ import (
 
 var log = logger.Logger()
 
+type DebInstallerInterface interface {
+	UpdateLocalDebRepo(cacheDir, arch string) error
+	InstallDebPkg(configDir, chrootPath, cacheDir string, packages []string) error
+}
+
 type DebInstaller struct {
 }
 
@@ -105,7 +110,7 @@ func (debInstaller *DebInstaller) InstallDebPkg(targetOsConfigDir, chrootEnvPath
 	}()
 
 	if _, err := os.Stat(chrootEnvPath); os.IsNotExist(err) {
-		if err := os.MkdirAll(chrootEnvPath, 0755); err != nil {
+		if err := os.MkdirAll(chrootEnvPath, 0700); err != nil {
 			log.Errorf("Failed to create chroot environment directory: %v", err)
 			return fmt.Errorf("failed to create chroot environment directory: %w", err)
 		}

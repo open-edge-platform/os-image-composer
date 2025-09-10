@@ -9,6 +9,7 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/ospackage/debutils"
 	"github.com/open-edge-platform/image-composer/internal/provider"
 	"github.com/open-edge-platform/image-composer/internal/utils/shell"
+	"github.com/open-edge-platform/image-composer/internal/utils/system"
 )
 
 // Helper function to create a test ImageTemplate
@@ -62,7 +63,7 @@ func TestGetProviderId(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%s-%s", tc.dist, tc.arch), func(t *testing.T) {
-			result := GetProviderId(tc.dist, tc.arch)
+			result := system.GetProviderId(OsName, tc.dist, tc.arch)
 			if result != tc.expected {
 				t.Errorf("Expected %s, got %s", tc.expected, result)
 			}
@@ -198,11 +199,6 @@ func TestElxrProviderPreProcess(t *testing.T) {
 
 	template := createTestImageTemplate()
 
-	// Set up global config variables that PreProcess depends on
-	config.TargetOs = "elxr"
-	config.TargetDist = "elxr12"
-	config.TargetArch = "amd64"
-
 	// This test will likely fail due to dependencies on chroot, debutils, etc.
 	// but it demonstrates the testing approach
 	err := elxr.PreProcess(template)
@@ -231,7 +227,7 @@ func TestElxrProviderBuildImage(t *testing.T) {
 	}
 
 	// Get the registered provider
-	providerName := GetProviderId("test-build", "amd64")
+	providerName := system.GetProviderId(OsName, "test-build", "amd64")
 	retrievedProvider, exists := provider.Get(providerName)
 	if !exists {
 		t.Skip("Cannot test BuildImage without retrieving registered provider")
@@ -245,9 +241,6 @@ func TestElxrProviderBuildImage(t *testing.T) {
 	}
 
 	template := createTestImageTemplate()
-
-	// Set up global config
-	config.TargetImageType = "qcow2"
 
 	// This test will fail due to dependencies on image builders that require system access
 	// We expect it to fail early before reaching sudo commands
@@ -281,7 +274,7 @@ func TestElxrProviderBuildImageISO(t *testing.T) {
 	}
 
 	// Get the registered provider
-	providerName := GetProviderId("test-iso", "amd64")
+	providerName := system.GetProviderId(OsName, "test-iso", "amd64")
 	retrievedProvider, exists := provider.Get(providerName)
 	if !exists {
 		t.Skip("Cannot test BuildImage (ISO) without retrieving registered provider")
@@ -297,9 +290,9 @@ func TestElxrProviderBuildImageISO(t *testing.T) {
 	template := createTestImageTemplate()
 
 	// Set up global config for ISO
-	originalImageType := config.TargetImageType
-	defer func() { config.TargetImageType = originalImageType }()
-	config.TargetImageType = "iso"
+	originalImageType := template.Target.ImageType
+	defer func() { template.Target.ImageType = originalImageType }()
+	template.Target.ImageType = "iso"
 
 	err = elxr.BuildImage(template)
 	if err != nil {
@@ -331,7 +324,7 @@ func TestElxrProviderPostProcess(t *testing.T) {
 	}
 
 	// Get the registered provider
-	providerName := GetProviderId("test-post", "amd64")
+	providerName := system.GetProviderId(OsName, "test-post", "amd64")
 	retrievedProvider, exists := provider.Get(providerName)
 	if !exists {
 		t.Skip("Cannot test PostProcess without retrieving registered provider")
@@ -345,11 +338,6 @@ func TestElxrProviderPostProcess(t *testing.T) {
 	}
 
 	template := createTestImageTemplate()
-
-	// Set up global config variables
-	config.TargetOs = "elxr"
-	config.TargetDist = "elxr12"
-	config.TargetArch = "amd64"
 
 	// Test with no error
 	err = elxr.PostProcess(template, nil)
@@ -441,7 +429,7 @@ func TestElxrProviderRegister(t *testing.T) {
 	}
 
 	// Try to retrieve the registered provider
-	providerName := GetProviderId("elxr12", "amd64")
+	providerName := system.GetProviderId(OsName, "elxr12", "amd64")
 	retrievedProvider, exists := provider.Get(providerName)
 
 	if !exists {
@@ -467,12 +455,6 @@ func TestElxrProviderWorkflow(t *testing.T) {
 	// without external dependencies that require system access
 
 	elxr := &eLxr{}
-
-	// Set up global configuration
-	config.TargetOs = "elxr"
-	config.TargetDist = "elxr12"
-	config.TargetArch = "amd64"
-	config.TargetImageType = "qcow2"
 
 	// Test provider name generation
 	name := elxr.Name("elxr12", "amd64")
