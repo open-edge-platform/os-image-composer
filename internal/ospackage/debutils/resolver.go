@@ -62,7 +62,14 @@ func ParseRepositoryMetadata(baseURL string, pkggz string, releaseFile string, r
 
 	// verify the sham256 checksum of the Packages.gz file
 	log.Infof("verifying checksum of package metadata file %s %s", baseURL, localPkggzFile)
-	pkggzVryResult, err := VerifyPackagegz(localReleaseFile, localPkggzFile, arch)
+	// get component from buildPath
+	component := "main"
+	// Detect last underscore and extract the word after it as component
+	if idx := strings.LastIndex(buildPath, "_"); idx != -1 && len(buildPath) > idx+1 {
+		component = buildPath[idx+1:]
+	}
+	//
+	pkggzVryResult, err := VerifyPackagegz(localReleaseFile, localPkggzFile, arch, component)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify pkg file: %w", err)
 	}

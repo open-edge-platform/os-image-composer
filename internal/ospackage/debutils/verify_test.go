@@ -125,7 +125,7 @@ SHA256:
 
 			relPath, pkggzPath, arch := tt.setupFiles(tempDir)
 
-			ok, err := VerifyPackagegz(relPath, pkggzPath, arch)
+			ok, err := VerifyPackagegz(relPath, pkggzPath, arch, "main")
 
 			if tt.expectError {
 				if err == nil {
