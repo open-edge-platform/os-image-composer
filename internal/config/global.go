@@ -11,6 +11,7 @@ import (
 
 	"github.com/open-edge-platform/image-composer/internal/config/validate"
 	"github.com/open-edge-platform/image-composer/internal/utils/security"
+	"github.com/open-edge-platform/image-composer/internal/utils/slice"
 	"gopkg.in/yaml.v3"
 )
 
@@ -93,6 +94,7 @@ func LoadGlobalConfig(configPath string) (*GlobalConfig, error) {
 	// Load and merge config file values with symlink protection
 	data, err := security.SafeReadFile(configPath, security.RejectSymlinks)
 	if err != nil {
+		log.Errorf("Error reading config file %s: %v", configPath, err)
 		return nil, fmt.Errorf("reading config file %s: %w", configPath, err)
 	}
 
@@ -101,26 +103,31 @@ func LoadGlobalConfig(configPath string) (*GlobalConfig, error) {
 	switch ext {
 	case ".yaml", ".yml":
 		if err := yaml.Unmarshal(data, config); err != nil {
+			log.Errorf("Error parsing YAML config: %v", err)
 			return nil, fmt.Errorf("parsing YAML config: %w", err)
 		}
 
 		// Convert to JSON for schema validation
 		jsonData, err := json.Marshal(config)
 		if err != nil {
+			log.Errorf("Error converting config to JSON for validation: %v", err)
 			return nil, fmt.Errorf("converting config to JSON for validation: %w", err)
 		}
 
 		// Validate against schema
 		if err := validate.ValidateConfigJSON(jsonData); err != nil {
+			log.Errorf("Schema validation failed: %v", err)
 			return nil, fmt.Errorf("schema validation failed: %w", err)
 		}
 
 	default:
+		log.Errorf("Unsupported config file format: %s", ext)
 		return nil, fmt.Errorf("unsupported config file format: %s (supported: .yaml, .yml)", ext)
 	}
 
 	// Validate the final configuration
 	if err := config.Validate(); err != nil {
+		log.Errorf("Config validation failed: %v", err)
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 
@@ -133,6 +140,7 @@ func (gc *GlobalConfig) SaveGlobalConfig(configPath string) error {
 	dir := filepath.Dir(configPath)
 	if dir != "." && dir != "" {
 		if err := os.MkdirAll(dir, 0700); err != nil {
+			log.Errorf("Failed to create config directory: %v", err)
 			return fmt.Errorf("creating config directory: %w", err)
 		}
 	}
@@ -140,21 +148,25 @@ func (gc *GlobalConfig) SaveGlobalConfig(configPath string) error {
 	// Convert to JSON for schema validation before saving
 	jsonData, err := json.Marshal(gc)
 	if err != nil {
+		log.Errorf("Error converting config to JSON for validation: %v", err)
 		return fmt.Errorf("converting config to JSON for validation: %w", err)
 	}
 
 	if err := validate.ValidateConfigJSON(jsonData); err != nil {
+		log.Errorf("Config validation failed before save: %v", err)
 		return fmt.Errorf("config validation failed before save: %w", err)
 	}
 
 	// Marshal to YAML
 	data, err := yaml.Marshal(gc)
 	if err != nil {
+		log.Errorf("Error marshaling config to YAML: %v", err)
 		return fmt.Errorf("marshaling config to YAML: %w", err)
 	}
 
 	// Use safe write to prevent symlink attacks
 	if err := security.SafeWriteFile(configPath, data, 0600, security.RejectSymlinks); err != nil {
+		log.Errorf("Error writing config file: %v", err)
 		return fmt.Errorf("writing config file: %w", err)
 	}
 
@@ -166,23 +178,27 @@ func (gc *GlobalConfig) SaveGlobalConfig(configPath string) error {
 func (gc *GlobalConfig) Validate() error {
 	// Validate workers range
 	if gc.Workers <= 0 {
+		log.Errorf("Workers must be greater than 0, got %d", gc.Workers)
 		return fmt.Errorf("workers must be greater than 0, got %d", gc.Workers)
 	}
 	if gc.Workers > 100 {
+		log.Errorf("Workers cannot exceed 100, got %d", gc.Workers)
 		return fmt.Errorf("workers cannot exceed 100, got %d", gc.Workers)
 	}
 
 	// Validate required fields are not empty
 	if gc.CacheDir == "" {
-		return fmt.Errorf("cache_dir cannot be empty")
+		log.Errorf("CacheDir cannot be empty")
+		return fmt.Errorf("CacheDir cannot be empty")
 	}
 	if gc.WorkDir == "" {
-		return fmt.Errorf("work_dir cannot be empty")
+		log.Errorf("WorkDir cannot be empty")
+		return fmt.Errorf("WorkDir cannot be empty")
 	}
 
 	// Validate logging level
 	validLevels := []string{"debug", "info", "warn", "error"}
-	if !contains(validLevels, gc.Logging.Level) {
+	if !slice.Contains(validLevels, gc.Logging.Level) {
 		return fmt.Errorf("invalid log level %q, must be one of: %s",
 			gc.Logging.Level, strings.Join(validLevels, ", "))
 	}
@@ -248,15 +264,30 @@ func VerificationWorkers() int {
 }
 
 func ConfigDir() (string, error) {
-	return filepath.Abs(Global().ConfigDir)
+	configDir, err := filepath.Abs(Global().ConfigDir)
+	if err != nil {
+		log.Errorf("Failed to resolve config directory: %v", err)
+		return "", fmt.Errorf("failed to resolving config directory: %w", err)
+	}
+	return configDir, nil
 }
 
 func CacheDir() (string, error) {
-	return filepath.Abs(Global().CacheDir)
+	cacheDir, err := filepath.Abs(Global().CacheDir)
+	if err != nil {
+		log.Errorf("Failed to resolve cache directory: %v", err)
+		return "", fmt.Errorf("failed to resolve cache directory: %w", err)
+	}
+	return cacheDir, nil
 }
 
 func WorkDir() (string, error) {
-	return filepath.Abs(Global().WorkDir)
+	workDir, err := filepath.Abs(Global().WorkDir)
+	if err != nil {
+		log.Errorf("Failed to resolve work directory: %v", err)
+		return "", fmt.Errorf("failed to resolve work directory: %w", err)
+	}
+	return workDir, nil
 }
 
 func TempDir() string {
@@ -305,16 +336,6 @@ func ensureDirExists(dir string) error {
 	return nil
 }
 
-// contains checks if a slice contains a string
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
-
 func GetGeneralConfigDir() (string, error) {
 	configPath, err := ConfigDir()
 	if err != nil {
@@ -322,6 +343,7 @@ func GetGeneralConfigDir() (string, error) {
 	}
 	generalConfigDir := filepath.Join(configPath, "general")
 	if _, err := os.Stat(generalConfigDir); os.IsNotExist(err) {
+		log.Errorf("General config directory does not exist: %s", generalConfigDir)
 		return "", fmt.Errorf("general config directory does not exist: %s", generalConfigDir)
 	}
 	return generalConfigDir, nil
@@ -334,6 +356,7 @@ func GetTargetOsConfigDir(targetOs, targetDist string) (string, error) {
 	}
 	targetOsConfigPath := filepath.Join(configPath, "osv", targetOs, targetDist)
 	if _, err := os.Stat(targetOsConfigPath); os.IsNotExist(err) {
+		log.Errorf("Target OS config directory does not exist: %s", targetOsConfigPath)
 		return "", fmt.Errorf("target OS config directory does not exist: %s", targetOsConfigPath)
 	}
 	return targetOsConfigPath, nil

@@ -1916,7 +1916,7 @@ func TestValidateImageTemplateJSON(t *testing.T) {
 		"image": {"name": "test", "version": "1.0.0"},
 		"target": {"os": "azure-linux", "dist": "azl3", "arch": "x86_64", "imageType": "raw"},
 		"systemConfig": {
-			"name": "test-config", 
+			"name": "test-config",
 			"packages": ["test-pkg"],
 			"kernel": {"version": "6.12", "cmdline": "quiet"}
 		}
@@ -2069,7 +2069,7 @@ func TestLoadTemplateWithJSONValidation(t *testing.T) {
   version: "1.0.0"
 target:
   os: azure-linux
-  dist: azl3  
+  dist: azl3
   arch: x86_64
   imageType: raw
 systemConfig:
@@ -2456,35 +2456,23 @@ systemConfig:
 	}
 	tmpFile.Close()
 
-	// Save original global variables
-	origOs := TargetOs
-	origDist := TargetDist
-	origArch := TargetArch
-	origImageType := TargetImageType
-	defer func() {
-		TargetOs = origOs
-		TargetDist = origDist
-		TargetArch = origArch
-		TargetImageType = origImageType
-	}()
-
 	template, err := LoadTemplate(tmpFile.Name(), false)
 	if err != nil {
 		t.Fatalf("LoadTemplate failed: %v", err)
 	}
 
 	// Check that global variables were set
-	if TargetOs != "wind-river-elxr" {
-		t.Errorf("expected TargetOs = 'wind-river-elxr', got '%s'", TargetOs)
+	if template.Target.OS != "wind-river-elxr" {
+		t.Errorf("expected TargetOs = 'wind-river-elxr', got '%s'", template.Target.OS)
 	}
-	if TargetDist != "elxr12" {
-		t.Errorf("expected TargetDist = 'elxr12', got '%s'", TargetDist)
+	if template.Target.Dist != "elxr12" {
+		t.Errorf("expected TargetDist = 'elxr12', got '%s'", template.Target.Dist)
 	}
-	if TargetArch != "x86_64" {
-		t.Errorf("expected TargetArch = 'x86_64', got '%s'", TargetArch)
+	if template.Target.Arch != "x86_64" {
+		t.Errorf("expected TargetArch = 'x86_64', got '%s'", template.Target.Arch)
 	}
-	if TargetImageType != "raw" {
-		t.Errorf("expected TargetImageType = 'raw', got '%s'", TargetImageType)
+	if template.Target.ImageType != "raw" {
+		t.Errorf("expected TargetImageType = 'raw', got '%s'", template.Target.ImageType)
 	}
 
 	if template.Image.Name != "global-test" {

@@ -21,29 +21,44 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/utils/shell"
 )
 
+type ImageOsInterface interface {
+	GetInstallRoot() string
+	InstallInitrd() (installRoot, versionInfo string, err error)
+	InstallImageOs(diskPathIdMap map[string]string) (versionInfo string, err error)
+}
+
 type ImageOs struct {
 	installRoot string
-	chrootEnv   *chroot.ChrootEnv
 	template    *config.ImageTemplate
+	chrootEnv   chroot.ChrootEnvInterface
+	imageBoot   imageboot.ImageBootInterface
 }
 
 var log = logger.Logger()
 
-func NewImageOs(chrootEnv *chroot.ChrootEnv, template *config.ImageTemplate) (*ImageOs, error) {
-	if _, err := os.Stat(chrootEnv.ChrootImageBuildDir); os.IsNotExist(err) {
-		log.Errorf("Chroot image build directory does not exist: %s", chrootEnv.ChrootImageBuildDir)
-		return nil, fmt.Errorf("chroot image build directory does not exist: %s", chrootEnv.ChrootImageBuildDir)
+func NewImageOs(chrootEnv chroot.ChrootEnvInterface, template *config.ImageTemplate) (*ImageOs, error) {
+	chrootImageBuildDir := chrootEnv.GetChrootImageBuildDir()
+	if _, err := os.Stat(chrootImageBuildDir); os.IsNotExist(err) {
+		log.Errorf("Chroot image build directory does not exist: %s", chrootImageBuildDir)
+		return nil, fmt.Errorf("chroot image build directory does not exist: %s", chrootImageBuildDir)
+	}
+	if template == nil {
+		return nil, fmt.Errorf("image template cannot be nil")
 	}
 	sysConfigName := template.GetSystemConfigName()
-	installRoot := filepath.Join(chrootEnv.ChrootImageBuildDir, sysConfigName)
+	installRoot := filepath.Join(chrootImageBuildDir, sysConfigName)
 	if _, err := shell.ExecCmd("mkdir -p "+installRoot, true, "", nil); err != nil {
 		log.Errorf("Failed to create install root directory %s: %v", installRoot, err)
 		return nil, fmt.Errorf("failed to create directory %s: %w", installRoot, err)
 	}
+
+	imageBoot := imageboot.NewImageBoot()
+
 	return &ImageOs{
 		installRoot: installRoot,
-		chrootEnv:   chrootEnv,
 		template:    template,
+		chrootEnv:   chrootEnv,
+		imageBoot:   imageBoot,
 	}, nil
 }
 
@@ -163,7 +178,7 @@ func (imageOs *ImageOs) InstallImageOs(diskPathIdMap map[string]string) (version
 	}
 
 	log.Infof("Installing bootloader...")
-	if err = imageboot.InstallImageBoot(imageOs.installRoot, diskPathIdMap, imageOs.template); err != nil {
+	if err = imageOs.imageBoot.InstallImageBoot(imageOs.installRoot, diskPathIdMap, imageOs.template); err != nil {
 		err = fmt.Errorf("failed to install image boot: %w", err)
 		return
 	}
@@ -226,7 +241,8 @@ func (imageOs *ImageOs) initRootfsForDeb(installRoot string) error {
 		"-- bookworm %s %s",
 		pkgListStr, chrootInstallRoot, localRepoConfigChrootPath)
 
-	if _, err = shell.ExecCmdWithStream(cmd, true, imageOs.chrootEnv.ChrootEnvRoot, nil); err != nil {
+	chrootEnvRoot := imageOs.chrootEnv.GetChrootEnvRoot()
+	if _, err = shell.ExecCmdWithStream(cmd, true, chrootEnvRoot, nil); err != nil {
 		log.Errorf("Failed to install essential packages into image: %v", err)
 		return fmt.Errorf("failed to install packages into image: %w", err)
 	}
@@ -393,7 +409,8 @@ func (imageOs *ImageOs) initImageRpmDb(installRoot string, template *config.Imag
 		return fmt.Errorf("failed to get chroot environment path: %w", err)
 	}
 	cmd := fmt.Sprintf("rpm --root %s --initdb", chrootInstallRoot)
-	if _, err := shell.ExecCmd(cmd, true, imageOs.chrootEnv.ChrootEnvRoot, nil); err != nil {
+	chrootEnvRoot := imageOs.chrootEnv.GetChrootEnvRoot()
+	if _, err := shell.ExecCmd(cmd, true, chrootEnvRoot, nil); err != nil {
 		log.Errorf("Failed to initialize RPM database in %s: %v", chrootInstallRoot, err)
 		return fmt.Errorf("failed to initialize RPM database: %w", err)
 	}
@@ -589,7 +606,7 @@ func (imageOs *ImageOs) getImageVersionInfo(installRoot string, template *config
 	var versionInfo string
 	log.Infof("Getting image version info for: %s", template.GetImageName())
 
-	switch config.TargetOs {
+	switch template.Target.OS {
 	case "azure-linux", "edge-microvisor-toolkit":
 		imageVersionFilePath := filepath.Join(installRoot, "etc", "os-release")
 		if _, err := os.Stat(imageVersionFilePath); os.IsNotExist(err) {

@@ -103,7 +103,7 @@ func TestUpdateLocalDebRepo_ExistingPackagesGz(t *testing.T) {
 
 	// Create the directory structure and an existing Packages.gz file
 	metaDir := filepath.Join(tempDir, "dists/stable/main/binary-amd64")
-	if err := os.MkdirAll(metaDir, 0755); err != nil {
+	if err := os.MkdirAll(metaDir, 0700); err != nil {
 		t.Fatalf("Failed to create metadata directory: %v", err)
 	}
 
@@ -226,7 +226,7 @@ func TestInstallDebPkg_ValidParameters(t *testing.T) {
 
 	// Create the required directory structure
 	configDir := filepath.Join(tempDir, "chrootenvconfigs")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0700); err != nil {
 		t.Fatalf("Failed to create config directory: %v", err)
 	}
 
@@ -239,7 +239,7 @@ func TestInstallDebPkg_ValidParameters(t *testing.T) {
 
 	// Create cache directory
 	chrootPkgCacheDir := filepath.Join(tempDir, "cache")
-	if err := os.MkdirAll(chrootPkgCacheDir, 0755); err != nil {
+	if err := os.MkdirAll(chrootPkgCacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -274,7 +274,7 @@ func TestInstallDebPkg_ChrootEnvCreation(t *testing.T) {
 
 	// Create the required directory structure
 	configDir := filepath.Join(tempDir, "chrootenvconfigs")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0700); err != nil {
 		t.Fatalf("Failed to create config directory: %v", err)
 	}
 
@@ -285,7 +285,7 @@ func TestInstallDebPkg_ChrootEnvCreation(t *testing.T) {
 	}
 
 	chrootPkgCacheDir := filepath.Join(tempDir, "cache")
-	if err := os.MkdirAll(chrootPkgCacheDir, 0755); err != nil {
+	if err := os.MkdirAll(chrootPkgCacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -323,7 +323,7 @@ func TestDebInstaller_PackageListFormatting(t *testing.T) {
 
 	// Setup required files
 	configDir := filepath.Join(tempDir, "chrootenvconfigs")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0700); err != nil {
 		t.Fatalf("Failed to create config directory: %v", err)
 	}
 
@@ -333,7 +333,7 @@ func TestDebInstaller_PackageListFormatting(t *testing.T) {
 	}
 
 	chrootPkgCacheDir := filepath.Join(tempDir, "cache")
-	if err := os.MkdirAll(chrootPkgCacheDir, 0755); err != nil {
+	if err := os.MkdirAll(chrootPkgCacheDir, 0700); err != nil {
 		t.Fatalf("Failed to create cache directory: %v", err)
 	}
 
@@ -390,7 +390,7 @@ func TestInstallDebPkg_RepoPathConstant(t *testing.T) {
 	// when the mount operation fails
 
 	configDir := filepath.Join(tempDir, "chrootenvconfigs")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0700); err != nil {
 		t.Fatalf("Failed to create config directory: %v", err)
 	}
 

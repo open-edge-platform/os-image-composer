@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/open-edge-platform/image-composer/internal/config/schema"
+	"github.com/open-edge-platform/image-composer/internal/utils/logger"
 
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
@@ -18,11 +19,14 @@ const (
 	fullRef          = "#/$defs/FullTemplate"
 )
 
+var log = logger.Logger()
+
 // ValidateAgainstSchema compiles the given schema bytes and runs it against
 // the JSON in data.  The `name` is only used to identify the schema in errors.
 func ValidateAgainstSchema(name string, schemaBytes, data []byte, ref string) error {
 	comp := jsonschema.NewCompiler()
 	if err := comp.AddResource(name, bytes.NewReader(schemaBytes)); err != nil {
+		log.Errorf("Error loading schema %q: %v", name, err)
 		return fmt.Errorf("loading schema %q: %w", name, err)
 	}
 
@@ -41,15 +45,18 @@ func ValidateAgainstSchema(name string, schemaBytes, data []byte, ref string) er
 	}
 	sch, err := comp.Compile(target)
 	if err != nil {
+		log.Errorf("Error compiling schema %q: %v", name, err)
 		return fmt.Errorf("compiling schema %q: %w", name, err)
 	}
 
 	// unmarshal into interface{} so the validator can walk it
 	var doc interface{}
 	if err := json.Unmarshal(data, &doc); err != nil {
+		log.Errorf("Invalid JSON for %q: %v", name, err)
 		return fmt.Errorf("invalid JSON for %q: %w", name, err)
 	}
 	if err := sch.Validate(doc); err != nil {
+		log.Errorf("Schema validation against %q failed: %v", name, err)
 		return fmt.Errorf("schema validation against %q failed: %w", name, err)
 	}
 	return nil

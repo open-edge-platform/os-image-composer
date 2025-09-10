@@ -108,14 +108,14 @@ func setupTestFiles(t *testing.T) (string, func()) {
 
 	// Create source directory structure
 	srcDir := filepath.Join(tempDir, "src")
-	if err := os.MkdirAll(srcDir, 0755); err != nil {
+	if err := os.MkdirAll(srcDir, 0700); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("Failed to create source directory: %v", err)
 	}
 
 	// Create source sub-directory
 	srcSubDir := filepath.Join(srcDir, "subdir")
-	if err := os.MkdirAll(srcSubDir, 0755); err != nil {
+	if err := os.MkdirAll(srcSubDir, 0700); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("Failed to create source sub-directory: %v", err)
 	}
@@ -136,7 +136,7 @@ func setupTestFiles(t *testing.T) (string, func()) {
 
 	// Create destination directory
 	dstDir := filepath.Join(tempDir, "dst")
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
+	if err := os.MkdirAll(dstDir, 0700); err != nil {
 		os.RemoveAll(tempDir)
 		t.Fatalf("Failed to create destination directory: %v", err)
 	}

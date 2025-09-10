@@ -5,7 +5,7 @@ import (
 
 	"github.com/open-edge-platform/image-composer/internal/config"
 	"github.com/open-edge-platform/image-composer/internal/provider"
-	"github.com/open-edge-platform/image-composer/internal/provider/azl"
+	"github.com/open-edge-platform/image-composer/internal/utils/system"
 )
 
 // fakeProvider implements the Provider interface and records lifecycle calls.
@@ -20,7 +20,7 @@ type fakeProvider struct {
 func (f *fakeProvider) Name(dist, arch string) string {
 	f.nameCalled = true
 	// Register under the same key pattern as azl to match registry expectations.
-	return azl.GetProviderId(dist, arch)
+	return system.GetProviderId("azure-linux", dist, arch)
 }
 
 func (f *fakeProvider) Init(dist, arch string) error             { f.inited = true; return nil }
@@ -40,7 +40,7 @@ func TestProvider_Register_Get_AndLifecycle(t *testing.T) {
 	provider.Register(f, dist, arch)
 
 	// Retrieve by computed id
-	id := azl.GetProviderId(dist, arch)
+	id := system.GetProviderId("azure-linux", dist, arch)
 	got, ok := provider.Get(id)
 	if !ok {
 		t.Fatalf("expected provider.Get(%q) to succeed", id)

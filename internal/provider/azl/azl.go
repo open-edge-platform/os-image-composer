@@ -21,19 +21,22 @@ import (
 )
 
 const (
+	OsName     = "azure-linux"
 	baseURL    = "https://packages.microsoft.com/azurelinux/3.0/prod/base/"
 	configName = "config.repo"
 	repodata   = "repodata/repomd.xml"
 )
+
+var log = logger.Logger()
 
 // AzureLinux implements provider.Provider
 type AzureLinux struct {
 	repoURL   string
 	repoCfg   rpmutils.RepoConfig
 	gzHref    string
-	chrootEnv *chroot.ChrootEnv
-	rawMaker  *rawmaker.RawMaker
-	isoMaker  *isomaker.IsoMaker
+	chrootEnv chroot.ChrootEnvInterface
+	rawMaker  rawmaker.RawMakerInterface
+	isoMaker  isomaker.IsoMakerInterface
 }
 
 func Register(targetOs, targetDist, targetArch string) error {
@@ -60,38 +63,38 @@ func Register(targetOs, targetDist, targetArch string) error {
 
 // Name returns the unique name of the provider
 func (p *AzureLinux) Name(dist, arch string) string {
-	return GetProviderId(dist, arch)
+	return system.GetProviderId(OsName, dist, arch)
 }
 
 // Init will initialize the provider, fetching repo configuration
 func (p *AzureLinux) Init(dist, arch string) error {
-	log := logger.Logger()
+
 	p.repoURL = baseURL + arch + "/" + configName
 
 	resp, err := http.Get(p.repoURL)
 	if err != nil {
-		log.Errorf("downloading repo config %s failed: %v", p.repoURL, err)
+		log.Errorf("Downloading repo config %s failed: %v", p.repoURL, err)
 		return err
 	}
 	defer resp.Body.Close()
 
 	cfg, err := loadRepoConfig(resp.Body)
 	if err != nil {
-		log.Errorf("parsing repo config failed: %v", err)
+		log.Errorf("Parsing repo config failed: %v", err)
 		return err
 	}
 
 	repoDataURL := baseURL + arch + "/" + repodata
 	href, err := fetchPrimaryURL(repoDataURL)
 	if err != nil {
-		log.Errorf("fetch primary.xml.gz failed: %v", err)
+		log.Errorf("Fetch primary.xml.gz failed: %v", err)
 		return err
 	}
 
 	p.repoCfg = cfg
 	p.gzHref = href
 
-	log.Infof("initialized AzureLinux3 provider repo section=%s", cfg.Section)
+	log.Infof("Initialized AzureLinux3 provider repo section=%s", cfg.Section)
 	log.Infof("name=%s", cfg.Name)
 	log.Infof("url=%s", cfg.URL)
 	log.Infof("primary.xml.gz=%s", p.gzHref)
@@ -108,21 +111,26 @@ func (p *AzureLinux) PreProcess(template *config.ImageTemplate) error {
 		return fmt.Errorf("failed to download image packages: %w", err)
 	}
 
-	if err := p.chrootEnv.InitChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch); err != nil {
+	if err := p.chrootEnv.InitChrootEnv(template.Target.OS,
+		template.Target.Dist, template.Target.Arch); err != nil {
 		return fmt.Errorf("failed to initialize chroot environment: %w", err)
 	}
 	return nil
 }
 
 func (p *AzureLinux) BuildImage(template *config.ImageTemplate) error {
-	if config.TargetImageType == "iso" {
-		err := p.isoMaker.BuildIsoImage(template)
-		if err != nil {
+	if template.Target.ImageType == "iso" {
+		if err := p.isoMaker.Init(template); err != nil {
+			return fmt.Errorf("failed to initialize ISO image maker: %w", err)
+		}
+		if err := p.isoMaker.BuildIsoImage(template); err != nil {
 			return fmt.Errorf("failed to build ISO image: %w", err)
 		}
 	} else {
-		err := p.rawMaker.BuildRawImage(template)
-		if err != nil {
+		if err := p.rawMaker.Init(template); err != nil {
+			return fmt.Errorf("failed to initialize raw image maker: %w", err)
+		}
+		if err := p.rawMaker.BuildRawImage(template); err != nil {
 			return fmt.Errorf("failed to build raw image: %w", err)
 		}
 	}
@@ -130,14 +138,14 @@ func (p *AzureLinux) BuildImage(template *config.ImageTemplate) error {
 }
 
 func (p *AzureLinux) PostProcess(template *config.ImageTemplate, err error) error {
-	if err := p.chrootEnv.CleanupChrootEnv(config.TargetOs, config.TargetDist, config.TargetArch); err != nil {
+	if err := p.chrootEnv.CleanupChrootEnv(template.Target.OS,
+		template.Target.Dist, template.Target.Arch); err != nil {
 		return fmt.Errorf("failed to cleanup chroot environment: %w", err)
 	}
 	return err
 }
 
 func (p *AzureLinux) installHostDependency() error {
-	log := logger.Logger()
 	var depedencyInfo = map[string]string{
 		"rpm":      "rpm",        // For the chroot env build RPM pkg installation
 		"mkfs.fat": "dosfstools", // For the FAT32 boot partition creation
@@ -156,8 +164,7 @@ func (p *AzureLinux) installHostDependency() error {
 		}
 		if !cmdExist {
 			cmdStr := fmt.Sprintf("%s install -y %s", hostPkgManager, pkg)
-			_, err := shell.ExecCmdWithStream(cmdStr, true, "", nil)
-			if err != nil {
+			if _, err := shell.ExecCmdWithStream(cmdStr, true, "", nil); err != nil {
 				return fmt.Errorf("failed to install host dependency %s: %w", pkg, err)
 			}
 			log.Debugf("Installed host dependency: %s", pkg)
@@ -170,7 +177,7 @@ func (p *AzureLinux) installHostDependency() error {
 
 func (p *AzureLinux) downloadImagePkgs(template *config.ImageTemplate) error {
 	pkgList := template.GetPackages()
-	providerId := p.Name(config.TargetDist, config.TargetArch)
+	providerId := p.Name(template.Target.Dist, template.Target.Arch)
 	globalCache, err := config.CacheDir()
 	if err != nil {
 		return fmt.Errorf("failed to get global cache dir: %w", err)
@@ -178,12 +185,8 @@ func (p *AzureLinux) downloadImagePkgs(template *config.ImageTemplate) error {
 	pkgCacheDir := filepath.Join(globalCache, "pkgCache", providerId)
 	rpmutils.RepoCfg = p.repoCfg
 	rpmutils.GzHref = p.gzHref
-	config.FullPkgList, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, "")
+	template.FullPkgList, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, "")
 	return err
-}
-
-func GetProviderId(dist, arch string) string {
-	return "azure-linux" + "-" + dist + "-" + arch
 }
 
 // loadRepoConfig parses the repo configuration data
