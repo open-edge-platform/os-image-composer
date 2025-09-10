@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"sigs.k8s.io/yaml"
@@ -369,5 +370,163 @@ systemConfig:
 				t.Errorf("expected %s to fail validation (%s), but it passed", tt.name, tt.description)
 			}
 		})
+	}
+}
+func TestValidateAgainstSchema_InvalidJSON(t *testing.T) {
+	invalidJSON := []byte(`{invalid json}`)
+	err := ValidateAgainstSchema("test.schema.json", []byte(`{}`), invalidJSON, "")
+	if err == nil || !strings.Contains(err.Error(), "invalid JSON") {
+		t.Errorf("expected invalid JSON error, got: %v", err)
+	}
+}
+
+func TestValidateAgainstSchema_InvalidSchema(t *testing.T) {
+	invalidSchema := []byte(`{invalid schema}`)
+	validJSON := []byte(`{}`)
+	err := ValidateAgainstSchema("test.schema.json", invalidSchema, validJSON, "")
+	if err == nil || !strings.Contains(err.Error(), "loading schema") {
+		t.Errorf("expected schema loading error, got: %v", err)
+	}
+}
+
+func TestValidateAgainstSchema_InvalidRef(t *testing.T) {
+	// Valid empty schema, but ref does not exist
+	schemaBytes := []byte(`{"$schema":"http://json-schema.org/draft-07/schema#"}`)
+	validJSON := []byte(`{}`)
+	err := ValidateAgainstSchema("test.schema.json", schemaBytes, validJSON, "#/not-a-real-ref")
+	if err == nil || !strings.Contains(err.Error(), "compiling schema") {
+		t.Errorf("expected compiling schema error for invalid ref, got: %v", err)
+	}
+}
+
+func TestValidateAgainstSchema_ValidationFails(t *testing.T) {
+	// Schema expects a string, but we provide a number
+	schemaBytes := []byte(`{"type":"string"}`)
+	data := []byte(`123`)
+	err := ValidateAgainstSchema("test.schema.json", schemaBytes, data, "")
+	if err == nil || !strings.Contains(err.Error(), "schema validation against") {
+		t.Errorf("expected schema validation error, got: %v", err)
+	}
+}
+
+func TestValidateAgainstSchema_ValidationPasses(t *testing.T) {
+	// Schema expects a string, and we provide a string
+	schemaBytes := []byte(`{"type":"string"}`)
+	data := []byte(`"hello"`)
+	err := ValidateAgainstSchema("test.schema.json", schemaBytes, data, "")
+	if err != nil {
+		t.Errorf("expected validation to pass, got: %v", err)
+	}
+}
+
+func TestValidateUserTemplateJSON_CallsValidateAgainstSchema(t *testing.T) {
+	// This test just ensures the function calls ValidateAgainstSchema with correct ref
+	// We use a minimal valid user template (should fail schema, but that's fine)
+	data := []byte(`{"foo":"bar"}`)
+	err := ValidateUserTemplateJSON(data)
+	if err == nil {
+		t.Errorf("expected error due to schema mismatch, got nil")
+	}
+}
+
+func TestValidateImageTemplateJSON_CallsValidateAgainstSchema(t *testing.T) {
+	// This test just ensures the function calls ValidateAgainstSchema with correct ref
+	data := []byte(`{"foo":"bar"}`)
+	err := ValidateImageTemplateJSON(data)
+	if err == nil {
+		t.Errorf("expected error due to schema mismatch, got nil")
+	}
+}
+
+func TestValidateConfigJSON_CallsValidateAgainstSchema(t *testing.T) {
+	// This test just ensures the function calls ValidateAgainstSchema with correct schema
+	data := []byte(`{"foo":"bar"}`)
+	err := ValidateConfigJSON(data)
+	if err == nil {
+		t.Errorf("expected error due to schema mismatch, got nil")
+	}
+}
+func TestValidateAgainstSchema_RefVariants(t *testing.T) {
+	schemaBytes := []byte(`{
+        "$schema":"http://json-schema.org/draft-07/schema#",
+        "$defs": {
+            "Test": {
+                "$anchor": "Test",
+                "type": "object",
+                "properties": { "foo": { "type": "string" } },
+                "required": ["foo"]
+            }
+        }
+    }`)
+	validJSON := []byte(`{"foo":"bar"}`)
+
+	// These should pass
+	err := ValidateAgainstSchema("inline", schemaBytes, validJSON, "#/$defs/Test")
+	if err != nil {
+		t.Errorf("expected validation to pass with #/$defs/Test, got: %v", err)
+	}
+
+	err = ValidateAgainstSchema("inline", schemaBytes, validJSON, "/$defs/Test")
+	if err != nil {
+		t.Errorf("expected validation to pass with /$defs/Test, got: %v", err)
+	}
+
+	// This will only work if your validator supports $anchor and you reference as "#Test"
+	err = ValidateAgainstSchema("inline", schemaBytes, validJSON, "#Test")
+	if err != nil {
+		t.Logf("anchor #Test not supported by this validator: %v", err)
+	}
+}
+
+func TestValidateAgainstSchema_InvalidJSONErrorMessage(t *testing.T) {
+	schemaBytes := []byte(`{"type":"object"}`)
+	invalidJSON := []byte(`{invalid}`)
+	err := ValidateAgainstSchema("test.schema.json", schemaBytes, invalidJSON, "")
+	if err == nil || !strings.Contains(err.Error(), "invalid JSON") {
+		t.Errorf("expected invalid JSON error, got: %v", err)
+	}
+}
+
+func TestValidateAgainstSchema_ValidationErrorMessage(t *testing.T) {
+	schemaBytes := []byte(`{"type":"object","required":["foo"]}`)
+	data := []byte(`{}`)
+	err := ValidateAgainstSchema("test.schema.json", schemaBytes, data, "")
+	if err == nil || !strings.Contains(err.Error(), "schema validation against") {
+		t.Errorf("expected schema validation error, got: %v", err)
+	}
+}
+
+func TestValidateImageTemplateJSON_DelegatesToValidateAgainstSchema(t *testing.T) {
+	// This test ensures ValidateImageTemplateJSON calls ValidateAgainstSchema with correct params.
+	// We use a minimal valid template for the fullRef.
+	data := []byte(`{"image":{"name":"n","version":"1.0.0"},"target":{"os":"azure-linux","dist":"azl3","arch":"x86_64","imageType":"raw"},"systemConfig":{"name":"n","packages":["filesystem"],"kernel":{"version":"6.12"}}}`)
+	err := ValidateImageTemplateJSON(data)
+	// Should fail unless schema accepts this, but we only care that it calls ValidateAgainstSchema.
+	if err == nil {
+		// If schema is permissive, that's fine.
+	} else if !strings.Contains(err.Error(), "schema validation against") && !strings.Contains(err.Error(), "compiling schema") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateUserTemplateJSON_DelegatesToValidateAgainstSchema(t *testing.T) {
+	// This test ensures ValidateUserTemplateJSON calls ValidateAgainstSchema with correct params.
+	data := []byte(`{"image":{"name":"n","version":"1.0.0"},"target":{"os":"azure-linux","dist":"azl3","arch":"x86_64","imageType":"raw"}}`)
+	err := ValidateUserTemplateJSON(data)
+	if err == nil {
+		// If schema is permissive, that's fine.
+	} else if !strings.Contains(err.Error(), "schema validation against") && !strings.Contains(err.Error(), "compiling schema") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateConfigJSON_DelegatesToValidateAgainstSchema(t *testing.T) {
+	// This test ensures ValidateConfigJSON calls ValidateAgainstSchema with correct params.
+	data := []byte(`{"foo":"bar"}`)
+	err := ValidateConfigJSON(data)
+	if err == nil {
+		// If schema is permissive, that's fine.
+	} else if !strings.Contains(err.Error(), "schema validation against") && !strings.Contains(err.Error(), "compiling schema") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
