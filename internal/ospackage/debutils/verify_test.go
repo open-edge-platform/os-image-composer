@@ -359,8 +359,8 @@ func TestVerifyDEBs(t *testing.T) {
 	if results[2].OK {
 		t.Errorf("Expected missing.deb to fail verification")
 	}
-	if results[2].Error == nil || !strings.Contains(results[2].Error.Error(), "no checksum found") {
-		t.Errorf("Expected 'no checksum found' error, got: %v", results[2].Error)
+	if results[2].Error == nil || !strings.Contains(results[2].Error.Error(), "no checksums found") {
+		t.Errorf("Expected 'no checksums found' error, got: %v", results[2].Error)
 	}
 
 	// Check nonexistent.deb result (file not found)
