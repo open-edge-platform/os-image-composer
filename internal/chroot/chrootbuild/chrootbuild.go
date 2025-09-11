@@ -1,18 +1,24 @@
 package chrootbuild
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/open-edge-platform/image-composer/internal/chroot/deb"
 	"github.com/open-edge-platform/image-composer/internal/chroot/rpm"
 	"github.com/open-edge-platform/image-composer/internal/config"
+	"github.com/open-edge-platform/image-composer/internal/config/schema"
+	"github.com/open-edge-platform/image-composer/internal/config/validate"
 	"github.com/open-edge-platform/image-composer/internal/ospackage/debutils"
 	"github.com/open-edge-platform/image-composer/internal/ospackage/rpmutils"
 	"github.com/open-edge-platform/image-composer/internal/utils/compression"
 	"github.com/open-edge-platform/image-composer/internal/utils/file"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/security"
 	"github.com/open-edge-platform/image-composer/internal/utils/shell"
 	"github.com/open-edge-platform/image-composer/internal/utils/system"
 )
@@ -39,6 +45,12 @@ type ChrootBuilder struct {
 	ChrootPkgCacheDir string
 	RpmInstaller      rpm.RpmInstallerInterface
 	DebInstaller      deb.DebInstallerInterface
+}
+
+// ChrootenvConfig represents the structure of a chrootenv configuration file
+type ChrootenvConfig struct {
+	Essential []string `yaml:"essential,omitempty" json:"essential,omitempty"`
+	Packages  []string `yaml:"packages" json:"packages"`
 }
 
 func NewChrootBuilder(targetOs string, targetDist string, targetArch string) (*ChrootBuilder, error) {
@@ -123,17 +135,26 @@ func (chrootBuilder *ChrootBuilder) GetChrootEnvConfig() (map[interface{}]interf
 		log.Errorf("Chroot environment config file not found in target OS config")
 		return nil, fmt.Errorf("chroot config file not found in target OS config")
 	}
+
 	chrootEnvConfigPath := filepath.Join(chrootBuilder.TargetOsConfigDir, chrootEnvConfigFile.(string))
 	if _, err := os.Stat(chrootEnvConfigPath); os.IsNotExist(err) {
 		log.Errorf("Chroot environment config file does not exist: %s", chrootEnvConfigPath)
 		return nil, fmt.Errorf("chroot environment config file does not exist: %s", chrootEnvConfigPath)
 	}
-	targetOsConfig, err := file.ReadFromYaml(chrootEnvConfigPath)
+
+	// Read the raw YAML data for validation
+	data, err := security.SafeReadFile(chrootEnvConfigPath, security.RejectSymlinks)
 	if err != nil {
-		log.Errorf("Failed to read chroot environment config file: %v", err)
-		return nil, fmt.Errorf("failed to read chroot environment config file: %w", err)
+		return nil, fmt.Errorf("reading chrootenv config file %s: %w", chrootEnvConfigPath, err)
 	}
-	return targetOsConfig, nil
+
+	// Validate the chrootenv configuration before parsing
+	if err := ValidateChrootenvYAML(data); err != nil {
+		return nil, fmt.Errorf("chrootenv config validation failed for %s: %w", chrootEnvConfigPath, err)
+	}
+
+	// Parse into the expected map format (existing logic)
+	return file.ReadFromYaml(chrootEnvConfigPath)
 }
 
 func (chrootBuilder *ChrootBuilder) GetChrootEnvEssentialPackageList() ([]string, error) {
@@ -281,4 +302,31 @@ func (chrootBuilder *ChrootBuilder) BuildChrootEnv(targetOs string, targetDist s
 	}
 
 	return nil
+}
+
+// ValidateChrootenvYAML validates a chrootenv YAML configuration file
+func ValidateChrootenvYAML(data []byte) error {
+	// Parse YAML to generic interface for validation
+	var raw interface{}
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("invalid YAML format: %w", err)
+	}
+
+	// Convert to JSON for schema validation
+	jsonData, err := json.Marshal(raw)
+	if err != nil {
+		return fmt.Errorf("chrootenv validation error: unable to process config: %w", err)
+	}
+
+	return ValidateChrootenvJSON(jsonData)
+}
+
+// ValidateChrootenvJSON validates a chrootenv JSON configuration
+func ValidateChrootenvJSON(data []byte) error {
+	return validate.ValidateAgainstSchema(
+		"chrootenv-config.schema.json",
+		schema.ChrootenvSchema,
+		data,
+		"",
+	)
 }

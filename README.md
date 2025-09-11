@@ -321,27 +321,6 @@ Common packages that can be included:
 
 The image template format is validated against a JSON schema to ensure correctness before building.
 
-### Legacy JSON Format
-
-[!NOTE] 
-The tool previously supported JSON build specifications but now exclusively uses YAML image templates. The JSON format has been removed to simplify the architecture and improve maintainability.
-
-For reference, the old JSON format looked like this:
-
-```json
-{
-    "distro": "eLxr",
-    "version": "12",
-    "arch": "x86_64",
-    "packages": ["cloud-init", "rsyslog"],
-    "immutable": true,
-    "output": "iso",
-    "kernel": { "version": "5.10.0", "cmdline": "quiet splash" }
-}
-```
-
-This has been replaced with the more flexible and intuitive YAML template format shown above.
-
 ### Shell Completion Feature
 
 The image-composer CLI supports shell auto-completion for Bash, Zsh, Fish, and PowerShell command-line shells. This feature helps users discover and use commands and flags more efficiently.
