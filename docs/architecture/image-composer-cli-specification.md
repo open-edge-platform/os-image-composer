@@ -405,5 +405,3 @@ See also:
 - [Understanding the Build Process](./image-composer-build-process.md) describes the five-stage build pipeline.
 - [Understanding Caching](./image-composer-caching.md) explains the package and image caching systems.
 - [Understanding Templates in OS Image Composer](./image-composer-templates.md) demonstrates how to create and reuse templates.
-
-
