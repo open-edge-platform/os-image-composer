@@ -125,7 +125,7 @@ SHA256:
 
 			relPath, pkggzPath, arch := tt.setupFiles(tempDir)
 
-			ok, err := VerifyPackagegz(relPath, pkggzPath, arch)
+			ok, err := VerifyPackagegz(relPath, pkggzPath, arch, "main")
 
 			if tt.expectError {
 				if err == nil {
@@ -315,9 +315,9 @@ func TestVerifyDEBs(t *testing.T) {
 	validChecksum := fmt.Sprintf("%x", sha256.Sum256(validContent))
 	wrongChecksum := "wrongchecksum123456789"
 
-	pkgChecksum := map[string]string{
-		"valid.deb":   validChecksum,
-		"invalid.deb": wrongChecksum,
+	pkgChecksum := map[string][]string{
+		"valid.deb":   {validChecksum},
+		"invalid.deb": {wrongChecksum},
 		// missing.deb intentionally not included
 	}
 
@@ -359,8 +359,8 @@ func TestVerifyDEBs(t *testing.T) {
 	if results[2].OK {
 		t.Errorf("Expected missing.deb to fail verification")
 	}
-	if results[2].Error == nil || !strings.Contains(results[2].Error.Error(), "no checksum found") {
-		t.Errorf("Expected 'no checksum found' error, got: %v", results[2].Error)
+	if results[2].Error == nil || !strings.Contains(results[2].Error.Error(), "no checksums found") {
+		t.Errorf("Expected 'no checksums found' error, got: %v", results[2].Error)
 	}
 
 	// Check nonexistent.deb result (file not found)

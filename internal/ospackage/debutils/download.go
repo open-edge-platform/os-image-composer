@@ -167,9 +167,9 @@ func Validate(destDir string) error {
 	}
 
 	// Create a simple dictionary (map) to store all records from PkgChecksum
-	checksumMap := make(map[string]string)
+	checksumMap := make(map[string][]string)
 	for _, pc := range PkgChecksum {
-		checksumMap[pc.Name] = pc.Checksum
+		checksumMap[pc.Name] = append(checksumMap[pc.Name], pc.Checksum)
 	}
 
 	start := time.Now()
