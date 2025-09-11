@@ -513,7 +513,7 @@ func TestChrootBuilder_getChrootEnvPackageList(t *testing.T) {
 			name:          "missing_packages_field",
 			setupFunc:     setupConfigWithoutPackages,
 			expectError:   true,
-			expectedError: "packages field not found in chroot environment config",
+			expectedError: "missing properties: 'packages'",
 		},
 	}
 
