@@ -18,7 +18,7 @@ The following are the key aspects of the Multiple Package Repo:
 
 - **Configuration**: Describes how to add and configure extra package repositories, enabling ICT to access and pull custom packages that are not available in the base repository.
 - **Package Conflict Priority Consideration**: Outlines how ICT determines which package to use when duplicates exist across repositories, prioritizing user-specified order and base repository integrity.
-- **Architectural Design**: Describes how the design integrates with ICT's existing package and dependency pre-download framework, enabling dependency resolution without relying on package managers like APT or TDNF.
+- **Architectural Design**: Describes how the design integrates with the tool's existing package and dependency pre-download framework, enabling dependency resolution without relying on package managers like APT or TDNF.
 
 ---
 

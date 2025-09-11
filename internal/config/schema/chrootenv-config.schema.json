@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chrootenv-config.schema.json",
+  "title": "Chroot Environment Configuration Schema",
+  "description": "Schema for validating Azure Linux chroot environment configuration files",
+  "type": "object",
+  "properties": {
+    "essential": {
+      "type": "array",
+      "description": "Essential packages required for the chroot environment to function",
+      "items": {
+        "type": "string",
+        "description": "Package name",
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9+._-]*$",
+        "minLength": 1,
+        "maxLength": 255
+      },
+      "uniqueItems": true,
+      "minItems": 0
+    },
+    "packages": {
+      "type": "array",
+      "description": "Additional packages to install in the chroot environment",
+      "items": {
+        "type": "string",
+        "description": "Package name",
+        "pattern": "^[a-zA-Z0-9][a-zA-Z0-9+._-]*$",
+        "minLength": 1,
+        "maxLength": 255
+      },
+      "uniqueItems": true,
+      "minItems": 1
+    }
+  },
+  "required": ["packages"],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "description": "Ensure no duplicate packages between essential and packages arrays",
+      "not": {
+        "anyOf": [
+          {
+            "properties": {
+              "essential": { "type": "array" },
+              "packages": { "type": "array" }
+            },
+            "required": ["essential", "packages"],
+            "additionalProperties": true,
+            "if": {
+              "properties": {
+                "essential": { "minItems": 1 },
+                "packages": { "minItems": 1 }
+              }
+            },
+            "then": {
+              "not": {
+                "properties": {
+                  "essential": {
+                    "contains": {
+                      "anyOf": [
+                        { "$data": "1/packages/0" },
+                        { "$data": "1/packages/1" },
+                        { "$data": "1/packages/2" },
+                        { "$data": "1/packages/3" },
+                        { "$data": "1/packages/4" }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "examples": [
+    {
+      "packages": [
+        "core-packages-container",
+        "createrepo_c"
+      ]
+    },
+    {
+      "essential": [
+        "filesystem",
+        "glibc",
+        "bash"
+      ],
+      "packages": [
+        "core-packages-container",
+        "createrepo_c",
+        "rpm-build",
+        "dnf",
+        "systemd"
+      ]
+    }
+  ]
+}

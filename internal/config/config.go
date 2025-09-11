@@ -168,6 +168,9 @@ func parseYAMLTemplate(data []byte, validateFull bool) (*ImageTemplate, error) {
 		return nil, fmt.Errorf("invalid YAML format: template parsing failed: %w", err)
 	}
 
+	if err := security.ValidateStructStrings(&raw, security.DefaultLimits()); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
 	// Convert to JSON for schema validation
 	jsonData, err := json.Marshal(raw)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/open-edge-platform/image-composer/internal/config"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/security"
 	"github.com/spf13/cobra"
 )
 
@@ -37,6 +38,7 @@ func main() {
 
 	// Create and execute root command
 	rootCmd := createRootCommand()
+	security.AttachRecursive(rootCmd, security.DefaultLimits())
 
 	// Handle log level override after flag parsing
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {

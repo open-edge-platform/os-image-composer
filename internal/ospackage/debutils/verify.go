@@ -26,7 +26,7 @@ type Result struct {
 	Error    error         // any error (signature fail, I/O, etc)
 }
 
-func VerifyPackagegz(relPath string, pkggzPath string, arch string) (bool, error) {
+func VerifyPackagegz(relPath string, pkggzPath string, arch string, component string) (bool, error) {
 	log := logger.Logger()
 	log.Infof("Verifying package %s", pkggzPath)
 
@@ -34,7 +34,7 @@ func VerifyPackagegz(relPath string, pkggzPath string, arch string) (bool, error
 	baseFile := filepath.Base(pkggzPath)
 
 	// Get expected checksum from Release file
-	pkgPathSrch := fmt.Sprintf("main/binary-%s/%s", arch, baseFile)
+	pkgPathSrch := fmt.Sprintf("%s/binary-%s/%s", component, arch, baseFile)
 	log.Infof("Searching for %s in Release file %s", pkgPathSrch, relPath)
 	checksum, err := findChecksumInRelease(relPath, "SHA256", pkgPathSrch)
 	log.Infof("Checksum from Release file (%s): %s Err:%s", relPath, checksum, err)
@@ -132,7 +132,7 @@ func VerifyRelease(relPath string, relSignPath string, pKeyPath string) (bool, e
 
 // VerifyAll takes a slice of DEB file paths, verifies each one in parallel,
 // and returns a slice of results in the same order.
-func VerifyDEBs(paths []string, pkgChecksum map[string]string, workers int) []Result {
+func VerifyDEBs(paths []string, pkgChecksum map[string][]string, workers int) []Result {
 	log := logger.Logger()
 
 	log.Infof("Verifying %d packages with %d workers", len(paths), workers)
@@ -171,8 +171,21 @@ func VerifyDEBs(paths []string, pkgChecksum map[string]string, workers int) []Re
 
 				start := time.Now()
 
-				err := verifyWithGoDeb(debPath, pkgChecksum)
-				ok := err == nil
+				var err error
+				checksums, ok := pkgChecksum[filepath.Base(debPath)]
+				if !ok || len(checksums) == 0 {
+					err = fmt.Errorf("no checksums found for package %s", debPath)
+				} else {
+					for _, checksum := range checksums {
+						// retry verification with each checksum saved for debPath
+						// (there can be multiple checksums for the same package name)
+						err = verifyWithGoDeb(debPath, map[string]string{filepath.Base(debPath): checksum})
+						if err == nil {
+							break // stop at first successful verification
+						}
+					}
+				}
+				ok = err == nil
 
 				if err != nil {
 					log.Errorf("verification %s failed: %v", debPath, err)

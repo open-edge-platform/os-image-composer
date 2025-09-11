@@ -88,7 +88,7 @@ func GetPackagesNames(baseURL string, codename string, arch string, component st
 			foundFile = packageListURL
 			break
 		} else {
-			logger.Logger().Debugf("Package list not found at: %s", packageListURL)
+			logger.Logger().Debugf("Searching package list at: %s", packageListURL)
 		}
 	}
 	return foundFile
