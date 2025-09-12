@@ -13,9 +13,13 @@ on:
 jobs:
   Fuzz-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read  # Only allow reading repository contents
     steps:
       - name: Checkout PR code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false  # Don't persist git credentials
 
       - name: Set up Go
         uses: actions/setup-go@v5
