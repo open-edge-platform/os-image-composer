@@ -1,5 +1,10 @@
 name: gitleaks
 on: [pull_request, push, workflow_dispatch]
+
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   scan:
     name: gitleaks
@@ -8,6 +13,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
