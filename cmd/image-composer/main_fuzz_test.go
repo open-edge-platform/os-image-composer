@@ -16,17 +16,7 @@ func FuzzCreateRootCommand(f *testing.F) {
 	f.Add("", "trace")           // empty config, non-standard log level
 
 	f.Fuzz(func(t *testing.T, configPath string, logLevelValue string) {
-		// Set global variables that createRootCommand might access
-		originalConfigFile := configFile
-		originalLogLevel := logLevel
-
-		// Restore original values after test
-		defer func() {
-			configFile = originalConfigFile
-			logLevel = originalLogLevel
-		}()
-
-		// Set fuzzed values
+		// Set fuzzed values for testing
 		configFile = configPath
 		logLevel = logLevelValue
 

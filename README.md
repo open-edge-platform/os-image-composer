@@ -481,51 +481,74 @@ systemConfigs:
 ```
 ## Fuzz Test
 
-### Fuzz Test Functions
+### Fuzz Test Files
 
-#### FuzzCreateRootCommand
+#### 1. Main Command Processing (`cmd/image-composer/main_fuzz_test.go`)
 
-Tests the `createRootCommand()` function with various global configuration values:
+**Functions Tested:**
+- `FuzzCreateRootCommand` - Tests root command creation with various global flag configurations
+- `FuzzCommandLineArgs` - Tests command line argument parsing with various input patterns
 
-- **Global flag handling**: Tests different values for `configFile` and `logLevel` global variables
-- **Command structure creation**: Ensures the root command is properly initialized
-- **Subcommand registration**: Verifies all subcommands are added correctly
-- **Edge cases**: Tests with empty values, invalid paths, system files, and unusual log levels
-- **State management**: Properly restores original global variable values after each test
+**Key Areas Covered:**
+- CLI command creation robustness
+- Global flag handling edge cases
+- Argument parsing security
+- Command structure validation
+- State management during command setup
 
-**Test scenarios include:**
-- Empty configuration paths and log levels
-- Invalid file paths and non-existent directories
-- System files as configuration (e.g., `/etc/passwd`, `/dev/null`)
-- Very long path names that might cause buffer issues
-- Invalid log level values
+#### 2. Configuration Processing (`internal/config/config_fuzz_test.go`)
 
-#### FuzzCommandLineArgs
+**Functions Tested:**
+- `FuzzLoadTemplate` - Tests YAML template loading with various file inputs
+- `FuzzParseYAMLTemplate` - Tests raw YAML parsing with malformed/edge case data
 
-Tests command line argument parsing and handling:
+**Key Areas Covered:**
+- YAML parsing robustness
+- File I/O error handling
+- Template validation edge cases
+- Memory safety with large inputs
+- Unicode and special character handling
 
-- **Argument parsing**: Tests various command line argument patterns
-- **Command structure integrity**: Ensures command object remains valid during argument processing
-- **Edge case handling**: Tests with empty, invalid, and malformed arguments
-- **Subcommand testing**: Tests individual subcommands (build, validate, config, etc.)
+#### 3. Schema Validation (`internal/config/validate/validate_fuzz_test.go`)
 
-**Test scenarios include:**
-- Help and version flags
-- Individual subcommands (build, validate, config)
-- Flag combinations (--config, --log-level)
-- Invalid commands and empty arguments
-- Complex argument strings
+**Functions Tested:**
+- `FuzzValidateAgainstSchema` - Tests JSON schema validation engine
+- `FuzzValidateImageTemplateJSON` - Tests image template validation
+- `FuzzValidateUserTemplateJSON` - Tests user template validation  
+- `FuzzValidateConfigJSON` - Tests configuration validation
+
+**Key Areas Covered:**
+- JSON schema validation robustness
+- Malformed JSON handling
+- Schema compilation edge cases
+- Validation error handling
+- Memory safety with complex nested data
+
+#### 4. Manifest Generation (`internal/config/manifest/manifest_fuzz_test.go`)
+
+**Functions Tested:**
+- `FuzzWriteManifestToFile` - Tests software package manifest generation
+- `FuzzWriteSPDXToFile` - Tests SPDX document generation
+- `FuzzGenerateDocumentNamespace` - Tests namespace generation
+
+**Key Areas Covered:**
+- JSON serialization robustness
+- File writing edge cases
+- Package metadata handling
+- SPDX document structure validation
+- Unicode and special character handling in metadata
 
 ### How to Run
 
-#### Quick Test (30 seconds default)
 ```bash
-./run_main_fuzz_test.sh
-```
+# Quick test (30 seconds each)
+./run_fuzz_tests.sh
 
-#### Custom Duration
-```bash
-FUZZ_TIME=60s ./run_main_fuzz_test.sh
+# Extended testing
+FUZZ_TIME=60s ./run_fuzz_tests.sh
+
+# Custom duration
+FUZZ_TIME=5m ./run_fuzz_tests.sh
 ```
 
 #### Individual Test Functions
@@ -537,33 +560,22 @@ go test -run='^$' -fuzz=FuzzCreateRootCommand -fuzztime=30s ./cmd/image-composer
 go test -run='^$' -fuzz=FuzzCommandLineArgs -fuzztime=30s ./cmd/image-composer
 ```
 
-### Expected Behavior
+### Test Coverage 
 
-Both fuzz tests should:
-- ✅ **Never crash** regardless of input values
-- ✅ **Always return valid structures** (non-nil command objects)
-- ✅ **Include all required components** (subcommands, flags, descriptions)
-- ✅ **Handle edge cases gracefully** (invalid paths, malformed arguments)
-- ✅ **Maintain state integrity** (proper cleanup of global variables)
+**Coverage Areas:** 
+- Main command processing
+- Configuration loading/parsing
+- Schema validation
+- Manifest generation
 
-### Test Coverage
-
-The fuzz tests provide coverage for:
-
-#### FuzzCreateRootCommand
-- Global variable handling (`configFile`, `logLevel`)
-- Command object creation and validation
-- Subcommand registration verification
-- Edge case handling (empty/invalid paths, system files)
-- State cleanup and restoration
-
-#### FuzzCommandLineArgs  
-- CLI argument parsing robustness
-- Command structure integrity during argument processing
-- Subcommand accessibility testing
-- Invalid argument handling
-- Empty and malformed input scenarios
-
+**Input Patterns Tested:**
+- Empty/null values
+- Very large inputs (10KB+ strings)
+- Unicode and special characters
+- Malformed data structures
+- Edge case combinations
+- CLI argument variations
+- Injection attempt patterns
 
 ## Get Help
 

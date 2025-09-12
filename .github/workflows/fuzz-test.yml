@@ -24,14 +24,14 @@ jobs:
 
       - name: Copy tester script
         run: |
-          if [ ! -f run_main_fuzz_test.sh ]; then
-            echo "run_main_fuzz_test.sh not found!"
+          if [ ! -f run_fuzz_tests.sh ]; then
+            echo "run_fuzz_tests.sh not found!"
             exit 1
           fi
-          chmod +x run_main_fuzz_test.sh
+          chmod +x run_fuzz_tests.sh
 
       - name: Run fuzz tests
         run: |
-          echo "Starting run_main_fuzz_test.sh..."
-          ./run_main_fuzz_test.sh
+          echo "Starting run_fuzz_tests.sh..."
+          ./run_fuzz_tests.sh
           echo "Fuzz test completed."
