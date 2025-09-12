@@ -1,10 +1,10 @@
 image:
-  name: azl3-x86_64-minimal
+  name: elxr12-x86_64-minimal
   version: "1.0.0"
 
 target:
-  os: azure-linux # Target OS name
-  dist: azl3 # Target OS distribution
+  os: wind-river-elxr # Target OS name
+  dist: elxr12 # Target OS distribution
   arch: x86_64 # Target OS architecture
   imageType: raw # Image type, valid value: [raw, iso].
 

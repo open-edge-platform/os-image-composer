@@ -33,12 +33,12 @@ systemConfig:
   description: Default yml configuration for edge image
 
   immutability:
-    enabled: false # default is false
+    enabled: true # default is true
     # To enable Secure Boot, provide the actual file paths for your environment below and uncomment the relevant lines.
     # secureBootDBKey: "<SECURE_BOOT_DB_KEY_PATH>"
     # secureBootDBCrt: "<SECURE_BOOT_DB_CRT_PATH>"
     # secureBootDBCer: "<SECURE_BOOT_DB_CER_PATH>"
-   
+
   # Package Configuration
   packages:
     # Additional packages beyond the base system
