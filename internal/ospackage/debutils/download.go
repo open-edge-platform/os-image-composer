@@ -152,15 +152,29 @@ func checkFileExists(url string) bool {
 }
 
 // Validate verifies the downloaded files
-func Validate(destDir string) error {
+func Validate(destDir string, downloadPkgList []string) error {
 	log := logger.Logger()
 
 	// get all DEBs in the destDir
 	debPattern := filepath.Join(destDir, "*.deb")
 	debPaths, err := filepath.Glob(debPattern)
-	if err != nil {
+	if err == nil {
+		// Filter debPaths to only those in downloadPkgList
+		downloadSet := make(map[string]struct{}, len(downloadPkgList))
+		for _, name := range downloadPkgList {
+			downloadSet[name] = struct{}{}
+		}
+		var filtered []string
+		for _, path := range debPaths {
+			if _, ok := downloadSet[filepath.Base(path)]; ok {
+				filtered = append(filtered, path)
+			}
+		}
+		debPaths = filtered
+	} else {
 		return fmt.Errorf("glob %q: %w", debPattern, err)
 	}
+	// If no DEBs found, log a warning and return
 	if len(debPaths) == 0 {
 		log.Warn("no DEBs found to verify")
 		return nil
@@ -365,7 +379,7 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 	log.Info("all downloads complete")
 
 	// Verify downloaded packages
-	if err := Validate(destDir); err != nil {
+	if err := Validate(destDir, downloadPkgList); err != nil {
 		return downloadPkgList, fmt.Errorf("verification failed: %w", err)
 	}
 

@@ -577,6 +577,9 @@ func updateInitrdConfig(installRoot string, template *config.ImageTemplate) erro
 	if err := addImageIDFile(installRoot, template); err != nil {
 		return fmt.Errorf("failed to add image ID file: %w", err)
 	}
+	if err := createResolvConfSymlink(installRoot, template); err != nil {
+		return fmt.Errorf("failed to create resolv.conf: %w", err)
+	}
 	return nil
 }
 
@@ -598,6 +601,9 @@ func updateImageConfig(installRoot string, diskPathIdMap map[string]string, temp
 	}
 	if err := updateImageFstab(installRoot, diskPathIdMap, template); err != nil {
 		return fmt.Errorf("failed to update image fstab: %w", err)
+	}
+	if err := createResolvConfSymlink(installRoot, template); err != nil {
+		return fmt.Errorf("failed to create resolv.conf: %w", err)
 	}
 	return nil
 }
@@ -772,6 +778,24 @@ func updateImageFstab(installRoot string, diskPathIdMap map[string]string, templ
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func createResolvConfSymlink(installRoot string, template *config.ImageTemplate) error {
+	log.Infof("Creating resolv.conf for image: %s", template.GetImageName())
+	resolveConfPath := "/etc/resolv.conf"
+	resolveConfFullPath := filepath.Join(installRoot, resolveConfPath)
+	if _, err := os.Stat(resolveConfFullPath); os.IsNotExist(err) {
+		stubResolveConfPath := "/run/systemd/resolve/stub-resolv.conf"
+		cmdStr := fmt.Sprintf("ln -sf %s %s", stubResolveConfPath, resolveConfPath)
+		if _, err := shell.ExecCmd(cmdStr, true, installRoot, nil); err != nil {
+			log.Errorf("Failed to create symlink for resolv.conf: %v", err)
+			return fmt.Errorf("failed to create symlink for resolv.conf: %w", err)
+		}
+		log.Debugf("Created symlink for resolv.conf to %s", stubResolveConfPath)
+	} else {
+		log.Debug("resolv.conf already exists, skipping creation")
 	}
 	return nil
 }

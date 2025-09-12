@@ -309,7 +309,16 @@ func TestValidate(t *testing.T) {
 
 			tt.setupChecksum()
 
-			err = Validate(tempDir)
+			files, err := filepath.Glob(filepath.Join(tempDir, "*.deb"))
+			if err != nil {
+				t.Fatalf("Failed to glob deb files: %v", err)
+			}
+			var debFiles []string
+			for _, f := range files {
+				debFiles = append(debFiles, filepath.Base(f))
+			}
+
+			err = Validate(tempDir, debFiles)
 
 			if tt.expectError {
 				if err == nil {

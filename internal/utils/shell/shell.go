@@ -54,6 +54,7 @@ var commandMap = map[string]string{
 	"grub2-mkconfig":     "/usr/sbin/grub2-mkconfig",
 	"gzip":               "/usr/bin/gzip",
 	"head":               "/usr/bin/head",
+	"ln":                 "/usr/bin/ln",
 	"ls":                 "/bin/ls",
 	"lsof":               "/usr/bin/lsof",
 	"lsb_release":        "/usr/bin/lsb_release",

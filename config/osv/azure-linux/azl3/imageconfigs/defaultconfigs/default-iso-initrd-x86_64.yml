@@ -85,6 +85,10 @@ systemConfig:
     - xz
     - zlib
 
+  additionalFiles:
+    - local: ../additionalfiles/99-dhcp-en.network
+      final: /etc/systemd/network/99-dhcp-en.network
+
   kernel:
     name: kernel
     version: "6.6"

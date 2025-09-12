@@ -256,7 +256,12 @@ func (chrootEnv *ChrootEnv) RefreshLocalCacheRepo(targetArch string) error {
 			return fmt.Errorf("failed to update debian local cache repository: %v", err)
 		}
 
-		cmd := "apt-get update"
+		cmd := "apt clean"
+		if _, err := shell.ExecCmdWithStream(cmd, true, chrootEnv.ChrootEnvRoot, nil); err != nil {
+			return fmt.Errorf("failed to clean cache for chroot repository: %w", err)
+		}
+
+		cmd = "apt update"
 		if _, err := shell.ExecCmdWithStream(cmd, true, chrootEnv.ChrootEnvRoot, nil); err != nil {
 			return fmt.Errorf("failed to refresh cache for chroot repository: %w", err)
 		}
