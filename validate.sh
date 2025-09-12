@@ -74,7 +74,7 @@ go build ./cmd/image-composer
 echo "Building the Linux image..."
 build_azl3_raw_image() {
   echo "building AZL3 raw Image."
-  output=$( sudo -S ./image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1)
+  output=$( sudo -S ./image-composer build image-templates/azl3-x86_64-minimal-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
     echo "AZL3 raw Image build passed."
@@ -86,7 +86,7 @@ build_azl3_raw_image() {
 
 build_azl3_iso_image() {
   echo "building AZL3 iso Image."
-  output=$( sudo -S ./image-composer build config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-iso-x86_64.yml 2>&1)
+  output=$( sudo -S ./image-composer build image-templates/azl3-x86_64-minimal-iso.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
     echo "AZL3 iso Image build passed."
@@ -99,7 +99,7 @@ build_azl3_iso_image() {
 
 build_emt3_raw_image() {
   echo "building EMT3 raw Image."
-  output=$( sudo -S ./image-composer build config/osv/edge-microvisor-toolkit/emt3/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1)
+  output=$( sudo -S ./image-composer build image-templates/emt3-x86_64-minimal-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
     echo "EMT3 raw Image build passed."
@@ -111,7 +111,7 @@ build_emt3_raw_image() {
 
 build_emt3_iso_image() {
   echo "building EMT3 iso Image."
-  output=$( sudo -S ./image-composer build config/osv/edge-microvisor-toolkit/emt3/imageconfigs/defaultconfigs/default-iso-x86_64.yml 2>&1)
+  output=$( sudo -S ./image-composer build image-templates/emt3-x86_64-minimal-iso.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
     echo "EMT3 iso Image build passed."
@@ -123,7 +123,7 @@ build_emt3_iso_image() {
 
 build_elxr12_raw_image() {
   echo "building ELXR12 raw Image."
-  output=$( sudo -S ./image-composer build config/osv/wind-river-elxr/elxr12/imageconfigs/defaultconfigs/default-raw-x86_64.yml 2>&1)
+  output=$( sudo -S ./image-composer build image-templates/elxr12-x86_64-minimal-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
 
@@ -135,7 +135,7 @@ build_elxr12_raw_image() {
 }
 build_elxr12_iso_image() {
   echo "building ELXR12 iso Image."
-  output=$( sudo -S ./image-composer build config/osv/wind-river-elxr/elxr12/imageconfigs/defaultconfigs/default-iso-x86_64.yml 2>&1)
+  output=$( sudo -S ./image-composer build image-templates/elxr12-x86_64-minimal-iso.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
 
@@ -146,41 +146,41 @@ build_elxr12_iso_image() {
   fi
 }
 
-build_elxr12_secure_raw_image() {
-  echo "building ELXR12 secure raw Image."
-  output=$( sudo -S ./image-composer build testData/elxr12/default-raw-x86_64.yml 2>&1)
+build_elxr12_immutable_raw_image() {
+  echo "building ELXR12 immutable raw Image."
+  output=$( sudo -S ./image-composer build image-templates/elxr12-x86_64-edge-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
 
-    echo "ELXR12 secure raw Image build passed."
+    echo "ELXR12 immutable raw Image build passed."
   else
-    echo "ELXR12 secure raw Image build failed."
+    echo "ELXR12 immutable raw Image build failed."
     exit 1 # Exit with error if build fails
   fi
 }
 
-build_emt3_secure_raw_image() {
-  echo "building EMT3 secure raw Image."
-  output=$( sudo -S ./image-composer build testData/emt3/default-raw-x86_64.yml 2>&1)
+build_emt3_immutable_raw_image() {
+  echo "building EMT3 immutable raw Image."
+  output=$( sudo -S ./image-composer build image-templates/emt3-x86_64-edge-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
 
-    echo "EMT3 secure raw Image build passed."
+    echo "EMT3 immutable raw Image build passed."
   else
-    echo "EMT3 secure raw Image build failed."
+    echo "EMT3 immutable raw Image build failed."
     exit 1 # Exit with error if build fails
   fi
 }
 
-build_azl3_secure_raw_image() {
-  echo "building AZL3 secure raw Image."
-  output=$( sudo -S ./image-composer build testData/azl3/default-raw-x86_64.yml 2>&1)
+build_azl3_immutable_raw_image() {
+  echo "building AZL3 immutable raw Image."
+  output=$( sudo -S ./image-composer build image-templates/azl3-x86_64-edge-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
 
-    echo "AZL3 secure raw Image build passed."
+    echo "AZL3 immutable raw Image build passed."
   else
-    echo "AZL3 secure raw Image build failed."
+    echo "AZL3 immutable raw Image build failed."
     exit 1 # Exit with error if build fails
   fi
 }
@@ -209,13 +209,13 @@ clean_build_dirs
 build_elxr12_iso_image
 
 clean_build_dirs
-build_elxr12_secure_raw_image
+build_elxr12_immutable_raw_image
 
 clean_build_dirs
-build_emt3_secure_raw_image
+build_emt3_immutable_raw_image
 
 clean_build_dirs
-build_azl3_secure_raw_image
+build_azl3_immutable_raw_image
 
 # # Check for the success message in the output
 # if echo "$output" | grep -q "image build completed successfully"; then
