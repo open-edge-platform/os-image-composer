@@ -42,4 +42,4 @@ systemConfig:
   description: Default yml configuration for raw image
 
   immutability:
-    enabled: false # default is true
+    enabled: false # default is true, overridden to false here
