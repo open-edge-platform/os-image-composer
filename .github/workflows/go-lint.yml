@@ -11,6 +11,10 @@ on:
       - main
     paths:
       - '**/*.go'
+
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Linting
@@ -20,6 +24,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install dependencies
         run: |
