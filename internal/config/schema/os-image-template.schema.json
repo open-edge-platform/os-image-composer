@@ -240,7 +240,6 @@
         },
         "kernel": { "$ref": "#/$defs/Kernel" }
       },
-      "required": ["name", "packages", "kernel"],
       "additionalProperties": false
     },
     "PackageRepository": {

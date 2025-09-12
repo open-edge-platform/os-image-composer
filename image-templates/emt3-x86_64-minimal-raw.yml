@@ -1,10 +1,10 @@
 image:
-  name: azl3-x86_64-minimal
+  name: emt3-x86_64-minimal
   version: "1.0.0"
 
 target:
-  os: azure-linux # Target OS name
-  dist: azl3 # Target OS distribution
+  os: edge-microvisor-toolkit # Target OS name
+  dist: emt3 # Target OS distribution
   arch: x86_64 # Target OS architecture
   imageType: raw # Image type, valid value: [raw, iso].
 
@@ -14,7 +14,7 @@ disk:
     -
       type: raw  # image file format, valid value [raw, vhd, vhdx, qcow2, vmdk, vdi]
       compression: gz # image compression format (optional)
-    - type: vhdx
+    - type: vhd
   size: 4GiB # 4G, 4GB, 4096 MiB also valid. (Required for raw)
   partitionTableType: gpt # Partition table type, valid value: [gpt, mbr]
   partitions: # Required for raw, optional for ISO, not needed for rootfs.

@@ -29,7 +29,7 @@ systemConfig:
   description: Minimal eLxr image with immutable rootfs
 
   immutability:
-    enabled: false # default is false
+    enabled: true # default is true
     # To enable Secure Boot, provide the actual file paths for your environment below and uncomment the relevant lines.
     # secureBootDBKey: "<SECURE_BOOT_DB_KEY_PATH>"
     # secureBootDBCrt: "<SECURE_BOOT_DB_CRT_PATH>"
