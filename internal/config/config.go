@@ -3,12 +3,14 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/open-edge-platform/image-composer/internal/config/validate"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/image-composer/internal/utils/security"
+	"github.com/open-edge-platform/image-composer/internal/utils/slice"
 	"gopkg.in/yaml.v3"
 )
 
@@ -54,7 +56,12 @@ type ImageTemplate struct {
 	PackageRepositories []PackageRepository `yaml:"packageRepositories,omitempty"`
 
 	// Explicitly excluded from YAML serialization/deserialization
+	PathList    []string `yaml:"-"`
 	FullPkgList []string `yaml:"-"`
+}
+
+type Initramfs struct {
+	Template string `yaml:"template"` // Template: path to the initramfs configuration template file
 }
 
 type Bootloader struct {
@@ -87,6 +94,7 @@ type UserConfig struct {
 type SystemConfig struct {
 	Name            string               `yaml:"name"`
 	Description     string               `yaml:"description"`
+	Initramfs       Initramfs            `yaml:"initramfs,omitempty"`
 	Immutability    ImmutabilityConfig   `yaml:"immutability,omitempty"`
 	Users           []UserConfig         `yaml:"users,omitempty"`
 	Bootloader      Bootloader           `yaml:"bootloader"`
@@ -154,6 +162,11 @@ func LoadTemplate(path string, validateFull bool) (*ImageTemplate, error) {
 	template, err := parseYAMLTemplate(data, validateFull)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load template: %w", err)
+	}
+
+	// Store the template path info
+	if !slice.Contains(template.PathList, path) {
+		template.PathList = append(template.PathList, path)
 	}
 
 	log.Infof("Loaded image template from %s: name=%s, os=%s, dist=%s, arch=%s",
@@ -245,6 +258,37 @@ func (t *ImageTemplate) GetSystemConfig() SystemConfig {
 	return t.SystemConfig
 }
 
+func (t *ImageTemplate) GetInitramfsTemplate() (string, error) {
+	var initrdTemplateFilePath string
+	if t.SystemConfig.Initramfs.Template == "" {
+		return "", fmt.Errorf("initramfs template not specified in system configuration")
+	}
+	if filepath.IsAbs(t.SystemConfig.Initramfs.Template) {
+		initrdTemplateFilePath = t.SystemConfig.Initramfs.Template
+		if _, err := os.Stat(initrdTemplateFilePath); os.IsNotExist(err) {
+			return "", fmt.Errorf("initrd template file does not exist: %s", initrdTemplateFilePath)
+		}
+	} else {
+		if len(t.PathList) == 0 {
+			return "", fmt.Errorf("cannot resolve relative initramfs template path without template file context")
+		}
+		var found bool
+		for _, path := range t.PathList {
+			templateDir := filepath.Dir(path)
+			candidatePath := filepath.Join(templateDir, t.SystemConfig.Initramfs.Template)
+			if _, err := os.Stat(candidatePath); err == nil {
+				initrdTemplateFilePath = candidatePath
+				found = true
+				break
+			}
+		}
+		if !found {
+			return "", fmt.Errorf("initrd template file does not exist: %s", t.SystemConfig.Initramfs.Template)
+		}
+	}
+	return initrdTemplateFilePath, nil
+}
+
 func (t *ImageTemplate) GetBootloaderConfig() Bootloader {
 	return t.SystemConfig.Bootloader
 }
@@ -252,6 +296,54 @@ func (t *ImageTemplate) GetBootloaderConfig() Bootloader {
 // GetPackages returns all packages from the system configuration
 func (t *ImageTemplate) GetPackages() []string {
 	return t.SystemConfig.Packages
+}
+
+func (t *ImageTemplate) GetAdditionalFileInfo() []AdditionalFileInfo {
+	var PathUpdatedList []AdditionalFileInfo
+	if len(t.SystemConfig.AdditionalFiles) == 0 {
+		return []AdditionalFileInfo{}
+	}
+
+	for i := range t.SystemConfig.AdditionalFiles {
+		if t.SystemConfig.AdditionalFiles[i].Local == "" || t.SystemConfig.AdditionalFiles[i].Final == "" {
+			log.Warnf("Ignoring additional file entry with empty local or final path: %+v",
+				t.SystemConfig.AdditionalFiles[i])
+		} else {
+			if filepath.IsAbs(t.SystemConfig.AdditionalFiles[i].Local) {
+				if _, err := os.Stat(t.SystemConfig.AdditionalFiles[i].Local); err == nil {
+					PathUpdatedList = append(PathUpdatedList, t.SystemConfig.AdditionalFiles[i])
+				} else {
+					log.Warnf("Ignoring additional file entry with non-existent local path: %+v",
+						t.SystemConfig.AdditionalFiles[i])
+				}
+			} else {
+				if len(t.PathList) == 0 {
+					log.Warnf("Cannot resolve relative additional file path without template file context: %+v",
+						t.SystemConfig.AdditionalFiles[i])
+				} else {
+					var found bool
+					for _, path := range t.PathList {
+						templateDir := filepath.Dir(path)
+						candidatePath := filepath.Join(templateDir, t.SystemConfig.AdditionalFiles[i].Local)
+						if _, err := os.Stat(candidatePath); err == nil {
+							newFileInfo := AdditionalFileInfo{
+								Local: candidatePath,
+								Final: t.SystemConfig.AdditionalFiles[i].Final,
+							}
+							PathUpdatedList = append(PathUpdatedList, newFileInfo)
+							found = true
+							break
+						}
+					}
+					if !found {
+						log.Warnf("Ignoring additional file entry with non-existent local path: %+v",
+							t.SystemConfig.AdditionalFiles[i])
+					}
+				}
+			}
+		}
+	}
+	return PathUpdatedList
 }
 
 // GetKernel returns the kernel configuration from the system configuration
