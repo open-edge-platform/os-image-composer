@@ -33,6 +33,9 @@ systemConfig: # Required
   name: Default_ISO
   description: Default yml configuration for iso image
 
+  initramfs:
+    template: default-initrd-x86_64.yml
+
   bootloader:
     bootType: efi # (efi or legacy)
     provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)

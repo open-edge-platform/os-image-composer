@@ -9,8 +9,8 @@ target:
   imageType: img # Image type, valid value: [raw, iso].
 
 systemConfig:
-  name: ISO_Initrd
-  description: Default yml configuration for iso initrd image
+  name: Default_Initrd
+  description: Default yml configuration for initrd image
 
   bootloader:
     bootType: efi # (efi or legacy)
