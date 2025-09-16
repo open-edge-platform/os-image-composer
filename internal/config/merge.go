@@ -174,6 +174,10 @@ func mergeSystemConfig(defaultConfig, userConfig SystemConfig) SystemConfig {
 		merged.Users = mergeUsers(defaultConfig.Users, userConfig.Users)
 	}
 
+	if len(userConfig.AdditionalFiles) > 0 {
+		merged.AdditionalFiles = mergeAdditionalFiles(defaultConfig.AdditionalFiles, userConfig.AdditionalFiles)
+	}
+
 	// Merge bootloader config
 	if !isEmptyBootloader(userConfig.Bootloader) {
 		merged.Bootloader = mergeBootloader(defaultConfig.Bootloader, userConfig.Bootloader)
@@ -215,6 +219,29 @@ func mergeImmutabilityConfig(defaultImmutability, userImmutability ImmutabilityC
 	}
 
 	return merged
+}
+
+func mergeAdditionalFiles(defaultFiles, userFiles []AdditionalFileInfo) []AdditionalFileInfo {
+	// Create a map to track unique additional files by their final path
+	fileMap := make(map[string]AdditionalFileInfo)
+
+	// Add default files first
+	for _, file := range defaultFiles {
+		fileMap[file.Final] = file
+	}
+
+	// Add/override with user files
+	for _, file := range userFiles {
+		fileMap[file.Final] = file
+	}
+
+	// Convert map back to slice
+	mergedFiles := make([]AdditionalFileInfo, 0, len(fileMap))
+	for _, file := range fileMap {
+		mergedFiles = append(mergedFiles, file)
+	}
+
+	return mergedFiles
 }
 
 // mergeUsers merges user configurations
