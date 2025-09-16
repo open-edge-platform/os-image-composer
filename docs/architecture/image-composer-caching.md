@@ -44,7 +44,6 @@ The package cache is organized by package name, version, architecture, and sourc
 
 When the build system needs to install a package, it checks the cache before downloading a package. If the package exists in the cache, it uses the cached version. If not, it downloads the package, adds it to the cache, and then uses it.
 
-Garbage collection is managed by two parameters: maximum size (in GB) and retention time (in days). When cache limits are reached, the oldest and least-used packages are removed first. 
 
 ### Package Cache Benefits
 
