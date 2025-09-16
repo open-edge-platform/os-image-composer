@@ -11,7 +11,7 @@ To generate secure images, the tool optionally supports the following:
 
 * Cryptographic signing of the boot chain (kernel, initial RAM disk, kernel command line) for Secure Boot, ensuring integrity and authenticity. 
 * Protect the root filesystem with dm-verity, making offline attacks more difficult. 
-* Generate a Software Bill of Materials (SBOM) for each image, providing transparency for its components. 
+* Generate a Software Bill of Materials (SBOM) for each image, providing transparency for its components in SPDX format which can be used with tools like `gradle` and `Maven`
  
 ### 3. Support for Modern Boot Mechanisms
 The tool simplifies the adoption of Unified Kernel Image (UKI), a modern boot mechanism, potentially improving edge node security by supporting secure boot.
