@@ -34,7 +34,9 @@ type IsoMaker struct {
 var log = logger.Logger()
 
 func NewIsoMaker(chrootEnv chroot.ChrootEnvInterface, template *config.ImageTemplate) (*IsoMaker, error) {
-	// Add nil checking
+	// nil checking is done one in constructor only to avoid repetitive checks
+	// in every method and schema check is done during template load making
+	// sure internal structure is valid
 	if template == nil {
 		return nil, fmt.Errorf("image template cannot be nil")
 	}
