@@ -75,8 +75,8 @@ func (isoMaker *IsoMaker) BuildIsoImage(template *config.ImageTemplate) (err err
 		return fmt.Errorf("failed to build initrd image: %w", err)
 	}
 	defer func() {
-		if err := isoMaker.InitrdMaker.CleanInitrdRootfs(); err != nil {
-			err = fmt.Errorf("failed to clean initrd rootfs: %w", err)
+		if cleanErr := isoMaker.InitrdMaker.CleanInitrdRootfs(); cleanErr != nil {
+			err = fmt.Errorf("failed to clean initrd rootfs: %w", cleanErr)
 		}
 	}()
 
