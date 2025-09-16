@@ -64,8 +64,6 @@ Before building an image, the system generates a unique hash based on the entire
 
 If image caching is enabled, the newly built image is stored in the cache. The specification hash serves as the cache key.
 
-Cache management is controlled by a maximum image count parameter. When its limit is reached, the least recently used images are removed.
-
 ### Image Cache Benefits
 
 - Provides instant results for repeated builds of the same image.
@@ -148,19 +146,6 @@ image-composer cache list
 image-composer cache info abc123def456
 ```
 
-### Clean the Caches
-
-```bash
-# Clean package cache only
-image-composer cache clean --packages
-
-# Clean image cache only
-image-composer cache clean --images
-
-# Clean both caches completely
-image-composer cache clean --all
-```
-
 ### Export or Import Cached Images
 
 ```bash
@@ -202,36 +187,17 @@ build:
     use_image_cache: true      # Whether this build should use image cache
 ```
 
-### Command-Line Overrides
-
-```bash
-# Disable all caching for a specific build
-image-composer build --no-cache my-image-spec.yml
-
-# Disable only package caching
-image-composer build --no-package-cache my-image-spec.yml
-
-# Disable only image caching
-image-composer build --no-image-cache my-image-spec.yml
-```
-
 See also:
 - [Global Configuration File](./image-composer-cli-specification.md#global-configuration-file) for all available configuration options
 - [Command-Line Overrides](./image-composer-build-process.md#command-line-overrides) for additional build options
 
 ## Best Practices
 
-1. **Keep caching enabled**: The performance benefits of the caching mechanisms are substantial, and cache management is automatic, minimizing intervention. 
-
-1. **Clean the cache regularly**: Consider scheduling periodic cache cleaning in long-running environments by, for instance, adding `image-composer cache clean --all` to your maintenance scripts. 
-
-1. **Adjust cache sizes**: For development environments with frequent builds, increase cache sizes; for CI/CD pipelines, tune the cache based on disk space constraints.
+1. **Clean the cache regularly**: Consider performing periodic cache cleaning in long-running environments by manually removing the cache directory content. 
 
 1. **Manage version control integration**: Consider clearing the image cache when major version control changes occur to ensure that images are rebuilt when repository content changes significantly.
 
 1. **Optimize for CI/CD**: In CI/CD environments, persist the cache between pipeline runs. Many CI systems support caching directories between jobs.
-
-1. **Troubleshoot with the `--no-cache` option**: If you encounter unexplained issues, try building with `--no-cache` first to help determine whether a cached component is causing problems.
 
 See also:
 - [Build Performance Optimization](./image-composer-build-process.md#build-performance-optimization)
