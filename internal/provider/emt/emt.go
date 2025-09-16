@@ -143,9 +143,10 @@ func (p *Emt) PostProcess(template *config.ImageTemplate, err error) error {
 }
 
 func (p *Emt) installHostDependency() error {
-	var depedencyInfo = map[string]string{
+	var dependencyInfo = map[string]string{
 		"rpm":      "rpm",        // For the chroot env build RPM pkg installation
 		"mkfs.fat": "dosfstools", // For the FAT32 boot partition creation
+		"qemu-img": "qemu-utils", // For image file format conversion
 		"xorriso":  "xorriso",    // For ISO image creation
 		"sbsign":   "sbsigntool", // For the UKI image creation
 	}
@@ -154,7 +155,7 @@ func (p *Emt) installHostDependency() error {
 		return fmt.Errorf("failed to get host package manager: %w", err)
 	}
 
-	for cmd, pkg := range depedencyInfo {
+	for cmd, pkg := range dependencyInfo {
 		cmdExist, err := shell.IsCommandExist(cmd, "")
 		if err != nil {
 			return fmt.Errorf("failed to check command %s existence: %w", cmd, err)
