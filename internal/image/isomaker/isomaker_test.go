@@ -946,13 +946,18 @@ func TestIsoMaker_BuildIsoImage_Integration(t *testing.T) {
 				Image: config.ImageInfo{
 					Name: "test-image",
 				},
+				SystemConfig: config.SystemConfig{
+					Initramfs: config.Initramfs{
+						Template: "/nonexistent-template.yml",
+					},
+				},
 			},
 			mockCommands: []shell.MockCommand{
 				{Pattern: "mkdir", Output: "", Error: nil},
 			},
 			setupFunc:     func(tempDir string) error { return nil },
 			expectError:   true,
-			expectedError: "failed to build ISO initrd",
+			expectedError: "failed to build initrd image",
 		},
 	}
 
