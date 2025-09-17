@@ -198,6 +198,18 @@
         "additionalProperties": false
       }
     },
+    "Initramfs": {
+      "type": "object",
+      "description": "Initramfs configuration",
+      "properties": {
+        "template": {
+          "type": "string",
+          "description": "Path to the initramfs template file"
+        }
+      },
+      "required": ["template"],
+      "additionalProperties": false
+    },
     "Bootloader": {
       "type": "object",
       "description": "Bootloader configuration",
@@ -229,6 +241,7 @@
       "properties": {
         "name": { "type": "string", "description": "Name of the system configuration" },
         "description": { "type": "string", "description": "Description of the system configuration" },
+        "initramfs": { "$ref": "#/$defs/Initramfs" },
         "immutability": { "$ref": "#/$defs/Immutability" },
         "users": { "$ref": "#/$defs/Users" },
         "bootloader": { "$ref": "#/$defs/Bootloader" },

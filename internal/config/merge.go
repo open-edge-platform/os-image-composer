@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/open-edge-platform/image-composer/internal/utils/slice"
 )
 
 // DefaultConfigLoader handles loading and merging default configurations
@@ -32,6 +34,8 @@ func (d *DefaultConfigLoader) LoadDefaultConfig(imageType string) (*ImageTemplat
 	switch imageType {
 	case "raw":
 		defaultConfigFile = fmt.Sprintf("default-raw-%s.yml", d.targetArch)
+	case "img":
+		defaultConfigFile = fmt.Sprintf("default-initrd-%s.yml", d.targetArch)
 	case "iso":
 		defaultConfigFile = fmt.Sprintf("default-iso-%s.yml", d.targetArch)
 	default:
@@ -85,6 +89,13 @@ func MergeConfigurations(userTemplate, defaultTemplate *ImageTemplate) (*ImageTe
 
 	// Start with a copy of the default template
 	mergedTemplate := *defaultTemplate
+
+	// Update the template path list
+	for _, path := range userTemplate.PathList {
+		if !slice.Contains(mergedTemplate.PathList, path) {
+			mergedTemplate.PathList = append(mergedTemplate.PathList, path)
+		}
+	}
 
 	// Override with user-specified values
 	// Image section - always use user values if provided
@@ -149,6 +160,10 @@ func mergeSystemConfig(defaultConfig, userConfig SystemConfig) SystemConfig {
 	}
 	if userConfig.Description != "" {
 		merged.Description = userConfig.Description
+	}
+
+	if userConfig.Initramfs.Template != "" {
+		merged.Initramfs.Template = userConfig.Initramfs.Template
 	}
 
 	// Merge immutability config

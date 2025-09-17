@@ -689,23 +689,14 @@ func addImageIDFile(installRoot string, template *config.ImageTemplate) error {
 
 func addImageAdditionalFiles(installRoot string, template *config.ImageTemplate) error {
 	log.Infof("Adding additional files to image: %s", template.GetImageName())
-	additionalFiles := template.SystemConfig.AdditionalFiles
+	additionalFiles := template.GetAdditionalFileInfo()
 	if len(additionalFiles) == 0 {
 		log.Debug("No additional files to add to the image")
 		return nil
 	}
-	targetOsConfigDir, err := config.GetTargetOsConfigDir(template.Target.OS, template.Target.Dist)
-	if err != nil {
-		return fmt.Errorf("failed to get target OS config directory: %w", err)
-	}
-	additionalFilesPath := filepath.Join(targetOsConfigDir, "imageconfigs", "additionalfiles")
-	if _, err := os.Stat(additionalFilesPath); os.IsNotExist(err) {
-		log.Errorf("Additional files directory does not exist: %s", additionalFilesPath)
-		return fmt.Errorf("additional files directory does not exist: %s", additionalFilesPath)
-	}
 
 	for _, fileInfo := range additionalFiles {
-		srcFile := filepath.Join(additionalFilesPath, fileInfo.Local)
+		srcFile := fileInfo.Local
 		dstFile := filepath.Join(installRoot, fileInfo.Final)
 		if err := file.CopyFile(srcFile, dstFile, "-p", true); err != nil {
 			log.Errorf("Failed to copy additional file %s to image: %v", srcFile, err)

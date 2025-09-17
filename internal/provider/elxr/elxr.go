@@ -6,6 +6,7 @@ import (
 
 	"github.com/open-edge-platform/image-composer/internal/chroot"
 	"github.com/open-edge-platform/image-composer/internal/config"
+	"github.com/open-edge-platform/image-composer/internal/image/initrdmaker"
 	"github.com/open-edge-platform/image-composer/internal/image/isomaker"
 	"github.com/open-edge-platform/image-composer/internal/image/rawmaker"
 	"github.com/open-edge-platform/image-composer/internal/ospackage/debutils"
@@ -29,12 +30,13 @@ var log = logger.Logger()
 
 // eLxr implements provider.Provider
 type eLxr struct {
-	repoURL   string
-	repoCfg   debutils.RepoConfig
-	gzHref    string
-	chrootEnv chroot.ChrootEnvInterface
-	rawMaker  rawmaker.RawMakerInterface
-	isoMaker  isomaker.IsoMakerInterface
+	repoURL     string
+	repoCfg     debutils.RepoConfig
+	gzHref      string
+	chrootEnv   chroot.ChrootEnvInterface
+	rawMaker    rawmaker.RawMakerInterface
+	initrdMaker initrdmaker.InitrdMakerInterface
+	isoMaker    isomaker.IsoMakerInterface
 }
 
 func Register(targetOs, targetDist, targetArch string) error {
@@ -46,14 +48,19 @@ func Register(targetOs, targetDist, targetArch string) error {
 	if err != nil {
 		return fmt.Errorf("failed to inject raw image maker dependency: %w", err)
 	}
+	initrdMaker, err := initrdmaker.NewInitrdMaker(chrootEnv)
+	if err != nil {
+		return fmt.Errorf("failed to inject initrd image maker dependency: %w", err)
+	}
 	isoMaker, err := isomaker.NewIsoMaker(chrootEnv)
 	if err != nil {
 		return fmt.Errorf("failed to inject ISO image maker dependency: %w", err)
 	}
 	provider.Register(&eLxr{
-		chrootEnv: chrootEnv,
-		rawMaker:  rawMaker,
-		isoMaker:  isoMaker,
+		chrootEnv:   chrootEnv,
+		rawMaker:    rawMaker,
+		initrdMaker: initrdMaker,
+		isoMaker:    isoMaker,
 	}, targetDist, targetArch)
 
 	return nil
@@ -105,20 +112,33 @@ func (p *eLxr) PreProcess(template *config.ImageTemplate) error {
 }
 
 func (p *eLxr) BuildImage(template *config.ImageTemplate) error {
-	if template.Target.ImageType == "iso" {
-		if err := p.isoMaker.Init(template); err != nil {
-			return fmt.Errorf("failed to initialize ISO image maker: %w", err)
-		}
-		if err := p.isoMaker.BuildIsoImage(template); err != nil {
-			return fmt.Errorf("failed to build ISO image: %w", err)
-		}
-	} else {
+	switch template.Target.ImageType {
+	case "raw":
 		if err := p.rawMaker.Init(template); err != nil {
 			return fmt.Errorf("failed to initialize raw image maker: %w", err)
 		}
 		if err := p.rawMaker.BuildRawImage(template); err != nil {
 			return fmt.Errorf("failed to build raw image: %w", err)
 		}
+	case "img":
+		if err := p.initrdMaker.Init(template); err != nil {
+			return fmt.Errorf("failed to initialize initrd image maker: %w", err)
+		}
+		if err := p.initrdMaker.BuildInitrdImage(template); err != nil {
+			return fmt.Errorf("failed to build initrd image: %w", err)
+		}
+		if err := p.initrdMaker.CleanInitrdRootfs(); err != nil {
+			return fmt.Errorf("failed to clean initrd rootfs: %w", err)
+		}
+	case "iso":
+		if err := p.isoMaker.Init(template); err != nil {
+			return fmt.Errorf("failed to initialize ISO image maker: %w", err)
+		}
+		if err := p.isoMaker.BuildIsoImage(template); err != nil {
+			return fmt.Errorf("failed to build ISO image: %w", err)
+		}
+	default:
+		return fmt.Errorf("unsupported image type: %s", template.Target.ImageType)
 	}
 	return nil
 }
