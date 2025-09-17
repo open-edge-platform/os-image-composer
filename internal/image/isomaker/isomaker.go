@@ -83,7 +83,12 @@ func (isoMaker *IsoMaker) BuildIsoImage(template *config.ImageTemplate) (err err
 	sysConfigName := template.GetSystemConfigName()
 	versionInfo := isoMaker.InitrdMaker.GetInitrdVersion()
 	ImageName := fmt.Sprintf("%s-%s", template.GetImageName(), versionInfo)
-	isoFilePath := filepath.Join(isoMaker.ImageBuildDir, sysConfigName, fmt.Sprintf("%s.iso", ImageName))
+	isoFileDir := filepath.Join(isoMaker.ImageBuildDir, sysConfigName)
+	if err := os.MkdirAll(isoFileDir, 0700); err != nil {
+		log.Errorf("Failed to create ISO image directory %s: %v", isoFileDir, err)
+		return fmt.Errorf("failed to create ISO image directory: %w", err)
+	}
+	isoFilePath := filepath.Join(isoFileDir, fmt.Sprintf("%s.iso", ImageName))
 
 	initrdRootfsPath := isoMaker.InitrdMaker.GetInitrdRootfsPath()
 	initrdFilePath := isoMaker.InitrdMaker.GetInitrdFilePath()
