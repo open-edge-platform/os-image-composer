@@ -1,32 +1,43 @@
-# Image-Composer CLI Specification
+# OS Image Composer CLI Specification
 
-`image-composer` is a command-line tool for generating custom OS images for
-different operating systems including Edge Microvisor toolkit, Azure Linux,
-and Wind River eLxr. It provides a flexible, configurability-first approach to creating production-ready OS images with precise customization.
-
-## Related Documentation
-
-- [Understanding the Build Process](./image-composer-build-process.md) - Details on the five-stage build pipeline
-- [Understanding Caching in Image-Composer](./image-composer-caching.md) - Information about package and image caching systems
-- [Understanding Templates in Image-Composer](./image-composer-templates.md) - How to use and create reusable templates
+## Table of Contents
+- [Overview](#overview)
+- [CLI Flow](#cli-flow)
+- [Usage](#usage)
+- [Global Options](#global-options)
+- [Commands](#commands)
+  - [Build Command](#build-command)
+  - [Validate Command](#validate-command)
+  - [Cache Command](#cache-command)
+  - [Template Command](#template-command)
+  - [Provider Command](#provider-command)
+- [Examples](#examples)
+  - [Building an Image](#building-an-image)
+  - [Managing Cache](#managing-cache)
+  - [Working with Templates](#working-with-templates)
+- [Configuration Files](#configuration-files)
+  - [Global Configuration File](#global-configuration-file)
+  - [Image Template File](#image-template-file)
+- [Exit Codes](#exit-codes)
+- [Troubleshooting](#troubleshooting)
+  - [Common Issues](#common-issues)
+  - [Logging](#logging)
+- [Related Documentation](#related-documentation)
 
 ## Overview
 
-Image-Composer uses a single CLI with subcommands to provide a consistent user experience while maintaining flexibility. The tool's architecture is built
-around:
+`image-composer` is a command-line tool for generating custom images for different operating systems, including [Azure Linux](https://github.com/microsoft/azurelinux), [Wind River eLxr](https://www.windriver.com/blog/Introducing-eLxr), and [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit). The tool provides a flexible approach to creating and configuring production-ready OS images with precise customization.
 
-1. A global configuration file that defines system-wide settings like cache
-locations and provider configurations
-2. Image template files (in YAML format) that define per-image build
-requirements
+OS Image Composer uses a single CLI with subcommands to deliver a consistent user experience while maintaining flexibility. The tool's architecture is built around the following files:
 
-The tool follows a staged build process, supporting package caching, image
-caching, and various customization options to speed up development cycles and
-ensure reproducible builds.
+1. A global configuration file that defines system-wide settings like cache locations and provider configurations
+2. Image template files in YAML format that define per-image build requirements
+
+The tool follows a staged build process to support package caching, image caching, and various customization options that speed up development cycles and ensure reproducible builds.
 
 ## CLI Flow
 
-The following diagram illustrates the high-level flow of the Image-Composer CLI:
+The following diagram illustrates the high-level flow of the OS Image Composer CLI, the commands of which begin with `image-composer`:
 
 ```mermaid
 flowchart TD
@@ -64,7 +75,6 @@ flowchart TD
 ```
 
 The primary workflow is through the `build` command, which reads an image template file, checks if an image matching those specifications is already cached, and either uses the cached image or runs the build pipeline to create a new image.  
-**_NOTE:_**  The build pipeline will have package caching mechanism unless instructed to skip in the command option `--no-package-cache`
 
 See also:
 
@@ -80,19 +90,18 @@ image-composer [global options] command [command options] [arguments...]
 
 ## Global Options
 
-Image-Composer uses a layered configuration approach, with command-line options
-taking priority over configuration file settings:
+The OS Image Composer command-line utility uses a layered configuration approach, with command-line options taking priority over the configuration file settings:
 
 | Option | Description |
 |--------|-------------|
 | `--config FILE, -c FILE` | Global configuration file (default: /etc/image-composer/config.yaml). This file contains system-wide settings that apply to all image builds. |
-| `--work-dir DIR` | Working directory for temporary build files (overrides config). This is where images are constructed before being finalized. |
+| `--work-dir DIR` | Working directory for temporary build files (overrides config). This directory is where images are constructed before being finalized. |
 | `--cache-dir DIR` | Cache directory for packages and previous builds (overrides config). Proper caching significantly improves build times. |
 | `--log-level LEVEL` | Log level: debug, info, warn, error (overrides config). Use debug for troubleshooting build issues. |
 | `--verbose, -v` | Verbose output (equivalent to --log-level debug). Displays detailed information about each step of the build process. |
 | `--quiet, -q` | Minimal output (equivalent to --log-level error). Only displays errors, useful for scripted environments. |
 | `--help, -h` | Show help for any command or subcommand. |
-| `--version` | Show Image-Composer version information. |
+| `--version` | Show `image-composer` version information. |
 
 ## Commands
 
@@ -120,55 +129,34 @@ Options:
 
 See also:
 
-- [Build Stages in Detail](./image-composer-build-process.md#build-stages-in-detail)
-for information about each build stage
-- [Build Performance Optimization](./image-composer-build-process.md#build-performance-optimization) for tips on improving build speed
+- [Build Stages in Detail](./image-composer-build-process.md#build-stages-in-detail) for information about each build stage
+- [Build Performance Optimization](./image-composer-build-process.md#build-performance-optimization) for tips to improve build speed
 
 ### Validate Command
 
-Validate an image template file without building it. This allows checking
-for errors in your template before committing to a full build process.
+Validate an image template file without building it. This allows checking for errors in your template before committing to a full build process.
 
 ```bash
 image-composer validate [options] TEMPLATE_FILE
 ```
 
-Options:
-
-| Option | Description |
-|--------|-------------|
-| `--schema-only` | Only validate YAML schema without checking filesystem dependencies or provider compatibility. This performs a quick validation of the syntax only. |
-| `--strict` | Enable strict validation with additional checks. Enforces best practices and checks for potential issues that might not cause immediate errors. |
-| `--list-warnings` | Show all warnings, including minor issues that might not prevent the build. Helpful for creating more robust template files. |
+The `--merged` option validates the template after merging with defaults.  
 
 See also:
 
-- [Validate Stage](./image-composer-build-process.md#1-validate-stage) for
-details on the validation process
+- [Validate Stage](./image-composer-build-process.md#1-validate-stage) for details on the validation process
 
 ### Cache Command
 
-Manage the image and package caches to optimize build performance and storage
-usage.
+Manage the image and package caches to optimize build performance and storage usage.
 
 ```bash
-image-composer cache SUBCOMMAND
+image-composer cache
 ```
-
-Subcommands:
-
-| Subcommand | Description |
-|------------|-------------|
-| `list` | List cached images with their metadata, timestamps, and storage locations. Helps you understand what's already cached and available for reuse. |
-| `info [hash]` | Show detailed cache info for a specific image hash, including build parameters and template details. |
-| `clean [--all\|--packages\|--images]` | Clean cache to reclaim disk space. You can selectively clean either packages or images, or both with --all. |
-| `export [hash] FILE` | Export a cached image to a specific file location. Useful when you need to retrieve a specific cached build. |
-| `import FILE` | Import an existing image into the cache. Allows pre-populating the cache with images built elsewhere. |
-
 See also:
 
-- [Package Cache](./image-composer-caching.md#package-cache) and [Image Cache](./image-composer-caching.md#image-cache) for details on caching mechanisms
-- [Configuration Options](./image-composer-caching.md#configuration-options) for cache configuration
+- [Package Cache](./image-composer-caching.md#package-cache) and [Image Cache](./image-composer-caching.md#image-cache) for details on the caching mechanisms
+- [Configuration Options](./image-composer-caching.md#configuration-options)
 
 ### Template Command
 
@@ -189,29 +177,8 @@ Subcommands:
 
 See also:
 
-- [What Are Templates](./image-composer-templates.md#what-are-templates) for an overview of template functionality
-- [Using Templates to Build Images](./image-composer-templates.md#using-templates-to-build-images) for template usage examples
-
-### Provider Command
-
-Manage OS providers used to build images for different operating systems.
-
-```bash
-image-composer provider SUBCOMMAND
-```
-
-Subcommands:
-
-| Subcommand | Description |
-|------------|-------------|
-| `list` | List configured providers with their status and capabilities. Shows all available OS providers that can be used for image building. |
-| `config PROVIDER` | Show provider configuration details including repository URLs, tools, and default settings for a specific provider. |
-| `test PROVIDER` | Test provider configuration by verifying dependencies and connectivity. Ensures the provider is properly configured before attempting a build. |
-
-See also:
-
-- [Compose Stage](./image-composer-build-process.md#3-compose-stage) for how
-providers are used during the build process
+- [What Are Templates](./image-composer-templates.md#what-are-templates)
+- [Using Templates to Build Images](./image-composer-templates.md#using-templates-to-build-images)
 
 ## Examples
 
@@ -264,7 +231,7 @@ image-composer template create my-image-template.yml
 
 ### Global Configuration File
 
-The global configuration file (YAML format) defines system-wide settings that apply to all image builds. This centralized configuration simplifies management of common settings across multiple image builds.
+The global configuration file (YAML format) defines system-wide settings that apply to all image builds. This centralized configuration simplifies management of common settings across multiple image builds. To override the following settings with command-line options, see [Global Options](#global-options).
 
 ```yaml
 core:
@@ -303,26 +270,19 @@ providers:
         url: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0/"
 ```
 
-See also:
-
-- [Global Options](#global-options) for command-line options that can override
-these settings
-
 ### Image Template File
 
-The image template file (YAML format) defines the requirements for a
-specific image. This is where you define exactly what goes into your custom OS
-image, including packages, configurations, and customizations.
+The image template file (YAML format) defines the requirements for an image. With this file, you can define exactly what goes into your custom OS image, including packages, configurations, and customizations.
 
 ```yaml
 image:
   # Basic image identification
   name: edge-device-image                    # Name of the resulting image
-  version: "1.2.0"                          # Version for tracking and naming
+  version: "1.2.0"                           # Version for tracking and naming
 
 target:
   # Target OS and image configuration
-  os: azure-linux                           # Base operating system
+  os: azure-linux                            # Base operating system
   dist: azl3                                 # Distribution identifier
   arch: x86_64                               # Target architecture
   imageType: raw                             # Output format (raw, iso, img, vhd)
@@ -348,10 +308,8 @@ systemConfigs:
 
 See also:
 
-- [Common Build Patterns](./image-composer-build-process.md#common-build-patterns)
-for example image templates
-- [Template Structure](./image-composer-templates.md#template-structure) for how
-templates can be used to generate build specifications
+- [Common Build Patterns](./image-composer-build-process.md#common-build-patterns) for example image templates
+- [Template Structure](./image-composer-templates.md#template-structure) for how to use templates to generate build specifications
 
 ## Exit Codes
 
@@ -360,39 +318,33 @@ automation:
 
 | Code | Description |
 |------|-------------|
-| 0 | Success - The command completed successfully |
-| 1 | General error - An unspecified error occurred |
-| 2 | Command line usage error - Invalid options or arguments |
-| 3 | Validation error - The template file failed validation |
-| 4 | Build error - The build process failed |
-| 5 | Configuration error - Error in configuration files |
+| 0 | Success: The command completed successfully. |
+| 1 | General error: An unspecified error occurred. |
+| 2 | Command line usage error: Invalid options or arguments. |
+| 3 | Validation error: The template file failed validation. |
+| 4 | Build error: The build process failed. |
+| 5 | Configuration error: Error in configuration files. |
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Disk Space**: Building images requires significant temporary disk space.
+1. **Disk Space**: Building images requires a significant amount of temporary disk space.
 
    ```bash
    # Check free space
    df -h /var/tmp/image-composer
    ```
 
-1. **Cache Corruption**: If you experience unexplained failures, try clearing
-the cache.
-
-   ```bash
-   image-composer cache clean --all
-   ```
+1. **Cache Corruption**: If unexplained failures occur, try manually removing the content in the cache directory.
 
 See also:
 
-- [Troubleshooting Build Issues](./image-composer-build-process.md#troubleshooting-build-issues)
-for stage-specific troubleshooting
+- [Troubleshooting Build Issues](./image-composer-build-process.md#troubleshooting-build-issues) for stage-specific troubleshooting
 
 ### Logging
 
-For detailed logs to troubleshoot issues:
+Use detailed logs to troubleshoot issues:
 
 ```bash
 # Enable debug logging
@@ -404,5 +356,10 @@ image-composer --log-level debug build my-image-template.yml 2>&1 | tee build-lo
 
 See also:
 
-- [Build Log Analysis](./image-composer-build-process.md#build-log-analysis) for
-how to interpret log messages
+- [Build Log Analysis](./image-composer-build-process.md#build-log-analysis) for how to interpret log messages
+
+## Related Documentation
+
+- [Understanding the Build Process](./image-composer-build-process.md) describes the five-stage build pipeline.
+- [Understanding Caching](./image-composer-caching.md) explains the package and image caching systems.
+- [Understanding Templates in OS Image Composer](./image-composer-templates.md) demonstrates how to create and reuse templates.
