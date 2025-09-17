@@ -74,7 +74,10 @@ func TestNewSecureHTTPClient_TLSConfigBasics(t *testing.T) {
 func TestNewSecureHTTPClient_ConnectsToTLS13Server(t *testing.T) {
 	// TLS 1.3–only server
 	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, "ok")
+		_, err := io.WriteString(w, "ok")
+		if err != nil {
+			t.Fatalf("failed to write response: %v", err)
+		}
 	}))
 	ts.TLS = &tls.Config{
 		MinVersion: tls.VersionTLS13,
@@ -108,7 +111,10 @@ func TestNewSecureHTTPClient_ConnectsToTLS13Server(t *testing.T) {
 
 func TestNewSecureHTTPClient_HTTP2EnabledByDefault(t *testing.T) {
 	h2srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, r.Proto)
+		_, err := io.WriteString(w, r.Proto)
+		if err != nil {
+			t.Fatalf("failed to write response: %v", err)
+		}
 	}))
 	h2srv.EnableHTTP2 = true
 	h2srv.StartTLS()
