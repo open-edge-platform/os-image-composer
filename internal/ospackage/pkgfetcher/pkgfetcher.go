@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/network"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -74,7 +75,9 @@ func FetchPackages(urls []string, destDir string, workers int) error {
 					log.Warnf("re-downloading zero-size %s", name)
 				}
 				err := func() error {
-					resp, err := http.Get(url)
+
+					client := network.NewSecureHTTPClient()
+					resp, err := client.Get(url)
 					if err != nil {
 						return err
 					}

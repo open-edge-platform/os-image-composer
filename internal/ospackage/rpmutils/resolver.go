@@ -5,7 +5,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/open-edge-platform/image-composer/internal/ospackage"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/network"
 )
 
 // extractBaseRequirement takes a potentially complex requirement string
@@ -191,7 +191,8 @@ func ResolvePackageInfos(
 // ParsePrimary parses the repodata/primary.xml(.gz/.zst) file from a given base URL.
 func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 
-	resp, err := http.Get(baseURL + gzHref)
+	client := network.NewSecureHTTPClient()
+	resp, err := client.Get(baseURL + gzHref)
 	if err != nil {
 		return nil, err
 	}

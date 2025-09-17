@@ -3,7 +3,6 @@ package rpmutils
 import (
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,6 +15,7 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/ospackage/pkgfetcher"
 	"github.com/open-edge-platform/image-composer/internal/ospackage/pkgsorter"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/network"
 )
 
 // repoConfig holds .repo file values
@@ -124,8 +124,9 @@ func isValidVersionFormat(s string) bool {
 func Validate(destDir string) error {
 	log := logger.Logger()
 
+	client := network.NewSecureHTTPClient()
 	// read the GPG key from the repo config
-	resp, err := http.Get(RepoCfg.GPGKey)
+	resp, err := client.Get(RepoCfg.GPGKey)
 	if err != nil {
 		return fmt.Errorf("fetch GPG key %s: %w", RepoCfg.GPGKey, err)
 	}

@@ -5,7 +5,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"net/http"
 	"path/filepath"
 	"strings"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/open-edge-platform/image-composer/internal/ospackage/rpmutils"
 	"github.com/open-edge-platform/image-composer/internal/provider"
 	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer/internal/utils/network"
 	"github.com/open-edge-platform/image-composer/internal/utils/shell"
 	"github.com/open-edge-platform/image-composer/internal/utils/system"
 )
@@ -76,7 +76,8 @@ func (p *Emt) Name(dist, arch string) string {
 // Init will initialize the provider, fetching repo configuration
 func (p *Emt) Init(dist, arch string) error {
 
-	resp, err := http.Get(configURL)
+	client := network.NewSecureHTTPClient()
+	resp, err := client.Get(configURL)
 	if err != nil {
 		log.Errorf("Downloading repo config %s failed: %v", configURL, err)
 		return err
@@ -255,7 +256,9 @@ func loadRepoConfig(r io.Reader) (rpmutils.RepoConfig, error) {
 
 // fetchPrimaryURL downloads repomd.xml and returns the href of the primary metadata.
 func fetchPrimaryURL(repomdURL string) (string, error) {
-	resp, err := http.Get(repomdURL)
+
+	client := network.NewSecureHTTPClient()
+	resp, err := client.Get(repomdURL)
 	if err != nil {
 		return "", fmt.Errorf("GET %s: %w", repomdURL, err)
 	}
