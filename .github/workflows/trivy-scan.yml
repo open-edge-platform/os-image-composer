@@ -1,0 +1,30 @@
+name: Trivy scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment'
+        required: true
+        default: 'dev'
+
+permissions:
+  contents: read
+  
+jobs:
+  zizmor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy scan
+        uses: ./.github/actions/security/trivy
+        with:
+          scan_type: "repo"
+          scan_target: "."
+          severity: "HIGH,CRITICAL"
