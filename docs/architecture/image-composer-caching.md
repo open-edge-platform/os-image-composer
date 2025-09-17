@@ -1,91 +1,79 @@
-# Understanding Caching in Image-Composer
+# Understanding Caching in OS Image Composer
 
-The Image-Composer tool implements two complementary caching mechanisms to significantly improve build performance and reduce resource usage: **Package Cache** and **Image Cache**. This document explains how these caching systems work and how to manage them effectively.
+## Contents
 
-## Related Documentation
-- [Understanding the Build Process](./image-composer-build-process.md) - Details on the five-stage build pipeline
-- [Image-Composer CLI Specification](./image-composer-cli-specification.md) - Complete command-line reference
-- [Understanding Templates in Image-Composer](./image-composer-templates.md) - How to use and create reusable templates
+- [Overview of the Caching Mechanisms](#overview-of-the-caching-mechanisms)
+- [Package Cache](#package-cache)
+    - [How the Package Cache Works](#how-the-package-cache-works)
+    - [Package Cache Benefits](#package-cache-benefits)
+- [Image Cache](#image-cache)
+    - [How the Image Cache Works](#how-the-image-cache-works)
+    - [Image Cache Benefits](#image-cache-benefits)
+- [How the Package Cache and Image Cache Work Together](#how-the-package-cache-and-image-cache-work-together)
+- [Managing the Caches with the CLI](#managing-the-caches-with-the-cli)
+    - [List Cached Content](#list-cached-content)
+    - [Clean the Caches](#clean-the-caches)
+    - [Export or Import Cached Images](#export-or-import-cached-images)
+- [Configuration Options](#configuration-options)
+    - [Global Configuration](#global-configuration)
+    - [Per-Build Specification](#per-build-specification)
+    - [Command-Line Overrides](#command-line-overrides)
+- [Best Practices](#best-practices)
+- [Related Documentation](#related-documentation)
 
-## Overview of Caching Mechanisms
+## Overview of the Caching Mechanisms
 
-Image-Composer uses a layered caching approach:
+The OS Image Composer tool implements two complementary caching mechanisms to significantly improve build performance and reduce resource usage: a package cache and an image cache. This document explains how these caching systems work and how to manage them effectively.
+
+OS Image Composer uses a layered caching approach:
 
 | Cache Type | Purpose | Performance Benefit |
 |------------|---------|---------------------|
 | Package Cache | Stores downloaded OS packages | Reduces network usage and download time |
-| Image Cache | Stores complete built OS images | Eliminates entire build process for identical builds |
+| Image Cache | Stores complete built OS images | Eliminates the entire build process for identical builds |
 
-See also:
-- [Build Stages in Detail](./image-composer-build-process.md#build-stages-in-detail) for how caching integrates with the build process
+To find out how caching integrates with the build process, see [Build Stages in Detail](./image-composer-build-process.md#build-stages-in-detail).
 
 ## Package Cache
 
-### What Package Cache Does
+The package cache stores downloaded OS packages, such as .deb files for a Debian-based Linux distribution or .rpm files for a RPM-based distribution, to avoid downloading them again for future builds.
 
-The package cache stores downloaded OS packages (like .deb files for Ubuntu or .rpm files for Red Hat) to avoid re-downloading them for future builds.
+### How the Package Cache Works
 
-### How Package Cache Works
+The package cache is organized by package name, version, architecture, and source repository. Each package is stored only once, regardless of how many build specs use it. Timestamps track when each package was last used.
 
-1. **Before Package Download**:
-   - When the build system needs to install a package, it first checks the cache
-   - If the package exists in the cache, it uses the cached version
-   - If not, it downloads the package, adds it to the cache, then uses it
+When the build system needs to install a package, it checks the cache before downloading a package. If the package exists in the cache, it uses the cached version. If not, it downloads the package, adds it to the cache, and then uses it.
 
-1. **Key Characteristics**:
-   - Organized by package name, version, architecture, and source repository
-   - Each package is stored only once, regardless of how many build specs use it
-   - Timestamps track when each package was last used
-
-1. **Garbage Collection**:
-   - Managed by two parameters:
-     - Maximum size (in GB)
-     - Retention time (in days)
-   - When limits are reached, oldest and least-used packages are removed first
 
 ### Package Cache Benefits
 
-- Dramatically reduces build time for similar images
-- Decreases network bandwidth usage
-- Enables building images without internet access (if packages were previously cached)
-- Works even when build specifications change
+- Dramatically reduces build time for similar images.
+- Decreases network bandwidth usage.
+- Works even when build specifications change.
+- Enables you to build images without internet access if the packages were previously cached.
 
-See also:
-- [Packages Stage](./image-composer-build-process.md#2-packages-stage) for how package cache is utilized during the build process
+To find out how the build process uses the package cache, see [Packages Stage](./image-composer-build-process.md#2-packages-stage). 
 
 ## Image Cache
 
-### What Image Cache Does
+The image cache stores built OS images to skip the entire build process if an identical build specification has been built before.
 
-The image cache stores complete built OS images to skip the entire build process if an identical build specification has been built before.
+### How the Image Cache Works
 
-### How Image Cache Works
+Before building an image, the system generates a unique hash based on the entire build specification, and then it checks if an image with that hash exists in the cache. If it finds the hash, it copies the cached image to the requested output location. If it doesn't find the hash, it proceeds with the normal build process. 
 
-1. **Before Building**:
-   - The system generates a unique hash based on the entire build specification
-   - It checks if an image with that hash exists in the cache
-   - If found, it simply copies the cached image to the requested output location
-   - If not found, it proceeds with the normal build process
-
-1. **After Building**:
-   - If image caching is enabled, the newly built image is stored in the cache
-   - The specification hash serves as the cache key
-
-1. **Cache Management**:
-   - Controlled by a maximum image count parameter
-   - When this limit is reached, least recently used images are removed
+If image caching is enabled, the newly built image is stored in the cache. The specification hash serves as the cache key.
 
 ### Image Cache Benefits
 
-- Provides instant results for repeated builds of the same image
-- Ensures consistency across builds
-- Enables quick testing of deployment procedures without rebuilding
-- Particularly valuable in CI/CD pipelines and testing environments
+- Provides instant results for repeated builds of the same image.
+- Ensures consistency across builds.
+- Enables quick testing of deployment procedures without rebuilding.
+- Saves time and effort in CI/CD pipelines and testing environments.
 
-See also:
-- [Finalize Stage](./image-composer-build-process.md#5-finalize-stage) for how images are stored in the cache during build completion
+To find out how images are stored in the cache during build completion, see the [final stage of the build process](./image-composer-build-process.md#5-finalize-stage).
 
-## How They Work Together
+## How the Package Cache and Image Cache Work Together
 
 The two caching mechanisms complement each other and operate at different levels:
 
@@ -138,27 +126,17 @@ flowchart TD
     class ComposeStage,ConfigurationStage stage;
 ```
 
-This approach ensures:
+This approach maximizes performance: With the image cache, identical builds are instant; with the package cache, similar builds benefit from faster package installation. 
 
-1. **Maximum Performance**:
-   - Identical builds are instant (image cache)
-   - Similar builds still benefit from faster package installation (package cache)
+The approach also uses resources efficiently by minimizing bandwidth and managing disk space automatically. Because each mechanism can be enabled or disabled independently, you have the flexibility to customize the use of caches to your requirements.
 
-2. **Resource Efficiency**:
-   - Bandwidth usage is minimized
-   - Disk space is managed automatically
+To find out how to control the behavior of the cache, see [Build Configuration Options](./image-composer-build-process.md#build-configuration-options).
 
-3. **Flexibility**:
-   - Each mechanism can be enabled/disabled independently
+## Managing the Caches with the CLI
 
-See also:
-- [Build Configuration Options](./image-composer-build-process.md#build-configuration-options) for controlling cache behavior
+The OS Image Composer command-line tool includes commands to manage the caching systems.
 
-## Managing Caches via CLI
-
-Image-Composer provides commands to manage both caching systems:
-
-### Listing Cached Content
+### List Cached Content
 
 ```bash
 # List all cached images with metadata
@@ -168,20 +146,7 @@ image-composer cache list
 image-composer cache info abc123def456
 ```
 
-### Cleaning Caches
-
-```bash
-# Clean package cache only
-image-composer cache clean --packages
-
-# Clean image cache only
-image-composer cache clean --images
-
-# Clean both caches completely
-image-composer cache clean --all
-```
-
-### Exporting and Importing Cached Images
+### Export or Import Cached Images
 
 ```bash
 # Export a cached image to a file
@@ -196,7 +161,9 @@ See also:
 
 ## Configuration Options
 
-### Global Configuration (in config.yaml)
+### Global Configuration
+
+The global configuration resides in `config.yaml`:
 
 ```yaml
 storage:
@@ -209,7 +176,9 @@ storage:
     max_count: 5               # Maximum number of images to keep
 ```
 
-### Per-Build Specification (in build spec YAML)
+### Per-Build Specification
+
+The per-build specification appears in the build spec YAML:
 
 ```yaml
 build:
@@ -218,49 +187,23 @@ build:
     use_image_cache: true      # Whether this build should use image cache
 ```
 
-### Command-Line Overrides
-
-```bash
-# Disable all caching for a specific build
-image-composer build --no-cache my-image-spec.yml
-
-# Disable only package caching
-image-composer build --no-package-cache my-image-spec.yml
-
-# Disable only image caching
-image-composer build --no-image-cache my-image-spec.yml
-```
-
 See also:
 - [Global Configuration File](./image-composer-cli-specification.md#global-configuration-file) for all available configuration options
 - [Command-Line Overrides](./image-composer-build-process.md#command-line-overrides) for additional build options
 
 ## Best Practices
 
-1. **Keep Caching Enabled**:
-   - The performance benefits are substantial
-   - Cache management is automatic and requires minimal intervention
+1. **Clean the cache regularly**: Consider performing periodic cache cleaning in long-running environments by manually removing the cache directory content. 
 
-1. **Regular Cache Cleaning**:
-   - Consider scheduling periodic cache cleaning in long-running environments
-   - `image-composer cache clean --all` can be added to maintenance scripts
+1. **Manage version control integration**: Consider clearing the image cache when major version control changes occur to ensure that images are rebuilt when repository content changes significantly.
 
-1. **Adjust Cache Sizes**:
-   - For development environments with frequent builds, increase cache sizes
-   - For CI/CD pipelines, tune based on disk space constraints
-
-1. **Version Control Integration**:
-   - Consider clearing image cache when major version control changes occur
-   - This ensures images are rebuilt when repository content changes significantly
-
-1. **CI/CD Optimization**:
-   - In CI/CD environments, persist the cache between pipeline runs
-   - Many CI systems support caching directories between jobs
-
-1. **Troubleshooting**:
-   - If encountering unexplained issues, try building with `--no-cache` first
-   - This helps determine if a cached component is causing problems
+1. **Optimize for CI/CD**: In CI/CD environments, persist the cache between pipeline runs. Many CI systems support caching directories between jobs.
 
 See also:
-- [Build Performance Optimization](./image-composer-build-process.md#build-performance-optimization) for additional performance tips
-- [Troubleshooting Build Issues](./image-composer-build-process.md#troubleshooting-build-issues) for debugging problems
+- [Build Performance Optimization](./image-composer-build-process.md#build-performance-optimization)
+- [Troubleshooting Build Issues](./image-composer-build-process.md#troubleshooting-build-issues)
+
+## Related Documentation
+- [Understanding the Build Process](./image-composer-build-process.md)
+- [OS Image Composer CLI Reference](./image-composer-cli-specification.md)
+- [Understanding Templates in OS Image Composer](./image-composer-templates.md): How to use and create reusable templates
