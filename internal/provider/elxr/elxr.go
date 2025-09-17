@@ -166,7 +166,7 @@ func (p *eLxr) installHostDependency() error {
 }
 
 func (p *eLxr) downloadImagePkgs(template *config.ImageTemplate) error {
-	pkgList := template.GetPackages()
+	pkgList := append(template.GetPackages(), template.GetKernelPackages()...)
 	providerId := p.Name(template.Target.Dist, template.Target.Arch)
 	globalCache, err := config.CacheDir()
 	if err != nil {

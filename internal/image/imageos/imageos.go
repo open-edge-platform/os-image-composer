@@ -380,7 +380,7 @@ func getRpmPkgInstallList(template *config.ImageTemplate) []string {
 
 func getDebPkgInstallList(template *config.ImageTemplate) []string {
 	var head, middle, tail []string
-	imagePkgList := template.GetPackages()
+	imagePkgList := append(template.GetPackages(), template.GetKernelPackages()...)
 	for _, pkg := range imagePkgList {
 		if strings.HasPrefix(pkg, "base-files") {
 			head = append(head, pkg)
