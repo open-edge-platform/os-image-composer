@@ -1,4 +1,4 @@
-# Image Composer - Go Coding Style Guide
+# Go Coding Style Guide for OS Image Composer
 
 ## Table of Contents
 1. [General Principles](#general-principles)
@@ -131,7 +131,7 @@ type ImageBuilder struct {}
 type PackageInstaller interface {}
 type ConfigReader interface {}
 
-// Specific to image-composer
+// Specific to OS Image Composer
 type ChrootBuilder struct {}
 type RpmInstaller interface {}
 type DebInstaller interface {}
@@ -142,7 +142,7 @@ type DebInstaller interface {}
 - Package names should be descriptive but concise
 
 ```go
-// Good package structure for image-composer
+// Good package structure for OS Image Composer
 package chroot    // for chroot environment building
 package rpm       // for RPM package handling
 package deb       // for DEB package handling
