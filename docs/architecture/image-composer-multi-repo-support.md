@@ -38,7 +38,7 @@ packages:
 ...
 ```
 
-Each repository must follow the standard Debian or RPM structure, including all required metadata. The OS Image Composer tool performs sanity checks to ensure repository URLs are valid before proceeding. See the following repositiory setup references:
+Each repository must follow the standard Debian or RPM structure, including all required metadata. The OS Image Composer tool performs sanity checks to ensure repository URLs are valid before proceeding. See the following repository setup references:
 
 - Debian repo setup: https://wiki.debian.org/DebianRepository/Setup  
 - RPM repo setup: https://wiki.centos.org/HowTos/CreateLocalRepos
