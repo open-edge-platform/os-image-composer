@@ -32,7 +32,7 @@ Templates in the OS Image Composer tool are YAML files that deliver a straightfo
 - [Related Documentation](#related-documentation)
 
 
-## What Are Templates and How Do They Work? 
+## What Are Templates and How Do They Work?
 
 Templates are predefined build specifications that serve as a foundation for building operating system images. Here's what templates empower you to do:
 
