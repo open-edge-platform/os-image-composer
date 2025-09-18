@@ -32,7 +32,7 @@ The OS Image Composer tool creates customized OS images through a series of well
 
 ## Overview of the Build Pipeline
 
-The OS Image Composer takes a staged build approach that splits the image creation process into discrete phases --- an architecture with several distinct advantages: 
+The OS Image Composer takes a staged build approach that splits the image creation process into discrete phases --- an architecture with several distinct advantages:
 
 - **Modularity**: Each stage performs a discrete function.
 - **Caching**: Intermediate results can be cached for performance to optimize build-generation time, fetching only required packages without rebuilding the chroot environment unless required.
