@@ -21,8 +21,7 @@ The OS Image Composer tool creates customized OS images through a series of well
   - [Production Server Image](#production-server-image)
 - [Build Performance Optimization](#build-performance-optimization)
   - [Improving Build Speed](#improving-build-speed)
-  - [Reducing Build Time for
-    Development](#reducing-build-time-for-development)
+  - [Reducing Build Time for Development](#reducing-build-time-for-development)
 - [Troubleshooting Build Issues](#troubleshooting-build-issues)
   - [Common Problems and Solutions](#common-problems-and-solutions)
   - [Detailed Debugging](#detailed-debugging)
@@ -409,7 +408,7 @@ Build logs can provide valuable information about failures. Here are the key sec
 
 1. **Validation errors**: Look for "Validation error" messages at the beginning.
 
-2. **Package resolution issues**: Look for "Failed to resolve dependencies" or "Package not found"
+2. **Package resolution issues**: Look for "Failed to resolve dependencies" or "Package not found."
 
 3. **Disk space warnings**: Watch for "Insufficient disk space" messages.
 
