@@ -16,8 +16,7 @@ Templates in the OS Image Composer tool are YAML files that deliver a straightfo
 - [Using Templates to Build Images](#using-templates-to-build-images)
     - [Basic Usage](#basic-usage)
     - [Variable Definition Files](#variable-definition-files)
-    - [Generating Spec Files from
-    Templates](#generating-spec-files-from-templates)
+    - [Generating Spec Files from Templates](#generating-spec-files-from-templates)
 - [Template Storage](#template-storage)
 - [Template Variables](#template-variables)
 - [Template Examples](#template-examples)
