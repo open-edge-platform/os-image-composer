@@ -23,6 +23,35 @@ building OS images. They allow you to:
 - Reduce duplication of effort
 - Share common configurations with your team
 
+The OS image composer provides default image templates on a per distribution
+basis and image type (RAW vs. ISO) that can be used directly to build an OS
+from those defaults. You can override these default templates by providing your
+own template and configure, override the specific settings and values you would 
+like to configure. The tool will internally merge the two to create the final
+template used for image composition.
+
+![image-templates](./assets/template.drawio.svg)
+
+Validation is performed both on the provided user template, along with the
+default template for the particular distribution and image type your are building.
+It is not recommended to directly modify the default templates.
+
+The generic path pattern to the default OS templates can
+be found under
+
+```bash
+
+osv/<distribution>/imageconfig/defaultconfigs/default-<type>-<arch>.yml
+
+```
+
+where <type> indicates the image type your are building (ISO vs. RAW) and
+<arch> defines the architecture you are building for.
+
+When building your own custom image, it is not necessary to start an image
+template from scratch. The `image-templates` directory contains user-templates
+that c
+
 See also:
 
 - [Common Build Patterns](./image-composer-build-process.md#common-build-patterns)
@@ -40,41 +69,34 @@ A template includes standard build specification sections with variables where
 customization is needed:
 
 ```yaml
-# Example template: ubuntu-server.yml
-template:
-  name: ubuntu-server
-  description: Standard Ubuntu server image
-
 image:
-  name: ${hostname}-server
-  base:
-    os: ubuntu
-    version: ${ubuntu_version}
-    type: server
+  name: emt3-x86_64-edge
+  version: "1.0.0"
 
-build:
-  cache:
-    use_package_cache: true
-    use_image_cache: true
-  stages:
-    - base
-    - packages
-    - configuration
-    - finalize
+target:
+  os: edge-microvisor-toolkit # Target OS name
+  dist: emt3 # Target OS distribution
+  arch: x86_64 # Target OS architecture
+  imageType: raw # Image type, valid value: [raw, iso].
 
-customizations:
+# System configuration
+systemConfig:
+  name: edge
+  description: Default yml configuration for edge image
+
+  immutability:
+    enabled: false # default is true
+
+  # Package Configuration
   packages:
-    install:
-      - openssh-server
-      - ca-certificates
-      - curl
-    remove:
-      - snapd
-  services:
-    enabled:
-      - ssh
-  
-  # Other standard configuration...
+    # Additional packages beyond the base system
+    - cloud-init
+    - rsyslog
+
+  # Kernel Configuration
+  kernel:
+    version: "6.12"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
 ```
 
 ### Variable Substitution
@@ -88,45 +110,6 @@ See also:
 - [Build Specification File](./image-composer-cli-specification.md#build-specification-file)
 for the complete structure of build specifications
 
-## Managing Templates via CLI
-
-Image-Composer provides straightforward commands to manage templates:
-
-### Listing Templates
-
-```bash
-# List all available templates
-image-composer template list
-```
-
-### Viewing Template Details
-
-```bash
-# Show template details including available variables
-image-composer template show ubuntu-server
-```
-
-### Creating Templates
-
-```bash
-# Create a new template from an existing spec file
-image-composer template create --name my-server-template my-image-spec.yml
-```
-
-### Exporting Templates
-
-```bash
-# Export a template to a file for sharing
-image-composer template export ubuntu-server ./ubuntu-server-template.yml
-```
-
-### Importing Templates
-
-```bash
-# Import a template from a file
-image-composer template import ./ubuntu-server-template.yml
-```
-
 See also:
 
 - [Template Command](./image-composer-cli-specification.md#template-command) for
@@ -138,43 +121,8 @@ all template management commands
 
 ```bash
 # Build an image using a template
-image-composer build --template ubuntu-server my-output-image.yml
+image-composer build azl3-x86_64-edge-raw.yml
 
-# Build with variable overrides
-image-composer build --template ubuntu-server --set "ubuntu_version=22.04" --set
-"hostname=web-01" my-output-image.yml
-```
-
-### Variable Definition Files
-
-You can define variables for templates in separate files:
-
-```yaml
-# variables.yml
-ubuntu_version: "22.04"
-hostname: "production-web-01"
-enable_firewall: true
-```
-
-Then use them with:
-
-```bash
-image-composer build --template ubuntu-server --variables variables.yml
-my-output-image.yml
-```
-
-### Generating Spec Files from Templates
-
-You can generate a specification file from a template to review or modify before
-building:
-
-```bash
-# Generate spec file from template
-image-composer template render ubuntu-server --output my-spec.yml
-
-# Generate with variable overrides
-image-composer template render ubuntu-server --set "ubuntu_version=22.04"
---output my-spec.yml
 ```
 
 See also:
@@ -191,109 +139,10 @@ Templates in Image-Composer are stored in two main locations:
 
 ## Template Variables
 
-Templates support three simple variable types:
-
-1. **Strings**: Text values (e.g., hostnames, versions)
-2. **Numbers**: Numeric values (e.g., port numbers, sizes)
-3. **Booleans**: True/false values (e.g., feature flags)
-
-Example variable definitions:
-
-```yaml
-variables:
-  hostname:
-    default: "ubuntu-server"
-    description: "System hostname"
-  
-  ubuntu_version:
-    default: "22.04"
-    description: "Ubuntu version to use"
-  
-  enable_firewall:
-    default: true
-    description: "Whether to enable the firewall"
-```
-
 See also:
 
 - [Build Stages in Detail](./image-composer-build-process.md#build-stages-in-detail)
 for how variables affect each build stage
-
-## Template Examples
-
-### Web Server Template
-
-```yaml
-template:
-  name: web-server
-  description: Basic web server image
-
-variables:
-  hostname:
-    default: "web-server"
-    description: "Server hostname"
-  
-  ubuntu_version:
-    default: "22.04"
-    description: "Ubuntu version to use"
-  
-  http_port:
-    default: 80
-    description: "HTTP port for web server"
-
-image:
-  name: ${hostname}
-  base:
-    os: ubuntu
-    version: ${ubuntu_version}
-    type: server
-
-customizations:
-  packages:
-    install:
-      - nginx
-      - apache2-utils
-  services:
-    enabled:
-      - nginx
-  files:
-    - source: ./files/nginx.conf
-      destination: /etc/nginx/nginx.conf
-      permissions: "0644"
-```
-
-### Database Server Template
-
-```yaml
-template:
-  name: db-server
-  description: Basic database server image
-
-variables:
-  hostname:
-    default: "db-server"
-    description: "Server hostname"
-  
-  ubuntu_version:
-    default: "22.04"
-    description: "Ubuntu version to use"
-
-image:
-  name: ${hostname}
-  base:
-    os: ubuntu
-    version: ${ubuntu_version}
-    type: server
-
-customizations:
-  packages:
-    install:
-      - postgresql
-      - postgresql-client
-  services:
-    enabled:
-      - postgresql
-```
 
 See also:
 
@@ -328,7 +177,7 @@ for how templates can improve build efficiency
 
 ## Conclusion
 
-Templates in Image-Composer provide a straightforward way to standardize image
+Templates in OS image composer provide a straightforward way to standardize image
 creation and reduce repetitive work. By defining common configurations once and
 reusing them with different variables, you can:
 
