@@ -33,7 +33,7 @@ template used for image composition.
 ![image-templates](./assets/template.drawio.svg)
 
 Validation is performed both on the provided user template, along with the
-default template for the particular distribution and image type your are building.
+default template for the particular distribution and image type you are building.
 It is not recommended to directly modify the default templates.
 
 The generic path pattern to the default OS templates can
