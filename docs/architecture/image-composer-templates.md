@@ -26,8 +26,8 @@ building OS images. They allow you to:
 The OS image composer provides default image templates on a per distribution
 basis and image type (RAW vs. ISO) that can be used directly to build an OS
 from those defaults. You can override these default templates by providing your
-own template and configure, override the specific settings and values you would 
-like to configure. The tool will internally merge the two to create the final
+own template and configure or override the specific settings and values you would 
+like. The tool will internally merge the two to create the final
 template used for image composition.
 
 ![image-templates](./assets/template.drawio.svg)
