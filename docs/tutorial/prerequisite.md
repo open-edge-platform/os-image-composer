@@ -4,7 +4,7 @@ This document describes the general dependencies for the image creation tools an
 
 ---
 ## ukify
-1. Install all the required dependencies for ukify:
+1. Install all the required dependencies for `ukify`:
 
 ```bash
 sudo apt install git python3 python3-cryptography python3-pefile python3-pillow \
@@ -12,7 +12,7 @@ sudo apt install git python3 python3-cryptography python3-pefile python3-pillow 
   libelf-dev lz4 pkg-config meson ninja-build
 ```
 
-2. Clone the systemd repository for ukify, and then check out the version you want:
+2. Clone the systemd repository for `ukify`, and then check out the version you want:
 
 ```bash
 git clone https://github.com/systemd/systemd.git

@@ -2809,8 +2809,6 @@ func TestGetTargetOsConfigDir(t *testing.T) {
 	}
 }
 
-// Add these tests to config_test.go following ICT's existing test patterns
-
 func TestPackageRepositories(t *testing.T) {
 	template := &ImageTemplate{
 		Image: ImageInfo{

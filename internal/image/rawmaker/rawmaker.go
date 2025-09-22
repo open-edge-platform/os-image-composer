@@ -74,7 +74,7 @@ func (rawMaker *RawMaker) Init() error {
 		globalWorkDir,
 		providerId,
 		"imagebuild",
-		rawMaker.template.SystemConfig.Name,
+		rawMaker.template.GetSystemConfigName(),
 	)
 
 	return os.MkdirAll(rawMaker.ImageBuildDir, 0700)
@@ -98,16 +98,8 @@ func (rawMaker *RawMaker) cleanupImageFileOnError(imagePath string) {
 
 // Helper method for file renaming
 func (rawMaker *RawMaker) renameImageFile(currentPath, imageName, versionInfo string) (string, error) {
-	sysConfigName := rawMaker.template.SystemConfig.Name
-
-	// Create target directory
-	targetDir := filepath.Join(rawMaker.ImageBuildDir, sysConfigName)
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create target directory %s: %w", targetDir, err)
-	}
-
 	// Construct new file path
-	newFilePath := filepath.Join(targetDir, fmt.Sprintf("%s-%s.raw", imageName, versionInfo))
+	newFilePath := filepath.Join(rawMaker.ImageBuildDir, fmt.Sprintf("%s-%s.raw", imageName, versionInfo))
 
 	log.Infof("Renaming image file from %s to %s", currentPath, newFilePath)
 

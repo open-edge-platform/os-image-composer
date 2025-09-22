@@ -12,7 +12,7 @@ func createConfigCommand() *cobra.Command {
 	configCmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage configuration",
-		Long: `Manage global configuration for the Image Composer Tool.
+		Long: `Manage global configuration for the OS Image Composer.
 
 Available commands:
   init    Initialize a new configuration file with default values`,

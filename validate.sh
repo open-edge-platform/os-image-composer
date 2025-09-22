@@ -66,8 +66,8 @@ run_qemu_boot_test() {
 }
 
 git branch
-#Build the ICT
-echo "Building the Image Composer Tool..."
+#Build the OS Image Composer
+echo "Building the OS Image Composer..."
 go build ./cmd/image-composer
 
 # Run tests

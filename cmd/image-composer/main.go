@@ -69,8 +69,8 @@ func main() {
 func createRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "image-composer",
-		Short: "Image Composer Tool (ICT) for building Linux distributions",
-		Long: `Image Composer Tool (ICT) is a toolchain that enables building immutable
+		Short: "OS Image Composer for building Linux distributions",
+		Long: `OS Image Composer is a toolchain that enables building immutable
 Linux distributions using a simple toolchain from pre-built packages emanating
 from different Operating System Vendors (OSVs).
 

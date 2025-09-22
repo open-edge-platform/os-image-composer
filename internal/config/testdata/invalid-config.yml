@@ -1,4 +1,4 @@
-# Image Composer Tool - Global Configuration
+# OS Image Composer - Global Configuration
 # This file contains tool-level settings that apply across all image builds.
 # Image-specific parameters should be defined in the image specification.
 

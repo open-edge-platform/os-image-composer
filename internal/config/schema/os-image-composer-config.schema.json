@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://github.com/open-edge-platform/image-composer/schemas/os-image-composer-config.schema.json",
 	"title": "OS Image Composer Config",
-	"description": "Defines the global configuration file for the Image Composer",
+	"description": "Defines the global configuration file for the OS Image Composer",
 	"type": "object",
 	"properties": {
 		"workers": {
@@ -14,7 +14,7 @@
 		},
 		"config_dir": {
 			"type": "string",
-			"description": "Configuration file directory for the Image Composer",
+			"description": "Configuration file directory for the OS Image Composer",
 			"default": ".config",
 			"pattern": "^[a-zA-Z0-9_./-]+$",
 			"minLength": 0,

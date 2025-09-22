@@ -78,7 +78,7 @@ func (initrdMaker *InitrdMaker) Init() error {
 		globalWorkDir,
 		providerId,
 		"imagebuild",
-		initrdMaker.template.SystemConfig.Name,
+		initrdMaker.template.GetSystemConfigName(),
 	)
 
 	return os.MkdirAll(initrdMaker.ImageBuildDir, 0700)
@@ -127,19 +127,13 @@ func (initrdMaker *InitrdMaker) BuildInitrdImage() (err error) {
 	log.Infof("Building initrd image for: %s", initrdMaker.template.GetImageName())
 
 	imageName := initrdMaker.template.GetImageName()
-	sysConfigName := initrdMaker.template.GetSystemConfigName()
 
 	initrdMaker.InitrdRootfsPath, initrdMaker.VersionInfo, err = initrdMaker.ImageOs.InstallInitrd()
 	if err != nil {
 		return fmt.Errorf("failed to install initrd: %w", err)
 	}
 
-	initrdFileDir := filepath.Join(initrdMaker.ImageBuildDir, sysConfigName)
-	if err := os.MkdirAll(initrdFileDir, 0700); err != nil {
-		return fmt.Errorf("failed to create initrd image directory: %w", err)
-	}
-
-	initrdMaker.InitrdFilePath = filepath.Join(initrdFileDir, fmt.Sprintf("%s-%s.img",
+	initrdMaker.InitrdFilePath = filepath.Join(initrdMaker.ImageBuildDir, fmt.Sprintf("%s-%s.img",
 		imageName, initrdMaker.VersionInfo))
 
 	if err := addInitScriptsToInitrd(initrdMaker.InitrdRootfsPath); err != nil {

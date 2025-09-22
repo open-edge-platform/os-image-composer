@@ -29,3 +29,4 @@ jobs:
           scan_type: "repo"
           scan_target: "."
           severity: "HIGH,CRITICAL"
+          generate_sbom: "true"
