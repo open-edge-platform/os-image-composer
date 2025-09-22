@@ -50,7 +50,7 @@ where <type> indicates the image type your are building (ISO vs. RAW) and
 
 When building your own custom image, it is not necessary to start an image
 template from scratch. The `image-templates` directory contains user-templates
-that c
+that can be used as starting points for your own custom images.
 
 See also:
 
