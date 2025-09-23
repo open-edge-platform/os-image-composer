@@ -11,7 +11,7 @@ func TestExecuteConfigInit_CreatesFile(t *testing.T) {
 	target := filepath.Join(tmp, "my-config.yml")
 
 	cmd := createConfigCommand()
-	// Run: image-composer config init <path>
+	// Run: os-image-composer config init <path>
 	cmd.SetArgs([]string{"init", target})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute config init failed: %v", err)

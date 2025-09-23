@@ -68,7 +68,7 @@ func main() {
 // createRootCommand creates and configures the root cobra command with all subcommands
 func createRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "image-composer",
+		Use:   "os-image-composer",
 		Short: "OS Image Composer for building Linux distributions",
 		Long: `OS Image Composer is a toolchain that enables building immutable
 Linux distributions using a simple toolchain from pre-built packages emanating
@@ -79,8 +79,8 @@ The tool supports building custom images for:
 - Azure Linux
 - Wind River eLxr
 
-Use 'image-composer --help' to see available commands.
-Use 'image-composer <command> --help' for more information about a command.`,
+Use 'os-image-composer --help' to see available commands.
+Use 'os-image-composer <command> --help' for more information about a command.`,
 	}
 
 	// Add global flags

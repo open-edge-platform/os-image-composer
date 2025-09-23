@@ -12,12 +12,12 @@ config_dir: "./config"
 # Directory containing configuration files for different target OSs (default: ./config)
 # Should contain subdirectories for general and each target OS config files.
 
-cache_dir: "./cache/image-composer"
+cache_dir: "./cache/os-image-composer"
 # Package cache directory where downloaded RPMs/DEBs are stored (default: ./cache)
 # This directory persists between builds for package reuse
 # Should have sufficient space (typically 1-5GB depending on image size)
 
-work_dir: "./tmp/image-composer"
+work_dir: "./tmp/os-image-composer"
 # Working directory for build operations and image assembly (default: ./workspace)
 # Contains temporary build artifacts, extracted packages, and final images
 # Cleaned up after successful builds

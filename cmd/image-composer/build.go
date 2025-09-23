@@ -72,7 +72,7 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 
 	// Check if template file is provided as first positional argument
 	if len(args) < 1 {
-		return fmt.Errorf("no template file provided, usage: image-composer build [flags] TEMPLATE_FILE")
+		return fmt.Errorf("no template file provided, usage: os-image-composer build [flags] TEMPLATE_FILE")
 	}
 	templateFile := args[0]
 

@@ -216,25 +216,25 @@ func GetConfigPaths() []string {
 	homeDir, _ := os.UserHomeDir()
 
 	paths := []string{
-		"image-composer.yml",   // Primary config location (root directory)
-		".image-composer.yml",  // Hidden file in current directory
-		"image-composer.yaml",  // Alternative extension
-		".image-composer.yaml", // Hidden file alternative
+		"os-image-composer.yml",   // Primary config location (root directory)
+		".os-image-composer.yml",  // Hidden file in current directory
+		"os-image-composer.yaml",  // Alternative extension
+		".os-image-composer.yaml", // Hidden file alternative
 	}
 
 	if homeDir != "" {
 		paths = append(paths,
-			filepath.Join(homeDir, ".image-composer", "config.yml"),
-			filepath.Join(homeDir, ".image-composer", "config.yaml"),
-			filepath.Join(homeDir, ".config", "image-composer", "config.yml"),
-			filepath.Join(homeDir, ".config", "image-composer", "config.yaml"),
+			filepath.Join(homeDir, ".os-image-composer", "config.yml"),
+			filepath.Join(homeDir, ".os-image-composer", "config.yaml"),
+			filepath.Join(homeDir, ".config", "os-image-composer", "config.yml"),
+			filepath.Join(homeDir, ".config", "os-image-composer", "config.yaml"),
 		)
 	}
 
 	// System-wide config paths
 	paths = append(paths,
-		"/etc/image-composer/config.yml",
-		"/etc/image-composer/config.yaml",
+		"/etc/os-image-composer/config.yml",
+		"/etc/os-image-composer/config.yaml",
 	)
 
 	return paths

@@ -16,7 +16,7 @@ func runInstallCompletion(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 
 	// Minimal root command so that cobra can generate completion for it
-	root := &cobra.Command{Use: "image-composer"}
+	root := &cobra.Command{Use: "os-image-composer"}
 	root.AddCommand(createInstallCompletionCommand())
 	root.SetArgs(append([]string{"install-completion"}, args...))
 
@@ -34,7 +34,7 @@ func TestInstallCompletion_UnknownShellDetection(t *testing.T) {
 	t.Setenv("PSModulePath", "")
 
 	// Run command without explicit --shell flag, expecting an error about unsupported shell
-	root := &cobra.Command{Use: "image-composer"}
+	root := &cobra.Command{Use: "os-image-composer"}
 	root.AddCommand(createInstallCompletionCommand())
 	root.SetArgs([]string{"install-completion"})
 
@@ -62,7 +62,7 @@ func TestInstallCompletion_ZshWritesToHome(t *testing.T) {
 	}
 
 	// Validate the expected file path exists
-	target := filepath.Join(tmp, ".zsh", "completion", "_image-composer")
+	target := filepath.Join(tmp, ".zsh", "completion", "_os-image-composer")
 	if _, statErr := os.Stat(target); statErr != nil {
 		t.Fatalf("expected completion file at %s, got stat error: %v", target, statErr)
 	}
@@ -93,7 +93,7 @@ func runCompletionFor(t *testing.T, shell string) {
 	t.Setenv("HOME", tmp)
 	t.Setenv("USERPROFILE", tmp) // windows env used by os.UserHomeDir on some setups
 
-	root := &cobra.Command{Use: "image-composer"}
+	root := &cobra.Command{Use: "os-image-composer"}
 	root.AddCommand(createInstallCompletionCommand())
 	root.SetArgs([]string{"install-completion", "--shell", shell, "--force"})
 
@@ -101,15 +101,15 @@ func runCompletionFor(t *testing.T, shell string) {
 		t.Fatalf("completion for %s failed: %v", shell, err)
 	}
 
-	// Be flexible: we accept any file whose base name indicates image-composer completion.
+	// Be flexible: we accept any file whose base name indicates os-image-composer completion.
 	want := func(name string) bool {
 		name = strings.ToLower(name)
-		return strings.Contains(name, "image-composer") &&
+		return strings.Contains(name, "os-image-composer") &&
 			(strings.HasSuffix(name, ".bash") ||
 				strings.HasSuffix(name, ".fish") ||
 				strings.HasSuffix(name, ".ps1") ||
-				name == "_image-composer" || // zsh
-				name == "image-composer") // some distros use no extension
+				name == "_os-image-composer" || // zsh
+				name == "os-image-composer") // some distros use no extension
 	}
 	ok, err := findAnyFileUnder(tmp, want)
 	if err != nil {

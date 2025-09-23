@@ -54,7 +54,7 @@ Run ICT to build your image as usual.
 After a successful build, check the output directory, for example:
 
 ```bash
-ls ./tmp/image-composer/wind-river-elxr-elxr12-x86_64/imagebuild/Default_Raw/ -la
+ls ./tmp/os-image-composer/wind-river-elxr-elxr12-x86_64/imagebuild/Default_Raw/ -la
 ```
 
 **Expected output:**

@@ -2,7 +2,7 @@
 
 // NOTE: This test is guarded by a build tag because it depends on internal/provider
 // interfaces and registry functions in your repository. Enable with:
-//    go test -tags provider_integration ./cmd/image-composer -run TestBuild_HappyPath -v
+//    go test -tags provider_integration ./cmd/os-image-composer -run TestBuild_HappyPath -v
 //
 // You may need to tweak method names to match your internal provider interface.
 

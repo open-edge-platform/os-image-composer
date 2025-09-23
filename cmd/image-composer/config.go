@@ -31,17 +31,17 @@ func createConfigInitCommand() *cobra.Command {
 		Short: "Initialize a new configuration file",
 		Long: `Initialize a new configuration file with default values.
 
-If no path is specified, the config will be created in the current directory as image-composer.yml
+If no path is specified, the config will be created in the current directory as os-image-composer.yml
 
 Examples:
   # Create config in current directory
-  image-composer config init
+  os-image-composer config init
   
   # Create config at specific location
-  image-composer config init /etc/image-composer/config.yml
+  os-image-composer config init /etc/os-image-composer/config.yml
   
   # Create config in user's home directory
-  image-composer config init ~/.image-composer/config.yml`,
+  os-image-composer config init ~/.os-image-composer/config.yml`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: executeConfigInit,
 	}
@@ -51,7 +51,7 @@ Examples:
 
 // executeConfigInit handles the config init command logic
 func executeConfigInit(cmd *cobra.Command, args []string) error {
-	configPath := "image-composer.yml"
+	configPath := "os-image-composer.yml"
 	if len(args) > 0 {
 		configPath = args[0]
 	}
