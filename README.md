@@ -1,77 +1,82 @@
-# Image Composer Tool
+# OS Image Composer
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Go Lint Check](https://github.com/open-edge-platform/image-composer/actions/workflows/go-lint.yml/badge.svg)](https://github.com/open-edge-platform/image-composer/actions/workflows/go-lint.yml)
+[![Go Lint Check](https://github.com/open-edge-platform/os-image-composer/actions/workflows/go-lint.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/go-lint.yml)
 
-The Image Composer Tool (ICT) is a toolchain that builds immutable
-Linux distributions using a simple toolchain from pre-built packages provided by different Operating System Vendors (OSVs).
-
-The ICT is developed in the Go programming language (or `golang`) and initially builds custom
-images for [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit), [Linux OS for Azure 1P services and edge appliances](https://github.com/microsoft/azurelinux)
-and Wind River eLxr.
-
-## Documentation
-
-- [📖 CLI Specification](./docs/architecture/image-composer-cli-specification.md) - Complete command-line reference and usage guide
-- [🔧 Build Process](./docs/architecture/image-composer-build-process.md) - Details on the five-stage build pipeline
-- [⚡ Caching](./docs/architecture/image-composer-caching.md) - Explanations on package cache and image cache to improve build performance and reduce resource usage
-- [📋 Templates](./docs/architecture/image-composer-templates.md) - Explanations on how to create and reuse image templates
-
-## Quick Start
-
-```bash
-# Build the tool
-go build ./cmd/image-composer
-
-# Or run directly
-go run ./cmd/image-composer --help
-
-# Build an image from template
-./image-composer build image-templates/azl3-x86_64-edge-raw.yml
-
-# Validate a template
-./image-composer validate image-templates/azl3-x86_64-edge-raw.yml
-```
-
-For complete usage instructions, see the [CLI Specification](./docs/architecture/image-composer-cli-specification.md).
+OS Image Composer is a command-line tool that uses a simple toolchain to build mutable or immutable Linux distributions from the pre-built packages of different operating system vendors. Developed in the Go programming language, or Golang, the tool initially builds custom
+images for [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit), [Azure Linux](https://github.com/microsoft/azurelinux) and [Wind River eLxr](https://www.windriver.com/blog/Introducing-eLxr).
 
 ## Get Started
 
+The initial release of the OS Image Composer tool has been tested and validated to work with Ubuntu 24.04, which is the recommended distribution for running the tool. Other standard Linux distributions should also work but haven't been validated. The plan for later releases is to include a containerized version to support portability across operating systems. 
+
+* Download the tool by cloning and checking out the latest tagged release on [GitHub](https://github.com/open-edge-platform/os-image-composer/). Alternatively, you can download the [latest tagged release](https://github.com/open-edge-platform/os-image-composer/releases) of the ZIP archive. 
+
+* Install version 1.22.12 or later of the Go programming language before building the tool; see the [Go installation instructions](https://go.dev/doc/manage-install) for your Linux distribution.
+
+```bash
+# Build the tool:
+go build ./cmd/image-composer
+
+# Or run it directly:
+go run ./cmd/image-composer --help
+```
+
+For complete usage instructions, see the [Command-Line Reference](./docs/architecture/image-composer-cli-specification.md).
+
 ### Prerequisites
 
-Image Composer Tool is developed in the Go programming language (or `golang`) and requires golang version 1.22.12 and above. See installation instructions for a specific distribution [here](https://go.dev/doc/manage-install).
+**Important:** Before you compose an operating system image with the OS Image Composer tool, follow the [instructions to install these prerequisites](./docs/tutorial/Pre-requisite.md):  
 
-> **Note:** Before building, check out [docs/tutorial/Pre-requisite](./docs/tutorial/Pre-requisite.md) for instructions to install required binaries.
+* `ukify`, which combines components -- typically a kernel, an initrd, and a UEFI boot stub -- to create a signed Unified Kernel Image (UKI), which is a PE binary that firmware executes to start an embedded Linux kernel.
 
-### Build
+* `mmdebstrap`, which downloads, unpacks, and installs Debian packages to create a chroot. By using `apt`, it can resolve more than one mirror and resolve complex dependency relationships. 
 
-Build the image-composer using Go directly:
+
+### Build the Tool
+
+After you install the prerequisites, you can build the OS Image Composer command-line utility by using Go directly or by using the Earthly framework: 
 
 ```bash
 go build ./cmd/image-composer
 ```
 
-Or use Earthly framework for a reproducible build:
+Using Earthly framework produces a reproducible build that automatically includes the version number (from the --version parameter), the build date (the current UTC date), and the Git commit SHA (current repository commit).
 
 ```bash
 # Default build
 earthly +build
 
-# Build with specific version
+# Build with specific version:
 earthly +build --version=1.0.0
 ```
+### Composing or Validating an Image
 
-The Earthly build automatically includes:
+```bash
+# Build an image from a template:
+./image-composer build image-templates/azl3-x86_64-edge-raw.yml
 
-- Version number (from the --version parameter)
-- Build date (the current UTC date)
-- Git commit SHA (current repository commit)
+# Validate a template: 
+./image-composer validate image-templates/azl3-x86_64-edge-raw.yml
+```
+
+After the image finishes building, check your output directory. The exact name of the output directory varies by environment and image but should look something like this:   
+
+```
+/image-composer/tmp/image-composer/azl3-x86_64-edge-raw/imagebuild/Minimal_Raw$
+```
+
+## Documentation
+
+- [Command-Line Reference](./docs/architecture/image-composer-cli-specification.md)
+- [Understanding the OS Image Build Process](./docs/architecture/image-composer-build-process.md)
+- [Creating and Reusing Image Templates](./docs/architecture/image-composer-templates.md)
 
 ## Configuration
 
 ### Global Configuration
 
-Image Composer Tool supports global configuration files for setting tool-level parameters that apply across all image builds. Image-specific parameters are defined in YAML image template files.
+The OS Image Composer tool supports global configuration files for setting tool-level parameters that apply across all image builds. Image-specific parameters are defined in YAML image template files.
 
 #### Configuration File Locations
 
@@ -114,9 +119,9 @@ logging:
 ./image-composer --config /path/to/config.yaml build template.yml
 ```
 
-### Usage
+## Usage
 
-The Image Composer Tool uses a command-line interface with various commands:
+The OS Image Composer tool uses a command-line interface with various commands. Here are some examples: 
 
 ```bash
 # Show help
@@ -140,7 +145,7 @@ The Image Composer Tool uses a command-line interface with various commands:
 
 ### Commands
 
-The Image Composer Tool provides the following commands:
+The OS Image Composer tool provides the following commands:
 
 #### build
 
@@ -186,17 +191,17 @@ Validates a YAML template file against the schema without building an image:
 ./image-composer validate TEMPLATE_FILE
 ```
 
-This is useful for verifying template configurations before starting the potentially time-consuming build process.
+The `image-composer validate` command is useful for verifying template configurations before starting the potentially time-consuming build process.
 
 #### version
 
-Displays the tool’s version and information:
+Displays the tool’s version number, build date, and Git commit SHA:
+
 
 ```bash
 ./image-composer version
 ```
 
-Shows the version number, build date, and Git commit SHA.
 
 #### install-completion
 
@@ -213,7 +218,8 @@ Installs the shell completion feature for your current shell or a specified shel
 ./image-composer install-completion --force
 ```
 
-Reload your shell configuration based on the shell that you are using:
+Reload your shell configuration based on the shell that you are using.
+
 Bash:
 
 ```bash
@@ -226,7 +232,7 @@ Zsh:
 source ~/.zshrc
 ```
 
-Fish: (Nothing needed, it should work immediately)
+Fish: Nothing is needed; it should work immediately.
 
 PowerShell:
 
@@ -242,11 +248,13 @@ image-composer b[TAB]
 image-composer build --[TAB]
 ```
 
-See the [Shell Completion](#shell-completion) section for more details.
+See the [Shell Completion](#shell-completion) section for  details.
 
 ### Image Template Format
 
-Image templates are written in the YAML format and define the requirements for building a specific OS image. The template structure allows users to define key parameters such as the OS distribution, version, architecture, software packages, output format, and kernel configuration.
+Written in the YAML format, templates define the requirements for building an operating system image. The template structure enables you to define key parameters, such as the operating system distribution, version, architecture, software packages, output format, and kernel configuration. The image template format is validated against a JSON schema to check syntax and semantics before building the image.
+
+If you're an entry-level user or have straightforward requirements, you can reuse the basic template and add the packages you require. If you're addressing an advanced use case with, for instance, robust security requirements, you can modify the template to define disc and partition layouts and other settings for security.
 
 ```yaml
 image:
@@ -280,15 +288,17 @@ systemConfigs:
 
 #### Key Components
 
+Here are the key components of an image template.  
+
 ##### 1. `image`
 
-**Description:** Basic image identification and metadata.
+Basic image identification and metadata:
 - `name`: Name of the resulting image
 - `version`: Version for tracking and naming
 
 ##### 2. `target`
 
-**Description:** Defines the target OS and image configuration.
+Defines the target OS and image configuration:
 - `os`: Target OS (`azure-linux`, `emt`, and `elxr`)
 - `dist`: Distribution identifier (`azl3`, `emt3`, and `elxr12`)
 - `arch`: Target architecture (`x86_64`and `aarch64`)
@@ -296,7 +306,7 @@ systemConfigs:
 
 ##### 3. `systemConfigs`
 
-**Description:** Array of system configurations that define what goes into the image.
+Array of system configurations that define what goes into the image:
 - `name`: Configuration name
 - `description`: Human-readable description
 - `packages`: List of packages to include in the OS build
@@ -312,18 +322,16 @@ systemConfigs:
 
 #### Package Examples
 
-Common packages that can be included:
+You can include common packages:
 - `cloud-init`: For initializing cloud instances
 - `python3`: The Python 3 programming language interpreter
 - `rsyslog`: A logging system for Linux OS
 - `openssh-server`: SSH server for remote access
 - `docker-ce`: Docker container runtime
 
-The image template format is validated against a JSON schema to ensure correctness before building.
-
 ### Shell Completion Feature
 
-The image-composer CLI supports shell auto-completion for Bash, Zsh, Fish, and PowerShell command-line shells. This feature helps users discover and use commands and flags more efficiently.
+The OS Image Composer CLI supports shell auto-completion for Bash, Zsh, Fish, and PowerShell command-line shells. This feature helps users discover and use commands and flags more efficiently.
 
 #### Generate Completion Scripts
 
@@ -342,6 +350,8 @@ The image-composer CLI supports shell auto-completion for Bash, Zsh, Fish, and P
 ```
 
 #### Install Completion Scripts
+
+After you install the completion script for your command-line shell, you can use tab completion to navigate commands, flags, and arguments.
 
 **Bash**:
 
@@ -377,11 +387,10 @@ cp image-composer_completion.fish ~/.config/fish/completions/image-composer.fish
 echo ". /path/to/image-composer_completion.ps1" >> $PROFILE
 ```
 
-After installing, you can use tab completion to navigate commands, flags, and arguments when using the ICT.
 
-#### Examples of Completion Script in Action
+#### Examples of Completion in Action
 
-Once the completion script is installed:
+Once the completion script is installed, the tool is configured to suggest YAML files when completing the template file argument for the build and validate commands, and you can see that in action: 
 
 ```bash
 # Tab-complete commands
@@ -397,9 +406,9 @@ build      completion  config     help       validate    version
 # Will show YAML files in the current directory
 ```
 
-The tool is specifically configured to suggest YAML files when completing the template file argument for the build and validate commands.
-
 ## Template Examples
+
+Here are several example YAML template files. You can use YAML image templates to rapidly reproduce custom, verified, and inventoried operating systems; see [Creating and Reusing Image Templates](./docs/architecture/image-composer-templates.md).
 
 ### Minimal Edge Device
 
@@ -482,11 +491,21 @@ systemConfigs:
 
 ## Get Help
 
-- **Quick Reference**: Run `./image-composer --help` to see all available commands and options
-- **Complete Guide**: See the [CLI Specification](./docs/architecture/image-composer-cli-specification.md) for detailed documentation
-- **Examples**: Check the [template examples](#template-examples) section below
-- **Troubleshooting**: Refer to the [Build Process documentation](./docs/architecture/image-composer-build-process.md#troubleshooting-build-issues)
+* Run the following command in the command-line tool to see all the commands and options: `./image-composer --help`
+* See the [CLI Specification and Reference](./docs/architecture/image-composer-cli-specification.md).
+* Read the [documentation](https://github.com/open-edge-platform/os-image-composer/tree/main/docs).
+* Troubleshoot by using the [Build Process documentation](./docs/architecture/image-composer-build-process.md#troubleshooting-build-issues).
+* [Participate in discussions](https://github.com/open-edge-platform/os-image-composer/discussions).
 
 ## Contribute
 
+* [Open an issue](https://github.com/open-edge-platform/os-image-composer/issues).
+* [Report a security vulnerability](./SECURITY).
+* [Submit a pull request](https://github.com/open-edge-platform/os-image-composer/pulls).
+
+
 ## License Information
+
+See [License](./LICENSE).
+
+
