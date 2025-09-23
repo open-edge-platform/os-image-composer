@@ -2,24 +2,24 @@
 
 ## Contents
 
-- [Overview of the Caching Mechanisms](#overview-of-the-caching-mechanisms)
-- [Package Cache](#package-cache)
+- [Understanding Caching in OS Image Composer](#understanding-caching-in-os-image-composer)
+  - [Contents](#contents)
+  - [Overview of the Caching Mechanisms](#overview-of-the-caching-mechanisms)
+  - [Package Cache](#package-cache)
     - [How the Package Cache Works](#how-the-package-cache-works)
     - [Package Cache Benefits](#package-cache-benefits)
-- [Image Cache](#image-cache)
+  - [Image Cache](#image-cache)
     - [How the Image Cache Works](#how-the-image-cache-works)
     - [Image Cache Benefits](#image-cache-benefits)
-- [How the Package Cache and Image Cache Work Together](#how-the-package-cache-and-image-cache-work-together)
-- [Managing the Caches with the CLI](#managing-the-caches-with-the-cli)
+  - [How the Package Cache and Image Cache Work Together](#how-the-package-cache-and-image-cache-work-together)
+  - [Managing the Caches with the CLI](#managing-the-caches-with-the-cli)
     - [List Cached Content](#list-cached-content)
-    - [Clean the Caches](#clean-the-caches)
     - [Export or Import Cached Images](#export-or-import-cached-images)
-- [Configuration Options](#configuration-options)
+  - [Configuration Options](#configuration-options)
     - [Global Configuration](#global-configuration)
     - [Per-Build Specification](#per-build-specification)
-    - [Command-Line Overrides](#command-line-overrides)
-- [Best Practices](#best-practices)
-- [Related Documentation](#related-documentation)
+  - [Best Practices](#best-practices)
+  - [Related Documentation](#related-documentation)
 
 ## Overview of the Caching Mechanisms
 
@@ -32,7 +32,7 @@ OS Image Composer uses a layered caching approach:
 | Package Cache | Stores downloaded OS packages | Reduces network usage and download time |
 | Image Cache | Stores complete built OS images | Eliminates the entire build process for identical builds |
 
-To find out how caching integrates with the build process, see [Build Stages in Detail](./image-composer-build-process.md#build-stages-in-detail).
+To find out how caching integrates with the build process, see [Build Stages in Detail](./os-image-composer-build-process.md#build-stages-in-detail).
 
 ## Package Cache
 
@@ -52,7 +52,7 @@ When the build system needs to install a package, it checks the cache before dow
 - Works even when build specifications change.
 - Enables you to build images without internet access if the packages were previously cached.
 
-To find out how the build process uses the package cache, see [Packages Stage](./image-composer-build-process.md#2-packages-stage). 
+To find out how the build process uses the package cache, see [Packages Stage](./os-image-composer-build-process.md#2-packages-stage). 
 
 ## Image Cache
 
@@ -71,7 +71,7 @@ If image caching is enabled, the newly built image is stored in the cache. The s
 - Enables quick testing of deployment procedures without rebuilding.
 - Saves time and effort in CI/CD pipelines and testing environments.
 
-To find out how images are stored in the cache during build completion, see the [final stage of the build process](./image-composer-build-process.md#5-finalize-stage).
+To find out how images are stored in the cache during build completion, see the [final stage of the build process](./os-image-composer-build-process.md#5-finalize-stage).
 
 ## How the Package Cache and Image Cache Work Together
 
@@ -130,7 +130,7 @@ This approach maximizes performance: With the image cache, identical builds are 
 
 The approach also uses resources efficiently by minimizing bandwidth and managing disk space automatically. Because each mechanism can be enabled or disabled independently, you have the flexibility to customize the use of caches to your requirements.
 
-To find out how to control the behavior of the cache, see [Build Configuration Options](./image-composer-build-process.md#build-configuration-options).
+To find out how to control the behavior of the cache, see [Build Configuration Options](./os-image-composer-build-process.md#build-configuration-options).
 
 ## Managing the Caches with the CLI
 
@@ -140,24 +140,24 @@ The OS Image Composer command-line tool includes commands to manage the caching 
 
 ```bash
 # List all cached images with metadata
-image-composer cache list
+os-image-composer cache list
 
 # Get detailed information about a specific cached image
-image-composer cache info abc123def456
+os-image-composer cache info abc123def456
 ```
 
 ### Export or Import Cached Images
 
 ```bash
 # Export a cached image to a file
-image-composer cache export abc123def456 ./my-exported-image.qcow2
+os-image-composer cache export abc123def456 ./my-exported-image.qcow2
 
 # Import an existing image into the cache
-image-composer cache import ./my-image.qcow2
+os-image-composer cache import ./my-image.qcow2
 ```
 
 See also:
-- [Cache Command](./image-composer-cli-specification.md#cache-command) for complete cache management options
+- [Cache Command](./os-image-composer-cli-specification.md#cache-command) for complete cache management options
 
 ## Configuration Options
 
@@ -188,8 +188,8 @@ build:
 ```
 
 See also:
-- [Global Configuration File](./image-composer-cli-specification.md#global-configuration-file) for all available configuration options
-- [Command-Line Overrides](./image-composer-build-process.md#command-line-overrides) for additional build options
+- [Global Configuration File](./os-image-composer-cli-specification.md#global-configuration-file) for all available configuration options
+- [Command-Line Overrides](./os-image-composer-build-process.md#command-line-overrides) for additional build options
 
 ## Best Practices
 
@@ -200,10 +200,10 @@ See also:
 1. **Optimize for CI/CD**: In CI/CD environments, persist the cache between pipeline runs. Many CI systems support caching directories between jobs.
 
 See also:
-- [Build Performance Optimization](./image-composer-build-process.md#build-performance-optimization)
-- [Troubleshooting Build Issues](./image-composer-build-process.md#troubleshooting-build-issues)
+- [Build Performance Optimization](./os-image-composer-build-process.md#build-performance-optimization)
+- [Troubleshooting Build Issues](./os-image-composer-build-process.md#troubleshooting-build-issues)
 
 ## Related Documentation
-- [Understanding the Build Process](./image-composer-build-process.md)
-- [OS Image Composer CLI Reference](./image-composer-cli-specification.md)
-- [Understanding Templates in OS Image Composer](./image-composer-templates.md): How to use and create reusable templates
+- [Understanding the Build Process](./os-image-composer-build-process.md)
+- [OS Image Composer CLI Reference](./os-image-composer-cli-specification.md)
+- [Understanding Templates in OS Image Composer](./os-image-composer-templates.md): How to use and create reusable templates

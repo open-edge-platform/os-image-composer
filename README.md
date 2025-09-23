@@ -12,28 +12,28 @@ and Wind River eLxr.
 
 ## Documentation
 
-- [📖 CLI Specification](./docs/architecture/image-composer-cli-specification.md) - Complete command-line reference and usage guide
-- [🔧 Build Process](./docs/architecture/image-composer-build-process.md) - Details on the five-stage build pipeline
-- [⚡ Caching](./docs/architecture/image-composer-caching.md) - Explanations on package cache and image cache to improve build performance and reduce resource usage
-- [📋 Templates](./docs/architecture/image-composer-templates.md) - Explanations on how to create and reuse image templates
+- [📖 CLI Specification](./docs/architecture/os-image-composer-cli-specification.md) - Complete command-line reference and usage guide
+- [🔧 Build Process](./docs/architecture/os-image-composer-build-process.md) - Details on the five-stage build pipeline
+- [⚡ Caching](./docs/architecture/os-image-composer-caching.md) - Explanations on package cache and image cache to improve build performance and reduce resource usage
+- [📋 Templates](./docs/architecture/os-image-composer-templates.md) - Explanations on how to create and reuse image templates
 
 ## Quick Start
 
 ```bash
 # Build the tool
-go build ./cmd/image-composer
+go build ./cmd/os-image-composer
 
 # Or run directly
-go run ./cmd/image-composer --help
+go run ./cmd/os-image-composer --help
 
 # Build an image from template
-./image-composer build image-templates/azl3-x86_64-edge-raw.yml
+./os-image-composer build image-templates/azl3-x86_64-edge-raw.yml
 
 # Validate a template
-./image-composer validate image-templates/azl3-x86_64-edge-raw.yml
+./os-image-composer validate image-templates/azl3-x86_64-edge-raw.yml
 ```
 
-For complete usage instructions, see the [CLI Specification](./docs/architecture/image-composer-cli-specification.md).
+For complete usage instructions, see the [CLI Specification](./docs/architecture/os-image-composer-cli-specification.md).
 
 ## Get Started
 
@@ -45,10 +45,10 @@ Image Composer Tool is developed in the Go programming language (or `golang`) an
 
 ### Build
 
-Build the image-composer using Go directly:
+Build the os-image-composer using Go directly:
 
 ```bash
-go build ./cmd/image-composer
+go build ./cmd/os-image-composer
 ```
 
 Or use Earthly framework for a reproducible build:
@@ -77,20 +77,20 @@ Image Composer Tool supports global configuration files for setting tool-level p
 
 The tool searches for configuration files in the following order:
 
-1. `image-composer.yaml` (current directory)
-2. `image-composer.yml` (current directory)
-3. `.image-composer.yaml` (hidden file in current directory)
-4. `~/.image-composer/config.yaml` (user home directory)
-5. `~/.config/image-composer/config.yaml` (XDG config directory)
-6. `/etc/image-composer/config.yaml` (system-wide)
+1. `os-image-composer.yaml` (current directory)
+2. `os-image-composer.yml` (current directory)
+3. `.os-image-composer.yaml` (hidden file in current directory)
+4. `~/.os-image-composer/config.yaml` (user home directory)
+5. `~/.config/os-image-composer/config.yaml` (XDG config directory)
+6. `/etc/os-image-composer/config.yaml` (system-wide)
 
 #### Configuration Parameters
 
 ```yaml
 # Core tool settings
 workers: 12                              # Number of concurrent download workers (1-100, default: 8)
-cache_dir: "/var/cache/image-composer"   # Package cache directory (default: ./cache)
-work_dir: "/tmp/image-composer"          # Working directory for builds (default: ./workspace)
+cache_dir: "/var/cache/os-image-composer"   # Package cache directory (default: ./cache)
+work_dir: "/tmp/os-image-composer"          # Working directory for builds (default: ./workspace)
 temp_dir: ""                             # Temporary directory (empty = system default)
 
 # Logging configuration
@@ -102,16 +102,16 @@ logging:
 
 ```bash
 # Create a new configuration file
-./image-composer config init
+./os-image-composer config init
 
 # Create config file at specific location
-./image-composer config init /path/to/config.yaml
+./os-image-composer config init /path/to/config.yaml
 
 # Show current configuration
-./image-composer config show
+./os-image-composer config show
 
 # Use specific configuration file
-./image-composer --config /path/to/config.yaml build template.yml
+./os-image-composer --config /path/to/config.yaml build template.yml
 ```
 
 ### Usage
@@ -120,22 +120,22 @@ The Image Composer Tool uses a command-line interface with various commands:
 
 ```bash
 # Show help
-./image-composer --help
+./os-image-composer --help
 
 # Build command with template file as positional argument
-./image-composer build image-templates/azl3-x86_64-edge-raw.yml
+./os-image-composer build image-templates/azl3-x86_64-edge-raw.yml
 
 # Override config settings with command-line flags
-./image-composer build --workers 16 --cache-dir /tmp/cache image-templates/azl3-x86_64-edge-raw.yml
+./os-image-composer build --workers 16 --cache-dir /tmp/cache image-templates/azl3-x86_64-edge-raw.yml
 
 # Validate a template file against the schema
-./image-composer validate image-templates/azl3-x86_64-edge-raw.yml
+./os-image-composer validate image-templates/azl3-x86_64-edge-raw.yml
 
 # Display version information
-./image-composer version
+./os-image-composer version
 
 # Install shell completion for your current shell
-./image-composer install-completion
+./os-image-composer install-completion
 ```
 
 ### Commands
@@ -147,7 +147,7 @@ The Image Composer Tool provides the following commands:
 Builds a Linux distribution image based on the specified image template file:
 
 ```bash
-./image-composer build [flags] TEMPLATE_FILE
+./os-image-composer build [flags] TEMPLATE_FILE
 ```
 
 Flags:
@@ -163,7 +163,7 @@ Flags:
 Example:
 
 ```bash
-./image-composer build --workers 12 --cache-dir ./package-cache image-templates/azl3-x86_64-edge-raw.yml
+./os-image-composer build --workers 12 --cache-dir ./package-cache image-templates/azl3-x86_64-edge-raw.yml
 ```
 
 #### config
@@ -172,10 +172,10 @@ Manages the global configuration:
 
 ```bash
 # Show current configuration
-./image-composer config show
+./os-image-composer config show
 
 # Initialize new configuration file
-./image-composer config init [config-file]
+./os-image-composer config init [config-file]
 ```
 
 #### validate
@@ -183,7 +183,7 @@ Manages the global configuration:
 Validates a YAML template file against the schema without building an image:
 
 ```bash
-./image-composer validate TEMPLATE_FILE
+./os-image-composer validate TEMPLATE_FILE
 ```
 
 This is useful for verifying template configurations before starting the potentially time-consuming build process.
@@ -193,7 +193,7 @@ This is useful for verifying template configurations before starting the potenti
 Displays the tool’s version and information:
 
 ```bash
-./image-composer version
+./os-image-composer version
 ```
 
 Shows the version number, build date, and Git commit SHA.
@@ -204,13 +204,13 @@ Installs the shell completion feature for your current shell or a specified shel
 
 ```bash
 # Auto-detect shell
-./image-composer install-completion
+./os-image-composer install-completion
 
 # Specify shell type
-./image-composer install-completion --shell zsh
+./os-image-composer install-completion --shell zsh
 
 # Force overwrite existing completion
-./image-composer install-completion --force
+./os-image-composer install-completion --force
 ```
 
 Reload your shell configuration based on the shell that you are using:
@@ -237,9 +237,9 @@ PowerShell:
 Test the completion:
 
 ```bash
-image-composer [TAB]
-image-composer b[TAB]
-image-composer build --[TAB]
+os-image-composer [TAB]
+os-image-composer b[TAB]
+os-image-composer build --[TAB]
 ```
 
 See the [Shell Completion](#shell-completion) section for more details.
@@ -323,22 +323,22 @@ The image template format is validated against a JSON schema to ensure correctne
 
 ### Shell Completion Feature
 
-The image-composer CLI supports shell auto-completion for Bash, Zsh, Fish, and PowerShell command-line shells. This feature helps users discover and use commands and flags more efficiently.
+The os-image-composer CLI supports shell auto-completion for Bash, Zsh, Fish, and PowerShell command-line shells. This feature helps users discover and use commands and flags more efficiently.
 
 #### Generate Completion Scripts
 
 ```bash
 # Bash
-./image-composer completion bash > image-composer_completion.bash
+./os-image-composer completion bash > os-image-composer_completion.bash
 
 # Zsh
-./image-composer completion zsh > image-composer_completion.zsh
+./os-image-composer completion zsh > os-image-composer_completion.zsh
 
 # Fish
-./image-composer completion fish > image-composer_completion.fish
+./os-image-composer completion fish > os-image-composer_completion.fish
 
 # PowerShell
-./image-composer completion powershell > image-composer_completion.ps1
+./os-image-composer completion powershell > os-image-composer_completion.ps1
 ```
 
 #### Install Completion Scripts
@@ -347,34 +347,34 @@ The image-composer CLI supports shell auto-completion for Bash, Zsh, Fish, and P
 
 ```bash
 # Temporary use
-source image-composer_completion.bash
+source os-image-composer_completion.bash
 
 # Permanent installation (Linux)
-sudo cp image-composer_completion.bash /etc/bash_completion.d/
+sudo cp os-image-composer_completion.bash /etc/bash_completion.d/
 # or add to your ~/.bashrc
-echo "source /path/to/image-composer_completion.bash" >> ~/.bashrc
+echo "source /path/to/os-image-composer_completion.bash" >> ~/.bashrc
 ```
 
 **Zsh**:
 
 ```bash
 # Add to your .zshrc
-echo "source /path/to/image-composer_completion.zsh" >> ~/.zshrc
+echo "source /path/to/os-image-composer_completion.zsh" >> ~/.zshrc
 # Or copy to a directory in your fpath
-cp image-composer_completion.zsh ~/.zfunc/_image-composer
+cp os-image-composer_completion.zsh ~/.zfunc/_os-image-composer
 ```
 
 **Fish**:
 
 ```bash
-cp image-composer_completion.fish ~/.config/fish/completions/image-composer.fish
+cp os-image-composer_completion.fish ~/.config/fish/completions/os-image-composer.fish
 ```
 
 **PowerShell**:
 
 ```powershell
 # Add to your PowerShell profile
-echo ". /path/to/image-composer_completion.ps1" >> $PROFILE
+echo ". /path/to/os-image-composer_completion.ps1" >> $PROFILE
 ```
 
 After installing, you can use tab completion to navigate commands, flags, and arguments when using the ICT.
@@ -385,15 +385,15 @@ Once the completion script is installed:
 
 ```bash
 # Tab-complete commands
-./image-composer <TAB>
+./os-image-composer <TAB>
 build      completion  config     help       validate    version
 
 # Tab-complete flags
-./image-composer build --<TAB>
+./os-image-composer build --<TAB>
 --cache-dir  --config    --help       --log-level  --verbose    --work-dir   --workers
 
 # Tab-complete YAML files for template file argument
-./image-composer build <TAB>
+./os-image-composer build <TAB>
 # Will show YAML files in the current directory
 ```
 
@@ -482,10 +482,10 @@ systemConfigs:
 
 ## Get Help
 
-- **Quick Reference**: Run `./image-composer --help` to see all available commands and options
-- **Complete Guide**: See the [CLI Specification](./docs/architecture/image-composer-cli-specification.md) for detailed documentation
+- **Quick Reference**: Run `./os-image-composer --help` to see all available commands and options
+- **Complete Guide**: See the [CLI Specification](./docs/architecture/os-image-composer-cli-specification.md) for detailed documentation
 - **Examples**: Check the [template examples](#template-examples) section below
-- **Troubleshooting**: Refer to the [Build Process documentation](./docs/architecture/image-composer-build-process.md#troubleshooting-build-issues)
+- **Troubleshooting**: Refer to the [Build Process documentation](./docs/architecture/os-image-composer-build-process.md#troubleshooting-build-issues)
 
 ## Contribute
 

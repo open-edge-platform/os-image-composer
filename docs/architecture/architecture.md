@@ -1,49 +1,69 @@
-# Image Composer Architecture
+# OS Image Composer Architecture
 
-## Introduction
+OS Image Composer is a generic toolkit to build operating system
+images from pre-built artifacts such as `rpm` and `deb` in order to support a range of
+common operating systems for the distributed edge. You can customize the content of the operating system to suit your requirements, applications, and workloads. 
 
-The image composer is intended to be a generic toolkit to build operating system
-images from pre-built artifacts such as `rpm`, `deb` supporting a range of
-common OS for the distributed edge. You can customize the content of the OS to
-suit your specific needs based on the type of application and workloads. The
-image composer will first be targeting to support:
+## Contents
 
-1. Edge Microvisor Toolkit (EMT) 3.0
-1. AzureLinux 3.0
-1. WindRiver eLxr
+- [OS Image Composer Architecture](#os-image-composer-architecture)
+  - [Contents](#contents)
+  - [Supported Distributions](#supported-distributions)
+  - [Overview](#overview)
+  - [OS Image Composer System Network Context](#os-image-composer-system-network-context)
+    - [Network Security Considerations](#network-security-considerations)
+    - [Package Sign Verification](#package-sign-verification)
+  - [Components Overview](#components-overview)
+    - [Toolchain](#toolchain)
+    - [Package](#package)
+    - [Image](#image)
+    - [Utilities](#utilities)
+  - [Operational Flow](#operational-flow)
+  - [Related Documentation](#related-documentation)
 
-## Architecture Overview
+## Supported Distributions
 
-The following diagram shows the input & output of the image compose tools: ![Overview](assets/overview.drawio.svg)
+The OS Image Composer tool will initially support the following Linux distributions:
 
-The image composer generates the desired image based on a user customize YAML input which defines what the customizations required target to a supported os distribution. Multiple OS supported by the correspond config files. And a set of default image config files per os distribution helps users get rid of being trapped in the details of os system configurations. The user input YAML file can be simply nothing configured or fill of full detailed configurations. During the image generation, the final config json file is based on the default json config and updated according to the user YAML.
+* [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit) 3.0
+* [Azure Linux](https://github.com/microsoft/azurelinux) 3.0
+* [Wind River eLxr](https://www.windriver.com/blog/Introducing-eLxr)
 
-The pre-built artifacts such as `rpm`, `deb`, those packages are from the correspond target os remote repository. Image compose tool implemented the common abstracted package provider interface to fetch packages and solve dependencies from those remote package repository.
+## Overview
 
-For the runtime storage, it includes the chroot env (the rootfs entry for the target os) which is the image generate workspace, the package caches and the image caches as well as the runtime configuration files and logs.
+The OS Image Composer tool generates an image based on a user-customized YAML input file that defines the customizations for a supported OS distribution. Multiple operating systems are supported by the corresponding configuration files. And a set of default image config files per OS distribution helps you get rid of being trapped in the details of OS system configurations. The user input YAML file can be simply nothing configured or full detailed configurations. During the image generation, the final config JSON file is based on the default JSON config and updated according to the user-customized YAML file.
 
-The supported output image type can be various, mainly the raw images nad ISO images, those cover bare metal and VM deployments.
+The pre-built artifacts such as those for `rpm` and `deb` come from their corresponding target operating system's remote repository. The OS Image Composer tool implemented the common abstracted package provider interface to fetch packages and solve dependencies from those remote package repositories. To download packages, the OS Image Composer tool securely fetches packages from the distribution-specific package repository and automatically resolves and installs dependencies.
 
-## Image Composer Tool System Network Context
+The runtime storage includes the isolated chroot build environment (the rootfs entry for the target operating system), which is the image-generation workspace, the package caches, and the image caches as well as the runtime configuration files and logs.
 
-Image Composer Tool network context is shown in the following diagram.
+The supported output image types include raw images and ISO images for bare metal systems and virtual machines. 
 
-![Image Composer Network Diagram](assets/image-composer-network-diagram.drawio.svg).
+The following diagram shows the input and output of the OS Image Composer tool: 
 
- The diagram illustrates how different components of the product's system architecture communicate with each other. This type of diagram is useful for technical documentation, infrastructure planning, security review and troubleshooting.
+![Overview](assets/overview.drawio.svg)
+
+## OS Image Composer System Network Context
+
+The following diagram shows the network context of the OS Image Composer tool:
+
+![OS Image Composer Network Diagram](assets/os-image-composer-network-diagram.drawio.svg).
+
+The diagram illustrates how different components of the product's system architecture communicate with each other.
 
 ### Network Security Considerations
-Image Composer Tool downloads required packages using HTTP requests to the distribution specific package repos over TLS 1.2+ connections. Each of the package repos does server side validation on the package download requests. So it is expected that the system running the image composer tool is provisioned with a CA root chain.
+The OS Image Composer tool downloads required packages using HTTP requests to the distribution specific package repos over TLS 1.2+ connections. Each of the package repos does server-side validation on the package download requests so it is expected that the system running the OS Image Composer tool is provisioned with a CA root chain.
 
 ### Package Sign Verification
-All the downloaded packages are integrity verified during download using GPG Public Keys and SHA256/MD5 checksum published at the package repos.
+When packages are downloaded, they are verified for integrity by using the GPG Public Keys and SHA256/MD5 checksum published at the package repositories.
 
 ## Components Overview
 
-The following diagram outlines the high level components breakdown of the
-image composer: ![components](assets/components.drawio.svg)
+The following diagram outlines the high-level components of the OS Image Composer tool: 
 
-The image compose tools can be divide into 3 groups generally, the toolchain, package and the image group, in each group there has a set of the components for the modularized functionalities. The toolchain libraries is about build and setup the image build workspace. The package libraries include the package providers for each supported OSes. And the image libraries provides the general functions to build OS images.
+![components](assets/components.drawio.svg)
+
+The tools for composing an image fall into three general groups: the toolchain, package, and image. For modularity, each group contains a set of the components for the OS Image Composer tool's functions. The toolchain libraries focus on building and setting up the image build workspace. The package libraries include the package providers for each supported operating system. And the image libraries provide the general functions to build OS images.
 
 ```mermaid
 ---
@@ -52,10 +72,10 @@ config:
       hideEmptyMembersBox: true
 ---
 classDiagram
-    Image Composer <|-- Toolchain
-    Image Composer <|-- Package
-    Image Composer <|-- Image
-    Image Composer <|-- Utils
+    OS Image Composer <|-- Toolchain
+    OS Image Composer <|-- Package
+    OS Image Composer <|-- Image
+    OS Image Composer <|-- Utils
 ```
 
 ### Toolchain
@@ -80,27 +100,27 @@ classDiagram
     BuildCache <|-- pkgcache
 ```
 The host system should be running a validated and supported Linux distribution
-such as Ubuntu 24.04. The image-composer implements all of the common business
-logic which remains the same regardless of which distribution you are building
-an image for. Providers exists for the supported Operating Systems with a
+such as Ubuntu 24.04. The OS Image Composer tool implements all the common business
+logic, which remains the same regardless of which distribution you are building
+an image for. Providers exists for the supported operating systems with a
 interface definition that each provider needs to implement to decouple
-distribution specific functionality from the core and common business logic.
+distribution-specific functionality from the core and common business logic.
 
-The image composer generates a `chroot` environment which is used for
+The OS Image Composer tool generates a `chroot` environment, which is used for
 the image composition and creation process which is isolated from the host
 operating file system. Packages are fetched, with help from a provider, and
-cached locally before the image is being created.
+cached locally before the image is created.
 
 | SW Component | Description |
 | -------- | ------- |
-|hostenv|Detect host os info, install tool dependencies.|
-|chrootbuild|Build the chrootenv tarball for the target os.|
-|chrootenv|Setup chrootenv and initial local package cache for the target os.|
-|configparse|Parse and verify the target os then generate the full json config for image.|
-|configverify|validate the full json config with json schema.|
-|configmanifest|Generate manifest file for the target image.|
+|hostenv|Detect host OS info and install tool dependencies.|
+|chrootbuild|Build the chrootenv tarball for the target OS.|
+|chrootenv|Set up chrootenv and initialize the local package cache for the target OS.|
+|configparse|Parse and verify the target OS and then generate the full JSON configuration for the image.|
+|configverify|Validate the full config with a JSON schema.|
+|configmanifest|Generate a manifest file for the target image.|
 |imagecache|Build output image cache handling.|
-|pkgcache|pre-fetch packages cache handling.|
+|pkgcache|Pre-fetch packages cache handling.|
 
 ### Package
 ```mermaid
@@ -127,12 +147,13 @@ classDiagram
     rpmprovider <|-- verify
     rpmprovider <|-- install
 ```
-Package is the libraries that provide the unified interface of the OSVs' remote package repositories. By a given package list, it is able to analysis the dependencies of the packages and download all the packages and the dependencies from the target os's remote package repository to a local cache.
-During the package downloading, it should also verify the signature of the packages, make sure we get the authenticated packages from the certificated repository. It should also provide the unified interface to install the packages and the dependencies with the correct order into the image rootfs directory.
+Package is the libraries that provide the unified interface of the operating system vendors' remote package repositories. Given a package list, it analyzes the dependencies of the packages and downloads all the packages and the dependencies from the target operating system's remote package repository to a local cache.
+
+As packages are downloaded, it also verifies the signature of the packages to make sure it obtains the authenticated packages from the certificated repository. It also provides the unified interface to install the packages and the dependencies in the correct order into the image rootfs directory.
 
 | SW Component | Description |
 | -------- | ------- |
-|elxrprovider|Package provider specific for WindRiver elxr.|
+|elxrprovider|Package provider specific for Wind River elxr.|
 |emtprovider|Package provider specific for Edge Microvisor Toolkit.|
 |azlprovider|Package provider specific for Azure Linux.|
 |debprovider|Generic package provider for debian package repository.|
@@ -168,29 +189,28 @@ classDiagram
     imagegenerate <|-- imageos
 ```
 
-Image is the libraries that do the image generation work, those components are divided according to the generic processing flow. It provides the functionality of by given a image configuration JSON file, create and configure the required raw and ISO images.
+Image is the libraries that generate the image; its components are divided according to the generic processing flow. It creates and configures the required raw or ISO images according to an image configuration JSON file.
 
 | SW Component | Description |
 | -------- | ------- |
-|imagecompose|The top level library which analysis the CLI input params and then call specific functions from the underline libraries.|
-|rawmaker|library to generate the RAW image.|
-|isomaker|library to generate the ISO image.|
-|imagegenerate|Core library for the image generation.|
+|imagecompose|The top-level library that analyzes the CLI input parameters and then calls specific functions from the underlying libraries.|
+|rawmaker|Library to generate the RAW image.|
+|isomaker|Library to generate the ISO image.|
+|imagegenerate|Core library for image generation.|
 |imagesecure|Core library for the image immutability configurations.|
-|imagesign|library for the image signing.|
-|imageconvert|library for the raw image converting.|
-|imageinstall|Execution binary for the os installation within the ISO installer image.|
-|imagedisk|library for the disk partition creation and file system formatting.|
-|imageboot|library for the bootloader configurations.|
-|imageos|library for the general os system configurations.|
+|imagesign|Library for the image signing.|
+|imageconvert|Library for the raw image converting.|
+|imageinstall|Execution binary for the OS installation within the ISO installer image.|
+|imagedisk|Library for the disk partition creation and file system formatting.|
+|imageboot|Library for the bootloader configurations.|
+|imageos|Library for the general OS system configurations.|
 
-### Utils
-The image composer and its providers use several common `packages` across such
-as logging. Those internal libraries are used by the toolchain, package and image libraries.
+### Utilities
+OS Image Composer and its providers use several common `packages`, such as those for logging. Those internal libraries are used by the toolchain, package, and image libraries.
 
 ## Operational Flow
 
-The following flow illustrates the overall image composition flow.
+The following diagram illustrates the overall image composition flow.
 
 ```mermaid
 flowchart TD
@@ -218,3 +238,10 @@ flowchart TD
     e@{ shape: stadium, label: "end" }
     R --> e
 ```
+
+## Related Documentation
+
+- [Understanding the Build Process](./os-image-composer-build-process.md)
+- [Understanding Templates](./os-image-composer-templates.md)
+- [Multiple Package Repository Support](./os-image-composer-multi-repo-support.md)
+- [OS Image Composer CLI Reference](./os-image-composer-cli-specification.md)

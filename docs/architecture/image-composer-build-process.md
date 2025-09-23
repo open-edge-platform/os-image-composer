@@ -1,60 +1,67 @@
-# Understanding the Image-Composer Build Process
+# Understanding the OS Image Composer Build Process
 
-This document explains the Image-Composer build process in detail, describing
-how the tool creates customized OS images through a series of well-defined
-stages. Understanding this process will help you optimize your image builds and
-troubleshoot issues more effectively.
+The OS Image Composer tool creates customized OS images through a series of well-defined stages in a build process. Understanding this process helps you optimize your image builds and troubleshoot issues effectively.
 
-## Related Documentation
+## Contents
 
-- [Understanding Caching in Image-Composer](./image-composer-caching.md) -
-Details on package and image caching systems
-- [Image-Composer CLI Specification](./image-composer-cli-specification.md) -
-Complete command-line reference
-- [Understanding Templates in Image-Composer](./image-composer-templates.md) -
-How to use and create reusable templates
+- [Understanding the OS Image Composer Build Process](#understanding-the-os-image-composer-build-process)
+  - [Contents](#contents)
+  - [Overview of the Build Pipeline](#overview-of-the-build-pipeline)
+  - [Build Stages in Detail](#build-stages-in-detail)
+    - [1. Validate Stage](#1-validate-stage)
+    - [2. Packages Stage](#2-packages-stage)
+    - [3. Compose Stage](#3-compose-stage)
+    - [4. Image Signing](#4-image-signing)
+    - [5. Finalize Stage](#5-finalize-stage)
+  - [Build Configuration Options](#build-configuration-options)
+    - [Global Configuration Options](#global-configuration-options)
+    - [Build Specification Options](#build-specification-options)
+    - [Command-Line Overrides](#command-line-overrides)
+  - [Common Build Patterns](#common-build-patterns)
+    - [Minimal System Image](#minimal-system-image)
+    - [Development Environment Image](#development-environment-image)
+    - [Production Server Image](#production-server-image)
+  - [Build Performance Optimization](#build-performance-optimization)
+    - [Improving Build Speed](#improving-build-speed)
+    - [Reducing Build Time for Development](#reducing-build-time-for-development)
+  - [Troubleshooting Build Issues](#troubleshooting-build-issues)
+    - [Common Problems and Solutions](#common-problems-and-solutions)
+    - [Detailed Debugging](#detailed-debugging)
+    - [Build Log Analysis](#build-log-analysis)
+  - [Conclusion](#conclusion)
+  - [Related Documentation](#related-documentation)
 
 ## Overview of the Build Pipeline
 
-Image-Composer follows a staged build approach, splitting the image creation
-process into discrete phases. This architecture provides several advantages:
+The OS Image Composer takes a staged build approach that splits the image creation process into discrete phases --- an architecture with several distinct advantages:
 
-- **Modularity**: Each stage has a specific responsibility
-- **Caching**: Intermediate results can be cached for performance
-- **Flexibility**: Stages can be skipped or limited for debugging
-- **Extensibility**: New capabilities can be added to specific stages
+- **Modularity**: Each stage performs a discrete function.
+- **Caching**: Intermediate results can be cached for performance to optimize build-generation time, fetching only required packages without rebuilding the chroot environment unless required.
+- **Flexibility**: Stages can be limited for debugging or skipped because the tool automatically executes only those  stages required by the current state of the tool's workspace; the tool automatically skips steps that were previously completed for a given distribution.
+- **Extensibility**: New capabilities can be added to each stage. After the build process configures an image, you can add your own custom scripts to further customize the image with, for example, network and policy settings.
 
 The build process processes a build specification file through a series of
 stages, each building upon the work of the previous stage. A build specification
-(or build spec) is a YAML file that defines all requirements and configurations
+(or build spec) is a YAML file that defines all the requirements and configurations
 for creating a custom OS image.
 
 ## Build Stages in Detail
 
-The build process is divided into five sequential stages, each with its specific
-responsibility:
+The build process is divided into five sequential stages, each with its own responsibility:
 
 ### 1. Validate Stage
 
-**Purpose**: Ensure the build specification is correct syntactically and valid
-for the targeted provider before starting the build.
+The purpose of this stage is to ensure that the build specification is correct syntactically and valid for the targeted provider before starting the build. Here are the stage's key tasks: 
 
-**Key Tasks**:
+- Parse and validate the YAML specification syntax. YAML is converted to JSON
+and validated against a JSON schema definition.
+- Verify that the referenced provider exists and is properly configured.
+- Check for the existence of required files, such as custom scripts or
+configuration files.
+- Validate that the combination of settings is valid.
+- Ensure that any specified templates exist and can be rendered properly.
 
-- Parse and validate the YAML specification syntax (YML is converted to JSON
-and validated against a JSON schema definition)
-- Verify that the referenced provider exists and is properly configured
-- Check for the existence of required files (like custom scripts or
-configuration files)
-- Validate that the combination of settings is valid
-- Ensure any specified templates exist and can be rendered properly
-
-**Failure Handling**:
-
-- If validation fails, the build is aborted immediately
-- Errors are reported with specific details to help fix the issue
-
-**Example Error Messages**:
+**Failure handling**: If validation fails, the build is aborted immediately. Errors are reported with details to help fix the issue. Here's an example of some error messages: 
 
 ```bash
 Error: Missing required file './files/sshd_config' referenced in build spec
@@ -62,63 +69,43 @@ Error: Provider 'ubuntu' is not configured in the global configuration
 Error: Invalid combination of compression 'gzip' with format 'vhd'
 ```
 
-See also:
+To validate a build specification without building it, see [Validate Command](./os-image-composer-cli-specification.md#validate-command).
 
-- [Validate Command](./image-composer-cli-specification.md#validate-command) for
-validating build specifications without building
+### 2. Packages Stage
 
-### 2. Package Download Stage
+This stage collects all the packages required for the image and prepares them for
+installation. Here are the stage's key tasks:
 
-**Purpose**: Collect all packages required for the image and prepare them for
-installation.
+- Determine all the packages that the specification requires.
+- Resolve package dependencies.
+- Check the package cache for previously downloaded packages.
+- Download missing packages.
+- Verify package integrity with authenticity and integrity checks.
+- Store packages in the cache.
 
-**Key Tasks**:
+This stage uses package caching to minimize bandwidth and improve build performance. The cache stores downloaded packages for future builds, and the build process reuses previously downloaded packages when it can. You can disable the package cache by using the `--no-package-cache` option. To find out how package caching works and benefits build performance, see [Package Cache](./os-image-composer-caching.md#package-cache).
 
-- Determine all packages required based on the specification
-- Resolve package dependencies
-- Check package cache for previously downloaded packages
-- Download any missing packages
-- Verify package integrity (authenticitiy and integrity checks)
-- Store packages in the cache
+**Preparation:** As part of the packaging stage, the OS Image Composer prepares the local environment to start composing the image of the target OS layout. Once this stage has completed, the local environment will have a pre-populated cache containing all the required packages before entering the chroot environment and starting to compose the image. The following distinct steps take place during the packaging stage: 
 
-**Package Caching**:
+1. The input build-spec JSON file is verified against the JSON schema definition.
+1. The desired distribution provider is created and all of its package manifest is
+downloaded.
+1. The desired packages in the build spec are validated to exist in the target
+distribution.
+1. The dependency resolution checker identifies all required dependencies.
+1. The required packages are downloaded to the local cache.
+1. The authenticity and integrity of every package is validated in
+the local cache.
 
-- During this stage, the package cache is heavily utilized
-- Previously downloaded packages are reused when possible
-- Downloaded packages are stored in the cache for future builds
-- Package cache can be disabled using the `--no-package-cache` option
+**Dependency resolution:** Direct dependencies (those specified in the build spec) are handled first, and then indirect dependencies (those required by direct dependencies) are resolved automatically. Provider-specific helper libraries are used to resolve these dependencies for rpm and deb packages. 
 
-**Dependency Resolution**:
+You can add multiple package repositories to an operating system's build, including proprietary packages or upstream packages pending integration; for more information, see [Multiple Package Repository Support](./os-image-composer-multi-repo-support.md).
 
-- Direct dependencies (specified in the build spec) are handled first
-- Indirect dependencies (required by direct dependencies) are resolved
-automatically
-- Provider specific helper libraries are used to resolve these dependencies for
-rpm and deb packages
-
-The package staging is the first step of the image composer. During this stage
-the image composer preparing the local environment to start the image
-composition of the desired OS layout. Once this stage has completed the local
-environment will have a pre-populated cache containing all required packages
-necessary before entering the chroot environment and starting to compose the
-image.
-
-The following distinct steps are happening during the packaging stage.
-
-1. The input build-spec JSON file is verified against the JSON schema definition
-1. The desired distro provider is created and all its package manifest is
-downloaded
-1. The desired packages in the build-spec are validated to exist in the target
-distribution
-1. The dependency resolution checker is identifying all required dependencies
-1. The required packages are downloaded to the local cache
-1. The authenticitiy and integrity of every package required are validated in
-the local cache
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant IC as image-composer
+    participant IC as os-image-composer
     participant P as provider
     participant RR as remote repository
     participant LC as local cache
@@ -153,30 +140,20 @@ sequenceDiagram
 
 ```
 
-See also:
-
-- [Package Cache](./image-composer-caching.md#package-cache) for details on
-how package caching works and benefits build performance
-
 ### 3. Compose Stage
 
-#### Image Creation
-**Purpose**: Disk and filesystem preparation and install all packages.
+The compose stage creates an image. To prepare the disk and filesystem and to install all the packages required to create an image, the compose stage performs the following tasks:  
 
-**Key Tasks**:
-- Create raw file, format partitions and filesystems
-- Create empty raw file and create partitions according to the configs
-- Format the partitions' filesystem
+- Create a raw file and format the partitions and filesystems.
+- Create an empty raw file and create partitions according to the configs.
+- Format the partitions' filesystem.
 
-#### Generic System Installation
+The compose stage then installs OS packages and configures the generic system, including its security settings: 
 
-**Purpose**: Install OS packages
-
-**Key Tasks**:
-- Run pre-installation scripts
-- Install OS packages, config general system config, general OS image installation
-- Configure the base operating system environment
-- Install all collected packages from the packages stage
+- Run pre-installation scripts.
+- Install OS packages, set general system configurations, and perform general OS image installation.
+- Configure the base operating system environment.
+- Install all the collected packages from the packages stage.
 - Configure network settings
 - Set up user accounts
 - Install and configure SSH keys
@@ -184,80 +161,39 @@ how package caching works and benefits build performance
 - Enable or disable system services
 - Configure bootloader options
 - Run post-installation scripts
-
-#### Security configuration
-**Purpose**: Configure Security features
-
-**Key Tasks**:
-- Configure security related settings, for example: SELinux, LVM, secure boot, readonly filesystem, etc. 
+- Configure security settings such as SELinux, LVM, secure boot, readonly filesystem, etc. 
 
 ### 4. Image Signing
 
-**Purpose**: Sign the image
-
-**Key Tasks**:
-- Apply digital signatures for image integrity verification (if required)
-
-See also:
-
-- [Templates](./image-composer-templates.md#template-examples) for examples of
-template-based configurations
+The image signing stage signs the image by applying digital signatures for image integrity verification if they are required. For examples of template-based configurations, see [Templates](./os-image-composer-templates.md#template-examples).
 
 ### 5. Finalize Stage
 
-#### Format Conversion
-**Purpose**: Output format preparation
+The finalization stage prepares the output format, generates a manifest file and a software bill of materials (SBOM), and stores the image in the cache. 
 
-**Key Tasks**:
-- Convert raw image to other required format
-- Apply compression if specified
-- According to the user config, convert the raw image to VHD/VHDX/qcow2, etc.
+- Convert the raw image to other the required format.
+- Apply compression if specified.
+- Convert the raw image to VHD/VHDX/qcow2, etc., according to the user configuration.
+- Generate a manifest file and an SBOM.
+- Store the image in the image cache if caching is enabled.
 
-#### Manifest generation
-**Purpose**: Generate manifest and SBOM 
+**Various output formats** are supported: qcow2, raw, vhd, etc. The format conversion is handled by provider-specific tools, and compression options can be applied to reduce the final image size.
 
-**Key Tasks**:
-- Generate manifest file
-- Generate SBOM
-
-#### Chache image
-
-**Purpose**: Store it in the cache.
-
-**Key Tasks**:
-- Store the image in the image cache if enabled
-
-**Output Formats**:
-
-- Different output formats are supported (qcow2, raw, vhd, etc.)
-- Format conversion is handled by provider-specific tools
-- Compression options can be applied to reduce the final image size
-
-**Image Caching**:
-
-- The completed image is stored in the image cache based on a hash of the build
-spec
-- This enables instant retrieval of identical builds in the future
-- Image caching can be disabled using the `--no-image-cache` option
-
-See also:
-
-- [Image Cache](./image-composer-caching.md#image-cache) for details on how
-finished images are cached and reused
+**Image caching** stores the image in the image cache based on a hash of the build
+spec so you can instantly retrieve identical builds in the future. You can disable image caching by using the `--no-image-cache` option. To find out how to cache and reuse finished images, see [Image Cache](./os-image-composer-caching.md#image-cache). 
 
 ## Build Configuration Options
 
-The build process can be customized with various configuration options:
+The build process can be customized with various configuration options.
 
 ### Global Configuration Options
 
-These options affect all builds and are specified in the global configuration
-file:
+Specified in the global configuration file, the following options affect all builds:
 
 ```yaml
 core:
-  cache_dir: "/var/cache/image-composer"     # Cache location
-  work_dir: "/var/tmp/image-composer"        # Temporary build directory
+  cache_dir: "/var/cache/os-image-composer"     # Cache location
+  work_dir: "/var/tmp/os-image-composer"        # Temporary build directory
   max_concurrent_builds: 4                   # Parallel build processes
   cleanup_on_failure: true                   # Auto-cleanup on build errors
 
@@ -271,15 +207,12 @@ storage:
     max_count: 5                             # Number of images to keep per spec
 ```
 
-See also:
 
-- [Global Configuration File](./image-composer-cli-specification.md#global-configuration-file)
-for all available configuration options
+For a list of configuration options, see [Global Configuration File](./os-image-composer-cli-specification.md#global-configuration-file). 
 
 ### Build Specification Options
 
-These options are specified in the build specification file and affect that
-specific build:
+These options are specified in the build specification file and affect that build:
 
 ```yaml
 build:
@@ -294,10 +227,7 @@ build:
     - finalize
 ```
 
-See also:
-
-- [Build Specification File](./image-composer-cli-specification.md#build-specification-file)
-for complete build specification format
+For the complete build specification format, see [Build Specification File](./os-image-composer-cli-specification.md#build-specification-file). 
 
 ### Command-Line Overrides
 
@@ -306,28 +236,25 @@ specification options:
 
 ```bash
 # Disable all caching for this build
-image-composer build --no-cache my-image-spec.yml
+os-image-composer build --no-cache my-image-spec.yml
 
 # Build only up to the configuration stage
-image-composer build --stage configuration my-image-spec.yml
+os-image-composer build --stage configuration my-image-spec.yml
 
 # Skip the validate stage (not recommended in production)
-image-composer build --skip-stage validate my-image-spec.yml
+os-image-composer build --skip-stage validate my-image-spec.yml
 
 # Set a maximum build duration
-image-composer build --timeout 30m my-image-spec.yml
+os-image-composer build --timeout 30m my-image-spec.yml
 ```
 
-See also:
-
-- [Build Command](./image-composer-cli-specification.md#build-command) for all
-available command line options
+For a list of all the command-line options, see [Build Command](./os-image-composer-cli-specification.md#build-command). 
 
 ## Common Build Patterns
 
 ### Minimal System Image
 
-For creating small, lean images with minimal packages:
+Here's an example YAML file for creating small, lean images with minimal packages:
 
 ```yaml
 image:
@@ -348,7 +275,7 @@ customizations:
 
 ### Development Environment Image
 
-For creating images with development tools pre-installed:
+Here's an example of how to create images with development tools preinstalled:
 
 ```yaml
 image:
@@ -369,7 +296,7 @@ customizations:
 
 ### Production Server Image
 
-For creating hardened production server images:
+Here's an example of how to create hardened production server images:
 
 ```yaml
 image:
@@ -397,146 +324,121 @@ customizations:
       destination: /etc/ufw/ufw.conf
 ```
 
-See also:
-
-- [Template Examples](./image-composer-templates.md#template-examples) for how
-these patterns can be templated
+To create templates for your patterns, see [Template Examples](./os-image-composer-templates.md#template-examples). 
 
 ## Build Performance Optimization
 
+The tool lets you optimize build performance to suit your environment and objectives: 
+
 ### Improving Build Speed
 
-1. **Enable Caching**:
-   - Both package and image caching significantly improve build performance
-   - Package caching speeds up similar builds
-   - Image caching makes identical builds instant
+**Enable caching**: Both the package and image caching significantly improve build performance: Caching packages speeds up similar builds, and caching images makes identical builds instant. See [Package Cache and Image Cache](./os-image-composer-caching.md#how-they-work-together).
 
-2. **Increase Parallelism**:
-   - Use the `--parallel` option to utilize multiple CPU cores
-   - Adjust based on available CPU resources
+**Increase parallelism**: You can use the `--parallel` option to utilize multiple CPU cores and adjust it to your CPU resources.
 
-3. **Optimize Working Directory**:
-   - Place the working directory on fast storage (SSD)
-   - Ensure adequate free space
-
-See also:
-
-- [Package Cache and Image Cache](./image-composer-caching.md#how-they-work-together)
-for details on caching mechanisms
+**Optimize the working directory**: You should make sure there is adequate free space, and you can place the working directory on fast storage (SSD).
 
 ### Reducing Build Time for Development
 
-1. **Build to Specific Stages**:
-   - Use `--stage` to build only up to a particular stage
-   - Useful for testing changes to early stages
+**Build to specific stages**: Use the `--stage` option to build only up to a particular stage, which is useful for testing changes in early stages.
 
-2. **Use Templates**:
-   - Create templates for common configurations
-   - Derive new builds from templates to avoid repetitive configuration
+**Use templates**: Create templates for common configurations, and derive new builds from templates to avoid repetitive configuration. To learn more about streamlining development with templates, see [Template Usage](./os-image-composer-templates.md#using-templates-to-build-images).
 
-3. **Keep Temporary Files**:
-   - Use `--keep-temp` during development to avoid rebuilding from scratch
-   - Examine temporary files to debug issues
-
-See also:
-
-- [Template Usage](./image-composer-templates.md#using-templates-to-build-images)
-for streamlining development with templates
+**Keep temporary files**: Use `--keep-temp` during development to avoid rebuilding from scratch and examine temporary files to debug issues. 
 
 ## Troubleshooting Build Issues
 
 ### Common Problems and Solutions
 
 1. **Build Fails During Validate Stage**:
-   - Check the build specification syntax
-   - Verify all referenced files exist
-   - Ensure the provider is properly configured
+   - Check the build specification syntax.
+   - Verify that all referenced files exist.
+   - Make sure the provider is properly configured.
 
 2. **Build Fails During Packages Stage**:
-   - Check network connectivity
-   - Verify repository URLs are correct
-   - Ensure package names are correct
-   - Try running with `--no-package-cache` to force fresh package downloads
+   - Check network connectivity.
+   - Verify repository URLs are correct.
+   - Make sure package names are correct.
+   - Try running with `--no-package-cache` to force fresh package downloads.
 
 3. **Build Fails During Compose Stage**:
-   - Ensure enough disk space in the working directory
-   - Check provider tool installation (debootstrap, yum, etc.)
-   - Verify base OS version is supported
+   - Ensure there is enough disk space in the working directory.
+   - Check provider tool installation (debootstrap, yum, etc.).
+   - Verify that the base OS version is supported.
 
 4. **Build Fails During Configuration Stage**:
-   - Check custom script exit codes
-   - Verify file paths and permissions
-   - Look for conflicts in package configurations
+   - Check custom script exit codes.
+   - Verify file paths and permissions.
+   - Look for conflicts in package configurations.
 
 5. **Build Fails During Finalize Stage**:
-   - Ensure output directory is writable
-   - Check for sufficient disk space
-   - Verify output format tools are installed
+   - Ensure output directory is writable.
+   - Check for sufficient disk space.
+   - Verify output format tools are installed.
 
 ### Detailed Debugging
 
-1. **Increase Logging Verbosity**:
+1. **Increase logging verbosity**:
 
    ```bash
-   image-composer --log-level debug build my-image-spec.yml
+   os-image-composer --log-level debug build my-image-spec.yml
    ```
 
-2. **Preserve Temporary Files**:
+2. **Preserve temporary files**:
 
    ```bash
-   image-composer build --keep-temp my-image-spec.yml
+   os-image-composer build --keep-temp my-image-spec.yml
    ```
 
-3. **Run to a Specific Stage**:
+3. **Run to a specific stage**:
 
    ```bash
-   image-composer build --stage compose my-image-spec.yml
+   os-image-composer build --stage compose my-image-spec.yml
    ```
 
-4. **Skip Caching**:
+4. **Skip caching**:
 
    ```bash
-   image-composer build --no-cache my-image-spec.yml
+   os-image-composer build --no-cache my-image-spec.yml
    ```
 
-See also:
-
-- [Troubleshooting](./image-composer-cli-specification.md#troubleshooting) for
-CLI-specific troubleshooting techniques
+See [Troubleshooting](./os-image-composer-cli-specification.md#troubleshooting) for CLI-specific troubleshooting techniques.
 
 ### Build Log Analysis
 
-Build logs can provide valuable information about failures. Key sections to check:
+Build logs can provide valuable information about failures. Here are the key sections to check:
 
-1. **Validation Errors**:
-   - Look for "Validation error" messages at the beginning
+1. **Validation errors**: Look for "Validation error" messages at the beginning.
 
-2. **Package Resolution Issues**:
-   - Look for "Failed to resolve dependencies" or "Package not found"
+2. **Package resolution issues**: Look for "Failed to resolve dependencies" or "Package not found."
 
-3. **Disk Space Warnings**:
-   - Watch for "Insufficient disk space" messages
+3. **Disk space warnings**: Watch for "Insufficient disk space" messages.
 
-4. **Script Execution Failures**:
-   - Check for "Script returned non-zero exit code"
+4. **Script execution failures**: Check for "Script returned non-zero exit code."
 
-5. **Permission Problems**:
-   - Look for "Permission denied" errors
+5. **Permission problems**: Look for "Permission denied" errors.
 
 ## Conclusion
 
-The Image-Composer build process provides a flexible, staged approach to
+The OS Image Composer build process provides a flexible, staged approach to
 creating customized OS images. By understanding each stage and its purpose, you
 can create more efficient build specifications, troubleshoot issues more
-effectively, and optimize the build process for your specific needs.
+effectively, and optimize the build process for your needs.
 
 Key Takeaways:
 
-1. **Staged Architecture**: The build process is broken into distinct stages
-that can be controlled individually
-2. **Caching System**: Both package and image caching improve performance
-significantly
-3. **Customization Options**: Multiple levels of configuration allow for precise
-control
-4. **Troubleshooting Tools**: Various command-line options facilitate debugging
-and problem-solving
+1. **Staged architecture**: The build process is broken into distinct stages
+that can be controlled individually.
+2. **Caching system**: Both package and image caching improve performance
+significantly.
+3. **Customization options**: Multiple levels of configuration give you precise
+control.
+4. **Troubleshooting tools**: Various command-line options facilitate debugging
+and problem-solving.
+
+## Related Documentation
+
+- [Understanding Caching](./os-image-composer-caching.md)
+- [Multiple Package Repository Support](./os-image-composer-multi-repo-support.md)
+- [Understanding Templates](./os-image-composer-templates.md)
+- [OS Image Composer CLI Reference](./os-image-composer-cli-specification.md)
