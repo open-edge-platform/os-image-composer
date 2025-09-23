@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/open-edge-platform/image-composer/internal/chroot"
-	"github.com/open-edge-platform/image-composer/internal/config"
-	"github.com/open-edge-platform/image-composer/internal/utils/shell"
+	"github.com/open-edge-platform/os-image-composer/internal/chroot"
+	"github.com/open-edge-platform/os-image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
 )
 
 // Helper function to create a test ImageTemplate

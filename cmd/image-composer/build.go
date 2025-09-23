@@ -3,13 +3,13 @@ package main
 import (
 	"fmt"
 
-	"github.com/open-edge-platform/image-composer/internal/config"
-	"github.com/open-edge-platform/image-composer/internal/provider"
-	"github.com/open-edge-platform/image-composer/internal/provider/azl"
-	"github.com/open-edge-platform/image-composer/internal/provider/elxr"
-	"github.com/open-edge-platform/image-composer/internal/provider/emt"
-	"github.com/open-edge-platform/image-composer/internal/utils/logger"
-	"github.com/open-edge-platform/image-composer/internal/utils/system"
+	"github.com/open-edge-platform/os-image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/provider"
+	"github.com/open-edge-platform/os-image-composer/internal/provider/azl"
+	"github.com/open-edge-platform/os-image-composer/internal/provider/elxr"
+	"github.com/open-edge-platform/os-image-composer/internal/provider/emt"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/system"
 	"github.com/spf13/cobra"
 )
 

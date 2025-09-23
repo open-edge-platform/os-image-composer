@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/open-edge-platform/image-composer/internal/config"
-	"github.com/open-edge-platform/image-composer/internal/config/manifest"
-	"github.com/open-edge-platform/image-composer/internal/ospackage"
-	"github.com/open-edge-platform/image-composer/internal/ospackage/pkgfetcher"
-	"github.com/open-edge-platform/image-composer/internal/ospackage/pkgsorter"
-	"github.com/open-edge-platform/image-composer/internal/utils/logger"
-	"github.com/open-edge-platform/image-composer/internal/utils/network"
+	"github.com/open-edge-platform/os-image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/config/manifest"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage/pkgfetcher"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage/pkgsorter"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/network"
 )
 
 // repoConfig holds .repo file values

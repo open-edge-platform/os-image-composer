@@ -5,15 +5,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/open-edge-platform/image-composer/internal/chroot"
-	"github.com/open-edge-platform/image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/chroot"
+	"github.com/open-edge-platform/os-image-composer/internal/config"
 
-	"github.com/open-edge-platform/image-composer/internal/image/imageconvert"
-	"github.com/open-edge-platform/image-composer/internal/image/imagedisc"
-	"github.com/open-edge-platform/image-composer/internal/image/imageos"
-	"github.com/open-edge-platform/image-composer/internal/utils/logger"
-	"github.com/open-edge-platform/image-composer/internal/utils/shell"
-	"github.com/open-edge-platform/image-composer/internal/utils/system"
+	"github.com/open-edge-platform/os-image-composer/internal/image/imageconvert"
+	"github.com/open-edge-platform/os-image-composer/internal/image/imagedisc"
+	"github.com/open-edge-platform/os-image-composer/internal/image/imageos"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/system"
 )
 
 type RawMakerInterface interface {

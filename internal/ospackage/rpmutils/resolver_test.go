@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/open-edge-platform/image-composer/internal/ospackage"
-	"github.com/open-edge-platform/image-composer/internal/ospackage/resolvertest"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage/resolvertest"
 )
 
 func TestRPMResolver(t *testing.T) {

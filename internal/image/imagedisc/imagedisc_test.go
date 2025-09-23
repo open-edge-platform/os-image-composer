@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/open-edge-platform/image-composer/internal/config"
-	"github.com/open-edge-platform/image-composer/internal/image/imagedisc"
-	"github.com/open-edge-platform/image-composer/internal/utils/shell"
+	"github.com/open-edge-platform/os-image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/image/imagedisc"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
 )
 
 func TestIsDigit(t *testing.T) {

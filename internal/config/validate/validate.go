@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/open-edge-platform/image-composer/internal/config/schema"
-	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/os-image-composer/internal/config/schema"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )

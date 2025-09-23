@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/open-edge-platform/image-composer/internal/config/validate"
-	"github.com/open-edge-platform/image-composer/internal/utils/security"
-	"github.com/open-edge-platform/image-composer/internal/utils/slice"
+	"github.com/open-edge-platform/os-image-composer/internal/config/validate"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/security"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/slice"
 	"gopkg.in/yaml.v3"
 )
 

@@ -86,8 +86,8 @@ import (
     "github.com/spf13/cobra"
     "gopkg.in/yaml.v3"
 
-    "github.com/open-edge-platform/image-composer/internal/config"
-    "github.com/open-edge-platform/image-composer/internal/utils/logger"
+    "github.com/open-edge-platform/os-image-composer/internal/config"
+    "github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 )
 ```
 
@@ -380,7 +380,7 @@ Use package-level logger instead of declaring in each function:
 package chroot
 
 import (
-    "github.com/open-edge-platform/image-composer/internal/utils/logger"
+    "github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 )
 
 var log = logger.Logger()

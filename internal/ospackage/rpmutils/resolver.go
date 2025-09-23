@@ -12,9 +12,9 @@ import (
 	"strings"
 
 	"github.com/klauspost/compress/zstd"
-	"github.com/open-edge-platform/image-composer/internal/ospackage"
-	"github.com/open-edge-platform/image-composer/internal/utils/logger"
-	"github.com/open-edge-platform/image-composer/internal/utils/network"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/network"
 )
 
 // extractBaseRequirement takes a potentially complex requirement string

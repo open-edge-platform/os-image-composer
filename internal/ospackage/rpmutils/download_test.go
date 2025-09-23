@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/open-edge-platform/image-composer/internal/ospackage"
-	"github.com/open-edge-platform/image-composer/internal/ospackage/rpmutils"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage/rpmutils"
 )
 
 func TestPackages(t *testing.T) {

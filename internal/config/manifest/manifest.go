@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/open-edge-platform/image-composer/internal/config/version"
-	"github.com/open-edge-platform/image-composer/internal/ospackage"
-	"github.com/open-edge-platform/image-composer/internal/utils/logger"
-	"github.com/open-edge-platform/image-composer/internal/utils/security"
+	"github.com/open-edge-platform/os-image-composer/internal/config/version"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/security"
 )
 
 // Constants used for SDPX metadata generation

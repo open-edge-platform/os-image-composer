@@ -3,8 +3,8 @@ package debutils_test
 import (
 	"testing"
 
-	"github.com/open-edge-platform/image-composer/internal/ospackage"
-	"github.com/open-edge-platform/image-composer/internal/ospackage/debutils"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage/debutils"
 )
 
 func TestResolveDependenciesAdvanced(t *testing.T) {

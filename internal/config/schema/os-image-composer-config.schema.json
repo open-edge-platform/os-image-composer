@@ -1,6 +1,6 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"$id": "https://github.com/open-edge-platform/image-composer/schemas/os-image-composer-config.schema.json",
+	"$id": "https://github.com/open-edge-platform/os-image-composer/schemas/os-image-composer-config.schema.json",
 	"title": "OS Image Composer Config",
 	"description": "Defines the global configuration file for the OS Image Composer",
 	"type": "object",

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	chroot "github.com/open-edge-platform/image-composer/internal/chroot"
+	chroot "github.com/open-edge-platform/os-image-composer/internal/chroot"
 )
 
 // mockChrootBuilder implements the necessary interface for testing

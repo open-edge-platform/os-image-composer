@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/open-edge-platform/image-composer/internal/chroot/chrootbuild"
-	"github.com/open-edge-platform/image-composer/internal/utils/logger"
-	"github.com/open-edge-platform/image-composer/internal/utils/shell"
+	"github.com/open-edge-platform/os-image-composer/internal/chroot/chrootbuild"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
 )
 
 var log = logger.Logger()

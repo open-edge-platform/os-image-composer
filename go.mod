@@ -1,4 +1,4 @@
-module github.com/open-edge-platform/image-composer
+module github.com/open-edge-platform/os-image-composer
 
 go 1.22.12
 

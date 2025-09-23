@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/open-edge-platform/image-composer/internal/utils/file"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/file"
 )
 
 func TestReadFromJSON_FileNotExist(t *testing.T) {

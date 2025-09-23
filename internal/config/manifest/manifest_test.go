@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/open-edge-platform/image-composer/internal/config/version"
-	"github.com/open-edge-platform/image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/config/version"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
 )
 
 func TestWriteSPDXToFile(t *testing.T) {

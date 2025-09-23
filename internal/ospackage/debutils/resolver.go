@@ -11,9 +11,9 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/open-edge-platform/image-composer/internal/ospackage"
-	"github.com/open-edge-platform/image-composer/internal/ospackage/pkgfetcher"
-	"github.com/open-edge-platform/image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage/pkgfetcher"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 )
 
 func GenerateDot(pkgs []ospackage.PackageInfo, file string) error {

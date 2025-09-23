@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/open-edge-platform/image-composer/internal/utils/logger"
-	"github.com/open-edge-platform/image-composer/internal/utils/network"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/network"
 	"github.com/schollz/progressbar/v3"
 )
 

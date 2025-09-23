@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/open-edge-platform/image-composer/internal/config/validate"
+	"github.com/open-edge-platform/os-image-composer/internal/config/validate"
 )
 
 func TestMergeStringSlices(t *testing.T) {
