@@ -70,13 +70,16 @@ git branch
 echo "Building the OS Image Composer..."
 echo "Generating binary with go build..."
 go build ./cmd/os-image-composer
+# Building with earthly too so that we have both options available to test.
+# Earthly built binary will be stored as ./build/os-image-composer
+# we are using both the binaries alternatively in tests below.
 echo "Generating binary with earthly..."
 earthly +build
 
 # Run tests
-echo "Building the Linux image..."
+echo "Building the Images..."
 build_azl3_raw_image() {
-  echo "building AZL3 raw Image."
+  echo "Building AZL3 raw Image. (using os-image-composer binary)"
   output=$( sudo -S ./os-image-composer build image-templates/azl3-x86_64-minimal-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -88,7 +91,7 @@ build_azl3_raw_image() {
 }
 
 build_azl3_iso_image() {
-  echo "building AZL3 iso Image."
+  echo "Building AZL3 iso Image. (using earthly built binary)"
   output=$( sudo -S ./build/os-image-composer build image-templates/azl3-x86_64-minimal-iso.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -101,7 +104,7 @@ build_azl3_iso_image() {
 
 
 build_emt3_raw_image() {
-  echo "building EMT3 raw Image."
+  echo "Building EMT3 raw Image.(using os-image-composer binary)"
   output=$( sudo -S ./os-image-composer build image-templates/emt3-x86_64-minimal-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -113,7 +116,7 @@ build_emt3_raw_image() {
 }
 
 build_emt3_iso_image() {
-  echo "building EMT3 iso Image."
+  echo "Building EMT3 iso Image.(using earthly built binary)"
   output=$( sudo -S ./build/os-image-composer build image-templates/emt3-x86_64-minimal-iso.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -125,7 +128,7 @@ build_emt3_iso_image() {
 }
 
 build_elxr12_raw_image() {
-  echo "building ELXR12 raw Image."
+  echo "Building ELXR12 raw Image.(using os-image-composer binary)"
   output=$( sudo -S ./os-image-composer build image-templates/elxr12-x86_64-minimal-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -137,7 +140,7 @@ build_elxr12_raw_image() {
   fi
 }
 build_elxr12_iso_image() {
-  echo "building ELXR12 iso Image."
+  echo "Building ELXR12 iso Image.(using earthly built binary)"
   output=$( sudo -S ./os-image-composer build image-templates/elxr12-x86_64-minimal-iso.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -150,7 +153,7 @@ build_elxr12_iso_image() {
 }
 
 build_elxr12_immutable_raw_image() {
-  echo "building ELXR12 immutable raw Image."
+  echo "Building ELXR12 immutable raw Image.(using os-image-composer binary)"
   output=$( sudo -S ./build/os-image-composer build image-templates/elxr12-x86_64-edge-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -163,7 +166,7 @@ build_elxr12_immutable_raw_image() {
 }
 
 build_emt3_immutable_raw_image() {
-  echo "building EMT3 immutable raw Image."
+  echo "Building EMT3 immutable raw Image.(using os-image-composer binary)"
   output=$( sudo -S ./os-image-composer build image-templates/emt3-x86_64-edge-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -173,11 +176,11 @@ build_emt3_immutable_raw_image() {
     echo "EMT3 immutable raw Image build failed."
     exit 1 # Exit with error if build fails
   fi
-}
+} 
 
 build_azl3_immutable_raw_image() {
-  echo "building AZL3 immutable raw Image."
-  output=$( sudo -S ./os-image-composer build image-templates/azl3-x86_64-edge-raw.yml 2>&1)
+  echo "Building AZL3 immutable raw Image.(using earthly built binary)"
+  output=$( sudo -S ./build/os-image-composer build image-templates/azl3-x86_64-edge-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
 
