@@ -68,7 +68,7 @@ run_qemu_boot_test() {
 git branch
 #Build the OS Image Composer
 echo "Building the OS Image Composer..."
-go build ./cmd/os-image-composer
+go build -trimpath -buildmode=pie -ldflags "-s -w" ./cmd/os-image-composer
 
 # Run tests
 echo "Building the Linux image..."
