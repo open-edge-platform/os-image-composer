@@ -16,17 +16,17 @@ The initial release of the OS Image Composer tool has been tested and validated 
 
 ```bash
 # Build the tool:
-go build ./cmd/image-composer
+go build ./cmd/os-image-composer
 
 # Or run it directly:
-go run ./cmd/image-composer --help
+go run ./cmd/os-image-composer --help
 ```
 
-For complete usage instructions, see the [Command-Line Reference](./docs/architecture/image-composer-cli-specification.md).
+For complete usage instructions, see the [Command-Line Reference](./docs/architecture/os-image-composer-cli-specification.md).
 
 ### Prerequisites
 
-**Important:** Before you compose an operating system image with the OS Image Composer tool, follow the [instructions to install these prerequisites](./docs/tutorial/Pre-requisite.md):  
+**Important:** Before you compose an operating system image with the OS Image Composer tool, follow the [instructions to install these prerequisites](./docs/tutorial/prerequisite.md):  
 
 * `ukify`, which combines components -- typically a kernel, an initrd, and a UEFI boot stub -- to create a signed Unified Kernel Image (UKI), which is a PE binary that firmware executes to start an embedded Linux kernel.
 
@@ -38,7 +38,7 @@ For complete usage instructions, see the [Command-Line Reference](./docs/archite
 After you install the prerequisites, you can build the OS Image Composer command-line utility by using Go directly or by using the Earthly framework: 
 
 ```bash
-go build ./cmd/image-composer
+go build ./cmd/os-image-composer
 ```
 
 Using Earthly framework produces a reproducible build that automatically includes the version number (from the --version parameter), the build date (the current UTC date), and the Git commit SHA (current repository commit).
@@ -54,23 +54,23 @@ earthly +build --version=1.0.0
 
 ```bash
 # Build an image from a template:
-./image-composer build image-templates/azl3-x86_64-edge-raw.yml
+./os-image-composer build image-templates/azl3-x86_64-edge-raw.yml
 
 # Validate a template: 
-./image-composer validate image-templates/azl3-x86_64-edge-raw.yml
+./os-image-composer validate image-templates/azl3-x86_64-edge-raw.yml
 ```
 
 After the image finishes building, check your output directory. The exact name of the output directory varies by environment and image but should look something like this:   
 
 ```
-/image-composer/tmp/image-composer/azl3-x86_64-edge-raw/imagebuild/Minimal_Raw$
+/os-image-composer/tmp/image-composer/azl3-x86_64-edge-raw/imagebuild/Minimal_Raw$
 ```
 
 ## Documentation
 
-- [Command-Line Reference](./docs/architecture/image-composer-cli-specification.md)
-- [Understanding the OS Image Build Process](./docs/architecture/image-composer-build-process.md)
-- [Creating and Reusing Image Templates](./docs/architecture/image-composer-templates.md)
+- [Command-Line Reference](./docs/architecture/os-image-composer-cli-specification.md)
+- [Understanding the OS Image Build Process](./docs/architecture/os-image-composer-build-process.md)
+- [Creating and Reusing Image Templates](./docs/architecture/os-image-composer-templates.md)
 
 ## Configuration
 
@@ -107,16 +107,16 @@ logging:
 
 ```bash
 # Create a new configuration file
-./image-composer config init
+./os-image-composer config init
 
 # Create config file at specific location
-./image-composer config init /path/to/config.yaml
+./os-image-composer config init /path/to/config.yaml
 
 # Show current configuration
-./image-composer config show
+./os-image-composer config show
 
 # Use specific configuration file
-./image-composer --config /path/to/config.yaml build template.yml
+./os-image-composer --config /path/to/config.yaml build template.yml
 ```
 
 ## Usage
@@ -125,22 +125,22 @@ The OS Image Composer tool uses a command-line interface with various commands. 
 
 ```bash
 # Show help
-./image-composer --help
+./os-image-composer --help
 
 # Build command with template file as positional argument
-./image-composer build image-templates/azl3-x86_64-edge-raw.yml
+./os-image-composer build image-templates/azl3-x86_64-edge-raw.yml
 
 # Override config settings with command-line flags
-./image-composer build --workers 16 --cache-dir /tmp/cache image-templates/azl3-x86_64-edge-raw.yml
+./os-image-composer build --workers 16 --cache-dir /tmp/cache image-templates/azl3-x86_64-edge-raw.yml
 
 # Validate a template file against the schema
-./image-composer validate image-templates/azl3-x86_64-edge-raw.yml
+./os-image-composer validate image-templates/azl3-x86_64-edge-raw.yml
 
 # Display version information
-./image-composer version
+./os-image-composer version
 
 # Install shell completion for your current shell
-./image-composer install-completion
+./os-image-composer install-completion
 ```
 
 ### Commands
@@ -152,7 +152,7 @@ The OS Image Composer tool provides the following commands:
 Builds a Linux distribution image based on the specified image template file:
 
 ```bash
-./image-composer build [flags] TEMPLATE_FILE
+./os-image-composer build [flags] TEMPLATE_FILE
 ```
 
 Flags:
@@ -168,7 +168,7 @@ Flags:
 Example:
 
 ```bash
-./image-composer build --workers 12 --cache-dir ./package-cache image-templates/azl3-x86_64-edge-raw.yml
+./os-image-composer build --workers 12 --cache-dir ./package-cache image-templates/azl3-x86_64-edge-raw.yml
 ```
 
 #### config
@@ -177,10 +177,10 @@ Manages the global configuration:
 
 ```bash
 # Show current configuration
-./image-composer config show
+./os-image-composer config show
 
 # Initialize new configuration file
-./image-composer config init [config-file]
+./os-image-composer config init [config-file]
 ```
 
 #### validate
@@ -188,10 +188,10 @@ Manages the global configuration:
 Validates a YAML template file against the schema without building an image:
 
 ```bash
-./image-composer validate TEMPLATE_FILE
+./os-image-composer validate TEMPLATE_FILE
 ```
 
-The `image-composer validate` command is useful for verifying template configurations before starting the potentially time-consuming build process.
+The `os-image-composer validate` command is useful for verifying template configurations before starting the potentially time-consuming build process.
 
 #### version
 
@@ -199,7 +199,7 @@ Displays the tool’s version number, build date, and Git commit SHA:
 
 
 ```bash
-./image-composer version
+./os-image-composer version
 ```
 
 
@@ -209,13 +209,13 @@ Installs the shell completion feature for your current shell or a specified shel
 
 ```bash
 # Auto-detect shell
-./image-composer install-completion
+./os-image-composer install-completion
 
 # Specify shell type
-./image-composer install-completion --shell zsh
+./os-image-composer install-completion --shell zsh
 
 # Force overwrite existing completion
-./image-composer install-completion --force
+./os-image-composer install-completion --force
 ```
 
 Reload your shell configuration based on the shell that you are using.
@@ -243,12 +243,12 @@ PowerShell:
 Test the completion:
 
 ```bash
-image-composer [TAB]
-image-composer b[TAB]
-image-composer build --[TAB]
+os-image-composer [TAB]
+os-image-composer b[TAB]
+os-image-composer build --[TAB]
 ```
 
-See the [Shell Completion](#shell-completion) section for  details.
+See the [Shell Completion](#shell-completion-feature) section for  details.
 
 ### Image Template Format
 
@@ -337,16 +337,16 @@ The OS Image Composer CLI supports shell auto-completion for Bash, Zsh, Fish, an
 
 ```bash
 # Bash
-./image-composer completion bash > image-composer_completion.bash
+./os-image-composer completion bash > image-composer_completion.bash
 
 # Zsh
-./image-composer completion zsh > image-composer_completion.zsh
+./os-image-composer completion zsh > image-composer_completion.zsh
 
 # Fish
-./image-composer completion fish > image-composer_completion.fish
+./os-image-composer completion fish > image-composer_completion.fish
 
 # PowerShell
-./image-composer completion powershell > image-composer_completion.ps1
+./os-image-composer completion powershell > image-composer_completion.ps1
 ```
 
 #### Install Completion Scripts
@@ -394,21 +394,21 @@ Once the completion script is installed, the tool is configured to suggest YAML 
 
 ```bash
 # Tab-complete commands
-./image-composer <TAB>
+./os-image-composer <TAB>
 build      completion  config     help       validate    version
 
 # Tab-complete flags
-./image-composer build --<TAB>
+./os-image-composer build --<TAB>
 --cache-dir  --config    --help       --log-level  --verbose    --work-dir   --workers
 
 # Tab-complete YAML files for template file argument
-./image-composer build <TAB>
+./os-image-composer build <TAB>
 # Will show YAML files in the current directory
 ```
 
 ## Template Examples
 
-Here are several example YAML template files. You can use YAML image templates to rapidly reproduce custom, verified, and inventoried operating systems; see [Creating and Reusing Image Templates](./docs/architecture/image-composer-templates.md).
+Here are several example YAML template files. You can use YAML image templates to rapidly reproduce custom, verified, and inventoried operating systems; see [Creating and Reusing Image Templates](./docs/architecture/os-image-composer-templates.md).
 
 ### Minimal Edge Device
 
@@ -491,10 +491,10 @@ systemConfigs:
 
 ## Get Help
 
-* Run the following command in the command-line tool to see all the commands and options: `./image-composer --help`
-* See the [CLI Specification and Reference](./docs/architecture/image-composer-cli-specification.md).
+* Run the following command in the command-line tool to see all the commands and options: `./os-image-composer --help`
+* See the [CLI Specification and Reference](./docs/architecture/os-image-composer-cli-specification.md).
 * Read the [documentation](https://github.com/open-edge-platform/os-image-composer/tree/main/docs).
-* Troubleshoot by using the [Build Process documentation](./docs/architecture/image-composer-build-process.md#troubleshooting-build-issues).
+* Troubleshoot by using the [Build Process documentation](./docs/architecture/os-image-composer-build-process.md#troubleshooting-build-issues).
 * [Participate in discussions](https://github.com/open-edge-platform/os-image-composer/discussions).
 
 ## Contribute
