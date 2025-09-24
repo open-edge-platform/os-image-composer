@@ -74,33 +74,44 @@ func FetchPackages(urls []string, destDir string, workers int) error {
 					// file exists but zero size: re-download
 					log.Warnf("re-downloading zero-size %s", name)
 				}
-				err := func() error {
 
-					client := network.NewSecureHTTPClient()
-					resp, err := client.Get(url)
-					if err != nil {
-						return err
+				const maxRetries = 3
+				var lastErr error
+				for attempt := 1; attempt <= maxRetries; attempt++ {
+					lastErr = func() error {
+
+						client := network.NewSecureHTTPClient()
+						resp, err := client.Get(url)
+						if err != nil {
+							return err
+						}
+						defer resp.Body.Close()
+
+						if resp.StatusCode != http.StatusOK {
+							return fmt.Errorf("bad status: %s", resp.Status)
+						}
+
+						out, err := os.Create(destPath)
+						if err != nil {
+							return err
+						}
+						defer out.Close()
+
+						if _, err := io.Copy(out, resp.Body); err != nil {
+							return err
+						}
+						return nil
+					}()
+					if lastErr == nil {
+						break
 					}
-					defer resp.Body.Close()
-
-					if resp.StatusCode != http.StatusOK {
-						return fmt.Errorf("bad status: %s", resp.Status)
+					if attempt < maxRetries {
+						// Exponential backoff: 1s, 2s
+						time.Sleep(time.Duration(1<<uint(attempt-1)) * time.Second)
 					}
-
-					out, err := os.Create(destPath)
-					if err != nil {
-						return err
-					}
-					defer out.Close()
-
-					if _, err := io.Copy(out, resp.Body); err != nil {
-						return err
-					}
-					return nil
-				}()
-
-				if err != nil {
-					log.Errorf("downloading %s failed: %v", url, err)
+				}
+				if lastErr != nil {
+					log.Errorf("downloading %s failed after %d attempts: %v", url, maxRetries, lastErr)
 				}
 				// increment progress bar
 				if err := bar.Add(1); err != nil {
