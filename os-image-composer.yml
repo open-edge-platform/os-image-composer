@@ -3,7 +3,7 @@
 # Image-specific parameters should be defined in the image specification.
 
 # Core tool settings
-workers: 12
+workers: 8
 # Number of concurrent download workers (1-100, default: 8)
 # Higher values speed up package downloads but consume more network/CPU resources
 # Recommended: 8-16 for most systems, 20+ for high-bandwidth servers
