@@ -2,9 +2,7 @@ package network
 
 import (
 	"crypto/tls"
-	"net"
 	"net/http"
-	"time"
 )
 
 // NewSecureHTTPClient returns an http.Client with a custom TLS configuration.
@@ -12,19 +10,6 @@ func NewSecureHTTPClient() *http.Client {
 
 	// Clone, to start from defaults and only override what is required
 	base := http.DefaultTransport.(*http.Transport).Clone()
-
-	// Robust dialing timeouts
-	base.DialContext = (&net.Dialer{
-		Timeout:   10 * time.Second, // TCP connect timeout
-		KeepAlive: 30 * time.Second,
-	}).DialContext
-
-	// Configiure other standard timeouts
-	base.TLSHandshakeTimeout = 10 * time.Second
-	base.ResponseHeaderTimeout = 15 * time.Second
-	base.ExpectContinueTimeout = 1 * time.Second
-	base.IdleConnTimeout = 90 * time.Second
-	base.ForceAttemptHTTP2 = true
 
 	// TLS policy
 	base.TLSClientConfig = &tls.Config{
@@ -37,8 +22,5 @@ func NewSecureHTTPClient() *http.Client {
 		},
 	}
 
-	return &http.Client{
-		Transport: base,
-		Timeout:   30 * time.Second, // end-to-end request deadline
-	}
+	return &http.Client{Transport: base}
 }

@@ -156,6 +156,19 @@ func GetOSProxyEnvirons() map[string]string {
 	return proxyEnv
 }
 
+// IsBashAvailable checks if bash is available in the given chroot environment
+func IsBashAvailable(chrootPath string) bool {
+	if bashPath, ok := commandMap["bash"]; ok {
+		if _, err := os.Stat(filepath.Join(chrootPath, bashPath)); err == nil {
+			return true
+		}
+		log.Debugf("bash not found in chroot path %s", chrootPath)
+	} else {
+		log.Debugf("bash path not found in commandMap")
+	}
+	return false
+}
+
 // IsCommandExist checks if a command exists in the system or in a chroot environment
 func IsCommandExist(cmd string, chrootPath string) (bool, error) {
 	var cmdStr string

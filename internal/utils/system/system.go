@@ -111,6 +111,12 @@ func GetProviderId(os, dist, arch string) string {
 
 func StopGPGComponents(chrootPath string) error {
 	log := logger.Logger()
+
+	if !shell.IsBashAvailable(chrootPath) {
+		log.Debugf("Bash not available in chroot environment, skipping GPG components stop")
+		return nil
+	}
+
 	cmdExist, err := shell.IsCommandExist("gpgconf", chrootPath)
 	if err != nil {
 		return fmt.Errorf("failed to check if gpgconf command exists in chroot environment: %w", err)

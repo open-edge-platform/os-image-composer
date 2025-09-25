@@ -136,6 +136,12 @@ func UmountSubPath(mountPoint string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get mount subpath list for %s: %w", mountPoint, err)
 	}
+
+	if len(mountSubpathList) == 0 {
+		log.Debugf("No mount subpaths found for %s", mountPoint)
+		return nil
+	}
+
 	sort.Sort(sort.Reverse(sort.StringSlice(mountSubpathList)))
 	for _, path := range mountSubpathList {
 		if err := umountPath(path); err != nil {

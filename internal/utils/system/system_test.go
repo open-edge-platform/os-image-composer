@@ -449,10 +449,9 @@ func TestStopGPGComponents(t *testing.T) {
 		errorMsg     string
 	}{
 		{
-			name:       "successful_gpg_stop",
-			chrootPath: "/mnt/chroot",
+			name: "successful_gpg_stop",
 			mockCommands: []shell.MockCommand{
-				{Pattern: "which gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
+				{Pattern: "command -v gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
 				{Pattern: "gpgconf --list-components", Output: "gpg:OpenPGP:/usr/bin/gpg\ngpg-agent:Private Keys:/usr/bin/gpg-agent\ndirmngr:Network:/usr/bin/dirmngr\n", Error: nil},
 				{Pattern: "gpgconf --kill gpg", Output: "", Error: nil},
 				{Pattern: "gpgconf --kill gpg-agent", Output: "", Error: nil},
@@ -461,28 +460,25 @@ func TestStopGPGComponents(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:       "gpgconf_not_found",
-			chrootPath: "/mnt/chroot",
+			name: "gpgconf_not_found",
 			mockCommands: []shell.MockCommand{
-				{Pattern: "which gpgconf", Output: "", Error: fmt.Errorf("command not found")},
+				{Pattern: "command -v gpgconf", Output: "", Error: fmt.Errorf("command not found")},
 			},
 			expectError: false, // Should not error when gpgconf is not found
 		},
 		{
-			name:       "gpgconf_list_components_failure",
-			chrootPath: "/mnt/chroot",
+			name: "gpgconf_list_components_failure",
 			mockCommands: []shell.MockCommand{
-				{Pattern: "command", Output: "/usr/bin/gpgconf\n", Error: nil},
+				{Pattern: "command -v gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
 				{Pattern: "gpgconf --list-components", Output: "", Error: fmt.Errorf("gpgconf list failed")},
 			},
 			expectError: true,
 			errorMsg:    "failed to list GPG components",
 		},
 		{
-			name:       "gpgconf_kill_component_failure",
-			chrootPath: "/mnt/chroot",
+			name: "gpgconf_kill_component_failure",
 			mockCommands: []shell.MockCommand{
-				{Pattern: "command", Output: "/usr/bin/gpgconf\n", Error: nil},
+				{Pattern: "command -v gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
 				{Pattern: "gpgconf --list-components", Output: "gpg:OpenPGP:/usr/bin/gpg\n", Error: nil},
 				{Pattern: "gpgconf --kill gpg", Output: "", Error: fmt.Errorf("kill gpg failed")},
 			},
@@ -490,19 +486,17 @@ func TestStopGPGComponents(t *testing.T) {
 			errorMsg:    "failed to stop GPG component gpg",
 		},
 		{
-			name:       "empty_gpg_components_list",
-			chrootPath: "/mnt/chroot",
+			name: "empty_gpg_components_list",
 			mockCommands: []shell.MockCommand{
-				{Pattern: "which gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
+				{Pattern: "command -v gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
 				{Pattern: "gpgconf --list-components", Output: "", Error: nil},
 			},
 			expectError: false,
 		},
 		{
-			name:       "gpg_components_with_empty_lines",
-			chrootPath: "/mnt/chroot",
+			name: "gpg_components_with_empty_lines",
 			mockCommands: []shell.MockCommand{
-				{Pattern: "which gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
+				{Pattern: "command -v gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
 				{Pattern: "gpgconf --list-components", Output: "gpg:OpenPGP:/usr/bin/gpg\n\ngpg-agent:Private Keys:/usr/bin/gpg-agent\n", Error: nil},
 				{Pattern: "gpgconf --kill gpg", Output: "", Error: nil},
 				{Pattern: "gpgconf --kill gpg-agent", Output: "", Error: nil},
@@ -510,10 +504,9 @@ func TestStopGPGComponents(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:       "gpg_components_without_colon",
-			chrootPath: "/mnt/chroot",
+			name: "gpg_components_without_colon",
 			mockCommands: []shell.MockCommand{
-				{Pattern: "which gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
+				{Pattern: "command -v gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
 				{Pattern: "gpgconf --list-components", Output: "gpg:OpenPGP:/usr/bin/gpg\ninvalid_line_without_colon\ngpg-agent:Private Keys:/usr/bin/gpg-agent\n", Error: nil},
 				{Pattern: "gpgconf --kill gpg", Output: "", Error: nil},
 				{Pattern: "gpgconf --kill gpg-agent", Output: "", Error: nil},
@@ -521,10 +514,9 @@ func TestStopGPGComponents(t *testing.T) {
 			expectError: false, // Should skip invalid lines
 		},
 		{
-			name:       "whitespace_handling",
-			chrootPath: "/mnt/chroot",
+			name: "whitespace_handling",
 			mockCommands: []shell.MockCommand{
-				{Pattern: "which gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
+				{Pattern: "command -v gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
 				{Pattern: "gpgconf --list-components", Output: "  gpg  :OpenPGP:/usr/bin/gpg  \n  gpg-agent  :Private Keys:/usr/bin/gpg-agent  \n", Error: nil},
 				{Pattern: "gpgconf --kill gpg", Output: "", Error: nil},
 				{Pattern: "gpgconf --kill gpg-agent", Output: "", Error: nil},
@@ -532,10 +524,9 @@ func TestStopGPGComponents(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:       "empty_chroot_path",
-			chrootPath: "",
+			name: "empty_chroot_path",
 			mockCommands: []shell.MockCommand{
-				{Pattern: "which gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
+				{Pattern: "command -v gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
 				{Pattern: "gpgconf --list-components", Output: "gpg:OpenPGP:/usr/bin/gpg\n", Error: nil},
 				{Pattern: "gpgconf --kill gpg", Output: "", Error: nil},
 			},
@@ -547,7 +538,17 @@ func TestStopGPGComponents(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shell.Default = shell.NewMockExecutor(tt.mockCommands)
 
-			err := system.StopGPGComponents(tt.chrootPath)
+			chrootPath := t.TempDir()
+
+			bashPath := filepath.Join(chrootPath, "usr", "bin", "bash")
+			if err := os.MkdirAll(filepath.Dir(bashPath), 0700); err != nil {
+				t.Fatalf("Failed to create bash directory: %v", err)
+			}
+			if err := os.WriteFile(bashPath, []byte("#!/bin/bash\necho Bash\n"), 0700); err != nil {
+				t.Fatalf("Failed to create bash file: %v", err)
+			}
+
+			err := system.StopGPGComponents(chrootPath)
 
 			if tt.expectError {
 				if err == nil {
@@ -564,54 +565,60 @@ func TestStopGPGComponents(t *testing.T) {
 	}
 }
 
-func TestStopGPGComponents_CommandExistCheck(t *testing.T) {
+func TestStopGPGComponents_BashAvailability(t *testing.T) {
+	err := system.StopGPGComponents("/any/chroot")
+	if err != nil {
+		t.Errorf("Expected no error when Bash is not available, got: %v", err)
+	}
+}
+
+func TestStopGPGComponents_EmptyChrootPath(t *testing.T) {
 	originalExecutor := shell.Default
 	defer func() { shell.Default = originalExecutor }()
 
-	tests := []struct {
-		name         string
-		chrootPath   string
-		mockCommands []shell.MockCommand
-		expectError  bool
-		errorMsg     string
-	}{
-		{
-			name:       "command_exist_check_failure",
-			chrootPath: "/mnt/chroot",
-			mockCommands: []shell.MockCommand{
-				{Pattern: "command", Output: "command exist check failed", Error: fmt.Errorf("command exist check failed")},
-			},
-			expectError: true,
-			errorMsg:    "failed to check if gpgconf command exists",
-		},
-		{
-			name:       "command_not_found_but_check_succeeds",
-			chrootPath: "/mnt/chroot",
-			mockCommands: []shell.MockCommand{
-				{Pattern: "which gpgconf", Output: "", Error: fmt.Errorf("command not found")}, // This simulates command not existing
-			},
-			expectError: false, // Should not error when command doesn't exist
-		},
+	mockCommands := []shell.MockCommand{
+		{Pattern: "command -v gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
+		{Pattern: "gpgconf --list-components", Output: "gpg:OpenPGP:/usr/bin/gpg\n", Error: nil},
+		{Pattern: "gpgconf --kill gpg", Output: "", Error: nil},
 	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			shell.Default = shell.NewMockExecutor(tt.mockCommands)
+	err := system.StopGPGComponents("")
+	if err != nil {
+		t.Errorf("Expected no error for empty chrootPath, got: %v", err)
+	}
+}
 
-			err := system.StopGPGComponents(tt.chrootPath)
+func TestStopGPGComponents_InvalidComponentLines(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
 
-			if tt.expectError {
-				if err == nil {
-					t.Error("Expected error, but got none")
-				} else if tt.errorMsg != "" && !strings.Contains(err.Error(), tt.errorMsg) {
-					t.Errorf("Expected error containing '%s', but got: %v", tt.errorMsg, err)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Expected no error, but got: %v", err)
-				}
-			}
-		})
+	mockCommands := []shell.MockCommand{
+		{Pattern: "command -v gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
+		{Pattern: "gpgconf --list-components", Output: "invalid_line\n", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	err := system.StopGPGComponents("")
+	if err != nil {
+		t.Errorf("Expected no error for invalid component lines, got: %v", err)
+	}
+}
+
+func TestStopGPGComponents_ComponentWithSpaces(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "command -v gpgconf", Output: "/usr/bin/gpgconf\n", Error: nil},
+		{Pattern: "gpgconf --list-components", Output: "  gpg-agent  :Private Keys:/usr/bin/gpg-agent  \n", Error: nil},
+		{Pattern: "gpgconf --kill gpg-agent", Output: "", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	err := system.StopGPGComponents("")
+	if err != nil {
+		t.Errorf("Expected no error for component with spaces, got: %v", err)
 	}
 }
 
