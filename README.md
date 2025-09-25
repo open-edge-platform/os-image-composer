@@ -27,7 +27,7 @@ go build -buildmode=pie -ldflags "-s -w" ./cmd/os-image-composer
 go run ./cmd/os-image-composer --help
 
 # Build an image from template
-./os-image-composer build image-templates/azl3-x86_64-edge-raw.yml
+sudo -E ./os-image-composer build image-templates/azl3-x86_64-edge-raw.yml
 
 # Validate a template
 ./os-image-composer validate image-templates/azl3-x86_64-edge-raw.yml
@@ -123,10 +123,10 @@ The OS Image Composer tool uses a command-line interface with various commands:
 ./os-image-composer --help
 
 # Build command with template file as positional argument
-./os-image-composer build image-templates/azl3-x86_64-edge-raw.yml
+sudo -E ./os-image-composer build image-templates/azl3-x86_64-edge-raw.yml
 
 # Override config settings with command-line flags
-./os-image-composer build --workers 16 --cache-dir /tmp/cache image-templates/azl3-x86_64-edge-raw.yml
+sudo -E ./os-image-composer build --workers 16 --cache-dir /tmp/cache image-templates/azl3-x86_64-edge-raw.yml
 
 # Validate a template file against the schema
 ./os-image-composer validate image-templates/azl3-x86_64-edge-raw.yml
@@ -147,7 +147,7 @@ The OS Image Composer tool provides the following commands:
 Builds a Linux distribution image based on the specified image template file:
 
 ```bash
-./os-image-composer build [flags] TEMPLATE_FILE
+sudo -E ./os-image-composer build [flags] TEMPLATE_FILE
 ```
 
 Flags:
@@ -163,7 +163,7 @@ Flags:
 Example:
 
 ```bash
-./os-image-composer build --workers 12 --cache-dir ./package-cache image-templates/azl3-x86_64-edge-raw.yml
+sudo -E ./os-image-composer build --workers 12 --cache-dir ./package-cache image-templates/azl3-x86_64-edge-raw.yml
 ```
 
 #### config
@@ -389,11 +389,11 @@ Once the completion script is installed:
 build      completion  config     help       validate    version
 
 # Tab-complete flags
-./os-image-composer build --<TAB>
+sudo -E ./os-image-composer build --<TAB>
 --cache-dir  --config    --help       --log-level  --verbose    --work-dir   --workers
 
 # Tab-complete YAML files for template file argument
-./os-image-composer build <TAB>
+sudo -E ./os-image-composer build <TAB>
 # Will show YAML files in the current directory
 ```
 
