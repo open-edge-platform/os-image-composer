@@ -15,6 +15,7 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/pkgfetcher"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/pkgsorter"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/network"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/slice"
 )
 
@@ -104,7 +105,10 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 		}
 		for _, componentName := range slice.SplitBySpace(component) {
 			for _, arch := range strings.Split(archs, ",") {
-				package_list_url := GetPackagesNames(baseURL, codename, arch, componentName)
+				package_list_url, err := GetPackagesNames(baseURL, codename, arch, componentName)
+				if err != nil {
+					return nil, fmt.Errorf("getting package metadata name: %w", err)
+				}
 				if package_list_url == "" {
 					continue // No valid package list found for this arch/component
 				}
@@ -141,14 +145,23 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 
 // CheckFileExists sends a HEAD request to the given URL and
 // returns true if the file exists (status 200).
-func checkFileExists(url string) bool {
-	resp, err := http.Head(url)
+func checkFileExists(url string) (bool, error) {
+	client := network.NewSecureHTTPClient()
+	resp, err := client.Head(url)
 	if err != nil {
-		return false
+		return false, err
 	}
 	defer resp.Body.Close()
 
-	return resp.StatusCode == http.StatusOK
+	if resp.StatusCode == http.StatusOK {
+		// File exists, all good
+		return true, nil
+	}
+	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+		return false, nil // Other client errors, treat as URL issue
+	}
+	// For server errors or anything else, treat as a network/server problem
+	return false, fmt.Errorf("error checking file at %s: status: %s", url, resp.Status)
 }
 
 // Validate verifies the downloaded files

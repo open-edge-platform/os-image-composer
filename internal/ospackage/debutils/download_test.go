@@ -210,7 +210,7 @@ func TestCheckFileExists(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := checkFileExists(tt.url)
+			result, _ := checkFileExists(tt.url)
 			if result != tt.expected {
 				t.Errorf("Expected %v, got %v", tt.expected, result)
 			}

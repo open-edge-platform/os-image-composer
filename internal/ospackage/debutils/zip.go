@@ -79,17 +79,25 @@ func DecompressXZ(inFile string, outFile string) ([]string, error) {
 	return []string{decompressedFile}, nil
 }
 
-func GetPackagesNames(baseURL string, codename string, arch string, component string) string {
+func GetPackagesNames(baseURL string, codename string, arch string, component string) (string, error) {
+	// if baseURL is a placeholder, return empty
+	if baseURL == "<URL>" {
+		return "", nil
+	}
 	possibleFiles := []string{"Packages.gz", "Packages.xz"}
 	var foundFile string
 	for _, fname := range possibleFiles {
 		packageListURL := baseURL + "/dists/" + codename + "/" + component + "/binary-" + arch + "/" + fname
-		if checkFileExists(packageListURL) {
+		fileExist, err := checkFileExists(packageListURL)
+		if err != nil {
+			return "", fmt.Errorf("error checking file existence at %s: %v", packageListURL, err)
+		}
+		if fileExist {
 			foundFile = packageListURL
 			break
 		} else {
 			logger.Logger().Debugf("Searching package list at: %s", packageListURL)
 		}
 	}
-	return foundFile
+	return foundFile, nil
 }
