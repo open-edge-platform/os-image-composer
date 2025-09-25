@@ -17,12 +17,14 @@ Create a directory for your keys and generate the required certificates:
 mkdir -p /data/secureboot/keys
 cd /data/secureboot/keys
 
-# Generate private key and certificate
-openssl req -new -x509 -newkey rsa:2048 -keyout DB.key -out DB.crt -days 3650 -nodes -subj "/CN=ICT Secure Boot Key/"
+# Generate private key and certificate using RSA 3072-bit with SHA-256 (recommended for secure boot)
+openssl req -new -x509 -newkey rsa:3072 -sha256 -keyout DB.key -out DB.crt -days 3650 -nodes -subj "/CN=ICT Secure Boot Key/"
 
 # Convert certificate to DER format (required by UEFI)
 openssl x509 -outform DER -in DB.crt -out DB.cer
 ```
+
+**Security Note:** The above commands use RSA 3072-bit keys with SHA-256 hashing, which is the recommended configuration for UEFI Secure Boot.
 
 **What you'll have:**
 - `DB.key` - Private key (keep secure)
