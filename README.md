@@ -59,7 +59,7 @@ sudo -E ./os-image-composer build image-templates/azl3-x86_64-edge-raw.yml
 After the image finishes building, check your output directory. The exact name of the output directory varies by environment and image but should look something like this:   
 
 ```
-/os-image-composer/tmp/os-image-composer/azl3-x86_64-edge-raw/imagebuild/Minimal_Raw$
+/os-image-composer/tmp/os-image-composer/azl3-x86_64-edge-raw/imagebuild/Minimal_Raw
 ```
 
 To build an image from your own template, see [Creating and Reusing Image Templates](./docs/architecture/os-image-composer-templates.md). For complete usage instructions, see the [Command-Line Reference](./docs/architecture/os-image-composer-cli-specification.md).
