@@ -42,6 +42,9 @@ func FetchPackages(urls []string, destDir string, workers int) error {
 		}),
 	)
 
+	// create a shared boolean flag to signal a download error
+	downloadError := false
+
 	// start worker goroutines
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
@@ -101,6 +104,7 @@ func FetchPackages(urls []string, destDir string, workers int) error {
 
 				if err != nil {
 					log.Errorf("downloading %s failed: %v", url, err)
+					downloadError = true
 				}
 				// increment progress bar
 				if err := bar.Add(1); err != nil {
@@ -117,6 +121,12 @@ func FetchPackages(urls []string, destDir string, workers int) error {
 	close(jobs)
 
 	wg.Wait()
+
+	// error after all jobs done
+	if downloadError {
+		return fmt.Errorf("one or more downloads failed")
+	}
+
 	if err := bar.Finish(); err != nil {
 		log.Errorf("failed to finish progress bar: %v", err)
 	}
