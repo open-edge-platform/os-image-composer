@@ -98,6 +98,33 @@ logging:
   level: "info"                          # Log level: debug, info, warn, error (default: info)
 ```
 
+## Operations Requiring Sudo Access
+
+The OS Image Composer performs several system-level operations that require elevated privileges (sudo access).
+
+### System Directory Access & Modification
+
+The following system directories require root access for OS Image Composer operations:
+
+- **`/etc/` directory operations**: Writing system configuration files, modifying network configurations, updating system settings
+- **`/dev/` device access**: Block device operations, loop device management, hardware access
+- **`/sys/` filesystem access**: System parameter modification, kernel interface access
+- **`/proc/` filesystem modification**: Process and system state changes
+- **`/boot/` directory**: Boot loader and kernel image management
+- **`/var/` system directories**: System logs, package databases, runtime state
+- **`/usr/sbin/` and `/sbin/`**: System administrator binaries
+
+### Common Privileged Operations
+
+OS Image Composer typically requires sudo for:
+
+- **Block device management**: Creating loop devices, partitioning, filesystem creation
+- **Mount/unmount operations**: Mounting filesystems, managing mount points
+- **Chroot environment setup**: Creating and managing isolated build environments
+- **Package installation**: System-wide package management operations
+- **Boot configuration**: Installing bootloaders, managing EFI settings
+- **Security operations**: Secure boot signing, cryptographic operations
+
 #### Configuration Management Commands
 
 ```bash
