@@ -217,7 +217,7 @@ Installs the shell completion feature for your current shell or a specified shel
 ```
 
 **Important**: The command creates completion files but additional activation steps are required:
-Bash (Additional step required):
+Bash:
 
 ```bash
 # Add to your ~/.bashrc
