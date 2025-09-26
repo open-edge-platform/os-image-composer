@@ -47,6 +47,11 @@ func ParseRepositoryMetadata(baseURL string, pkggz string, releaseFile string, r
 		}
 	}
 
+	// Track downloaded files in the global report
+	logger.GlobalStringListReport.Items = append(logger.GlobalStringListReport.Items, pkggz, releaseFile, releaseSign, pbGPGKey)
+	// Write downloaded files in the global report
+	logger.WriteListFetchedToFile()
+
 	// Download the debian repo files
 	err := pkgfetcher.FetchPackages([]string{pkggz, releaseFile, releaseSign, pbGPGKey}, pkgMetaDir, 1)
 	if err != nil {

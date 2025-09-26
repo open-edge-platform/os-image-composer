@@ -221,6 +221,8 @@ func (p *eLxr) downloadImagePkgs(template *config.ImageTemplate) error {
 	debutils.GzHref = p.gzHref
 	debutils.Architecture = p.repoCfg.Arch
 	debutils.UserRepo = template.GetPackageRepositories()
+	// init report section
+	logger.GlobalStringListReport.Title = "ELXR"
 	template.FullPkgList, err = debutils.DownloadPackages(pkgList, pkgCacheDir, "")
 	return err
 }

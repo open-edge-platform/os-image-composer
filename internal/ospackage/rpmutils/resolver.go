@@ -191,6 +191,11 @@ func ResolvePackageInfos(
 // ParsePrimary parses the repodata/primary.xml(.gz/.zst) file from a given base URL.
 func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 
+	// Track downloaded files in the global report
+	logger.GlobalStringListReport.Items = append(logger.GlobalStringListReport.Items, baseURL+gzHref)
+	// Write downloaded files in the global report
+	logger.WriteListFetchedToFile()
+
 	client := network.NewSecureHTTPClient()
 	resp, err := client.Get(baseURL + gzHref)
 	if err != nil {
