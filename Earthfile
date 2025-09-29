@@ -58,7 +58,7 @@ all:
 
 build:
     FROM +golang-base
-    ARG version='0.0.0-unknown'
+    ARG version='2025.2-preview1'
     
     # Get build date in UTC
     RUN date -u '+%Y-%m-%d' > /tmp/build_date
