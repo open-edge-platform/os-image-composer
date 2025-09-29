@@ -58,22 +58,25 @@ all:
 
 build:
     FROM +golang-base
-    ARG version='2025.2-preview1'
+    
+    # Copy .git directory to enable git commands
+    COPY .git .git
+    
+    # Detect version from git tags
+    RUN VERSION=$(git tag --sort=-creatordate | head -n1 2>/dev/null || echo "dev") && \
+        echo "$VERSION" > /tmp/version
+    
+    # Get git commit SHA
+    RUN COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") && \
+        echo "$COMMIT_SHA" > /tmp/commit_sha
     
     # Get build date in UTC
     RUN date -u '+%Y-%m-%d' > /tmp/build_date
     
-    # Get git commit SHA if in a git repo, otherwise use "unknown"
-    RUN if [ -d .git ]; then \
-            git rev-parse --short HEAD > /tmp/commit_sha; \
-        else \
-            echo "unknown" > /tmp/commit_sha; \
-        fi
-    
     RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOARCH=amd64 GOOS=linux \
         go build -trimpath -buildmode=pie -o build/os-image-composer \
             -ldflags "-s -w \
-                     -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.Version=$version' \
+                     -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.Version=$(cat /tmp/version)' \
                      -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.Toolname=Image-Composer' \
                      -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.Organization=Open Edge Platform' \
                      -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.BuildDate=$(cat /tmp/build_date)' \
