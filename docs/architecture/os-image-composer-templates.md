@@ -31,7 +31,7 @@ Templates are predefined build specifications that serve as a foundation for bui
 - Share and reuse common configurations with your team.
 
 The OS Image Composer provides default image templates on a per-distribution
-basis and image type (RAW vs. ISO) that can be used directly to build an operating system 
+basis and image type (RAW vs. ISO) that can be used directly to build an operating system
 from those defaults. You can override these default templates by providing your
 own template and configure or override the settings and values you want. The tool will internally merge the two to create the final
 template used for image composition.
@@ -42,7 +42,7 @@ Validation is performed both on the provided user template and the
 default template for the particular distribution and image type you are building.
 It is not recommended to directly modify the default templates.
 
-The generic path pattern to the default OS templates is as follows:  
+The generic path pattern to the default OS templates is as follows:
 
 ```bash
 
@@ -93,8 +93,8 @@ systemConfig:
     cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
 ```
 
-To learn about patterns that work well as templates, see [Common Build Patterns](./os-image-composer-build-process.md#common-build-patterns).  
-  
+To learn about patterns that work well as templates, see [Common Build Patterns](./os-image-composer-build-process.md#common-build-patterns).
+
 ### Variable Substitution
 
 Templates support simple variable substitution using the `${variable_name}`
@@ -110,7 +110,7 @@ os-image-composer build azl3-x86_64-edge-raw.yml
 
 ```
 
-See the [Build Command](./os-image-composer-cli-specification.md#build-command) in the command-line reference. 
+See the [Build Command](./os-image-composer-cli-specification.md#build-command) in the command-line reference.
 
 ## Template Storage
 
@@ -167,3 +167,11 @@ practical reuse rather than complex inheritance or versioning schemes.
 - [Understanding the Build Process](./os-image-composer-build-process.md)
 - [Multiple Package Repository Support](./os-image-composer-multi-repo-support.md)
 - [OS Image Composer CLI Reference](./os-image-composer-cli-specification.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+os-image-composer-multi-repo-support
+:::
+hide_directive-->

@@ -2,7 +2,7 @@
 
 As with any system that uses an A/B updates mechanism to update the system reliably, the manifest file is crucial for specifying the update metadata, including the partition information and update instructions. The manifest file describes the contents of the update package, the way it's applied, and how to switch between multiple images.
 
-Here are the key aspects of the A/B update manifest. This information is used prior to booting a system image to prepare the storage layout and select the system version to boot, among other things. 
+Here are the key aspects of the A/B update manifest. This information is used prior to booting a system image to prepare the storage layout and select the system version to boot, among other things.
 
 **Partition information:** The manifest specifies the partitions to be updated, their sizes, and other metadata.
 
@@ -12,11 +12,12 @@ Here are the key aspects of the A/B update manifest. This information is used pr
 
 **Dynamic partitions:** For devices with dynamic partitions, the manifest includes additional information on how to handle groups and partitions.
 
-**Update metadata:** The manifest contains metadata about the update, including the update's version number, type (full or delta), and any necessary conditions for the update to apply. 
+**Update metadata:** The manifest contains metadata about the update, including the update's version number, type (full or delta), and any necessary conditions for the update to apply.
 
 ## Image Manifest Format
 The following is an image manifest's minimal format that the OS Image Composer tool can output along with the system image it creates:
 
+```text
 Software_package_manifest {
    // Manifest schema version: bump this if you ever change the manifest format
 "schema_version": "1.0",
@@ -44,3 +45,4 @@ Software_package_manifest {
 // 9. minimum current version required to apply this update (perhaps not needed, not sure...)
 "min_current_version": "2025.04.01",
 }
+```

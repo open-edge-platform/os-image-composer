@@ -51,7 +51,7 @@ The build process is divided into five sequential stages, each with its own resp
 
 ### 1. Validate Stage
 
-The purpose of this stage is to ensure that the build specification is correct syntactically and valid for the targeted provider before starting the build. Here are the stage's key tasks: 
+The purpose of this stage is to ensure that the build specification is correct syntactically and valid for the targeted provider before starting the build. Here are the stage's key tasks:
 
 - Parse and validate the YAML specification syntax. YAML is converted to JSON
 and validated against a JSON schema definition.
@@ -61,7 +61,7 @@ configuration files.
 - Validate that the combination of settings is valid.
 - Ensure that any specified templates exist and can be rendered properly.
 
-**Failure handling**: If validation fails, the build is aborted immediately. Errors are reported with details to help fix the issue. Here's an example of some error messages: 
+**Failure handling**: If validation fails, the build is aborted immediately. Errors are reported with details to help fix the issue. Here's an example of some error messages:
 
 ```bash
 Error: Missing required file './files/sshd_config' referenced in build spec
@@ -85,7 +85,7 @@ installation. Here are the stage's key tasks:
 
 This stage uses package caching to minimize bandwidth and improve build performance. The cache stores downloaded packages for future builds, and the build process reuses previously downloaded packages when it can. You can disable the package cache by using the `--no-package-cache` option. To find out how package caching works and benefits build performance, see [Package Cache](./os-image-composer-caching.md#package-cache).
 
-**Preparation:** As part of the packaging stage, the OS Image Composer prepares the local environment to start composing the image of the target OS layout. Once this stage has completed, the local environment will have a pre-populated cache containing all the required packages before entering the chroot environment and starting to compose the image. The following distinct steps take place during the packaging stage: 
+**Preparation:** As part of the packaging stage, the OS Image Composer prepares the local environment to start composing the image of the target OS layout. Once this stage has completed, the local environment will have a pre-populated cache containing all the required packages before entering the chroot environment and starting to compose the image. The following distinct steps take place during the packaging stage:
 
 1. The input build-spec JSON file is verified against the JSON schema definition.
 1. The desired distribution provider is created and all of its package manifest is
@@ -97,7 +97,7 @@ distribution.
 1. The authenticity and integrity of every package is validated in
 the local cache.
 
-**Dependency resolution:** Direct dependencies (those specified in the build spec) are handled first, and then indirect dependencies (those required by direct dependencies) are resolved automatically. Provider-specific helper libraries are used to resolve these dependencies for rpm and deb packages. 
+**Dependency resolution:** Direct dependencies (those specified in the build spec) are handled first, and then indirect dependencies (those required by direct dependencies) are resolved automatically. Provider-specific helper libraries are used to resolve these dependencies for rpm and deb packages.
 
 You can add multiple package repositories to an operating system's build, including proprietary packages or upstream packages pending integration; for more information, see [Multiple Package Repository Support](./os-image-composer-multi-repo-support.md).
 
@@ -117,7 +117,7 @@ sequenceDiagram
     P-->>IC:   Initialized
 
     IC->>P: 3) Packages()
-    P->>RR:    Parse primary.xml.gz   
+    P->>RR:    Parse primary.xml.gz
     RR-->>P:   Return full PackageInfo list
     P->>P:     Build in-memory index for allPackages
     P-->>IC:   All available packages
@@ -128,7 +128,7 @@ sequenceDiagram
     IC->>P: 5) Resolve(initialPkgList, allPackages)
     P->>P:     Resolve all direct and indirect dependencies
     P-->>IC:  requiredPkgList
-    
+
     IC->>P: 6) FetchPackages(requiredPkgList)
     P->>RR:    GET each URL
     RR-->>LC:  Store RPM files in local cache
@@ -142,13 +142,13 @@ sequenceDiagram
 
 ### 3. Compose Stage
 
-The compose stage creates an image. To prepare the disk and filesystem and to install all the packages required to create an image, the compose stage performs the following tasks:  
+The compose stage creates an image. To prepare the disk and filesystem and to install all the packages required to create an image, the compose stage performs the following tasks:
 
 - Create a raw file and format the partitions and filesystems.
 - Create an empty raw file and create partitions according to the configs.
 - Format the partitions' filesystem.
 
-The compose stage then installs OS packages and configures the generic system, including its security settings: 
+The compose stage then installs OS packages and configures the generic system, including its security settings:
 
 - Run pre-installation scripts.
 - Install OS packages, set general system configurations, and perform general OS image installation.
@@ -161,7 +161,7 @@ The compose stage then installs OS packages and configures the generic system, i
 - Enable or disable system services
 - Configure bootloader options
 - Run post-installation scripts
-- Configure security settings such as SELinux, LVM, secure boot, readonly filesystem, etc. 
+- Configure security settings such as SELinux, LVM, secure boot, readonly filesystem, etc.
 
 ### 4. Image Signing
 
@@ -169,7 +169,7 @@ The image signing stage signs the image by applying digital signatures for image
 
 ### 5. Finalize Stage
 
-The finalization stage prepares the output format, generates a manifest file and a software bill of materials (SBOM), and stores the image in the cache. 
+The finalization stage prepares the output format, generates a manifest file and a software bill of materials (SBOM), and stores the image in the cache.
 
 - Convert the raw image to other the required format.
 - Apply compression if specified.
@@ -180,7 +180,7 @@ The finalization stage prepares the output format, generates a manifest file and
 **Various output formats** are supported: qcow2, raw, vhd, etc. The format conversion is handled by provider-specific tools, and compression options can be applied to reduce the final image size.
 
 **Image caching** stores the image in the image cache based on a hash of the build
-spec so you can instantly retrieve identical builds in the future. You can disable image caching by using the `--no-image-cache` option. To find out how to cache and reuse finished images, see [Image Cache](./os-image-composer-caching.md#image-cache). 
+spec so you can instantly retrieve identical builds in the future. You can disable image caching by using the `--no-image-cache` option. To find out how to cache and reuse finished images, see [Image Cache](./os-image-composer-caching.md#image-cache).
 
 ## Build Configuration Options
 
@@ -198,7 +198,7 @@ core:
   cleanup_on_failure: true                   # Auto-cleanup on build errors
 
 storage:
-  package_cache: 
+  package_cache:
     enabled: true                            # Master switch for package caching
     max_size_gb: 10                          # Maximum package cache size
     retention_days: 30                       # Package retention period
@@ -208,7 +208,7 @@ storage:
 ```
 
 
-For a list of configuration options, see [Global Configuration File](./os-image-composer-cli-specification.md#global-configuration-file). 
+For a list of configuration options, see [Global Configuration File](./os-image-composer-cli-specification.md#global-configuration-file).
 
 ### Build Specification Options
 
@@ -227,7 +227,7 @@ build:
     - finalize
 ```
 
-For the complete build specification format, see [Build Specification File](./os-image-composer-cli-specification.md#build-specification-file). 
+For the complete build specification format, see [Build Specification File](./os-image-composer-cli-specification.md#build-specification-file).
 
 ### Command-Line Overrides
 
@@ -248,7 +248,7 @@ os-image-composer build --skip-stage validate my-image-spec.yml
 os-image-composer build --timeout 30m my-image-spec.yml
 ```
 
-For a list of all the command-line options, see [Build Command](./os-image-composer-cli-specification.md#build-command). 
+For a list of all the command-line options, see [Build Command](./os-image-composer-cli-specification.md#build-command).
 
 ## Common Build Patterns
 
@@ -324,11 +324,11 @@ customizations:
       destination: /etc/ufw/ufw.conf
 ```
 
-To create templates for your patterns, see [Template Examples](./os-image-composer-templates.md#template-examples). 
+To create templates for your patterns, see [Template Examples](./os-image-composer-templates.md#template-examples).
 
 ## Build Performance Optimization
 
-The tool lets you optimize build performance to suit your environment and objectives: 
+The tool lets you optimize build performance to suit your environment and objectives:
 
 ### Improving Build Speed
 
@@ -344,7 +344,7 @@ The tool lets you optimize build performance to suit your environment and object
 
 **Use templates**: Create templates for common configurations, and derive new builds from templates to avoid repetitive configuration. To learn more about streamlining development with templates, see [Template Usage](./os-image-composer-templates.md#using-templates-to-build-images).
 
-**Keep temporary files**: Use `--keep-temp` during development to avoid rebuilding from scratch and examine temporary files to debug issues. 
+**Keep temporary files**: Use `--keep-temp` during development to avoid rebuilding from scratch and examine temporary files to debug issues.
 
 ## Troubleshooting Build Issues
 
@@ -442,3 +442,13 @@ and problem-solving.
 - [Multiple Package Repository Support](./os-image-composer-multi-repo-support.md)
 - [Understanding Templates](./os-image-composer-templates.md)
 - [OS Image Composer CLI Reference](./os-image-composer-cli-specification.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+Caching <os-image-composer-caching>
+Templates <os-image-composer-templates>
+
+:::
+hide_directive-->

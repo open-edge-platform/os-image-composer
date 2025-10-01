@@ -2,7 +2,7 @@
 
 OS Image Composer is a generic toolkit to build operating system
 images from pre-built artifacts such as `rpm` and `deb` in order to support a range of
-common operating systems for the distributed edge. You can customize the content of the operating system to suit your requirements, applications, and workloads. 
+common operating systems for the distributed edge. You can customize the content of the operating system to suit your requirements, applications, and workloads.
 
 ## Contents
 
@@ -37,9 +37,9 @@ The pre-built artifacts such as those for `rpm` and `deb` come from their corres
 
 The runtime storage includes the isolated chroot build environment (the rootfs entry for the target operating system), which is the image-generation workspace, the package caches, and the image caches as well as the runtime configuration files and logs.
 
-The supported output image types include raw images and ISO images for bare metal systems and virtual machines. 
+The supported output image types include raw images and ISO images for bare metal systems and virtual machines.
 
-The following diagram shows the input and output of the OS Image Composer tool: 
+The following diagram shows the input and output of the OS Image Composer tool:
 
 ![Overview](assets/overview.drawio.svg)
 
@@ -59,7 +59,7 @@ When packages are downloaded, they are verified for integrity by using the GPG P
 
 ## Components Overview
 
-The following diagram outlines the high-level components of the OS Image Composer tool: 
+The following diagram outlines the high-level components of the OS Image Composer tool:
 
 ![components](assets/components.drawio.svg)
 
@@ -245,3 +245,16 @@ flowchart TD
 - [Understanding Templates](./os-image-composer-templates.md)
 - [Multiple Package Repository Support](./os-image-composer-multi-repo-support.md)
 - [OS Image Composer CLI Reference](./os-image-composer-cli-specification.md)
+
+<!--hide_directive
+:::{toctree}
+:hidden:
+
+CLI Specification <os-image-composer-cli-specification>
+Security Objectives <image-composition-tool-security-objectives>
+Build Process <os-image-composer-build-process>
+image-manifest-specification
+Coding Style Guide <os-image-composer-coding-style>
+
+:::
+hide_directive-->
