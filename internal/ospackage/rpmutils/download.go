@@ -336,7 +336,7 @@ func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospack
 	log.Infof("resolving dependencies for %d RPMs", len(req))
 
 	// Resolve all the required dependencies for the initial seed of RPMs
-	needed, err := ResolvePackageInfos(req, all)
+	needed, err := ResolveDependencies(req, all)
 	if err != nil {
 		log.Errorf("resolving dependencies failed: %v", err)
 		return nil, err

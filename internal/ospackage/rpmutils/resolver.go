@@ -60,10 +60,10 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string) error {
 	return nil
 }
 
-// ResolvePackageInfos takes a seed list of PackageInfos (the exact versions
+// ResolveDependencies takes a seed list of PackageInfos (the exact versions
 // matched) and the full list of all PackageInfos from the repo, and
 // returns the minimal closure of PackageInfos needed to satisfy all Requires.
-func ResolvePackageInfos(
+func ResolveDependencies(
 	requested []ospackage.PackageInfo,
 	all []ospackage.PackageInfo,
 ) ([]ospackage.PackageInfo, error) {
