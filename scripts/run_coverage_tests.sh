@@ -3,6 +3,12 @@ set -euo pipefail
 
 # Script to run Go tests with per-directory coverage reporting
 # Usage: ./run_coverage_tests.sh [COVERAGE_THRESHOLD] [PRINT_TS] [FAIL_ON_NO_TESTS] [DEBUG]
+#
+# Behavior:
+# - Runs all tests in all directories, even if some fail (for complete visibility)
+# - Tracks all test failures and reports them at the end
+# - Exits with code 1 if ANY tests fail OR overall coverage is below threshold
+# - Generates coverage reports for all directories where tests ran successfully
 
 COV_THRESHOLD=52.8
 PRINT_TS=${1:-""}
@@ -98,15 +104,19 @@ fi
 echo ""
 
 # Find all directories with Go files (including those without tests)
-ALL_GO_DIRS=$(find . -name "*.go" -type f | sed 's|/[^/]*$||' | sort -u | grep -v vendor | grep -v ".git")
+ALL_GO_DIRS=$(find . -name "*.go" -type f | sed 's|/[^/]*$||' | sort -u | grep -v vendor | grep -v ".git" || true)
 
 # Find directories with test files
-TEST_DIRS=$(find . -name "*_test.go" -type f | sed 's|/[^/]*$||' | sort -u | grep -v vendor | grep -v ".git")
+TEST_DIRS=$(find . -name "*_test.go" -type f | sed 's|/[^/]*$||' | sort -u | grep -v vendor | grep -v ".git" || true)
 
 if [[ -z "${ALL_GO_DIRS}" ]]; then
     echo -e "${RED}ERROR: No Go directories found${NC}"
     exit 1
 fi
+
+echo "Found $(echo "$ALL_GO_DIRS" | wc -l) directories with Go files" >&2
+echo "Found $(echo "$TEST_DIRS" | wc -l) directories with test files" >&2
+echo "" >&2
 
 # Create table header
 echo "| Directory                           | Coverage | Result   |"
@@ -124,9 +134,16 @@ for GO_DIR in ${ALL_GO_DIRS}; do
     COVERAGE_FILE="${DIR_NAME//\//_}_coverage.out"
     TEST_LOG="${DIR_NAME//\//_}_test.log"
     
-    # Create directory structure for coverage file
-    mkdir -p "$(dirname "${COVERAGE_FILE}")"
-    mkdir -p "$(dirname "${TEST_LOG}")"
+    if [[ "$DEBUG" == "true" ]]; then
+        echo "DEBUG: Processing directory: ${GO_DIR}" >&2
+        echo "DEBUG: DIR_NAME: ${DIR_NAME}" >&2
+        echo "DEBUG: COVERAGE_FILE: ${COVERAGE_FILE}" >&2
+        echo "DEBUG: TEST_LOG: ${TEST_LOG}" >&2
+    fi
+    
+    # Create directory structure for coverage file (use || true to prevent exit on error)
+    mkdir -p "$(dirname "${COVERAGE_FILE}")" 2>/dev/null || true
+    mkdir -p "$(dirname "${TEST_LOG}")" 2>/dev/null || true
     
     # Check if this directory has test files
     if echo "${TEST_DIRS}" | grep -q "^${GO_DIR}$"; then
@@ -172,12 +189,12 @@ for GO_DIR in ${ALL_GO_DIRS}; do
                 # Extract failed test information
                 FAILED_TESTS=""
                 if [[ -f "${TEST_LOG}" ]]; then
-                    # Extract failed test names from test output
-                    FAILED_TESTS=$(grep -E "^--- FAIL:|FAIL\s+.*\s+\(" "${TEST_LOG}" | sed 's/^--- FAIL: //' | sed 's/FAIL[[:space:]]*//' | sed 's/[[:space:]]*(.*//' | sort -u | tr '\n' ', ' | sed 's/,$//')
+                    # Extract failed test names from test output (|| true to prevent exit on no matches)
+                    FAILED_TESTS=$(grep -E "^--- FAIL:|FAIL\s+.*\s+\(" "${TEST_LOG}" 2>/dev/null | sed 's/^--- FAIL: //' | sed 's/FAIL[[:space:]]*//' | sed 's/[[:space:]]*(.*//' | sort -u | tr '\n' ', ' | sed 's/,$//' || true)
                     
                     if [[ -z "${FAILED_TESTS}" ]]; then
                         # If no specific test names found, check for compilation errors
-                        if grep -q "build failed" "${TEST_LOG}" || grep -q "compilation error" "${TEST_LOG}"; then
+                        if grep -q "build failed" "${TEST_LOG}" 2>/dev/null || grep -q "compilation error" "${TEST_LOG}" 2>/dev/null; then
                             FAILED_TESTS="compilation error"
                         else
                             FAILED_TESTS="unknown test failure"
@@ -206,19 +223,19 @@ for GO_DIR in ${ALL_GO_DIRS}; do
                     "${DIR_NAME}" "N/A" "FAIL"
             fi
         else
-            # Tests failed - but check if coverage was still generated
+            # Tests failed - mark for failure but continue with other tests
             STATUS="FAIL"
-            OVERALL_EXIT_CODE=0 # TODO: Disabling the failure for failed test for now
+            OVERALL_EXIT_CODE=1  # Mark build as failed, but continue testing
             
             # Extract failed test information
             FAILED_TESTS=""
             if [[ -f "${TEST_LOG}" ]]; then
-                # Extract failed test names from test output
-                FAILED_TESTS=$(grep -E "^--- FAIL:|FAIL\s+.*\s+\(" "${TEST_LOG}" | sed 's/^--- FAIL: //' | sed 's/FAIL[[:space:]]*//' | sed 's/[[:space:]]*(.*//' | sort -u | tr '\n' ', ' | sed 's/,$//')
+                # Extract failed test names from test output (|| true to prevent exit on no matches)
+                FAILED_TESTS=$(grep -E "^--- FAIL:|FAIL\s+.*\s+\(" "${TEST_LOG}" 2>/dev/null | sed 's/^--- FAIL: //' | sed 's/FAIL[[:space:]]*//' | sed 's/[[:space:]]*(.*//' | sort -u | tr '\n' ', ' | sed 's/,$//' || true)
                 
                 if [[ -z "${FAILED_TESTS}" ]]; then
                     # If no specific test names found, check for compilation errors
-                    if grep -q "build failed" "${TEST_LOG}" || grep -q "compilation error" "${TEST_LOG}"; then
+                    if grep -q "build failed" "${TEST_LOG}" 2>/dev/null || grep -q "compilation error" "${TEST_LOG}" 2>/dev/null; then
                         FAILED_TESTS="compilation error"
                     else
                         FAILED_TESTS="unknown test failure"
@@ -250,6 +267,8 @@ for GO_DIR in ${ALL_GO_DIRS}; do
             
             printf "| %-35s | %8s | ${RED}%-8s${NC} |\n" \
                 "${DIR_NAME}" "${COVERAGE_PCT}" "FAIL"
+            
+            # Continue with next directory instead of exiting
         fi
     else
         # Directory has no tests
@@ -512,38 +531,28 @@ done
 
 echo ""
 if [[ ${OVERALL_EXIT_CODE} -eq 0 ]]; then
-    if [[ -n "${FAILED_DIRS}" ]]; then
-        echo -e "${RED}❌ Test failures detected${NC}"
-        # FIXED: Use safer array check for displaying failed test details
-        if [[ "${#FAILED_TEST_DETAILS[@]}" -gt 0 ]] 2>/dev/null; then
-            echo -e "${RED}Failed directories and tests:${NC}"
-            for detail in "${FAILED_TEST_DETAILS[@]}"; do
-                echo -e "${RED}  • ${detail}${NC}"
-            done
-        fi
-    else
-        echo -e "${GREEN}🎉 All tests passed!${NC}"
-    fi
+    echo -e "${GREEN}🎉 All tests passed!${NC}"
     echo -e "${GREEN}🎉 Overall coverage requirements met!${NC}"
 else
     if [[ -n "${FAILED_DIRS}" ]]; then
-        echo -e "${RED}❌ Test failures detected${NC}"
+        echo -e "${RED}❌ Test failures detected in the following directories:${NC}"
         # FIXED: Use safer array check for displaying failed test details
         if [[ "${#FAILED_TEST_DETAILS[@]}" -gt 0 ]] 2>/dev/null; then
-            echo -e "${RED}Failed directories and tests:${NC}"
             for detail in "${FAILED_TEST_DETAILS[@]}"; do
                 echo -e "${RED}  • ${detail}${NC}"
             done
         fi
-    else
-        echo -e "${GREEN}🎉 All tests passed!${NC}"
+        echo ""
+        echo -e "${RED}❌ Build will FAIL due to test failures${NC}"
     fi
     if (( $(echo "${OVERALL_COVERAGE} < ${COV_THRESHOLD}" | bc -l) )); then
         echo -e "${RED}❌ Overall coverage (${OVERALL_COVERAGE}%) below threshold (${COV_THRESHOLD}%)${NC}"
+        echo -e "${RED}❌ Build will FAIL due to insufficient coverage${NC}"
     fi
 fi
 
 echo ""
+echo "Note: All tests are executed even if some fail (for complete visibility)"
 echo "Note: Directory PASS/FAIL is based on test results only, not coverage."
 echo "Note: Overall coverage threshold (${COV_THRESHOLD}%) applies to repository total."
 echo "Note: Directories without tests are marked as NO-TESTS and $(if [[ "${FAIL_ON_NO_TESTS}" == "true" ]]; then echo "DO"; else echo "DO NOT"; fi) cause build failure"
