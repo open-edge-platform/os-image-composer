@@ -424,6 +424,55 @@ func convertFlags(flags string) string {
 	}
 }
 
+// MatchRequested matches requested package names to the best available versions in the repo.
+func MatchRequested(requests []string, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
+	var out []ospackage.PackageInfo
+
+	for _, want := range requests {
+		var candidates []ospackage.PackageInfo
+		for _, pi := range all {
+			if pi.Arch == "src" {
+				continue
+			}
+			// 1) exact name match
+			if pi.Name == want || pi.Name == want+".rpm" {
+				candidates = append(candidates, pi)
+				break
+			}
+			// 2) prefix by want-version ("acl-")
+			// Only match if the part after "want-" is a version (starts with a digit)
+			// prevent getting acl-dev when asking for acl-9.2
+			if strings.HasPrefix(pi.Name, want+"-") {
+				rest := strings.TrimPrefix(pi.Name, want+"-")
+				if isValidVersionFormat(rest) {
+					candidates = append(candidates, pi)
+					continue
+				}
+			}
+			// 3) prefix by want.release ("acl-2.3.1-2.")
+			if strings.HasPrefix(pi.Name, want+".") {
+				candidates = append(candidates, pi)
+			}
+		}
+
+		if len(candidates) == 0 {
+			return nil, fmt.Errorf("requested package %q not found in repo", want)
+		}
+		// If we got an exact match in step (1), it's the only candidate
+		if len(candidates) == 1 && (candidates[0].Name == want || candidates[0].Name == want+".rpm") {
+			out = append(out, candidates[0])
+			continue
+		}
+		// Otherwise pick the "highest" by lex sort
+		sort.Slice(candidates, func(i, j int) bool {
+			return candidates[i].Name > candidates[j].Name
+		})
+		out = append(out, candidates[0])
+	}
+
+	return out, nil
+}
+
 // ResolveDependencies takes a seed list of PackageInfos (the exact versions
 // matched) and the full list of all PackageInfos from the repo, and
 // returns the minimal closure of PackageInfos needed to satisfy all Requires.
@@ -563,8 +612,23 @@ func ResolveDependencies02(requested []ospackage.PackageInfo, all []ospackage.Pa
 			byNameVer[key] = pi
 		}
 	}
-	for k, v := range byNameVer {
-		log.Infof("yockgen key=%s, value=%+v", k, v)
+
+	// neededSet := make(map[string]struct{})
+	queue := make([]ospackage.PackageInfo, 0, len(requested))
+	for _, pi := range requested {
+		if pi.Version != "" {
+			key := fmt.Sprintf("%s=%s", pi.Name, pi.Version)
+			if pkg, ok := byNameVer[key]; ok {
+				queue = append(queue, pkg)
+				continue
+			}
+		}
+		return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
+	}
+
+	// display queue value
+	for i, pkg := range queue {
+		log.Infof("yockgen Queue[%d]: Name=%s, Version=%s, Arch=%s", i, pkg.Name, pkg.Version, pkg.Arch)
 	}
 
 	result := make([]ospackage.PackageInfo, 0)
@@ -572,53 +636,4 @@ func ResolveDependencies02(requested []ospackage.PackageInfo, all []ospackage.Pa
 	log.Infof("Successfully resolved %d packages from %d requested packages", len(result), len(requested))
 	// return result, nil
 	return nil, fmt.Errorf("yockgen: not implemented")
-}
-
-// MatchRequested matches requested package names to the best available versions in the repo.
-func MatchRequested(requests []string, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
-	var out []ospackage.PackageInfo
-
-	for _, want := range requests {
-		var candidates []ospackage.PackageInfo
-		for _, pi := range all {
-			if pi.Arch == "src" {
-				continue
-			}
-			// 1) exact name match
-			if pi.Name == want || pi.Name == want+".rpm" {
-				candidates = append(candidates, pi)
-				break
-			}
-			// 2) prefix by want-version ("acl-")
-			// Only match if the part after "want-" is a version (starts with a digit)
-			// prevent getting acl-dev when asking for acl-9.2
-			if strings.HasPrefix(pi.Name, want+"-") {
-				rest := strings.TrimPrefix(pi.Name, want+"-")
-				if isValidVersionFormat(rest) {
-					candidates = append(candidates, pi)
-					continue
-				}
-			}
-			// 3) prefix by want.release ("acl-2.3.1-2.")
-			if strings.HasPrefix(pi.Name, want+".") {
-				candidates = append(candidates, pi)
-			}
-		}
-
-		if len(candidates) == 0 {
-			return nil, fmt.Errorf("requested package %q not found in repo", want)
-		}
-		// If we got an exact match in step (1), it's the only candidate
-		if len(candidates) == 1 && (candidates[0].Name == want || candidates[0].Name == want+".rpm") {
-			out = append(out, candidates[0])
-			continue
-		}
-		// Otherwise pick the "highest" by lex sort
-		sort.Slice(candidates, func(i, j int) bool {
-			return candidates[i].Name > candidates[j].Name
-		})
-		out = append(out, candidates[0])
-	}
-
-	return out, nil
 }
