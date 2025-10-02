@@ -60,134 +60,6 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string) error {
 	return nil
 }
 
-// ResolveDependencies takes a seed list of PackageInfos (the exact versions
-// matched) and the full list of all PackageInfos from the repo, and
-// returns the minimal closure of PackageInfos needed to satisfy all Requires.
-func ResolveDependencies(
-	requested []ospackage.PackageInfo,
-	all []ospackage.PackageInfo,
-) ([]ospackage.PackageInfo, error) {
-
-	// Build helper maps:
-	byName := make(map[string]ospackage.PackageInfo, len(all))
-	provides := make(map[string][]string) // cap -> pkgNames
-	requires := make(map[string][]string) // pkgName -> caps
-
-	for _, pi := range all {
-		if pi.Arch == "src" {
-			continue
-		}
-		byName[pi.Name] = pi
-		provides[pi.Name] = append(provides[pi.Name], pi.Name)
-		for _, cap := range pi.Provides {
-			baseCap := extractBaseRequirement(cap)
-			if baseCap != "" {
-				provides[baseCap] = append(provides[baseCap], pi.Name)
-			}
-		}
-		for _, file := range pi.Files {
-			provides[file] = append(provides[file], pi.Name)
-		}
-		requires[pi.Name] = append([]string{}, pi.Requires...)
-	}
-
-	// bestProvider maps a capability to the single "best" package name that provides it.
-	bestProvider := make(map[string]string, len(provides))
-	for cap, provs := range provides {
-		sort.Strings(provs)
-		bestProvider[cap] = provs[len(provs)-1]
-	}
-
-	// BFS to find the complete set of needed package names.
-	queue := make([]string, 0, len(requested))
-	for _, pi := range requested {
-		if _, ok := byName[pi.Name]; !ok {
-			return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
-		}
-		queue = append(queue, pi.Name)
-	}
-
-	neededSet := make(map[string]struct{})
-	for len(queue) > 0 {
-		cur := queue[0]
-		queue = queue[1:]
-		if _, seen := neededSet[cur]; seen {
-			continue
-		}
-		neededSet[cur] = struct{}{}
-
-		for _, req := range requires[cur] {
-			baseReq := extractBaseRequirement(req)
-			if baseReq == "" {
-				continue
-			}
-			if best, ok := bestProvider[baseReq]; ok {
-				if _, seen := neededSet[best]; !seen {
-					queue = append(queue, best)
-				}
-			}
-		}
-	}
-
-	// Build the result slice in deterministic order:
-	result := make([]ospackage.PackageInfo, 0, len(neededSet))
-
-	for name := range neededSet {
-		// Get the original package info.
-		originalPI := byName[name]
-
-		// Create a new PackageInfo to hold the cleaned data.
-		cleanedPI := ospackage.PackageInfo{
-			Name:        originalPI.Name,
-			Description: originalPI.Description,
-			Type:        originalPI.Type,
-			Arch:        originalPI.Arch,
-			License:     originalPI.License,
-			Origin:      originalPI.Origin,
-			Version:     originalPI.Version,
-			Checksums:   originalPI.Checksums,
-			URL:         originalPI.URL,
-			Provides:    originalPI.Provides,
-			Files:       originalPI.Files,
-			Requires:    []string{}, // Start with an empty requires list.
-		}
-
-		// For each original requirement, find the concrete package that satisfies it
-		// and add that package's name to the cleaned list.
-		for _, req := range originalPI.Requires {
-			baseReq := extractBaseRequirement(req)
-			if baseReq == "" {
-				continue
-			}
-
-			if providerName, ok := bestProvider[baseReq]; ok {
-				// Only add if it's a different package to avoid self-dependencies
-				if providerName != cleanedPI.Name {
-					cleanedPI.Requires = append(cleanedPI.Requires, providerName)
-				}
-			}
-		}
-
-		// Deduplicate the cleaned requires list.
-		reqSet := make(map[string]struct{})
-		dedupedReqs := []string{}
-		for _, r := range cleanedPI.Requires {
-			if _, seen := reqSet[r]; !seen {
-				reqSet[r] = struct{}{}
-				dedupedReqs = append(dedupedReqs, r)
-			}
-		}
-		cleanedPI.Requires = dedupedReqs
-
-		result = append(result, cleanedPI)
-	}
-	// Sort the final result for deterministic output.
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Name < result[j].Name
-	})
-	return result, nil
-}
-
 // ParseRepositoryMetadata parses the repodata/primary.xml(.gz/.zst) file from a given base URL.
 func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
@@ -333,7 +205,7 @@ func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, e
 										if flags != "" && versionPart != "" {
 											// Convert flags to readable format (GE = >=, EQ = =, etc.)
 											operator := convertFlags(flags)
-											versionConstraint = fmt.Sprintf("%s%s%s", name, operator, versionPart)
+											versionConstraint = fmt.Sprintf("(%s%s%s)", name, operator, versionPart)
 										} else if versionPart != "" {
 											// Version info but no operator, assume equality
 											versionConstraint = fmt.Sprintf("%s = %s", name, versionPart)
@@ -520,4 +392,129 @@ func convertFlags(flags string) string {
 	default:
 		return flags
 	}
+}
+
+// ResolveDependencies takes a seed list of PackageInfos (the exact versions
+// matched) and the full list of all PackageInfos from the repo, and
+// returns the minimal closure of PackageInfos needed to satisfy all Requires.
+func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
+
+	// Build helper maps:
+	byName := make(map[string]ospackage.PackageInfo, len(all))
+	provides := make(map[string][]string) // cap -> pkgNames
+	requires := make(map[string][]string) // pkgName -> caps
+
+	for _, pi := range all {
+		if pi.Arch == "src" {
+			continue
+		}
+		byName[pi.Name] = pi
+		provides[pi.Name] = append(provides[pi.Name], pi.Name)
+		for _, cap := range pi.Provides {
+			baseCap := extractBaseRequirement(cap)
+			if baseCap != "" {
+				provides[baseCap] = append(provides[baseCap], pi.Name)
+			}
+		}
+		for _, file := range pi.Files {
+			provides[file] = append(provides[file], pi.Name)
+		}
+		requires[pi.Name] = append([]string{}, pi.Requires...)
+	}
+
+	// bestProvider maps a capability to the single "best" package name that provides it.
+	bestProvider := make(map[string]string, len(provides))
+	for cap, provs := range provides {
+		sort.Strings(provs)
+		bestProvider[cap] = provs[len(provs)-1]
+	}
+
+	// BFS to find the complete set of needed package names.
+	queue := make([]string, 0, len(requested))
+	for _, pi := range requested {
+		if _, ok := byName[pi.Name]; !ok {
+			return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
+		}
+		queue = append(queue, pi.Name)
+	}
+
+	neededSet := make(map[string]struct{})
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if _, seen := neededSet[cur]; seen {
+			continue
+		}
+		neededSet[cur] = struct{}{}
+
+		for _, req := range requires[cur] {
+			baseReq := extractBaseRequirement(req)
+			if baseReq == "" {
+				continue
+			}
+			if best, ok := bestProvider[baseReq]; ok {
+				if _, seen := neededSet[best]; !seen {
+					queue = append(queue, best)
+				}
+			}
+		}
+	}
+
+	// Build the result slice in deterministic order:
+	result := make([]ospackage.PackageInfo, 0, len(neededSet))
+
+	for name := range neededSet {
+		// Get the original package info.
+		originalPI := byName[name]
+
+		// Create a new PackageInfo to hold the cleaned data.
+		cleanedPI := ospackage.PackageInfo{
+			Name:        originalPI.Name,
+			Description: originalPI.Description,
+			Type:        originalPI.Type,
+			Arch:        originalPI.Arch,
+			License:     originalPI.License,
+			Origin:      originalPI.Origin,
+			Version:     originalPI.Version,
+			Checksums:   originalPI.Checksums,
+			URL:         originalPI.URL,
+			Provides:    originalPI.Provides,
+			Files:       originalPI.Files,
+			Requires:    []string{}, // Start with an empty requires list.
+		}
+
+		// For each original requirement, find the concrete package that satisfies it
+		// and add that package's name to the cleaned list.
+		for _, req := range originalPI.Requires {
+			baseReq := extractBaseRequirement(req)
+			if baseReq == "" {
+				continue
+			}
+
+			if providerName, ok := bestProvider[baseReq]; ok {
+				// Only add if it's a different package to avoid self-dependencies
+				if providerName != cleanedPI.Name {
+					cleanedPI.Requires = append(cleanedPI.Requires, providerName)
+				}
+			}
+		}
+
+		// Deduplicate the cleaned requires list.
+		reqSet := make(map[string]struct{})
+		dedupedReqs := []string{}
+		for _, r := range cleanedPI.Requires {
+			if _, seen := reqSet[r]; !seen {
+				reqSet[r] = struct{}{}
+				dedupedReqs = append(dedupedReqs, r)
+			}
+		}
+		cleanedPI.Requires = dedupedReqs
+
+		result = append(result, cleanedPI)
+	}
+	// Sort the final result for deterministic output.
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
+	return result, nil
 }
