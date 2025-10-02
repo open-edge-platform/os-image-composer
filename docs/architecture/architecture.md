@@ -212,32 +212,7 @@ OS Image Composer and its providers use several common `packages`, such as those
 
 The following diagram illustrates the overall image composition flow.
 
-```mermaid
-flowchart TD
-    s@{ shape: stadium, label: "start" }
-    s --> A
-    A[User YAML Input Configuration] --> B[Input Validation & Identify Target OS]
-    B --> C[Generate target image full JSON config & JSON Schema validation]
-    C --> D[Package provider get target os remote repo metadata]
-    D --> E[Package provider fetches image packages and dependencies]
-    F@{ shape: diamond, label: "if chrootenv pre-build tarball exist" }
-    E --> F
-    F -- N --> G[Package provider fetches chrootenv packages and dependencies]
-    G --> H[Build a chrootenv tarball for the target os]
-    H --> I[Setup the chrootenv and initial local caches for image packages]
-    F -- Y --> I
-    I --> J[Create empty image file and attach to the loop device]
-    J --> K[Create partitions and format the partition file system]
-    K --> L[Mount partitions to the chrootenv and install images packages]
-    L --> M[General system configs, bootloader, user account, hostname, etc.]
-    M --> N[Security related configurations, selinux, uki, immutability, etc. optional]
-    N --> O[Signing related operations. optional]
-    O --> P[Convert raw images to other required formats, vhd, vhdx, qcow2, etc.]
-    P --> Q[Generate image manifest file, SBOM, etc.]
-    Q --> R[Image cache operation. optional]
-    e@{ shape: stadium, label: "end" }
-    R --> e
-```
+![Image composition workflow](./assets/image.composition.workflow.drawio.svg)
 
 ## Related Documentation
 
