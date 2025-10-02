@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (C) 2025 Intel Corporation
 # SPDX-License-Identifier: MIT
 ---
-name: GitHub Actions Security Analysis with zizmor 🌈
+name: Security zizmor 🌈
 
 on:
   push:
