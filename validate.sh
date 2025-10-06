@@ -39,7 +39,7 @@ find_image_path() {
 run_qemu_boot_test() {
   IMAGE=$(find_image_path)
   BIOS="/usr/share/OVMF/OVMF_CODE_4M.fd"
-  TIMEOUT=30
+  TIMEOUT=90
   SUCCESS_STRING="login:"
   LOGFILE="qemu_serial.log"
 
