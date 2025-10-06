@@ -2,10 +2,10 @@ name: PR Tester
 on:
   push:
     branches:
-      - main
+      - QEMU_enable
   pull_request:
     branches:
-      - main
+      - QEMU_enable
 permissions:
   contents: read
 jobs:
