@@ -41,7 +41,12 @@ run_qemu_boot_test() {
   TIMEOUT=30
   SUCCESS_STRING="login:"
   LOGFILE="qemu_serial.log"
-  
+  if [ $? -eq 0 ]; then
+      echo "Image path: $IMAGE_PATH"
+  else
+    echo  "No image found."
+  fi
+
   echo "Booting image: $IMAGE "
   #create log file ,boot image into qemu , return the pass or fail after boot sucess
   sudo bash -c 'touch "'$LOGFILE'" && chmod 666 "'$LOGFILE'"    
