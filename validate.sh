@@ -3,26 +3,44 @@ set -e
 # Expect to be run from the root of the PR branch
 echo "Current working dir: $(pwd)"
 
+find_image_path() {
+    BASE_DIR=$(pwd)
+    SUDO_PASSWORD="your_sudo_password_here"
+    CANDIDATE_PATH="$BASE_DIR/tmp"
+
+    sudo -S chmod -R 777 "$CANDIDATE_PATH"
+
+    if [ -d "$CANDIDATE_PATH" ]; then
+        while IFS= read -r -d '' file; do
+            if [[ "$file" == *.iso ]]; then
+                echo "Found ISO image: $file"
+                echo "$file"
+                return 0
+            elif [[ "$file" == *.raw.gz ]]; then
+                RAW_PATH="${file%.gz}"
+                if gunzip -c "$file" > "$RAW_PATH"; then
+                    echo "Unzipped RAW image to: $RAW_PATH"
+                    echo "$RAW_PATH"
+                    return 0
+                else
+                    echo "Failed to unzip $file"
+                fi
+            fi
+        done < <(find "$CANDIDATE_PATH" -type f \( -name "*.iso" -o -name "*.raw.gz" \) -print0)
+    else
+        echo "Directory $CANDIDATE_PATH does not exist."
+    fi
+    echo "No image file found."
+    return 1
+}
+
+
 run_qemu_boot_test() {
-  IMAGE="azl3-default-x86_64.raw"  # image file
+  IMAGE=find_image_path
   BIOS="/usr/share/OVMF/OVMF_CODE_4M.fd"
   TIMEOUT=30
   SUCCESS_STRING="login:"
   LOGFILE="qemu_serial.log"
-
-
-  ORIGINAL_DIR=$(pwd)
-  # Find image path
-  FOUND_PATH=$(find . -type f -name "$IMAGE" | head -n 1)
-  if [ -n "$FOUND_PATH" ]; then
-    echo "Found image at: $FOUND_PATH"   
-    IMAGE_DIR=$(dirname "$FOUND_PATH")  # Extract directory path where image resides   
-    cd "$IMAGE_DIR"  # Change to that directory
-  else
-    echo "Image file not found!"
-    exit 0 #returning exit status 0 instead of 1 until the code is fully debugged ERRRORRR.
-  fi
-
   
   echo "Booting image: $IMAGE "
   #create log file ,boot image into qemu , return the pass or fail after boot sucess
@@ -84,6 +102,13 @@ build_azl3_raw_image() {
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
     echo "AZL3 raw Image build passed."
+    if run_qemu_boot_test; then
+      echo "QEMU boot test PASSED"
+      exit 0
+    else
+      echo "QEMU boot test FAILED"
+      exit 0 # returning exist status 0 instead of 1 until code is fully debugged.  ERRRORRR
+   fi  
   else
     echo "AZL3 raw Image build failed."
     exit 1 # Exit with error if build fails
@@ -224,18 +249,4 @@ clean_build_dirs
 build_azl3_immutable_raw_image
 
 # # Check for the success message in the output
-# if echo "$output" | grep -q "image build completed successfully"; then
-#   echo "Image build passed. Proceeding to QEMU boot test..."
-  
-#   if run_qemu_boot_test; then # call qemu boot function
-#     echo "QEMU boot test PASSED"
-#     exit 0
-#   else
-#     echo "QEMU boot test FAILED"
-#     exit 0 # returning exist status 0 instead of 1 until code is fully debugged.  ERRRORRR
-#   fi
 
-# else
-#   echo "Build did not complete successfully. Skipping QEMU test."
-#   exit 1 
-# fi
