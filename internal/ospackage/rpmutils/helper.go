@@ -517,9 +517,9 @@ func extractBasePackageName(fullName string) string {
 	return name
 }
 
-// extractBaseRequirement takes a potentially complex requirement string
+// extractRpmBaseName takes a potentially complex requirement string
 // and returns only the base package/capability name.
-func extractBaseName(req string) string {
+func extractRpmBaseName(req string) string {
 	if strings.HasPrefix(req, "(") && strings.Contains(req, " ") {
 		trimmed := strings.TrimPrefix(req, "(")
 		parts := strings.Fields(trimmed)
@@ -533,4 +533,75 @@ func extractBaseName(req string) string {
 	}
 	base := finalParts[0]
 	return base
+}
+
+func findAllCandidates(parent ospackage.PackageInfo, depName string, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
+	// log := logger.Logger()
+
+	var candidates []ospackage.PackageInfo
+
+	// First pass: look for exact name (canonical name) matches
+	for _, pi := range all {
+		// Extract the base package name (everything before the first '-' that starts a version)
+		baseName := extractBasePackageName(pi.Name)
+		if baseName == depName {
+			candidates = append(candidates, pi)
+		}
+	}
+
+	// If no direct matches found, search in Provides field
+	if len(candidates) == 0 {
+		for _, pi := range all {
+			for _, provided := range pi.Provides {
+				if provided == depName {
+					candidates = append(candidates, pi)
+				}
+			}
+		}
+	}
+
+	// If no direct matches found, search in Files field
+	if len(candidates) == 0 {
+		for _, pi := range all {
+			// log.Debugf("yockgen findAllCandidates: found %d candidates for %q %d", len(candidates), depName, len(pi.Files))
+			for _, file := range pi.Files {
+				if file == depName {
+					candidates = append(candidates, pi)
+				}
+			}
+		}
+	}
+
+	// yockgen Instead of matching the whole string, check if depName has a prefix "curl-libs-8."
+	// if strings.HasPrefix(depName, "libpopt.so.0") {
+
+	// 	f, err := os.OpenFile("/data/yockgen/debug.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// 	if err == nil {
+	// 		defer f.Close()
+	// 		fmt.Fprintf(f, "\nyockgen1: dep=%s pkg=%s version=%s", depName, parent.Name, parent.Version)
+	// 		for _, itx := range parent.RequiresVer {
+	// 			if strings.HasPrefix(itx, "libop5") {
+	// 				fmt.Fprintf(f, " depend=%s", itx)
+	// 			}
+	// 		}
+	// 		for _, itx := range candidates {
+	// 			fmt.Fprintf(f, "\ncandidate=%s %s\n", itx.Name, itx.Version)
+
+	// 		}
+	// 		// fmt.Fprintf(f, "\n")
+
+	// 		for _, pi := range all {
+	// 			for _, provided := range pi.Provides {
+	// 				if strings.HasPrefix(provided, "libpopt") {
+	// 					fmt.Fprintf(f, "\nyockgen provided: %s\n", provided)
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+
+	// 	log.Debugf("yockgen:findAllCandidates: found %d candidates for dependency %q of package %q", len(candidates), depName, parent.Name)
+
+	// }
+
+	return candidates, nil
 }

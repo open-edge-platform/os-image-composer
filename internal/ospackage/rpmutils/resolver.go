@@ -622,6 +622,14 @@ func ResolveDependencies02(requested []ospackage.PackageInfo, all []ospackage.Pa
 		}
 	}
 
+	//clear required fields for all and requested
+	for i := range all {
+		all[i].Requires = nil
+	}
+	for i := range requested {
+		requested[i].Requires = nil
+	}
+
 	neededSet := make(map[string]struct{})
 	queue := make([]ospackage.PackageInfo, 0, len(requested))
 
@@ -637,7 +645,8 @@ func ResolveDependencies02(requested []ospackage.PackageInfo, all []ospackage.Pa
 		return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
 	}
 
-	result := make([]ospackage.PackageInfo, 0)
+	// Use a map to store results so we can modify them
+	resultMap := make(map[string]*ospackage.PackageInfo)
 
 	for len(queue) > 0 {
 		cur := queue[0]
@@ -647,20 +656,24 @@ func ResolveDependencies02(requested []ospackage.PackageInfo, all []ospackage.Pa
 			continue
 		}
 		neededSet[cur.Name] = struct{}{}
-		result = append(result, cur)
+
+		// Store a copy in the result map so we can modify it
+		curCopy := cur
+		resultMap[cur.Name] = &curCopy
 
 		// Process dependencies
-		for _, dep := range cur.Requires {
+		for _, dep := range cur.RequiresVer {
 			// Use proper dependency name cleaning
 			// depName := extractBaseRequirement(dep)
-			depName := extractBaseName(dep)
+			depName := extractRpmBaseName(dep)
 			if depName == "" {
 				continue
 			}
 
+			//check if already resolved
 			if _, seen := neededSet[depName]; seen {
 				// ENHANCEMENT: Check version compatibility for already-resolved dependencies
-				existing, err := findAllCandidates(cur, depName, result)
+				existing, err := findAllCandidates(cur, depName, convertMapToSlice(resultMap))
 				if err == nil && len(existing) > 0 {
 					// Validate that existing package satisfies current requirement
 					_, err := resolveMultiCandidates(cur, existing)
@@ -677,6 +690,10 @@ func ResolveDependencies02(requested []ospackage.PackageInfo, all []ospackage.Pa
 							cur.Name, cur.Version, requiredVer, existing[0].Name, existing[0].Version)
 					}
 				}
+				// Append to parent's Requires field even if already resolved
+				if resultPkg, exists := resultMap[cur.Name]; exists {
+					resultPkg.Requires = append(resultPkg.Requires, depName)
+				}
 				continue
 			}
 
@@ -692,12 +709,25 @@ func ResolveDependencies02(requested []ospackage.PackageInfo, all []ospackage.Pa
 					log.Errorf("failed to resolve multiple candidates for dependency %q of package %q: %v", depName, cur.Name, err)
 					return nil, fmt.Errorf("failed to resolve multiple candidates for dependency %q of package %q: %v", depName, cur.Name, err)
 				}
+
+				// Update the parent's Requires field with the chosen candidate's name
+				if resultPkg, exists := resultMap[cur.Name]; exists {
+					resultPkg.Requires = append(resultPkg.Requires, chosenCandidate.Name)
+				}
+
+				// Add chosen candidate to the queue for further processing
 				queue = append(queue, chosenCandidate)
 			} else {
 				// FAIL FAST instead of just warning
 				return nil, fmt.Errorf("no candidates found for required dependency %q of package %q", depName, cur.Name)
 			}
 		}
+	}
+
+	// Convert result map back to slice
+	result := make([]ospackage.PackageInfo, 0, len(resultMap))
+	for _, pkg := range resultMap {
+		result = append(result, *pkg)
 	}
 
 	// Sort result by package name for determinism
@@ -709,73 +739,11 @@ func ResolveDependencies02(requested []ospackage.PackageInfo, all []ospackage.Pa
 	return result, nil
 }
 
-func findAllCandidates(parent ospackage.PackageInfo, depName string, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
-	// log := logger.Logger()
-
-	var candidates []ospackage.PackageInfo
-
-	// First pass: look for exact name (canonical name) matches
-	for _, pi := range all {
-		// Extract the base package name (everything before the first '-' that starts a version)
-		baseName := extractBasePackageName(pi.Name)
-		if baseName == depName {
-			candidates = append(candidates, pi)
-		}
+// Helper function to convert map to slice for findAllCandidates
+func convertMapToSlice(resultMap map[string]*ospackage.PackageInfo) []ospackage.PackageInfo {
+	slice := make([]ospackage.PackageInfo, 0, len(resultMap))
+	for _, pkg := range resultMap {
+		slice = append(slice, *pkg)
 	}
-
-	// If no direct matches found, search in Provides field
-	if len(candidates) == 0 {
-		for _, pi := range all {
-			for _, provided := range pi.Provides {
-				if provided == depName {
-					candidates = append(candidates, pi)
-				}
-			}
-		}
-	}
-
-	// If no direct matches found, search in Files field
-	if len(candidates) == 0 {
-		for _, pi := range all {
-			// log.Debugf("yockgen findAllCandidates: found %d candidates for %q %d", len(candidates), depName, len(pi.Files))
-			for _, file := range pi.Files {
-				if file == depName {
-					candidates = append(candidates, pi)
-				}
-			}
-		}
-	}
-
-	// yockgen Instead of matching the whole string, check if depName has a prefix "curl-libs-8."
-	// if strings.HasPrefix(depName, "libpopt.so.0") {
-
-	// 	f, err := os.OpenFile("/data/yockgen/debug.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	// 	if err == nil {
-	// 		defer f.Close()
-	// 		fmt.Fprintf(f, "\nyockgen1: dep=%s pkg=%s version=%s", depName, parent.Name, parent.Version)
-	// 		for _, itx := range parent.RequiresVer {
-	// 			if strings.HasPrefix(itx, "libop5") {
-	// 				fmt.Fprintf(f, " depend=%s", itx)
-	// 			}
-	// 		}
-	// 		for _, itx := range candidates {
-	// 			fmt.Fprintf(f, "\ncandidate=%s %s\n", itx.Name, itx.Version)
-
-	// 		}
-	// 		// fmt.Fprintf(f, "\n")
-
-	// 		for _, pi := range all {
-	// 			for _, provided := range pi.Provides {
-	// 				if strings.HasPrefix(provided, "libpopt") {
-	// 					fmt.Fprintf(f, "\nyockgen provided: %s\n", provided)
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-
-	// 	log.Debugf("yockgen:findAllCandidates: found %d candidates for dependency %q of package %q", len(candidates), depName, parent.Name)
-
-	// }
-
-	return candidates, nil
+	return slice
 }
