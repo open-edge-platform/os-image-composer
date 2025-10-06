@@ -18,7 +18,7 @@ find_image_path() {
                 return 0
             elif [[ "$file" == *.raw.gz ]]; then
                 RAW_PATH="${file%.gz}"
-                if gunzip -c "$file" > "$RAW_PATH"; then
+                if gunzip -c -d "$file" > "$RAW_PATH"; then
                     echo "Unzipped RAW image to: $RAW_PATH"
                     echo "$RAW_PATH"
                     return 0
