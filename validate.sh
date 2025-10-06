@@ -35,58 +35,65 @@ find_image_path() {
 }
 
 
+
 run_qemu_boot_test() {
   IMAGE=$(find_image_path)
   BIOS="/usr/share/OVMF/OVMF_CODE_4M.fd"
   TIMEOUT=30
   SUCCESS_STRING="login:"
   LOGFILE="qemu_serial.log"
-  if [ $? -eq 0 ]; then
-      echo "Image path: $IMAGE_PATH"
-  else
-    echo  "No image found."
+
+  if [ -z "$IMAGE" ]; then
+    echo "No image found."
+    exit 1
   fi
 
-  echo "Booting image: $IMAGE "
-  #create log file ,boot image into qemu , return the pass or fail after boot sucess
-  sudo bash -c  -d 'touch "'$LOGFILE'" && chmod 666 "'$LOGFILE'"    
+  echo "Image path: $IMAGE"
+  echo "Booting image: $IMAGE"
+
+  # Create log file and set permissions
+  sudo touch "$LOGFILE"
+  sudo chmod 666 "$LOGFILE"
+
+  # Launch QEMU
   nohup qemu-system-x86_64 \
-      -m 2048 \
-      -enable-kvm \
-      -cpu host \
-      -drive if=none,file="'$IMAGE'",format=raw,id=nvme0 \
-      -device nvme,drive=nvme0,serial=deadbeef \
-      -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
-      -drive if=pflash,format=raw,file=/usr/share/OVMF/OVMF_VARS_4M.fd \
-      -nographic \
-      -serial mon:stdio \
-      > "'$LOGFILE'" 2>&1 &
+  -m 2048 \
+  -enable-kvm \
+  -cpu host \
+  -bios /usr/share/OVMF/OVMF_CODE.fd \
+  -device virtio-scsi-pci \
+  -drive if=none,id=drive0,file="$IMAGE",format=raw \
+  -device scsi-hd,drive=drive0 \
+  -nographic \
+  -serial mon:stdio \
+    > "$LOGFILE" 2>&1 &
 
-    qemu_pid=$!
-    echo "QEMU launched as root with PID $qemu_pid"
-    echo "Current working dir: $(pwd)"
+  qemu_pid=$!
+  echo "QEMU launched with PID $qemu_pid"
+  echo "Current working dir: $(pwd)"
 
-    # Wait for SUCCESS_STRING or timeout
-      timeout=30
-      elapsed=0
-      while ! grep -q "'$SUCCESS_STRING'" "'$LOGFILE'" && [ $elapsed -lt $timeout ]; do
-        sleep 1
-        elapsed=$((elapsed + 1))
-      done
-      echo "$elapsed"
-      kill $qemu_pid
-      cat "'$LOGFILE'"
+  # Wait for SUCCESS_STRING or timeout
+  elapsed=0
+  while ! grep -q "$SUCCESS_STRING" "$LOGFILE" && [ $elapsed -lt $TIMEOUT ]; do
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
 
-      if grep -q "'$SUCCESS_STRING'" "'$LOGFILE'"; then
-        echo "Boot success!"
-        result=0
-      else
-        echo "Boot failed or timed out"
-        result=0 #setting return value 0 instead of 1 until fully debugged ERRRORRR
-      fi    
-      exit $result
-  '     
+  echo "Elapsed time: $elapsed seconds"
+  kill $qemu_pid
+  cat "$LOGFILE"
+
+  if grep -q "$SUCCESS_STRING" "$LOGFILE"; then
+    echo "Boot success!"
+    result=0
+  else
+    echo "Boot failed or timed out"
+    result=1
+  fi
+
+  exit $result
 }
+
 
 git branch
 #Build the OS Image Composer
