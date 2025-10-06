@@ -49,7 +49,7 @@ run_qemu_boot_test() {
 
   echo "Booting image: $IMAGE "
   #create log file ,boot image into qemu , return the pass or fail after boot sucess
-  sudo bash -c 'touch "'$LOGFILE'" && chmod 666 "'$LOGFILE'"    
+  sudo bash -c  -d 'touch "'$LOGFILE'" && chmod 666 "'$LOGFILE'"    
   nohup qemu-system-x86_64 \
       -m 2048 \
       -enable-kvm \
