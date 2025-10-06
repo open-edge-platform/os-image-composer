@@ -3,6 +3,8 @@ package rpmutils
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -604,4 +606,57 @@ func findAllCandidates(parent ospackage.PackageInfo, depName string, all []ospac
 	// }
 
 	return candidates, nil
+}
+
+// ResolvePackage finds the best matching package for a given package name
+func ResolveTopPackageConflicts(want, pkgType string, all []ospackage.PackageInfo) (ospackage.PackageInfo, bool) {
+	var candidates []ospackage.PackageInfo
+	for _, pi := range all {
+		// 1) exact name and version matched with .deb filenamae, e.g. acct_7.6.4-5+b1_amd64
+		if filepath.Base(pi.URL) == want+"."+pkgType {
+			candidates = append(candidates, pi)
+			break
+		}
+		// 2) exact name, e.g. acct-205-25.azl3.noarch.rpm
+		if pi.Name == want {
+			candidates = append(candidates, pi)
+			break
+		}
+		cleanName := extractBasePackageName(pi.Name)
+		// 2) base name, e.g. acct
+		if cleanName == want {
+			candidates = append(candidates, pi)
+			continue
+		}
+		// // 3) prefix by want-version ("acl-")
+		// if strings.HasPrefix(pi.Name, want+"-") {
+		// 	candidates = append(candidates, pi)
+		// 	continue
+		// }
+		// // 4) prefix by want.release ("acl-2.3.1-2.")
+		// if strings.HasPrefix(cleanName, want+".") {
+		// 	candidates = append(candidates, pi)
+		// 	continue
+		// }
+		// // 5) Debian package format (packagename_version_arch.deb)
+		// if strings.HasPrefix(cleanName, want+"_") {
+		// 	candidates = append(candidates, pi)
+		// }
+	}
+
+	if len(candidates) == 0 {
+		return ospackage.PackageInfo{}, false
+	}
+
+	// If we got an exact match in step (1), it's the only candidate
+	if len(candidates) == 1 && (candidates[0].Name == want || candidates[0].Name == want+"."+pkgType) {
+		return candidates[0], true
+	}
+
+	// Sort by version (highest version first)
+	sort.Slice(candidates, func(i, j int) bool {
+		return compareVersions(candidates[i].Version, candidates[j].Version) > 0
+	})
+
+	return candidates[0], true
 }
