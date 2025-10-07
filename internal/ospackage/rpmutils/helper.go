@@ -53,10 +53,10 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 		op, ver, hasVersionConstraint = extractVersionRequirement(parentPkg.RequiresVer, extractBasePackageNameFromFile(candidates[0].Name))
 	}
 
-	//yockgen
+	//yockgen: start
 	depNm := extractBasePackageNameFromFile(candidates[0].Name)
-	parentFilter := "systemd-ukify"
-	depFilter := "systemd"
+	parentFilter := "popt-devel" //"ca-certificates"     //"systemd-ukify"
+	depFilter := "popt"          //"ca-certificates-shared" //"systemd"
 	if strings.HasPrefix(parentPkg.Name, parentFilter) && depNm == depFilter {
 		fmt.Printf("op, ver, hasVersionConstraint = extractVersionRequirement(%#v, %#v)\n", parentPkg.RequiresVer, extractBasePackageNameFromFile(candidates[0].Name))
 		fmt.Printf("\nyockgen99: parent=%s", parentPkg.Name)
@@ -68,9 +68,15 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 		if !hasVersionConstraint {
 			fmt.Printf("yockgen99: no version specified for %s\n\n", extractBasePackageNameFromFile(candidates[0].Name))
 		} else {
+
+			//display all candidates
+			for _, itx := range candidates {
+				fmt.Printf("yockgen99: candidate=%s %s\n", itx.Name, itx.Version)
+			}
 			fmt.Printf("yockgen99: version constraint for %s is %s%s\n\n", extractBasePackageNameFromFile(candidates[0].Name), op, ver)
 		}
 	}
+	//yockgen: end
 
 	if hasVersionConstraint {
 		// First pass: look for candidates from the same repo that meet version constraint
@@ -721,10 +727,8 @@ func extractVersionRequirement(reqVers []string, depName string) (op string, ver
 					op := parts[0]
 					ver := strings.Join(parts[1:], " ") // Join in case version has spaces
 
-					// Handle epoch format (e.g., "0:255-29.emt3" -> "255-29.emt3")
-					if colonIdx := strings.Index(ver, ":"); colonIdx != -1 {
-						ver = ver[colonIdx+1:]
-					}
+					// DO NOT strip epoch - keep the full version including epoch
+					// The epoch (e.g., "1:" in "1:3.0.0-9.emt3") is crucial for version comparison
 
 					return op, ver, true
 				}
