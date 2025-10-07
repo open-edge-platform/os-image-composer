@@ -635,13 +635,14 @@ func ResolveDependencies02(requested []ospackage.PackageInfo, all []ospackage.Pa
 		for _, dep := range cur.RequiresVer {
 			// Use proper dependency name cleaning
 			// depName := extractBaseRequirement(dep)
-			depName := extractRpmBaseName(dep)
+			depName := extractBaseNameFromDep(dep)
 			if depName == "" {
 				continue
 			}
 
 			//check if already resolved
-			if _, seen := neededSet[depName]; seen {
+			// if _, seen := neededSet[fileName]; seen {
+			if seen := findMatchingKeyInNeededSet(neededSet, depName); seen {
 				// ENHANCEMENT: Check version compatibility for already-resolved dependencies
 				existing, err := findAllCandidates(cur, depName, convertMapToSlice(resultMap))
 				if err == nil && len(existing) > 0 {
@@ -716,4 +717,18 @@ func convertMapToSlice(resultMap map[string]*ospackage.PackageInfo) []ospackage.
 		slice = append(slice, *pkg)
 	}
 	return slice
+}
+
+// findMatchingKeyInNeededSet checks if any key in neededSet contains depName as a substring,
+// and returns the first matching key whose base package name equals depName.
+func findMatchingKeyInNeededSet(neededSet map[string]struct{}, depName string) bool {
+	for k := range neededSet {
+		if strings.Contains(k, depName) {
+			fileName := extractBasePackageNameFromFile(k)
+			if fileName == depName {
+				return true
+			}
+		}
+	}
+	return false
 }

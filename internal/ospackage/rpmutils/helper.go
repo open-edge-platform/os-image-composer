@@ -494,10 +494,10 @@ func compareVersions(v1, v2 string) int {
 	return cmp
 }
 
-// extractBasePackageName extracts the base package name from a full package filename
+// extractBasePackageNameFromFile extracts the base package name from a full package filename
 // e.g., "curl-8.8.0-2.azl3.x86_64.rpm" -> "curl"
 // e.g., "curl-devel-8.8.0-1.azl3.x86_64.rpm" -> "curl-devel"
-func extractBasePackageName(fullName string) string {
+func extractBasePackageNameFromFile(fullName string) string {
 	// Remove .rpm suffix if present
 	name := strings.TrimSuffix(fullName, ".rpm")
 
@@ -519,9 +519,9 @@ func extractBasePackageName(fullName string) string {
 	return name
 }
 
-// extractRpmBaseName takes a potentially complex requirement string
+// extractBaseNameFromDep takes a potentially complex requirement string
 // and returns only the base package/capability name.
-func extractRpmBaseName(req string) string {
+func extractBaseNameFromDep(req string) string {
 	if strings.HasPrefix(req, "(") && strings.Contains(req, " ") {
 		trimmed := strings.TrimPrefix(req, "(")
 		parts := strings.Fields(trimmed)
@@ -545,7 +545,7 @@ func findAllCandidates(parent ospackage.PackageInfo, depName string, all []ospac
 	// First pass: look for exact name (canonical name) matches
 	for _, pi := range all {
 		// Extract the base package name (everything before the first '-' that starts a version)
-		baseName := extractBasePackageName(pi.Name)
+		baseName := extractBasePackageNameFromFile(pi.Name)
 		if baseName == depName {
 			candidates = append(candidates, pi)
 		}
@@ -622,7 +622,7 @@ func ResolveTopPackageConflicts(want, pkgType string, all []ospackage.PackageInf
 			candidates = append(candidates, pi)
 			break
 		}
-		cleanName := extractBasePackageName(pi.Name)
+		cleanName := extractBasePackageNameFromFile(pi.Name)
 		// 2) base name, e.g. acct
 		if cleanName == want {
 			candidates = append(candidates, pi)
