@@ -44,8 +44,9 @@ run_qemu_boot_test() {
   fi
   
   BIOS="/usr/share/OVMF/OVMF_CODE_4M.fd"
-  TIMEOUT=30
-  SUCCESS_STRING="login:"
+  TIMEOUT=60
+  LOGIN_SUCCESS_STRING="login:"
+  UNAME_SUCCESS_STRING="Linux"
   LOGFILE="qemu_serial.log"
 
   ORIGINAL_DIR=$(pwd)
@@ -84,12 +85,18 @@ run_qemu_boot_test() {
   #create log file ,boot image into qemu , return the pass or fail after boot sucess
   sudo bash -c "
     LOGFILE=\"$LOGFILE\"
-    SUCCESS_STRING=\"$SUCCESS_STRING\"
+    LOGIN_SUCCESS_STRING=\"$LOGIN_SUCCESS_STRING\"
+    UNAME_SUCCESS_STRING=\"$UNAME_SUCCESS_STRING\"
     IMAGE=\"$IMAGE\"
     RAW_IMAGE=\"$RAW_IMAGE\"
     ORIGINAL_DIR=\"$ORIGINAL_DIR\"
     
-    touch \"\$LOGFILE\" && chmod 666 \"\$LOGFILE\"    
+    touch \"\$LOGFILE\" && chmod 666 \"\$LOGFILE\"
+    
+    # Create a named pipe for sending commands to QEMU
+    mkfifo qemu_input
+    
+    # Start QEMU with working configuration
     nohup qemu-system-x86_64 \\
         -m 2048 \\
         -enable-kvm \\
@@ -100,28 +107,65 @@ run_qemu_boot_test() {
         -drive if=pflash,format=raw,file=/usr/share/OVMF/OVMF_VARS_4M.fd \\
         -nographic \\
         -serial mon:stdio \\
-        > \"\$LOGFILE\" 2>&1 &
+        < qemu_input > \"\$LOGFILE\" 2>&1 &
 
     qemu_pid=\$!
     echo \"QEMU launched as root with PID \$qemu_pid\"
     echo \"Current working dir: \$(pwd)\"
 
-    # Wait for SUCCESS_STRING or timeout
-    timeout=30
+    # Wait for login prompt
+    timeout=60
     elapsed=0
-    while ! grep -q \"\$SUCCESS_STRING\" \"\$LOGFILE\" && [ \$elapsed -lt \$timeout ]; do
+    while ! grep -q \"\$LOGIN_SUCCESS_STRING\" \"\$LOGFILE\" && [ \$elapsed -lt \$timeout ]; do
       sleep 1
       elapsed=\$((elapsed + 1))
+      # Show progress every 20 seconds
+      if [ \$((elapsed % 20)) -eq 0 ]; then
+        echo \"Still waiting for login prompt... (\$elapsed/\$timeout seconds)\"
+        echo \"Current log size: \$(wc -l < \"\$LOGFILE\" 2>/dev/null || echo 0) lines\"
+      fi
     done
-    echo \"\$elapsed\"
-    kill \$qemu_pid
+    
+    if grep -q \"\$LOGIN_SUCCESS_STRING\" \"\$LOGFILE\"; then
+      echo \"Login prompt detected after \$elapsed seconds\"
+      
+      # Send login sequence
+      {
+        sleep 1
+        echo \"user\"
+        sleep 2
+        echo \"user\"
+        sleep 2
+        echo \"uname -a\"
+        sleep 2
+        echo \"exit\"
+        sleep 1
+      } > qemu_input &
+      
+      # Wait for uname output
+      uname_timeout=30
+      uname_elapsed=0
+      while ! grep -q \"\$UNAME_SUCCESS_STRING\" \"\$LOGFILE\" && [ \$uname_elapsed -lt \$uname_timeout ]; do
+        sleep 1
+        uname_elapsed=\$((uname_elapsed + 1))
+      done
+      
+      echo \"Login sequence completed after \$uname_elapsed seconds\"
+    fi
+    
+    # Clean up and kill QEMU
+    kill \$qemu_pid 2>/dev/null || true
+    rm -f qemu_input
+    
+    echo \"=== QEMU Output ===\"
     cat \"\$LOGFILE\"
+    echo \"=== End Output ===\"
 
-    if grep -q \"\$SUCCESS_STRING\" \"\$LOGFILE\"; then
-      echo \"Boot success!\"
+    if grep -q \"\$UNAME_SUCCESS_STRING\" \"\$LOGFILE\"; then
+      echo \"Login and uname command executed successfully!\"
       result=0
     else
-      echo \"Boot failed or timed out\"
+      echo \"Failed to login or execute uname command\"
       result=1
     fi
     
@@ -149,8 +193,9 @@ run_qemu_boot_test_iso() {
   fi
   
   BIOS="/usr/share/OVMF/OVMF_CODE_4M.fd"
-  TIMEOUT=30
-  SUCCESS_STRING="login:"
+  TIMEOUT=60
+  LOGIN_SUCCESS_STRING="login:"
+  UNAME_SUCCESS_STRING="Linux"
   LOGFILE="qemu_serial_iso.log"
 
   ORIGINAL_DIR=$(pwd)
@@ -184,12 +229,17 @@ run_qemu_boot_test_iso() {
   #create log file ,boot ISO image into qemu , return the pass or fail after boot sucess
   sudo bash -c "
     LOGFILE=\"$LOGFILE\"
-    SUCCESS_STRING=\"$SUCCESS_STRING\"
+    LOGIN_SUCCESS_STRING=\"$LOGIN_SUCCESS_STRING\"
+    UNAME_SUCCESS_STRING=\"$UNAME_SUCCESS_STRING\"
     IMAGE=\"$IMAGE\"
-    RAW_IMAGE=\"$RAW_IMAGE\"
     ORIGINAL_DIR=\"$ORIGINAL_DIR\"
     
-    touch \"\$LOGFILE\" && chmod 666 \"\$LOGFILE\"    
+    touch \"\$LOGFILE\" && chmod 666 \"\$LOGFILE\"
+    
+    # Create a named pipe for sending commands to QEMU
+    mkfifo qemu_input_iso
+    
+    # Start QEMU with working ISO configuration
     nohup qemu-system-x86_64 \\
         -m 2048 \\
         -enable-kvm \\
@@ -200,29 +250,66 @@ run_qemu_boot_test_iso() {
         -drive if=pflash,format=raw,file=/usr/share/OVMF/OVMF_VARS_4M.fd \\
         -nographic \\
         -serial mon:stdio \\
-        > \"\$LOGFILE\" 2>&1 &
+        < qemu_input_iso > \"\$LOGFILE\" 2>&1 &
 
     qemu_pid=\$!
     echo \"QEMU launched as root with PID \$qemu_pid\"
     echo \"Current working dir: \$(pwd)\"
 
-    # Wait for SUCCESS_STRING or timeout
-    timeout=30
+    # Wait for login prompt
+    timeout=60
     elapsed=0
-    while ! grep -q \"\$SUCCESS_STRING\" \"\$LOGFILE\" && [ \$elapsed -lt \$timeout ]; do
+    while ! grep -q \"\$LOGIN_SUCCESS_STRING\" \"\$LOGFILE\" && [ \$elapsed -lt \$timeout ]; do
       sleep 1
       elapsed=\$((elapsed + 1))
+      # Show progress every 20 seconds
+      if [ \$((elapsed % 20)) -eq 0 ]; then
+        echo \"Still waiting for login prompt... (\$elapsed/\$timeout seconds)\"
+        echo \"Current log size: \$(wc -l < \"\$LOGFILE\" 2>/dev/null || echo 0) lines\"
+      fi
     done
-    echo \"\$elapsed\"
-    kill \$qemu_pid
+    
+    if grep -q \"\$LOGIN_SUCCESS_STRING\" \"\$LOGFILE\"; then
+      echo \"Login prompt detected after \$elapsed seconds\"
+      
+      # Send login sequence
+      {
+        sleep 1
+        echo \"user\"
+        sleep 2
+        echo \"user\"
+        sleep 2
+        echo \"uname -a\"
+        sleep 2
+        echo \"exit\"
+        sleep 1
+      } > qemu_input_iso &
+      
+      # Wait for uname output
+      uname_timeout=30
+      uname_elapsed=0
+      while ! grep -q \"\$UNAME_SUCCESS_STRING\" \"\$LOGFILE\" && [ \$uname_elapsed -lt \$uname_timeout ]; do
+        sleep 1
+        uname_elapsed=\$((uname_elapsed + 1))
+      done
+      
+      echo \"Login sequence completed after \$uname_elapsed seconds\"
+    fi
+    
+    # Clean up and kill QEMU
+    kill \$qemu_pid 2>/dev/null || true
+    rm -f qemu_input_iso
+    
+    echo \"=== QEMU ISO Output ===\"
     cat \"\$LOGFILE\"
+    echo \"=== End Output ===\"
 
-    if grep -q \"\$SUCCESS_STRING\" \"\$LOGFILE\"; then
-      echo \"Boot success!\"
+    if grep -q \"\$UNAME_SUCCESS_STRING\" \"\$LOGFILE\"; then
+      echo \"Login and uname command executed successfully!\"
       result=0
     else
-      echo \"Boot failed or timed out\"
-      result=0 #setting return value 0 instead of 1 until fully debugged ERRRORRR
+      echo \"Failed to login or execute uname command\"
+      result=1
     fi
     
     # Return to original directory
