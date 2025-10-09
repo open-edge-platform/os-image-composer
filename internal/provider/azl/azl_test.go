@@ -237,7 +237,7 @@ func TestFetchPrimaryURL(t *testing.T) {
 	}))
 	defer server.Close()
 
-	href, err := fetchPrimaryURL(server.URL)
+	href, err := rpmutils.FetchPrimaryURL(server.URL)
 	if err != nil {
 		t.Fatalf("fetchPrimaryURL failed: %v", err)
 	}
@@ -262,7 +262,7 @@ func TestFetchPrimaryURLNoPrimary(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchPrimaryURL(server.URL)
+	_, err := rpmutils.FetchPrimaryURL(server.URL)
 	if err == nil {
 		t.Error("Expected error when primary location not found")
 	}
@@ -280,7 +280,7 @@ func TestFetchPrimaryURLInvalidXML(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchPrimaryURL(server.URL)
+	_, err := rpmutils.FetchPrimaryURL(server.URL)
 	if err == nil {
 		t.Error("Expected error when XML is invalid")
 	}

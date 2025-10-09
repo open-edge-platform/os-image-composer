@@ -60,139 +60,15 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string) error {
 	return nil
 }
 
-// ResolvePackageInfos takes a seed list of PackageInfos (the exact versions
-// matched) and the full list of all PackageInfos from the repo, and
-// returns the minimal closure of PackageInfos needed to satisfy all Requires.
-func ResolvePackageInfos(
-	requested []ospackage.PackageInfo,
-	all []ospackage.PackageInfo,
-) ([]ospackage.PackageInfo, error) {
+// ParseRepositoryMetadata parses the repodata/primary.xml(.gz/.zst) file from a given base URL.
+func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
+	log := logger.Logger()
 
-	// Build helper maps:
-	byName := make(map[string]ospackage.PackageInfo, len(all))
-	provides := make(map[string][]string) // cap -> pkgNames
-	requires := make(map[string][]string) // pkgName -> caps
-
-	for _, pi := range all {
-		if pi.Arch == "src" {
-			continue
-		}
-		byName[pi.Name] = pi
-		provides[pi.Name] = append(provides[pi.Name], pi.Name)
-		for _, cap := range pi.Provides {
-			baseCap := extractBaseRequirement(cap)
-			if baseCap != "" {
-				provides[baseCap] = append(provides[baseCap], pi.Name)
-			}
-		}
-		for _, file := range pi.Files {
-			provides[file] = append(provides[file], pi.Name)
-		}
-		requires[pi.Name] = append([]string{}, pi.Requires...)
-	}
-
-	// bestProvider maps a capability to the single "best" package name that provides it.
-	bestProvider := make(map[string]string, len(provides))
-	for cap, provs := range provides {
-		sort.Strings(provs)
-		bestProvider[cap] = provs[len(provs)-1]
-	}
-
-	// BFS to find the complete set of needed package names.
-	queue := make([]string, 0, len(requested))
-	for _, pi := range requested {
-		if _, ok := byName[pi.Name]; !ok {
-			return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
-		}
-		queue = append(queue, pi.Name)
-	}
-
-	neededSet := make(map[string]struct{})
-	for len(queue) > 0 {
-		cur := queue[0]
-		queue = queue[1:]
-		if _, seen := neededSet[cur]; seen {
-			continue
-		}
-		neededSet[cur] = struct{}{}
-
-		for _, req := range requires[cur] {
-			baseReq := extractBaseRequirement(req)
-			if baseReq == "" {
-				continue
-			}
-			if best, ok := bestProvider[baseReq]; ok {
-				if _, seen := neededSet[best]; !seen {
-					queue = append(queue, best)
-				}
-			}
-		}
-	}
-
-	// Build the result slice in deterministic order:
-	result := make([]ospackage.PackageInfo, 0, len(neededSet))
-
-	for name := range neededSet {
-		// Get the original package info.
-		originalPI := byName[name]
-
-		// Create a new PackageInfo to hold the cleaned data.
-		cleanedPI := ospackage.PackageInfo{
-			Name:        originalPI.Name,
-			Description: originalPI.Description,
-			Type:        originalPI.Type,
-			Arch:        originalPI.Arch,
-			License:     originalPI.License,
-			Origin:      originalPI.Origin,
-			Version:     originalPI.Version,
-			Checksums:   originalPI.Checksums,
-			URL:         originalPI.URL,
-			Provides:    originalPI.Provides,
-			Files:       originalPI.Files,
-			Requires:    []string{}, // Start with an empty requires list.
-		}
-
-		// For each original requirement, find the concrete package that satisfies it
-		// and add that package's name to the cleaned list.
-		for _, req := range originalPI.Requires {
-			baseReq := extractBaseRequirement(req)
-			if baseReq == "" {
-				continue
-			}
-
-			if providerName, ok := bestProvider[baseReq]; ok {
-				// Only add if it's a different package to avoid self-dependencies
-				if providerName != cleanedPI.Name {
-					cleanedPI.Requires = append(cleanedPI.Requires, providerName)
-				}
-			}
-		}
-
-		// Deduplicate the cleaned requires list.
-		reqSet := make(map[string]struct{})
-		dedupedReqs := []string{}
-		for _, r := range cleanedPI.Requires {
-			if _, seen := reqSet[r]; !seen {
-				reqSet[r] = struct{}{}
-				dedupedReqs = append(dedupedReqs, r)
-			}
-		}
-		cleanedPI.Requires = dedupedReqs
-
-		result = append(result, cleanedPI)
-	}
-	// Sort the final result for deterministic output.
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Name < result[j].Name
-	})
-	return result, nil
-}
-
-// ParsePrimary parses the repodata/primary.xml(.gz/.zst) file from a given base URL.
-func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
+	fullURL := strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(gzHref, "/")
+	log.Infof("Fetching and parsing repository metadata from %s", fullURL)
 
 	client := network.NewSecureHTTPClient()
-	resp, err := client.Get(baseURL + gzHref)
+	resp, err := client.Get(fullURL)
 	if err != nil {
 		return nil, err
 	}
@@ -243,11 +119,41 @@ func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 				curInfo = &ospackage.PackageInfo{}
 				curInfo.Type = "rpm"
 
+			case "version":
+				// Parse version attributes and combine them
+				var epoch, ver, rel string
+				for _, attr := range elem.Attr {
+					switch attr.Name.Local {
+					case "epoch":
+						epoch = attr.Value
+					case "ver":
+						ver = attr.Value
+					case "rel":
+						rel = attr.Value
+					}
+				}
+
+				// Build version string in format: epoch:ver-rel
+				if curInfo != nil {
+					// Fill missing fields with "0"
+					if epoch == "" {
+						epoch = "0"
+					}
+					if ver == "" {
+						ver = "0"
+					}
+					if rel == "" {
+						rel = "0"
+					}
+					versionStr := fmt.Sprintf("%s:%s-%s", epoch, ver, rel)
+					curInfo.Version = versionStr
+				}
+
 			case "location":
 				// read the href and build full URL + infer Name (filename)
 				for _, a := range elem.Attr {
 					if a.Name.Local == "href" {
-						curInfo.URL = baseURL + a.Value
+						curInfo.URL = strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(a.Value, "/")
 						curInfo.Name = path.Base(a.Value)
 						break
 					}
@@ -289,24 +195,64 @@ func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 							section = "requires"
 
 						case inner.Name.Local == "entry" && inner.Name.Space == rpmNS:
-							// rpm:entry name="..."
-							var name string
+							// rpm:entry name="..." ver="..." rel="..." epoch="..." flags="..."
+							var name, version, release, epoch, flags string
 							for _, a := range inner.Attr {
-								if a.Name.Local == "name" {
+								switch a.Name.Local {
+								case "name":
 									name = a.Value
-									break
+								case "ver":
+									version = a.Value
+								case "rel":
+									release = a.Value
+								case "epoch":
+									epoch = a.Value
+								case "flags":
+									flags = a.Value
 								}
 							}
 							if name != "" && curInfo != nil {
 								if section == "provides" {
 									curInfo.Provides = append(curInfo.Provides, name)
 								} else if section == "requires" {
+									// Store the base name in Requires
 									curInfo.Requires = append(curInfo.Requires, name)
+
+									// Store version constraint with package name prefix in RequiresVer
+									if version != "" || release != "" || epoch != "" || flags != "" {
+										versionPart := ""
+										if epoch != "" {
+											versionPart = epoch + ":"
+										}
+										if version != "" {
+											versionPart += version
+										}
+										if release != "" {
+											versionPart += "-" + release
+										}
+
+										var versionConstraint string
+										if flags != "" && versionPart != "" {
+											// Convert flags to readable format (GE = >=, EQ = =, etc.)
+											operator := convertFlags(flags)
+											versionConstraint = fmt.Sprintf("%s (%s %s)", name, operator, versionPart) // samuel (>=2.3)
+										} else if versionPart != "" {
+											// Version info but no operator, assume equality
+											versionConstraint = fmt.Sprintf("%s = %s", name, versionPart)
+										} else {
+											// Only package name
+											versionConstraint = name
+										}
+										curInfo.RequiresVer = append(curInfo.RequiresVer, versionConstraint)
+									} else {
+										// No version constraint, just store the package name
+										curInfo.RequiresVer = append(curInfo.RequiresVer, name)
+									}
 								}
 							}
 
 						// some repos list <file> entries inside <format> without a namespace
-						case inner.Name.Local == "file" && inner.Name.Space == "":
+						case inner.Name.Local == "file" && inner.Name.Space != rpmNS:
 							if tok3, err := dec.Token(); err == nil {
 								if cd, ok := tok3.(xml.CharData); ok && curInfo != nil {
 									curInfo.Files = append(curInfo.Files, strings.TrimSpace(string(cd)))
@@ -376,10 +322,271 @@ func ParsePrimary(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 		case xml.EndElement:
 			switch elem.Name.Local {
 			case "package":
+				if curInfo.Arch == "src" {
+					continue
+				}
 				// finish this package
 				infos = append(infos, *curInfo)
 			}
 		}
 	}
 	return infos, nil
+}
+
+// FetchPrimaryURL downloads repomd.xml and returns the href of the primary metadata.
+func FetchPrimaryURL(repomdURL string) (string, error) {
+	client := network.NewSecureHTTPClient()
+	resp, err := client.Get(repomdURL)
+	if err != nil {
+		return "", fmt.Errorf("GET %s: %w", repomdURL, err)
+	}
+	defer resp.Body.Close()
+
+	dec := xml.NewDecoder(resp.Body)
+
+	// Walk the tokens looking for <data type="primary">
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return "", err
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok || se.Name.Local != "data" {
+			continue
+		}
+		// Check its type attribute
+		var isPrimary bool
+		for _, attr := range se.Attr {
+			if attr.Name.Local == "type" && attr.Value == "primary" {
+				isPrimary = true
+				break
+			}
+		}
+		if !isPrimary {
+			// Skip this <data> section
+			if err := dec.Skip(); err != nil {
+				return "", fmt.Errorf("error skipping token: %w", err)
+			}
+			continue
+		}
+
+		// Inside <data type="primary">, look for <location href="..."/>
+		for {
+			tok2, err := dec.Token()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				return "", err
+			}
+			// If we hit the end of this <data> element, bail out
+			if ee, ok := tok2.(xml.EndElement); ok && ee.Name.Local == "data" {
+				break
+			}
+			if le, ok := tok2.(xml.StartElement); ok && le.Name.Local == "location" {
+				// Pull the href attribute
+				for _, attr := range le.Attr {
+					if attr.Name.Local == "href" {
+						return attr.Value, nil
+					}
+				}
+			}
+		}
+	}
+	return "", fmt.Errorf("primary location not found in %s", repomdURL)
+}
+
+func GetRepoMetaDataURL(baseURL, repoMetaXmlPath string) string {
+	repoMetaDataURL := strings.TrimRight(baseURL, "/") + "/" + repoMetaXmlPath
+	// Check if baseURL is a valid URL,
+	if !strings.HasPrefix(repoMetaDataURL, "http://") && !strings.HasPrefix(repoMetaDataURL, "https://") {
+		return ""
+	}
+	return repoMetaDataURL
+}
+
+// Helper function to convert RPM flags to readable operators
+func convertFlags(flags string) string {
+	switch flags {
+	case "EQ":
+		return "="
+	case "GE":
+		return ">="
+	case "LE":
+		return "<="
+	case "GT":
+		return ">"
+	case "LT":
+		return "<"
+	default:
+		return flags
+	}
+}
+
+// MatchRequested matches requested package names to the best available versions in the repo.
+func MatchRequested(requests []string, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
+
+	var out []ospackage.PackageInfo
+
+	for _, want := range requests {
+		if pkg, found := ResolveTopPackageConflicts(want, "rpm", all); found {
+			out = append(out, pkg)
+
+		} else {
+			return nil, fmt.Errorf("requested package '%q' not found in repo", want)
+		}
+	}
+	return out, nil
+}
+
+// ResolveDependencies takes a seed list of PackageInfos (the exact versions
+// matched) and the full list of all PackageInfos from the repo, and
+// returns the minimal closure of PackageInfos needed to satisfy all Requires.
+func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
+	log := logger.Logger()
+
+	// Build maps for fast lookup
+	byNameVer := make(map[string]ospackage.PackageInfo, len(all))
+	for _, pi := range all {
+		if pi.Version != "" {
+			key := fmt.Sprintf("%s=%s", pi.Name, pi.Version)
+			byNameVer[key] = pi
+		}
+	}
+
+	// Clear required fields for all and requested
+	for i := range all {
+		all[i].Requires = nil
+	}
+	for i := range requested {
+		requested[i].Requires = nil
+	}
+
+	neededSet := make(map[string]struct{})
+	queue := make([]ospackage.PackageInfo, 0, len(requested))
+
+	// Initialize queue with requested packages
+	for _, pi := range requested {
+		if pi.Version != "" {
+			key := fmt.Sprintf("%s=%s", pi.Name, pi.Version)
+			if pkg, ok := byNameVer[key]; ok {
+				queue = append(queue, pkg)
+				continue
+			}
+		}
+		return nil, fmt.Errorf("requested package %q not in repo listing", pi.Name)
+	}
+
+	// Use a map to store results so we can modify them
+	resultMap := make(map[string]*ospackage.PackageInfo)
+
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+
+		if _, seen := neededSet[cur.Name]; seen {
+			continue
+		}
+		neededSet[cur.Name] = struct{}{}
+
+		// Store a copy in the result map so we can modify it
+		curCopy := cur
+		resultMap[cur.Name] = &curCopy
+
+		// Process dependencies
+		for _, dep := range cur.RequiresVer {
+			// Use proper dependency name cleaning
+			// depName := extractBaseRequirement(dep)
+			depName := extractBaseNameFromDep(dep)
+			filename, seen := findMatchingKeyInNeededSet(neededSet, depName)
+			if depName == "" || neededSet[filename] != struct{}{} {
+				continue
+			}
+
+			// Check if already resolved
+			// if _, seen := neededSet[depName]; seen {
+			if seen {
+				// ENHANCEMENT: Check version compatibility for already-resolved dependencies
+				existing, err := findAllCandidates(cur, depName, queue) //convertMapToSlice(resultMap))
+				if err == nil && len(existing) > 0 {
+					// Validate that existing package satisfies current requirement
+					_, err := resolveMultiCandidates(cur, existing)
+					if err != nil {
+						// Find the specific version constraint from RequiresVer
+						var requiredVer string
+						for _, req := range cur.RequiresVer {
+							if strings.Contains(req, depName) {
+								requiredVer = req
+								break
+							}
+						}
+						return nil, fmt.Errorf("conflicting package dependencies: %s_%s requires %s, but %s is already selected",
+							cur.Name, cur.Version, requiredVer, existing[0].Name)
+					}
+				}
+				// Append to parent's Requires field even if already resolved
+				if resultPkg, exists := resultMap[cur.Name]; exists {
+					resultPkg.Requires = append(resultPkg.Requires, filename)
+				}
+
+				continue
+			}
+
+			// Find candidates for this dependency
+			candidates, err := findAllCandidates(cur, depName, all)
+			if err != nil {
+				return nil, fmt.Errorf("failed to find candidates for dependency %q of package %q: %v", depName, cur.Name, err)
+			}
+
+			if len(candidates) >= 1 {
+				chosenCandidate, err := resolveMultiCandidates(cur, candidates)
+				if err != nil {
+					log.Errorf("failed to resolve multiple candidates for dependency %q of package %q: %v", depName, cur.Name, err)
+					return nil, fmt.Errorf("failed to resolve multiple candidates for dependency %q of package %q: %v", depName, cur.Name, err)
+				}
+
+				// Update the parent's Requires field with the chosen candidate's name
+				if resultPkg, exists := resultMap[cur.Name]; exists {
+					resultPkg.Requires = append(resultPkg.Requires, chosenCandidate.Name)
+				}
+
+				// Add chosen candidate to the queue for further processing
+				queue = append(queue, chosenCandidate)
+			} else {
+				// FAIL FAST instead of just warning
+				return nil, fmt.Errorf("no candidates found for required dependency %q of package %q", depName, cur.Name)
+			}
+		}
+	}
+
+	// Convert result map back to slice
+	result := make([]ospackage.PackageInfo, 0, len(resultMap))
+	for _, pkg := range resultMap {
+		result = append(result, *pkg)
+	}
+
+	// Sort result by package name for determinism
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
+
+	log.Infof("Successfully resolved %d packages from %d requested packages", len(result), len(requested))
+	return result, nil
+}
+
+// findMatchingKeyInNeededSet checks if any key in neededSet contains depName as a substring,
+// and returns the first matching key whose base package name equals depName.
+func findMatchingKeyInNeededSet(neededSet map[string]struct{}, depName string) (string, bool) {
+	for k := range neededSet {
+		if strings.Contains(k, depName) {
+			fileName := extractBasePackageNameFromFile(k)
+			if fileName == depName {
+				return k, true
+			}
+		}
+	}
+	return "", false
 }

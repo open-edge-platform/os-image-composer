@@ -115,7 +115,7 @@ func TestMatchRequested(t *testing.T) {
 			name:     "release prefix match",
 			requests: []string{"package"},
 			all: []ospackage.PackageInfo{
-				{Name: "package.1.0.0", Arch: "x86_64"},
+				{Name: "package-1.0.0", Arch: "x86_64"},
 			},
 			expectError: false,
 			expectCount: 1,
@@ -386,17 +386,70 @@ func TestResolve(t *testing.T) {
 			name: "empty request",
 			req:  []ospackage.PackageInfo{},
 			all: []ospackage.PackageInfo{
-				{Name: "test-package", Arch: "x86_64"},
+				{
+					Name:        "test-package",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/test-package-1.0.0-1.el9.x86_64.rpm",
+					Requires:    []string{},
+					RequiresVer: []string{},
+				},
 			},
 			expectError: false,
 		},
 		{
 			name: "simple resolve",
 			req: []ospackage.PackageInfo{
-				{Name: "test-package", Arch: "x86_64"},
+				{
+					Name:        "test-package",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/test-package-1.0.0-1.el9.x86_64.rpm",
+					Requires:    []string{},
+					RequiresVer: []string{},
+				},
 			},
 			all: []ospackage.PackageInfo{
-				{Name: "test-package", Arch: "x86_64"},
+				{
+					Name:        "test-package",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/test-package-1.0.0-1.el9.x86_64.rpm",
+					Requires:    []string{},
+					RequiresVer: []string{},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "resolve with dependencies",
+			req: []ospackage.PackageInfo{
+				{
+					Name:        "app",
+					Version:     "2.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/app-2.0.0-1.el9.x86_64.rpm",
+					Requires:    []string{"libfoo"},
+					RequiresVer: []string{"libfoo >= 1.0.0"},
+				},
+			},
+			all: []ospackage.PackageInfo{
+				{
+					Name:        "app",
+					Version:     "2.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/app-2.0.0-1.el9.x86_64.rpm",
+					Requires:    []string{"libfoo"},
+					RequiresVer: []string{"libfoo >= 1.0.0"},
+				},
+				{
+					Name:        "libfoo",
+					Version:     "1.5.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/libfoo-1.5.0-1.el9.x86_64.rpm",
+					Requires:    []string{},
+					RequiresVer: []string{},
+				},
 			},
 			expectError: false,
 		},
@@ -550,4 +603,240 @@ func TestGlobalVariables(t *testing.T) {
 	// Restore original values
 	rpmutils.RepoCfg = originalRepoCfg
 	rpmutils.GzHref = originalGzHref
+}
+
+// TestResolveEdgeCases tests edge cases in the Resolve function
+func TestResolveEdgeCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		req         []ospackage.PackageInfo
+		all         []ospackage.PackageInfo
+		expectError bool
+		description string
+	}{
+		{
+			name:        "Circular dependencies",
+			description: "Package A depends on B, B depends on A",
+			req: []ospackage.PackageInfo{
+				{
+					Name:        "package-a",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/package-a-1.0.0-1.el9.x86_64.rpm",
+					Provides:    []string{"package-a"},
+					Requires:    []string{"package-b"},
+					RequiresVer: []string{"package-b >= 1.0.0"},
+				},
+			},
+			all: []ospackage.PackageInfo{
+				{
+					Name:        "package-a",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/package-a-1.0.0-1.el9.x86_64.rpm",
+					Provides:    []string{"package-a"},
+					Requires:    []string{"package-b"},
+					RequiresVer: []string{"package-b >= 1.0.0"},
+				},
+				{
+					Name:        "package-b",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/package-b-1.0.0-1.el9.x86_64.rpm",
+					Provides:    []string{"package-b"},
+					Requires:    []string{"package-a"},
+					RequiresVer: []string{"package-a >= 1.0.0"},
+				},
+			},
+			expectError: false, // Should handle circular deps gracefully
+		},
+		{
+			name:        "Self dependency",
+			description: "Package depends on itself",
+			req: []ospackage.PackageInfo{
+				{
+					Name:        "self-dep",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/self-dep-1.0.0-1.el9.x86_64.rpm",
+					Provides:    []string{"self-dep"},
+					Requires:    []string{"self-dep"},
+					RequiresVer: []string{"self-dep >= 1.0.0"},
+				},
+			},
+			all: []ospackage.PackageInfo{
+				{
+					Name:        "self-dep",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/self-dep-1.0.0-1.el9.x86_64.rpm",
+					Provides:    []string{"self-dep"},
+					Requires:    []string{"self-dep"},
+					RequiresVer: []string{"self-dep >= 1.0.0"},
+				},
+			},
+			expectError: false, // Should handle self-deps
+		},
+		{
+			name:        "Deep dependency chain",
+			description: "Package with many levels of dependencies",
+			req: []ospackage.PackageInfo{
+				{
+					Name:        "level-0",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/level-0-1.0.0-1.el9.x86_64.rpm",
+					Provides:    []string{"level-0"},
+					Requires:    []string{"level-1"},
+					RequiresVer: []string{"level-1 >= 1.0.0"},
+				},
+			},
+			all: []ospackage.PackageInfo{
+				{
+					Name:        "level-0",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/level-0-1.0.0-1.el9.x86_64.rpm",
+					Provides:    []string{"level-0"},
+					Requires:    []string{"level-1"},
+					RequiresVer: []string{"level-1 >= 1.0.0"},
+				},
+				{
+					Name:        "level-1",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/level-1-1.0.0-1.el9.x86_64.rpm",
+					Provides:    []string{"level-1"},
+					Requires:    []string{"level-2"},
+					RequiresVer: []string{"level-2 >= 1.0.0"},
+				},
+				{
+					Name:        "level-2",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/level-2-1.0.0-1.el9.x86_64.rpm",
+					Provides:    []string{"level-2"},
+					Requires:    []string{"level-3"},
+					RequiresVer: []string{"level-3 >= 1.0.0"},
+				},
+				{
+					Name:        "level-3",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/level-3-1.0.0-1.el9.x86_64.rpm",
+					Provides:    []string{"level-3"},
+					Requires:    []string{},
+					RequiresVer: []string{},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:        "Package not in all list",
+			description: "Requested package not available in repository",
+			req: []ospackage.PackageInfo{
+				{
+					Name:        "missing-package",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/missing-package-1.0.0-1.el9.x86_64.rpm",
+					Provides:    []string{"missing-package"},
+					Requires:    []string{},
+					RequiresVer: []string{},
+				},
+			},
+			all: []ospackage.PackageInfo{
+				{
+					Name:        "other-package",
+					Version:     "1.0.0",
+					Arch:        "x86_64",
+					URL:         "https://repo.example.com/rpm/other-package-1.0.0-1.el9.x86_64.rpm",
+					Provides:    []string{"other-package"},
+					Requires:    []string{},
+					RequiresVer: []string{},
+				},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := rpmutils.Resolve(tt.req, tt.all)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error for %s but got none", tt.description)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error for %s: %v", tt.description, err)
+				return
+			}
+
+			if result == nil {
+				t.Errorf("Expected non-nil result for %s", tt.description)
+			}
+
+			// Verify that requested packages are in the result
+			resultMap := make(map[string]bool)
+			for _, pkg := range result {
+				resultMap[pkg.Name] = true
+			}
+
+			for _, reqPkg := range tt.req {
+				if !resultMap[reqPkg.Name] {
+					t.Errorf("Requested package %s not found in result for %s", reqPkg.Name, tt.description)
+				}
+			}
+		})
+	}
+}
+
+// TestMatchRequestedPerformance tests performance with large package lists
+func TestMatchRequestedPerformance(t *testing.T) {
+	// Generate a large list of packages
+	var allPackages []ospackage.PackageInfo
+	for i := 0; i < 1000; i++ {
+		pkg := ospackage.PackageInfo{
+			Name:    fmt.Sprintf("package-%04d", i),
+			Version: "1.0.0",
+			Arch:    "x86_64",
+			URL:     fmt.Sprintf("https://repo.example.com/package-%04d-1.0.0-1.el9.x86_64.rpm", i),
+		}
+		allPackages = append(allPackages, pkg)
+	}
+
+	// Test with various request sizes
+	tests := []struct {
+		name         string
+		requestCount int
+	}{
+		{"Single package", 1},
+		{"Small batch", 10},
+		{"Medium batch", 100},
+		{"Large batch", 500},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var requests []string
+			for i := 0; i < tt.requestCount; i++ {
+				requests = append(requests, fmt.Sprintf("package-%04d", i))
+			}
+
+			result, err := rpmutils.MatchRequested(requests, allPackages)
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			if len(result) != tt.requestCount {
+				t.Errorf("Expected %d packages, got %d", tt.requestCount, len(result))
+			}
+		})
+	}
 }

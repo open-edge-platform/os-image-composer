@@ -2,7 +2,6 @@ package emt
 
 import (
 	"bufio"
-	"encoding/xml"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -73,7 +72,7 @@ func (p *Emt) Init(dist, arch string) error {
 		return err
 	}
 
-	href, err := fetchPrimaryURL(repomdURL)
+	href, err := rpmutils.FetchPrimaryURL(repomdURL)
 	if err != nil {
 		log.Errorf("Fetch primary.xml.zst failed: %v", err)
 		return err
@@ -229,6 +228,8 @@ func (p *Emt) downloadImagePkgs(template *config.ImageTemplate) error {
 	pkgCacheDir := filepath.Join(globalCache, "pkgCache", providerId)
 	rpmutils.RepoCfg = p.repoCfg
 	rpmutils.GzHref = p.zstHref
+	rpmutils.Dist = template.Target.Dist
+	rpmutils.UserRepo = template.GetPackageRepositories()
 	template.FullPkgList, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, "")
 	return err
 }
@@ -274,71 +275,4 @@ func loadRepoConfig(r io.Reader) (rpmutils.RepoConfig, error) {
 		return rc, err
 	}
 	return rc, nil
-}
-
-// fetchPrimaryURL downloads repomd.xml and returns the href of the primary metadata.
-func fetchPrimaryURL(repomdURL string) (string, error) {
-
-	client := network.NewSecureHTTPClient()
-	resp, err := client.Get(repomdURL)
-	if err != nil {
-		return "", fmt.Errorf("GET %s: %w", repomdURL, err)
-	}
-	defer resp.Body.Close()
-
-	dec := xml.NewDecoder(resp.Body)
-
-	// Walk the tokens looking for <data type="primary">
-	for {
-		tok, err := dec.Token()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return "", err
-		}
-		se, ok := tok.(xml.StartElement)
-		if !ok || se.Name.Local != "data" {
-			continue
-		}
-		// Check its type attribute
-		var isPrimary bool
-		for _, attr := range se.Attr {
-			if attr.Name.Local == "type" && attr.Value == "primary" {
-				isPrimary = true
-				break
-			}
-		}
-		if !isPrimary {
-			// Skip this <data> section
-			if err := dec.Skip(); err != nil {
-				return "", fmt.Errorf("error skipping token: %w", err)
-			}
-			continue
-		}
-
-		// Inside <data type="primary">, look for <location href="..."/>
-		for {
-			tok2, err := dec.Token()
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				return "", err
-			}
-			// If we hit the end of this <data> element, bail out
-			if ee, ok := tok2.(xml.EndElement); ok && ee.Name.Local == "data" {
-				break
-			}
-			if le, ok := tok2.(xml.StartElement); ok && le.Name.Local == "location" {
-				// Pull the href attribute
-				for _, attr := range le.Attr {
-					if attr.Name.Local == "href" {
-						return attr.Value, nil
-					}
-				}
-			}
-		}
-	}
-	return "", fmt.Errorf("primary location not found in %s", repomdURL)
 }

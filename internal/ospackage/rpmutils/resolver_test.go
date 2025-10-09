@@ -19,7 +19,7 @@ func TestRPMResolver(t *testing.T) {
 	resolvertest.RunResolverTestsFunc(
 		t,
 		"rpmutils",
-		ResolvePackageInfos, // directly passing your function
+		ResolveDependencies, // directly passing your function
 	)
 }
 
@@ -261,8 +261,8 @@ func TestParsePrimary(t *testing.T) {
 			}))
 			defer server.Close()
 
-			// Test ParsePrimary
-			packages, err := ParsePrimary(server.URL+"/", tt.filename)
+			// Test ParseRepositoryMetadata
+			packages, err := ParseRepositoryMetadata(server.URL+"/", tt.filename)
 
 			if tt.expectedError {
 				if err == nil {
@@ -340,4 +340,179 @@ func compressGzip(t *testing.T, content string) []byte {
 	}
 
 	return buf.Bytes()
+}
+
+// TestMatchRequestedAdvanced tests advanced scenarios for MatchRequested function
+func TestMatchRequestedAdvanced(t *testing.T) {
+	testPackages := []ospackage.PackageInfo{
+		{
+			Name:    "curl",
+			Version: "8.8.0-2.azl3",
+			Arch:    "x86_64",
+			URL:     "https://repo.example.com/curl-8.8.0-2.azl3.x86_64.rpm",
+		},
+		{
+			Name:    "curl-devel",
+			Version: "8.8.0-2.azl3",
+			Arch:    "x86_64",
+			URL:     "https://repo.example.com/curl-devel-8.8.0-2.azl3.x86_64.rpm",
+		},
+		{
+			Name:    "curl",
+			Version: "7.8.0-1.azl3",
+			Arch:    "x86_64",
+			URL:     "https://repo.example.com/curl-7.8.0-1.azl3.x86_64.rpm",
+		},
+		{
+			Name:    "libcurl",
+			Version: "8.8.0-2.azl3",
+			Arch:    "x86_64",
+			URL:     "https://repo.example.com/libcurl-8.8.0-2.azl3.x86_64.rpm",
+		},
+		{
+			Name:    "python3-curl",
+			Version: "1.0-1.azl3",
+			Arch:    "noarch",
+			URL:     "https://repo.example.com/python3-curl-1.0-1.azl3.noarch.rpm",
+		},
+		{
+			Name:    "package-with-src",
+			Version: "1.0-1",
+			Arch:    "src",
+			URL:     "https://repo.example.com/package-with-src-1.0-1.src.rpm",
+		},
+	}
+
+	tests := []struct {
+		name          string
+		requests      []string
+		expectError   bool
+		expectedCount int
+		expectedNames []string
+		expectedArch  string
+	}{
+		{
+			name:          "Multiple package requests",
+			requests:      []string{"curl", "libcurl"},
+			expectError:   false,
+			expectedCount: 2,
+			expectedNames: []string{"curl", "libcurl"},
+		},
+		{
+			name:          "Request with devel package",
+			requests:      []string{"curl-devel"},
+			expectError:   false,
+			expectedCount: 1,
+			expectedNames: []string{"curl-devel"},
+		},
+		{
+			name:          "Request latest version (should pick 8.8.0)",
+			requests:      []string{"curl"},
+			expectError:   false,
+			expectedCount: 1,
+			expectedNames: []string{"curl"},
+		},
+		{
+			name:          "Request nonexistent package",
+			requests:      []string{"nonexistent-package"},
+			expectError:   true,
+			expectedCount: 0,
+		},
+		{
+			name:          "Request package that exists only as src",
+			requests:      []string{"package-with-src"},
+			expectError:   false,
+			expectedCount: 1,
+			expectedNames: []string{"package-with-src"},
+			expectedArch:  "src", // Should still find src packages
+		},
+		{
+			name:          "Mixed existing and nonexistent",
+			requests:      []string{"curl", "nonexistent"},
+			expectError:   true,
+			expectedCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := MatchRequested(tt.requests, testPackages)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			if len(result) != tt.expectedCount {
+				t.Errorf("Expected %d packages, got %d", tt.expectedCount, len(result))
+				return
+			}
+
+			for i, expectedName := range tt.expectedNames {
+				if i < len(result) {
+					if !strings.Contains(result[i].Name, expectedName) {
+						t.Errorf("Expected package name to contain %q, got %q", expectedName, result[i].Name)
+					}
+				}
+			}
+
+			if tt.expectedArch != "" && len(result) > 0 {
+				if result[0].Arch != tt.expectedArch {
+					t.Errorf("Expected arch %q, got %q", tt.expectedArch, result[0].Arch)
+				}
+			}
+		})
+	}
+}
+
+// TestGetRepoMetaDataURL tests URL construction for repository metadata
+func TestGetRepoMetaDataURL(t *testing.T) {
+	tests := []struct {
+		name            string
+		baseURL         string
+		repoMetaXmlPath string
+		expected        string
+	}{
+		{
+			name:            "Standard repository URL",
+			baseURL:         "https://repo.example.com/rpm/",
+			repoMetaXmlPath: "repodata/repomd.xml",
+			expected:        "https://repo.example.com/rpm/repodata/repomd.xml",
+		},
+		{
+			name:            "Base URL without trailing slash",
+			baseURL:         "https://repo.example.com/rpm",
+			repoMetaXmlPath: "repodata/repomd.xml",
+			expected:        "https://repo.example.com/rpm/repodata/repomd.xml",
+		},
+		{
+			name:            "Empty base URL",
+			baseURL:         "",
+			repoMetaXmlPath: "repodata/repomd.xml",
+			expected:        "", // Function returns empty string for non-http URLs
+		},
+		{
+			name:            "Path with leading slash",
+			baseURL:         "https://repo.example.com/rpm/",
+			repoMetaXmlPath: "/repodata/repomd.xml",
+			expected:        "https://repo.example.com/rpm//repodata/repomd.xml", // Function creates double slash
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetRepoMetaDataURL(tt.baseURL, tt.repoMetaXmlPath)
+			if result != tt.expected {
+				t.Errorf("GetRepoMetaDataURL(%q, %q) = %q, want %q",
+					tt.baseURL, tt.repoMetaXmlPath, result, tt.expected)
+			}
+		})
+	}
 }

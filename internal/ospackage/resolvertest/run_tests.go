@@ -36,12 +36,12 @@ var TestCases = []struct {
 	{
 		Name: "SimpleChain",
 		All: []ospackage.PackageInfo{
-			{Name: "C", Provides: []string{"C"}, Requires: []string{}},
-			{Name: "B", Provides: []string{"B"}, Requires: []string{"C"}},
-			{Name: "A", Provides: []string{"A"}, Requires: []string{"B"}},
+			{Name: "C", Version: "1.0.0", URL: "https://repo.example.com/rpm/C-1.0.0-1.el9.x86_64.rpm", Provides: []string{"C"}, Requires: []string{}, RequiresVer: []string{}},
+			{Name: "B", Version: "2.1.0", URL: "https://repo.example.com/rpm/B-2.1.0-1.el9.x86_64.rpm", Provides: []string{"B"}, Requires: []string{"C"}, RequiresVer: []string{"C >= 1.0.0"}},
+			{Name: "A", Version: "3.2.1", URL: "https://repo.example.com/rpm/A-3.2.1-1.el9.x86_64.rpm", Provides: []string{"A"}, Requires: []string{"B"}, RequiresVer: []string{"B >= 2.0.0"}},
 		},
 		Requested: []ospackage.PackageInfo{
-			{Name: "A", Provides: []string{"A"}, Requires: []string{"B"}},
+			{Name: "A", Version: "3.2.1", URL: "https://repo.example.com/rpm/A-3.2.1-1.el9.x86_64.rpm", Provides: []string{"A"}, Requires: []string{"B"}, RequiresVer: []string{"B >= 2.0.0"}},
 		},
 		Want:    []string{"A", "B", "C"},
 		WantErr: false,
@@ -49,13 +49,13 @@ var TestCases = []struct {
 	{
 		Name: "MultipleProviders",
 		All: []ospackage.PackageInfo{
-			{Name: "Y", Provides: []string{"Y"}, Requires: []string{}},
-			{Name: "P1", Provides: []string{"X"}, Requires: []string{}},
-			{Name: "P2", Provides: []string{"X"}, Requires: []string{"Y"}},
-			{Name: "A", Provides: []string{"A"}, Requires: []string{"X"}},
+			{Name: "Y", Version: "1.5.0", URL: "https://repo.example.com/rpm/Y-1.5.0-1.el9.x86_64.rpm", Provides: []string{"Y"}, Requires: []string{}, RequiresVer: []string{}},
+			{Name: "P1", Version: "1.0.0", URL: "https://repo.example.com/rpm/P1-1.0.0-1.el9.x86_64.rpm", Provides: []string{"X"}, Requires: []string{}, RequiresVer: []string{}},
+			{Name: "P2", Version: "2.0.0", URL: "https://repo.example.com/rpm/P2-2.0.0-1.el9.x86_64.rpm", Provides: []string{"X"}, Requires: []string{"Y"}, RequiresVer: []string{"Y >= 1.0.0"}},
+			{Name: "A", Version: "1.2.3", URL: "https://repo.example.com/rpm/A-1.2.3-1.el9.x86_64.rpm", Provides: []string{"A"}, Requires: []string{"X"}, RequiresVer: []string{"X >= 1.0.0"}},
 		},
 		Requested: []ospackage.PackageInfo{
-			{Name: "A", Provides: []string{"A"}, Requires: []string{"X"}},
+			{Name: "A", Version: "1.2.3", URL: "https://repo.example.com/rpm/A-1.2.3-1.el9.x86_64.rpm", Provides: []string{"A"}, Requires: []string{"X"}, RequiresVer: []string{"X >= 1.0.0"}},
 		},
 		Want:    []string{"A", "P2", "Y"},
 		WantErr: false,
@@ -63,10 +63,10 @@ var TestCases = []struct {
 	{
 		Name: "NoDependencies",
 		All: []ospackage.PackageInfo{
-			{Name: "X", Provides: []string{"X"}, Requires: []string{}},
+			{Name: "X", Version: "1.0.0", URL: "https://repo.example.com/rpm/X-1.0.0-1.el9.x86_64.rpm", Provides: []string{"X"}, Requires: []string{}, RequiresVer: []string{}},
 		},
 		Requested: []ospackage.PackageInfo{
-			{Name: "X", Provides: []string{"A"}, Requires: []string{"X"}},
+			{Name: "X", Version: "1.0.0", URL: "https://repo.example.com/rpm/X-1.0.0-1.el9.x86_64.rpm", Provides: []string{"A"}, Requires: []string{"X"}, RequiresVer: []string{"X >= 1.0.0"}},
 		},
 		Want:    []string{"X"},
 		WantErr: false,
@@ -74,10 +74,10 @@ var TestCases = []struct {
 	{
 		Name: "MissingRequested",
 		All: []ospackage.PackageInfo{
-			{Name: "A", Provides: []string{"A"}, Requires: []string{}},
+			{Name: "A", Version: "1.0.0", URL: "https://repo.example.com/rpm/A-1.0.0-1.el9.x86_64.rpm", Provides: []string{"A"}, Requires: []string{}, RequiresVer: []string{}},
 		},
 		Requested: []ospackage.PackageInfo{
-			{Name: "B", Provides: []string{"B"}, Requires: []string{""}},
+			{Name: "B", Version: "1.0.0", URL: "https://repo.example.com/rpm/B-1.0.0-1.el9.x86_64.rpm", Provides: []string{"B"}, Requires: []string{""}, RequiresVer: []string{""}},
 		},
 		Want:    []string{},
 		WantErr: true,

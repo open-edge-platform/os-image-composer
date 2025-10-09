@@ -1,13 +1,16 @@
 package rpmutils
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
+
+	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
 
 	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/config/manifest"
@@ -30,15 +33,17 @@ type RepoConfig struct {
 }
 
 var (
-	RepoCfg RepoConfig
-	GzHref  string
+	RepoCfg  RepoConfig
+	GzHref   string
+	UserRepo []config.PackageRepository
+	Dist     string
 )
 
 func Packages() ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", RepoCfg.URL)
 
-	packages, err := ParsePrimary(RepoCfg.URL, GzHref)
+	packages, err := ParseRepositoryMetadata(RepoCfg.URL, GzHref)
 	if err != nil {
 		log.Errorf("parsing primary.xml.gz failed: %v", err)
 		return nil, err
@@ -48,110 +53,275 @@ func Packages() ([]ospackage.PackageInfo, error) {
 	return packages, nil
 }
 
-func MatchRequested(requests []string, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
-	var out []ospackage.PackageInfo
+func UserPackages() ([]ospackage.PackageInfo, error) {
+	log := logger.Logger()
+	log.Infof("fetching packages from %s", "user package list")
 
-	for _, want := range requests {
-		var candidates []ospackage.PackageInfo
-		for _, pi := range all {
-			if pi.Arch == "src" {
-				continue
-			}
-			// 1) exact name match
-			if pi.Name == want || pi.Name == want+".rpm" {
-				candidates = append(candidates, pi)
-				break
-			}
-			// 2) prefix by want-version ("acl-")
-			// Only match if the part after "want-" is a version (starts with a digit)
-			// prevent getting acl-dev when asking for acl-9.2
-			if strings.HasPrefix(pi.Name, want+"-") {
-				rest := strings.TrimPrefix(pi.Name, want+"-")
-				if isValidVersionFormat(rest) {
-					candidates = append(candidates, pi)
-					continue
-				}
-			}
-			// 3) prefix by want.release ("acl-2.3.1-2.")
-			if strings.HasPrefix(pi.Name, want+".") {
-				candidates = append(candidates, pi)
-			}
+	repoList := make([]struct {
+		id       string
+		codename string
+		url      string
+		pkey     string
+	}, len(UserRepo))
+	for i, repo := range UserRepo {
+		repoList[i] = struct {
+			id       string
+			codename string
+			url      string
+			pkey     string
+		}{
+			id:       fmt.Sprintf("rpmcustrepo%d", i+1),
+			codename: repo.Codename,
+			url:      repo.URL,
+			pkey:     repo.PKey,
+		}
+	}
+
+	var userRepo []RepoConfig
+	for _, repoItem := range repoList {
+		id := repoItem.id
+		codename := repoItem.codename
+		baseURL := repoItem.url
+		pkey := repoItem.pkey
+
+		repo := RepoConfig{
+			Name:         id,
+			GPGCheck:     true,
+			RepoGPGCheck: true,
+			Enabled:      true,
+			GPGKey:       pkey,
+			URL:          baseURL,
+			Section:      fmt.Sprintf("[%s]", codename),
 		}
 
-		if len(candidates) == 0 {
-			return nil, fmt.Errorf("requested package %q not found in repo", want)
-		}
-		// If we got an exact match in step (1), it's the only candidate
-		if len(candidates) == 1 && (candidates[0].Name == want || candidates[0].Name == want+".rpm") {
-			out = append(out, candidates[0])
+		userRepo = append(userRepo, repo)
+	}
+
+	metadataXmlPath := "repodata/repomd.xml"
+	var allUserPackages []ospackage.PackageInfo
+	for _, rpItx := range userRepo {
+
+		repoMetaDataURL := GetRepoMetaDataURL(rpItx.URL, metadataXmlPath)
+		if repoMetaDataURL == "" {
+			log.Errorf("invalid repo metadata URL: %s/%s, skipping", rpItx.URL, metadataXmlPath)
 			continue
 		}
-		// Otherwise pick the "highest" by lex sort
-		sort.Slice(candidates, func(i, j int) bool {
-			return candidates[i].Name > candidates[j].Name
-		})
-		out = append(out, candidates[0])
+
+		primaryXmlURL, err := FetchPrimaryURL(repoMetaDataURL)
+		if err != nil {
+			return nil, fmt.Errorf("fetching %s URL failed: %w", repoMetaDataURL, err)
+		}
+
+		userPkgs, err := ParseRepositoryMetadata(rpItx.URL, primaryXmlURL)
+		if err != nil {
+			return nil, fmt.Errorf("parsing user repo failed: %w", err)
+		}
+		allUserPackages = append(allUserPackages, userPkgs...)
 	}
 
-	return out, nil
+	return allUserPackages, nil
 }
 
-func isAcceptedChar(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if (s[i] < '0' || s[i] > '9') && s[i] != '-' {
-			return false
+// isBinaryGPGKey checks if the data appears to be a binary GPG key
+func isBinaryGPGKey(data []byte) bool {
+	// Check for ASCII armored format first
+	if bytes.HasPrefix(data, []byte("-----BEGIN PGP PUBLIC KEY BLOCK-----")) {
+		return false // This is ASCII armored, not binary
+	}
+
+	// Try to parse as OpenPGP packet to determine if it's binary
+	reader := bytes.NewReader(data)
+	_, err := openpgp.ReadKeyRing(reader)
+	if err == nil {
+		return true // Successfully parsed as binary OpenPGP
+	}
+
+	// Additional heuristic: if it contains mostly non-printable characters
+	if len(data) < 4 {
+		return false
+	}
+
+	printableCount := 0
+	checkLength := len(data)
+	if checkLength > 100 {
+		checkLength = 100
+	}
+
+	for i := 0; i < checkLength; i++ {
+		if data[i] >= 32 && data[i] <= 126 {
+			printableCount++
 		}
 	}
-	return len(s) > 0
+
+	// If less than 70% printable characters, likely binary
+	return float64(printableCount)/float64(checkLength) < 0.7
 }
 
-func isValidVersionFormat(s string) bool {
-	// Check if the string is all digits up to the next '.'
-	dotIdx := strings.IndexByte(s, '.')
-	var prefix string
-	if dotIdx == -1 {
-		prefix = s
-	} else {
-		prefix = s[:dotIdx]
+// convertBinaryGPGToAscii converts binary GPG key to ASCII armored format using Go crypto
+func convertBinaryGPGToAscii(binaryData []byte) ([]byte, error) {
+	// Try to parse the binary data as an OpenPGP key ring
+	reader := bytes.NewReader(binaryData)
+	keyRing, err := openpgp.ReadKeyRing(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse binary GPG key: %w", err)
 	}
-	if len(prefix) > 0 && isAcceptedChar(prefix) {
-		return true
+
+	var armoredBuf bytes.Buffer
+
+	// Create ASCII armor encoder
+	armorWriter, err := armor.Encode(&armoredBuf, openpgp.PublicKeyType, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create armor encoder: %w", err)
 	}
-	// If we reach here, the format is not valid
-	return false
+
+	// Serialize each entity in the keyring
+	for _, entity := range keyRing {
+		if err := entity.Serialize(armorWriter); err != nil {
+			armorWriter.Close()
+			return nil, fmt.Errorf("failed to serialize key entity: %w", err)
+		}
+	}
+
+	if err := armorWriter.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close armor encoder: %w", err)
+	}
+
+	return armoredBuf.Bytes(), nil
+} // createTempGPGKeyFiles downloads multiple GPG keys from URLs and creates temporary files.
+// Returns the file paths and a cleanup function. The caller is responsible for calling cleanup.
+func createTempGPGKeyFiles(gpgKeyURLs []string) (keyPaths []string, cleanup func(), err error) {
+	log := logger.Logger()
+
+	if len(gpgKeyURLs) == 0 {
+		return nil, nil, fmt.Errorf("no GPG key URLs provided")
+	}
+
+	var tempFiles []*os.File
+	var filePaths []string
+
+	client := network.NewSecureHTTPClient()
+
+	// Download and create temp files for each GPG key
+	for i, gpgKeyURL := range gpgKeyURLs {
+
+		if gpgKeyURL == "<PUBLIC_KEY_URL>" || gpgKeyURL == "" {
+			log.Warnf("GPG key URL %d is empty, skipping", i+1)
+			continue
+		}
+
+		// Check if the GPG key URL is a binary file (ends with .gpg or .bin)
+		isBinary := strings.HasSuffix(strings.ToLower(gpgKeyURL), ".gpg") || strings.HasSuffix(strings.ToLower(gpgKeyURL), ".bin")
+
+		resp, err := client.Get(gpgKeyURL)
+		if err != nil {
+			// Cleanup any files created so far
+			for _, f := range tempFiles {
+				f.Close()
+				os.Remove(f.Name())
+			}
+			return nil, nil, fmt.Errorf("fetch GPG key %s: %w", gpgKeyURL, err)
+		}
+
+		keyBytes, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			// Cleanup any files created so far
+			for _, f := range tempFiles {
+				f.Close()
+				os.Remove(f.Name())
+			}
+			return nil, nil, fmt.Errorf("read GPG key body from %s: %w", gpgKeyURL, err)
+		}
+
+		// If it's a binary GPG key, we need to handle it differently
+		if isBinary {
+			log.Infof("GPG key %s is binary format, checking if conversion is needed", gpgKeyURL)
+
+			// Check if the downloaded data is actually binary
+			if isBinaryGPGKey(keyBytes) {
+				log.Infof("Converting binary GPG key to ASCII armored format")
+				convertedBytes, err := convertBinaryGPGToAscii(keyBytes)
+				if err != nil {
+					log.Warnf("Failed to convert binary GPG key to ASCII: %v, using original data", err)
+				} else {
+					keyBytes = convertedBytes
+					log.Infof("Successfully converted binary GPG key to ASCII armored format")
+				}
+			} else {
+				log.Infof("GPG key data appears to be ASCII armored already")
+			}
+		}
+
+		log.Infof("fetched GPG key %d (%d bytes) from %s", i+1, len(keyBytes), gpgKeyURL)
+
+		// Create temp file with unique pattern
+		tmp, err := os.CreateTemp("", fmt.Sprintf("azurelinux-gpg-%d-*.asc", i))
+		if err != nil {
+			// Cleanup any files created so far
+			for _, f := range tempFiles {
+				f.Close()
+				os.Remove(f.Name())
+			}
+			return nil, nil, fmt.Errorf("create temp key file %d: %w", i, err)
+		}
+
+		if _, err := tmp.Write(keyBytes); err != nil {
+			tmp.Close()
+			os.Remove(tmp.Name())
+			// Cleanup any files created so far
+			for _, f := range tempFiles {
+				f.Close()
+				os.Remove(f.Name())
+			}
+			return nil, nil, fmt.Errorf("write key to temp file %d: %w", i, err)
+		}
+
+		tempFiles = append(tempFiles, tmp)
+		filePaths = append(filePaths, tmp.Name())
+	}
+
+	cleanup = func() {
+		for _, f := range tempFiles {
+			f.Close()
+			os.Remove(f.Name())
+		}
+	}
+
+	return filePaths, cleanup, nil
 }
 
 func Validate(destDir string) error {
 	log := logger.Logger()
 
-	client := network.NewSecureHTTPClient()
-	// read the GPG key from the repo config
-	resp, err := client.Get(RepoCfg.GPGKey)
-	if err != nil {
-		return fmt.Errorf("fetch GPG key %s: %w", RepoCfg.GPGKey, err)
-	}
-	defer resp.Body.Close()
+	// Collect all GPG key URLs (could be from RepoCfg and UserRepo)
+	var gpgKeyURLs []string
 
-	keyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("read GPG key body: %w", err)
+	// Add main repo GPG key
+	if RepoCfg.GPGKey != "" {
+		gpgKeyURLs = append(gpgKeyURLs, RepoCfg.GPGKey)
 	}
-	log.Infof("fetched GPG key (%d bytes)", len(keyBytes))
-	log.Debugf("GPG key: %s\n", keyBytes)
 
-	// store in a temp file
-	tmp, err := os.CreateTemp("", "azurelinux-gpg-*.asc")
-	if err != nil {
-		return fmt.Errorf("create temp key file: %w", err)
+	// Add user repo GPG keys
+	for _, userRepo := range UserRepo {
+		if userRepo.PKey != "" {
+			gpgKeyURLs = append(gpgKeyURLs, userRepo.PKey)
+		} else {
+			return fmt.Errorf("no GPG key URL configured for user repo: %s", userRepo.URL)
+		}
 	}
-	defer func() {
-		tmp.Close()
-		os.Remove(tmp.Name())
-	}()
 
-	if _, err := tmp.Write(keyBytes); err != nil {
-		return fmt.Errorf("write key to temp file: %w", err)
+	if len(gpgKeyURLs) == 0 {
+		return fmt.Errorf("no GPG keys configured for verification")
 	}
+
+	// Create temporary GPG key files
+	gpgKeyPaths, cleanup, err := createTempGPGKeyFiles(gpgKeyURLs)
+	if err != nil {
+		return fmt.Errorf("failed to create temp GPG key files: %w", err)
+	}
+	defer cleanup()
+
+	log.Infof("created %d temporary GPG key files for verification", len(gpgKeyPaths))
 
 	// get all RPMs in the destDir
 	rpmPattern := filepath.Join(destDir, "*.rpm")
@@ -165,7 +335,7 @@ func Validate(destDir string) error {
 	}
 
 	start := time.Now()
-	results := VerifyAll(rpmPaths, tmp.Name(), 4)
+	results := VerifyAll(rpmPaths, gpgKeyPaths, 4)
 	log.Infof("RPM verification took %s", time.Since(start))
 
 	// Check results
@@ -185,7 +355,7 @@ func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospack
 	log.Infof("resolving dependencies for %d RPMs", len(req))
 
 	// Resolve all the required dependencies for the initial seed of RPMs
-	needed, err := ResolvePackageInfos(req, all)
+	needed, err := ResolveDependencies(req, all)
 	if err != nil {
 		log.Errorf("resolving dependencies failed: %v", err)
 		return nil, err
@@ -206,8 +376,17 @@ func DownloadPackages(pkgList []string, destDir, dotFile string) ([]string, erro
 	// Fetch the entire package list
 	all, err := Packages()
 	if err != nil {
-		return downloadPkgList, fmt.Errorf("getting packages: %v", err)
+		log.Errorf("base packages fetch failed: %v", err)
+		return downloadPkgList, fmt.Errorf("base package fetch failed: %v", err)
 	}
+
+	// Fetch the entire user repos package list
+	userpkg, err := UserPackages()
+	if err != nil {
+		log.Errorf("getting user packages failed: %v", err)
+		return downloadPkgList, fmt.Errorf("user package fetch failed: %w", err)
+	}
+	all = append(all, userpkg...)
 
 	// Match the packages in the template against all the packages
 	req, err := MatchRequested(pkgList, all)

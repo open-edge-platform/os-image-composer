@@ -23,7 +23,7 @@ type Result struct {
 
 // VerifyAll takes a slice of RPM file paths, verifies each one in parallel,
 // and returns a slice of results in the same order.
-func VerifyAll(paths []string, pubkeyPath string, workers int) []Result {
+func VerifyAll(paths []string, pubkeyPaths []string, workers int) []Result {
 	log := logger.Logger()
 
 	total := len(paths)
@@ -60,16 +60,31 @@ func VerifyAll(paths []string, pubkeyPath string, workers int) []Result {
 				bar.Describe("verifying " + name)
 
 				start := time.Now()
-				err := verifyWithGoRpm(rpmPath, pubkeyPath)
-				ok := err == nil
 
-				if err != nil {
-					log.Errorf("verification %s failed: %v", rpmPath, err)
+				// Try verification with each public key until one succeeds
+				var err error
+				var allErrors []error
+				verified := false
+
+				for _, pubkeyPath := range pubkeyPaths {
+					err = verifyWithGoRpm(rpmPath, pubkeyPath)
+					if err == nil {
+						// Verification succeeded with this key
+						verified = true
+						break
+					}
+					allErrors = append(allErrors, fmt.Errorf("key %s: %w", filepath.Base(pubkeyPath), err))
+				}
+
+				// Set final error if all keys failed
+				if !verified {
+					err = fmt.Errorf("verification failed with all %d keys: %v", len(pubkeyPaths), allErrors)
+					log.Errorf("verification %s failed with all keys: %v", rpmPath, err)
 				}
 
 				results[idx] = Result{
 					Path:     rpmPath,
-					OK:       ok,
+					OK:       verified,
 					Duration: time.Since(start),
 					Error:    err,
 				}
@@ -97,7 +112,6 @@ func VerifyAll(paths []string, pubkeyPath string, workers int) []Result {
 
 // verifyWithGoRpm uses go-rpm to GPG-check + MD5-check a single file.
 func verifyWithGoRpm(rpmPath, pubkeyPath string) error {
-
 	// load the keyring
 	keyringFile, err := os.Open(pubkeyPath)
 	if err != nil {

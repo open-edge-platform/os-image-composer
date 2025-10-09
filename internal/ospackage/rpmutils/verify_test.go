@@ -126,7 +126,7 @@ func TestVerifyAll(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			results := VerifyAll(tt.paths, tt.pubkeyPath, tt.workers)
+			results := VerifyAll(tt.paths, []string{tt.pubkeyPath}, tt.workers)
 
 			if len(results) != tt.wantLen {
 				t.Errorf("VerifyAll() returned %d results, want %d", len(results), tt.wantLen)
@@ -168,7 +168,7 @@ func TestVerifyAllWithNonExistentFiles(t *testing.T) {
 	}
 
 	nonExistentFile := filepath.Join(tmpDir, "nonexistent.rpm")
-	results := VerifyAll([]string{nonExistentFile}, invalidPubkeyFile, 1)
+	results := VerifyAll([]string{nonExistentFile}, []string{invalidPubkeyFile}, 1)
 
 	if len(results) != 1 {
 		t.Fatalf("Expected 1 result, got %d", len(results))
@@ -204,7 +204,7 @@ func TestVerifyAllWithInvalidPubkey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := VerifyAll([]string{rpmFile}, invalidPubkeyFile, 1)
+	results := VerifyAll([]string{rpmFile}, []string{invalidPubkeyFile}, 1)
 
 	if len(results) != 1 {
 		t.Fatalf("Expected 1 result, got %d", len(results))
@@ -337,7 +337,7 @@ func TestVerifyAllConcurrency(t *testing.T) {
 	for _, workers := range workerCounts {
 		t.Run(fmt.Sprintf("workers_%d", workers), func(t *testing.T) {
 			start := time.Now()
-			results := VerifyAll(paths, invalidPubkeyFile, workers)
+			results := VerifyAll(paths, []string{invalidPubkeyFile}, workers)
 			duration := time.Since(start)
 
 			if len(results) != numFiles {
@@ -394,7 +394,7 @@ func TestVerifyAllResultsOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := VerifyAll(paths, invalidPubkeyFile, 2)
+	results := VerifyAll(paths, []string{invalidPubkeyFile}, 2)
 
 	if len(results) != len(paths) {
 		t.Fatalf("Expected %d results, got %d", len(paths), len(results))
@@ -405,5 +405,369 @@ func TestVerifyAllResultsOrder(t *testing.T) {
 		if result.Path != paths[i] {
 			t.Errorf("Result[%d].Path = %s, want %s", i, result.Path, paths[i])
 		}
+	}
+}
+
+// TestVerifyResultStructure tests the Result struct functionality
+func TestVerifyResultStructure(t *testing.T) {
+	tests := []struct {
+		name        string
+		result      Result
+		expectValid bool
+		description string
+	}{
+		{
+			name: "Valid successful result",
+			result: Result{
+				Path:     "/path/to/package.rpm",
+				OK:       true,
+				Duration: time.Second,
+				Error:    nil,
+			},
+			expectValid: true,
+			description: "Standard successful verification",
+		},
+		{
+			name: "Valid failed result",
+			result: Result{
+				Path:     "/path/to/package.rpm",
+				OK:       false,
+				Duration: time.Second,
+				Error:    fmt.Errorf("signature verification failed"),
+			},
+			expectValid: true,
+			description: "Standard failed verification",
+		},
+		{
+			name: "Empty path",
+			result: Result{
+				Path:     "",
+				OK:       true,
+				Duration: time.Second,
+				Error:    nil,
+			},
+			expectValid: false,
+			description: "Result with empty path",
+		},
+		{
+			name: "Negative duration",
+			result: Result{
+				Path:     "/path/to/package.rpm",
+				OK:       true,
+				Duration: -time.Second,
+				Error:    nil,
+			},
+			expectValid: false,
+			description: "Result with negative duration",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test that we can access all fields
+			if tt.result.Path == "" && tt.expectValid {
+				t.Errorf("Expected valid result but path is empty for %s", tt.description)
+			}
+
+			if tt.result.Duration < 0 && tt.expectValid {
+				t.Errorf("Expected valid result but duration is negative for %s", tt.description)
+			}
+
+			// Test error handling
+			if tt.result.Error != nil && tt.result.OK {
+				t.Errorf("Result marked as OK but has error: %v", tt.result.Error)
+			}
+		})
+	}
+}
+
+// TestVerifyAllWithMixedFiles tests verification with a mix of file types
+func TestVerifyAllWithMixedFiles(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "verify_mixed_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create various test files
+	rpmFile := filepath.Join(tmpDir, "test.rpm")
+	txtFile := filepath.Join(tmpDir, "readme.txt")
+	noExtFile := filepath.Join(tmpDir, "noextension")
+	subDir := filepath.Join(tmpDir, "subdir")
+	subRpm := filepath.Join(subDir, "nested.rpm")
+
+	// Create the files
+	if err := os.WriteFile(rpmFile, []byte("fake rpm content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(txtFile, []byte("some text content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(noExtFile, []byte("no extension content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(subDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(subRpm, []byte("nested rpm content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create invalid pubkey
+	invalidPubkeyFile := filepath.Join(tmpDir, "invalid_pubkey.gpg")
+	if err := os.WriteFile(invalidPubkeyFile, []byte("invalid key content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name          string
+		paths         []string
+		expectResults int
+		description   string
+	}{
+		{
+			name:          "Single RPM file",
+			paths:         []string{rpmFile},
+			expectResults: 1,
+			description:   "Verify single RPM file",
+		},
+		{
+			name:          "Multiple files including non-RPM",
+			paths:         []string{rpmFile, txtFile, noExtFile},
+			expectResults: 3, // VerifyAll processes all given paths
+			description:   "Mix of RPM and non-RPM files",
+		},
+		{
+			name:          "Non-existent file",
+			paths:         []string{filepath.Join(tmpDir, "nonexistent.rpm")},
+			expectResults: 1, // Should still return result with error
+			description:   "Non-existent RPM file",
+		},
+		{
+			name:          "Empty paths list",
+			paths:         []string{},
+			expectResults: 0,
+			description:   "Empty file list",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results := VerifyAll(tt.paths, []string{invalidPubkeyFile}, 2)
+
+			if len(results) != tt.expectResults {
+				t.Errorf("Expected %d results for %s, got %d",
+					tt.expectResults, tt.description, len(results))
+			}
+
+			// Verify all results have required fields
+			for i, result := range results {
+				if result.Path == "" {
+					t.Errorf("Result %d has empty path for %s", i, tt.description)
+				}
+				if result.Duration < 0 {
+					t.Errorf("Result %d has negative duration for %s", i, tt.description)
+				}
+			}
+		})
+	}
+}
+
+// TestVerifyAllConcurrencyDetailed tests concurrent verification with detailed checks
+func TestVerifyAllConcurrencyDetailed(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "verify_concurrency_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create multiple RPM files
+	numFiles := 10
+	var rpmFiles []string
+	for i := 0; i < numFiles; i++ {
+		rpmFile := filepath.Join(tmpDir, fmt.Sprintf("test%d.rpm", i))
+		content := fmt.Sprintf("fake rpm content %d", i)
+		if err := os.WriteFile(rpmFile, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		rpmFiles = append(rpmFiles, rpmFile)
+	}
+
+	// Create invalid pubkey
+	invalidPubkeyFile := filepath.Join(tmpDir, "invalid_pubkey.gpg")
+	if err := os.WriteFile(invalidPubkeyFile, []byte("invalid key content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Run verification multiple times to test consistency
+	for attempt := 0; attempt < 3; attempt++ {
+		t.Run(fmt.Sprintf("Attempt_%d", attempt+1), func(t *testing.T) {
+			results := VerifyAll(rpmFiles, []string{invalidPubkeyFile}, 4)
+
+			if len(results) != numFiles {
+				t.Errorf("Expected %d results, got %d", numFiles, len(results))
+			}
+
+			// Check that all files are represented in results
+			resultPaths := make(map[string]bool)
+			for _, result := range results {
+				resultPaths[result.Path] = true
+
+				// Verify result structure
+				if result.Path == "" {
+					t.Error("Found result with empty path")
+				}
+				if result.Duration < 0 {
+					t.Error("Found result with negative duration")
+				}
+				if result.OK {
+					t.Error("Expected all verifications to fail with invalid pubkey")
+				}
+				if result.Error == nil {
+					t.Error("Expected error due to invalid pubkey but got none")
+				}
+			}
+
+			// Ensure all input files are in results
+			for _, rpmFile := range rpmFiles {
+				if !resultPaths[rpmFile] {
+					t.Errorf("File %s not found in results", rpmFile)
+				}
+			}
+		})
+	}
+}
+
+// TestVerifyWithGoRpmEdgeCases tests edge cases in verifyWithGoRpm
+func TestVerifyWithGoRpmEdgeCases(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "verify_gorpm_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	tests := []struct {
+		name        string
+		setupTest   func() (string, string)
+		expectError bool
+		description string
+	}{
+		{
+			name: "Empty RPM file",
+			setupTest: func() (string, string) {
+				rpmFile := filepath.Join(tmpDir, "empty.rpm")
+				pubkeyFile := filepath.Join(tmpDir, "pubkey.gpg")
+
+				_ = os.WriteFile(rpmFile, []byte(""), 0644)
+				_ = os.WriteFile(pubkeyFile, []byte("fake pubkey"), 0644)
+
+				return rpmFile, pubkeyFile
+			},
+			expectError: true,
+			description: "Empty RPM file",
+		},
+		{
+			name: "Binary data as RPM",
+			setupTest: func() (string, string) {
+				rpmFile := filepath.Join(tmpDir, "binary.rpm")
+				pubkeyFile := filepath.Join(tmpDir, "pubkey.gpg")
+
+				// Write some binary data
+				binaryData := make([]byte, 1024)
+				for i := range binaryData {
+					binaryData[i] = byte(i % 256)
+				}
+				_ = os.WriteFile(rpmFile, binaryData, 0644)
+				_ = os.WriteFile(pubkeyFile, []byte("fake pubkey"), 0644)
+
+				return rpmFile, pubkeyFile
+			},
+			expectError: true,
+			description: "Binary data as RPM",
+		},
+		{
+			name: "File with special characters in name",
+			setupTest: func() (string, string) {
+				rpmFile := filepath.Join(tmpDir, "special-chars@#$.rpm")
+				pubkeyFile := filepath.Join(tmpDir, "pubkey.gpg")
+
+				_ = os.WriteFile(rpmFile, []byte("fake rpm"), 0644)
+				_ = os.WriteFile(pubkeyFile, []byte("fake pubkey"), 0644)
+
+				return rpmFile, pubkeyFile
+			},
+			expectError: true,
+			description: "File with special characters",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rpmFile, pubkeyFile := tt.setupTest()
+
+			err := verifyWithGoRpm(rpmFile, pubkeyFile)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error for %s but got none", tt.description)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error for %s: %v", tt.description, err)
+				}
+			}
+		})
+	}
+}
+
+// TestVerifyAllWorkerCount tests verification with different worker counts
+func TestVerifyAllWorkerCount(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "verify_workers_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create test files
+	numFiles := 5
+	var rpmFiles []string
+	for i := 0; i < numFiles; i++ {
+		rpmFile := filepath.Join(tmpDir, fmt.Sprintf("test%d.rpm", i))
+		if err := os.WriteFile(rpmFile, []byte("fake rpm content"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		rpmFiles = append(rpmFiles, rpmFile)
+	}
+
+	// Create invalid pubkey
+	invalidPubkeyFile := filepath.Join(tmpDir, "invalid_pubkey.gpg")
+	if err := os.WriteFile(invalidPubkeyFile, []byte("invalid key content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	workerCounts := []int{1, 2, 4, 8}
+	for _, workers := range workerCounts {
+		t.Run(fmt.Sprintf("Workers_%d", workers), func(t *testing.T) {
+			results := VerifyAll(rpmFiles, []string{invalidPubkeyFile}, workers)
+
+			if len(results) != numFiles {
+				t.Errorf("Expected %d results with %d workers, got %d",
+					numFiles, workers, len(results))
+			}
+
+			// Check that all results have the expected structure
+			for i, result := range results {
+				if result.Path != rpmFiles[i] {
+					t.Errorf("Result %d path mismatch: expected %s, got %s",
+						i, rpmFiles[i], result.Path)
+				}
+				if result.OK {
+					t.Errorf("Expected verification to fail for result %d", i)
+				}
+				if result.Error == nil {
+					t.Errorf("Expected error for result %d", i)
+				}
+			}
+		})
 	}
 }
