@@ -1,0 +1,54 @@
+name: Boot Tester
+on:
+  schedule:
+    # Run twice a week: Tuesdays at 02:00 UTC and Fridays at 02:00 UTC
+    - cron: '0 2 * * 2'  # Tuesday at 2 AM UTC
+    - cron: '0 2 * * 5'  # Friday at 2 AM UTC
+  workflow_dispatch: {}
+    # Allow manual triggering of the workflow
+permissions:
+  contents: read
+jobs:
+  boot-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install Earthly
+        uses: earthly/actions-setup@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: "latest" # or pin to a specific version like "v0.8.0"
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 ovmf tree jq systemd-ukify mmdebstrap systemd-boot
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable  # or a pinned version you know exists
+
+      - name: Copy tester script
+        run: |
+          if [ ! -f validate.sh ]; then
+            echo "validate.sh not found!"
+            exit 1
+          fi
+          chmod +x validate.sh
+
+      - name: Run build-tester
+        run: |
+          echo "Starting validate.sh..."
+          # Ensure script has access to docker group for Earthly
+          sudo usermod -aG docker $USER
+          # Run the validation script
+          ./validate.sh --qemu-test
+          echo "Build and tests completed."
