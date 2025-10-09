@@ -2,27 +2,32 @@
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [CLI Flow](#cli-flow)
-- [Usage](#usage)
-- [Global Options](#global-options)
-- [Commands](#commands)
-  - [Build Command](#build-command)
-  - [Validate Command](#validate-command)
-  - [Cache Command](#cache-command)
-  - [Template Command](#template-command)
-- [Examples](#examples)
-  - [Building an Image](#building-an-image)
-  - [Managing Cache](#managing-cache)
-  - [Working with Templates](#working-with-templates)
-- [Configuration Files](#configuration-files)
-  - [Global Configuration File](#global-configuration-file)
-  - [Image Template File](#image-template-file)
-- [Exit Codes](#exit-codes)
-- [Troubleshooting](#troubleshooting)
-  - [Common Issues](#common-issues)
-  - [Logging](#logging)
-- [Related Documentation](#related-documentation)
+- [OS Image Composer CLI Specification](#os-image-composer-cli-specification)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [CLI Flow](#cli-flow)
+  - [Usage](#usage)
+  - [Global Options](#global-options)
+  - [Commands](#commands)
+    - [Build Command](#build-command)
+    - [Validate Command](#validate-command)
+    - [Config Command](#config-command)
+      - [config init](#config-init)
+      - [config show](#config-show)
+    - [Version Command](#version-command)
+    - [Install-Completion Command](#install-completion-command)
+  - [Examples](#examples)
+    - [Building an Image](#building-an-image)
+    - [Managing Configuration](#managing-configuration)
+    - [Validating Templates](#validating-templates)
+  - [Configuration Files](#configuration-files)
+    - [Global Configuration File](#global-configuration-file)
+    - [Image Template File](#image-template-file)
+  - [Exit Codes](#exit-codes)
+  - [Troubleshooting](#troubleshooting)
+    - [Common Issues](#common-issues)
+    - [Logging](#logging)
+  - [Related Documentation](#related-documentation)
 
 ## Overview
 
@@ -59,42 +64,32 @@ flowchart TD
 
     Commands -->|build| Build[Build OS Image]
     Build --> ReadTemplate[Read YAML Template]
-    ReadTemplate --> CheckCache{Image in Cache?}
-    CheckCache -->|Yes| UseCache[Use Cached Image]
-    CheckCache -->|No| BuildProcess[Run Build Pipeline]
+    ReadTemplate --> BuildProcess[Run Build Pipeline]
     BuildProcess --> SaveImage[Save Output Image]
-    UseCache --> SaveImage
 
     Commands -->|validate| Validate[Validate Template File]
 
-    Commands -->|cache| Cache[Manage Caches]
-    Cache --> CacheOps[List/Clean/Export/Import]
+    Commands -->|config| ConfigCmd[Manage Configuration]
+    ConfigCmd --> ConfigOps[init/show]
 
-    Commands -->|template| Template[Manage Templates]
-
-    Commands -->|provider| Provider[Manage OS Providers]
+    Commands -->|version| Version[Show Version Info]
+    
+    Commands -->|install-completion| Completion[Install Shell Completion]
 
     %% Styling
     classDef command fill:#b5e2fa,stroke:#0077b6,stroke-width:2px;
     classDef process fill:#f8edeb,stroke:#333,stroke-width:1px;
-    classDef decision fill:#ffd166,stroke:#333,stroke-width:1px;
 
     class Start command;
-    class Build,Validate,Cache,Template,Provider command;
-    class CheckCache decision;
-    class ReadTemplate,BuildProcess,SaveImage,UseCache,CacheOps process;
-
+    class Build,Validate,ConfigCmd,Version,Completion command;
+    class ReadTemplate,BuildProcess,SaveImage,ConfigOps process;
 ```
 
 The primary workflow is through the `build` command, which reads an image
-template file, checks if an image matching those specifications is already
-cached, and either uses the cached image or runs the build pipeline to create
-a new image.
+template file and runs the build pipeline to create a new image.
 
 See also:
 
-- [How Caching Works](./os-image-composer-caching.md#how-they-work-together) for
-  details on the caching process
 - [Build Stages](./os-image-composer-build-process.md#build-stages-in-detail)
   for the stages of the build pipeline
 
@@ -111,12 +106,8 @@ with command-line options taking priority over the configuration file settings:
 
 | Option | Description |
 |--------|-------------|
-| `--config FILE, -c FILE` | Global configuration file (default: /etc/os-image-composer/config.yaml). This file contains system-wide settings that apply to all image builds. |
-| `--work-dir DIR` | Working directory for temporary build files (overrides config). This directory is where images are constructed before being finalized. |
-| `--cache-dir DIR` | Cache directory for packages and previous builds (overrides config). Proper caching significantly improves build times. |
+| `--config FILE` | Global configuration file. This file contains system-wide settings that apply to all image builds. If not specified, the tool searches for configuration files in standard locations. |
 | `--log-level LEVEL` | Log level: debug, info, warn, error (overrides config). Use debug for troubleshooting build issues. |
-| `--verbose, -v` | Verbose output (equivalent to --log-level debug). Displays detailed information about each step of the build process. |
-| `--quiet, -q` | Minimal output (equivalent to --log-level error). Only displays errors, useful for scripted environments. |
 | `--help, -h` | Show help for any command or subcommand. |
 | `--version` | Show `os-image-composer` version information. |
 
@@ -128,22 +119,39 @@ Build an OS image from an image template file. This is the primary command for
 creating custom OS images according to your requirements.
 
 ```bash
-os-image-composer build [options] TEMPLATE_FILE
+os-image-composer build [flags] TEMPLATE_FILE
 ```
 
-Options:
+**Arguments:**
+- `TEMPLATE_FILE` - Path to the YAML image template file (required)
 
-| Option | Description |
-|--------|-------------|
-| `--output-dir DIR, -o DIR` | Output directory for the finished image (default: ./output). Final images will be placed here with names based on the template. |
-| `--force, -f` | Force overwrite existing files. By default, the tool will not overwrite existing images with the same name. |
-| `--keep-temp` | Keep temporary files after build for debugging purposes. These are normally cleaned up automatically. |
-| `--parallel N` | Run up to N parallel tasks (default: from config). Increases build speed on multi-core systems. |
-| `--stage NAME` | Build up to specific stage and stop (e.g., "packages"). Useful for debugging or when you need a partially-built image. |
-| `--skip-stage NAME` | Skip specified stage. Allows bypassing certain build phases when they're not needed. |
-| `--timeout DURATION` | Maximum build duration (e.g., 1h30m). Prevents builds from running indefinitely due to issues. |
-| `--variables FILE` | Load variables from YAML file to customize the build without modifying the template file. |
-| `--set KEY=VALUE` | Set individual variable for the build (can be specified multiple times). |
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--workers, -w INT` | Number of concurrent download workers (overrides config). |
+| `--cache-dir, -d DIR` | Package cache directory (overrides config). Proper caching significantly improves build times. |
+| `--work-dir DIR` | Working directory for builds (overrides config). This directory is where images are constructed before being finalized. |
+| `--verbose, -v` | Enable verbose output (equivalent to --log-level debug). Displays detailed information about each step of the build process. |
+| `--dotfile, -f FILE` | Generate a dot file for the dependency graph. Useful for visualizing package dependencies. |
+
+**Example:**
+
+```bash
+# Build an image with default settings
+sudo -E os-image-composer build my-image-template.yml
+
+# Build with custom workers and cache directory
+sudo -E os-image-composer build --workers 16 --cache-dir /tmp/cache my-image-template.yml
+
+# Build with verbose output
+sudo -E os-image-composer build --verbose my-image-template.yml
+
+# Build and generate dependency graph
+sudo -E os-image-composer build --dotfile deps.dot my-image-template.yml
+```
+
+**Note:** The build command typically requires sudo privileges for operations like creating loopback devices and mounting filesystems.
 
 See also:
 
@@ -156,53 +164,157 @@ Validate an image template file without building it. This allows checking for
 errors in your template before committing to a full build process.
 
 ```bash
-os-image-composer validate [options] TEMPLATE_FILE
+os-image-composer validate TEMPLATE_FILE
 ```
 
-The `--merged` option validates the template after merging with defaults.
+**Arguments:**
+- `TEMPLATE_FILE` - Path to the YAML image template file to validate (required)
+
+**Description:**
+
+The validate command performs the following checks:
+- YAML syntax validation
+- Schema validation against the image template JSON schema
+- Required fields verification
+- Type checking for all fields
+
+**Example:**
+
+```bash
+# Validate a template file
+os-image-composer validate my-image-template.yml
+
+# Validate with verbose output
+os-image-composer --log-level debug validate my-image-template.yml
+```
 
 See also:
 
 - [Validate Stage](./os-image-composer-build-process.md#1-validate-stage)
   for details on the validation process
 
-### Cache Command
+### Config Command
 
-Manage the image and package caches to optimize build performance and
-storage usage.
-
-```bash
-os-image-composer cache
-```
-
-See also:
-
-- [Package Cache](./os-image-composer-caching.md#package-cache) and
-  [Image Cache](./os-image-composer-caching.md#image-cache)
-  for details on the caching mechanisms
-- [Configuration Options](./os-image-composer-caching.md#configuration-options)
-
-### Template Command
-
-Manage image templates that serve as starting points for customized images.
+Manage the global configuration file. The config command provides subcommands
+for initializing and viewing configuration.
 
 ```bash
-os-image-composer template SUBCOMMAND
+os-image-composer config SUBCOMMAND
 ```
 
-Subcommands:
+**Subcommands:**
 
-| Subcommand | Description |
-|------------|-------------|
-| `list` | List available templates with descriptions and supported configurations. Templates provide ready-to-use base configurations for common image types. |
-| `show TEMPLATE` | Show template details including all settings, variables, and customization options for a specific template. |
-| `create TEMPLATE_FILE` | Create a new template from an existing template file, making it available for future use. |
-| `export TEMPLATE FILE` | Export a template to a file for sharing with other users or systems. Templates can be version-controlled and distributed. |
+#### config init
 
-See also:
+Initialize a new configuration file with default values.
 
-- [What Are Templates](./os-image-composer-templates.md#what-are-templates)
-- [Using Templates to Build Images](./os-image-composer-templates.md#using-templates-to-build-images)
+```bash
+os-image-composer config init [CONFIG_FILE]
+```
+
+**Arguments:**
+- `CONFIG_FILE` - Path where the configuration file should be created (optional). If not specified, creates the configuration in a standard location.
+
+**Example:**
+
+```bash
+# Initialize configuration in current directory
+os-image-composer config init os-image-composer.yml
+
+# Initialize in default location
+os-image-composer config init
+```
+
+#### config show
+
+Show the current configuration settings.
+
+```bash
+os-image-composer config show
+```
+
+**Example:**
+
+```bash
+# Show current configuration
+os-image-composer config show
+
+# Show configuration from specific file
+os-image-composer --config /path/to/config.yml config show
+```
+
+### Version Command
+
+Display the tool's version information, including build date, Git commit SHA, and organization.
+
+```bash
+os-image-composer version
+```
+
+**Example:**
+
+```bash
+os-image-composer version
+```
+
+**Output includes:**
+- Version number
+- Build date
+- Git commit SHA
+- Organization
+
+### Install-Completion Command
+
+Install shell completion for the os-image-composer command. Supports bash, zsh, fish, and PowerShell.
+
+```bash
+os-image-composer install-completion [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--shell STRING` | Shell type (bash, zsh, fish, powershell). If not specified, auto-detects current shell. |
+| `--force` | Force overwrite existing completion files. |
+
+**Example:**
+
+```bash
+# Auto-detect shell and install completion
+os-image-composer install-completion
+
+# Install completion for specific shell
+os-image-composer install-completion --shell bash
+
+# Force reinstall
+os-image-composer install-completion --force
+```
+
+**Post-Installation Steps:**
+
+After installing completion, you need to reload your shell configuration:
+
+**Bash:**
+```bash
+echo "source ~/.bash_completion.d/os-image-composer.bash" >> ~/.bashrc
+source ~/.bashrc
+```
+
+**Zsh:**
+```zsh
+echo 'fpath=(~/.zsh/completion $fpath)' >> ~/.zshrc
+source ~/.zshrc
+```
+
+**Fish:**
+Fish automatically loads completions from the standard location. Just restart your terminal.
+
+**PowerShell:**
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+. $PROFILE
+```
 
 ## Examples
 
@@ -210,45 +322,39 @@ See also:
 
 ```bash
 # Build an image with default settings
-os-image-composer build my-image-template.yml
+sudo -E os-image-composer build image-templates/azl3-x86_64-edge-raw.yml
 
-# Build with custom global config
-os-image-composer --config=/path/to/config.yaml build my-image-template.yml
+# Build with custom configuration
+sudo -E os-image-composer --config=/path/to/config.yaml build image-templates/azl3-x86_64-edge-raw.yml
 
-# Build with variable substitution
-os-image-composer build --set "version=1.2.3" --set "hostname=edge-device-001" my-image-template.yml
+# Build with custom workers and cache
+sudo -E os-image-composer build --workers 12 --cache-dir ./package-cache image-templates/azl3-x86_64-edge-raw.yml
 
-# Build up to a specific stage
-os-image-composer build --stage configuration my-image-template.yml
-
-# Build with a timeout
-os-image-composer build --timeout 30m my-image-template.yml
+# Build with debug logging
+sudo -E os-image-composer --log-level debug build image-templates/azl3-x86_64-edge-raw.yml
 ```
 
-### Managing Cache
+### Managing Configuration
 
 ```bash
-# List cached images
-os-image-composer cache list
+# Initialize a new configuration file
+os-image-composer config init my-config.yml
 
-# Clean package cache
-os-image-composer cache clean --packages
+# Show current configuration
+os-image-composer config show
 
-# Export a cached image
-os-image-composer cache export abc123def456 ./my-exported-image.qcow2
+# Use a specific configuration file
+os-image-composer --config /etc/os-image-composer/config.yml build template.yml
 ```
 
-### Working with Templates
+### Validating Templates
 
 ```bash
-# List available templates
-os-image-composer template list
+# Validate a template
+os-image-composer validate image-templates/azl3-x86_64-edge-raw.yml
 
-# Show details for a template
-os-image-composer template show ubuntu-server-22.04
-
-# Create a new template from a template file
-os-image-composer template create my-image-template.yml
+# Validate with debug output
+os-image-composer --log-level debug validate image-templates/azl3-x86_64-edge-raw.yml
 ```
 
 ## Configuration Files
@@ -256,53 +362,61 @@ os-image-composer template create my-image-template.yml
 ### Global Configuration File
 
 The global configuration file (YAML format) defines system-wide settings that
-apply to all image builds. This centralized configuration simplifies management
-of common settings across multiple image builds. To override the following
-settings with command-line options, see
-[Global Options](#global-options).
+apply to all image builds. The tool searches for configuration files in the following locations (in order):
+
+1. Path specified with `--config` flag
+2. `os-image-composer.yml` in current directory
+3. `.os-image-composer.yml` in current directory
+4. `os-image-composer.yaml` in current directory
+5. `.os-image-composer.yaml` in current directory
+6. `~/.os-image-composer/config.yml`
+7. `~/.os-image-composer/config.yaml`
+8. `~/.config/os-image-composer/config.yml`
+9. `~/.config/os-image-composer/config.yaml`
+10. `/etc/os-image-composer/config.yml`
+11. `/etc/os-image-composer/config.yaml`
+
+**Example Configuration:**
 
 ```yaml
-core:
-  # Core system settings
-  cache_dir: "/var/cache/os-image-composer"     # Location for all cached data
-  work_dir: "/var/tmp/os-image-composer"        # Temporary build workspace
-  log_level: "info"                          # Default logging verbosity
-  max_concurrent_builds: 4                   # Parallel build processes
-  cleanup_on_failure: true                   # Auto-cleanup on build errors
+# Number of concurrent workers for package downloads
+workers: 8
 
-storage:
-  # Cache storage settings
-  package_cache:
-    enabled: true                            # Enable package caching
-    max_size_gb: 10                          # Maximum cache size
-    retention_days: 30                       # How long to keep cached packages
-  image_cache:
-    enabled: true                            # Enable image caching
-    max_count: 5                             # Number of images to keep per template
+# Directory for caching downloaded packages
+cache_dir: "./cache"
 
-providers:
-  # OS-specific provider configurations
-  azure_linux:
-    repositories:
-      - name: "base"
-        url: "https://packages.microsoft.com/azurelinux/3.0/prod/base/"
+# Working directory for build process
+work_dir: "./workspace"
 
-  elxr:
-    repositories:
-      - name: "main"
-        url: "https://mirror.elxr.dev/elxr/dists/aria/main/"
+# Configuration files directory
+config_dir: "./config"
 
-  emt:
-    repositories:
-      - name: "edge-base"
-        url: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0/"
+# Temporary directory
+temp_dir: "/tmp"
+
+# Logging configuration
+logging:
+  level: "info"  # debug, info, warn, error
 ```
+
+**Configuration Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `workers` | integer | Number of concurrent download workers (1-100). Default: 8 |
+| `cache_dir` | string | Directory for package cache. Default: "./cache" |
+| `work_dir` | string | Working directory for builds. Default: "./workspace" |
+| `config_dir` | string | Directory for configuration files. Default: "./config" |
+| `temp_dir` | string | Temporary directory. Default: system temp directory |
+| `logging.level` | string | Log level (debug/info/warn/error). Default: "info" |
 
 ### Image Template File
 
-The image template file (YAML format) defines the requirements for an image.
+The image template file (YAML format) defines the specifications for a single image build.
 With this file, you can define exactly what goes into your custom OS image,
 including packages, configurations, and customizations.
+
+**Example Template:**
 
 ```yaml
 image:
@@ -315,25 +429,25 @@ target:
   os: azure-linux                            # Base operating system
   dist: azl3                                 # Distribution identifier
   arch: x86_64                               # Target architecture
-  imageType: raw                             # Output format (raw, iso, img, vhd)
+  imageType: raw                             # Output format (raw, iso)
 
-systemConfigs:
-  # Array of system configurations
-  - name: edge                               # Configuration name
-    description: Edge device image with Microvisor support  # Human-readable description
+systemConfig:
+  # System configuration
+  name: edge                                 # Configuration name
+  description: Edge device image with Microvisor support
 
-    # Package configuration
-    packages:                                # Packages to install
-      - openssh-server
-      - docker-ce
-      - vim
-      - curl
-      - wget
+  # Package configuration
+  packages:                                  # Packages to install
+    - openssh-server
+    - docker-ce
+    - vim
+    - curl
+    - wget
 
-    # Kernel configuration
-    kernel:
-      version: "6.12"                        # Kernel version to include
-      cmdline: "quiet splash"                # Additional kernel command-line parameters
+  # Kernel configuration
+  kernel:
+    version: "6.12"                          # Kernel version to include
+    cmdline: "quiet splash"                  # Additional kernel command-line parameters
 ```
 
 See also:
@@ -341,7 +455,7 @@ See also:
 - [Common Build Patterns](./os-image-composer-build-process.md#common-build-patterns)
   for example image templates
 - [Template Structure](./os-image-composer-templates.md#template-structure)
-  for how to use templates to generate build specifications
+  for detailed template documentation
 
 ## Exit Codes
 
@@ -351,54 +465,64 @@ automation:
 | Code | Description |
 |------|-------------|
 | 0 | Success: The command completed successfully. |
-| 1 | General error: An unspecified error occurred. |
-| 2 | Command line usage error: Invalid options or arguments. |
-| 3 | Validation error: The template file failed validation. |
-| 4 | Build error: The build process failed. |
-| 5 | Configuration error: Error in configuration files. |
+| 1 | General error: An unspecified error occurred during execution. |
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Disk Space**: Building images requires a significant amount of temporary
-   disk space.
+1. **Disk Space**: Building images requires significant temporary disk space.
 
    ```bash
-   # Check free space
-   df -h /var/tmp/os-image-composer
+   # Check free space in workspace directory
+   df -h ./workspace
+   
+   # Check free space in cache directory
+   df -h ./cache
    ```
 
-1. **Cache Corruption**: If unexplained failures occur, try manually removing
-   the content in the cache directory.
+2. **Permissions**: The build command requires sudo privileges.
 
-See also:
+   ```bash
+   # Run with sudo and preserve environment
+   sudo -E os-image-composer build template.yml
+   ```
 
-- [Troubleshooting Build Issues](./os-image-composer-build-process.md#troubleshooting-build-issues)
-  for stage-specific troubleshooting
+3. **Configuration Issues**: Verify configuration is valid.
+
+   ```bash
+   # Show current configuration
+   os-image-composer config show
+   
+   # Initialize with defaults
+   os-image-composer config init
+   ```
+
+4. **Template Validation Errors**: Validate templates before building.
+
+   ```bash
+   # Validate template
+   os-image-composer validate template.yml
+   ```
 
 ### Logging
 
-Use detailed logs to troubleshoot issues:
+Use the `--log-level` flag or `--verbose` flag to get more detailed output:
 
 ```bash
-# Enable debug logging
-os-image-composer --log-level debug build my-image-template.yml
+# Debug logging
+os-image-composer --log-level debug build template.yml
 
-# Save logs to a file
-os-image-composer --log-level debug build my-image-template.yml 2>&1 | tee build-log.txt
+# Verbose output (same as debug)
+os-image-composer build --verbose template.yml
+
+# Error logging only
+os-image-composer --log-level error build template.yml
 ```
-
-See also:
-
-- [Build Log Analysis](./os-image-composer-build-process.md#build-log-analysis)
-  for how to interpret log messages
 
 ## Related Documentation
 
-- [Understanding the Build Process](./os-image-composer-build-process.md)
-  describes the five-stage build pipeline.
-- [Understanding Caching](./os-image-composer-caching.md) explains the package
-  and image caching systems.
-- [Understanding Templates in OS Image Composer](./os-image-composer-templates.md)
-  demonstrates how to create and reuse templates.
+- [Build Process](./os-image-composer-build-process.md) - Detailed information about the build stages
+- [Templates](./os-image-composer-templates.md) - Template structure and usage
+- [Caching](./os-image-composer-caching.md) - How caching works
+- [Coding Style](./os-image-composer-coding-style.md) - Development guidelines
