@@ -429,7 +429,7 @@ target:
   os: azure-linux                            # Base operating system
   dist: azl3                                 # Distribution identifier
   arch: x86_64                               # Target architecture
-  imageType: raw                             # Output format (raw, iso)
+  imageType: raw                             # Output format (supported: raw, iso only)
 
 systemConfig:
   # System configuration
