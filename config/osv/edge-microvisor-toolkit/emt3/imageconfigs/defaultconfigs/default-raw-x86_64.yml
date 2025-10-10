@@ -136,11 +136,11 @@ systemConfig:
     - docker-compose
 
   additionalFiles:
-    - local: 99-dhcp-en.network
+    - local: ../additionalfiles/99-dhcp-en.network
       final: /etc/systemd/network/99-dhcp-en.network
-    - local: systemd-networkd-wait-online-override.conf
+    - local: ../additionalfiles/systemd-networkd-wait-online-override.conf
       final: /etc/systemd/system/systemd-networkd-wait-online.service.d/override.conf
-    - local: emt-cloud-init.cfg
+    - local: ../additionalfiles/emt-cloud-init.cfg
       final: /etc/cloud/cloud.cfg
 
   kernel:

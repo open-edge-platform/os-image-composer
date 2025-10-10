@@ -125,7 +125,7 @@ systemConfig: # Required
     - wireless-regdb
 
   additionalFiles:
-    - local: 99-dhcp-en.network
+    - local: ../additionalfiles/99-dhcp-en.network
       final: /etc/systemd/network/99-dhcp-en.network
 
   kernel:
