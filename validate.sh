@@ -476,6 +476,7 @@ build_image_with_time() {
     cd "$WORKING_DIR"
     echo "Current working directory: $(pwd)"
     output=$( sudo -S ./build/os-image-composer build image-templates/azl3-x86_64-edge-raw.yml 2>&1)
+    echo "$output"
 
     # Extract start and end timestamps
     start_time=$(echo "$output" | grep -m1 "using configuration from:" | grep -oP '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z')
