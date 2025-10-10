@@ -161,7 +161,7 @@ func executeInstallCompletion(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Shell completion installed for %s at %s\n", shellType, targetPath)
-	fmt.Printf("Restart your shell or source your profile to enable completion.\n")
+	fmt.Printf("Refer to the README.md file for further instructions to activate the installed completion file based on your shell type.\n")
 
 	return nil
 }

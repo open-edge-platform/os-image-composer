@@ -303,7 +303,7 @@ target:
   os: azure-linux    # Target OS name
   dist: azl3          # Target OS distribution
   arch: x86_64        # Target OS architecture
-  imageType: raw      # Image type: raw, iso, img, vhd
+  imageType: raw      # Image type: raw, iso
 
 systemConfigs:
   - name: edge
@@ -340,7 +340,7 @@ Defines the target OS and image configuration:
 - `os`: Target OS (`azure-linux`, `emt`, and `elxr`)
 - `dist`: Distribution identifier (`azl3`, `emt3`, and `elxr12`)
 - `arch`: Target architecture (`x86_64`and `aarch64`)
-- `imageType`: Output format (`raw`, `iso`, `img`, and `vhd`)
+- `imageType`: Output format (`raw`, `iso`)
 
 ##### 3. `systemConfigs`
 
