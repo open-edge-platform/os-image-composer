@@ -64,6 +64,103 @@
 				"level"
 			],
 			"additionalProperties": false
+		},
+		"ai": {
+			"type": "object",
+			"description": "AI/LLM configuration for template generation",
+			"properties": {
+				"enabled": {
+					"type": "boolean",
+					"description": "Enable AI-powered template generation",
+					"default": false
+				},
+				"provider": {
+					"type": "string",
+					"description": "AI provider to use",
+					"enum": [
+						"ollama",
+						"openai"
+					],
+					"default": "ollama"
+				},
+				"ollama": {
+					"type": "object",
+					"description": "Ollama-specific configuration",
+					"properties": {
+						"base_url": {
+							"type": "string",
+							"description": "Ollama API base URL",
+							"default": "http://localhost:11434",
+							"format": "uri"
+						},
+						"model": {
+							"type": "string",
+							"description": "Ollama model name",
+							"default": "llama3.1:8b"
+						},
+						"temperature": {
+							"type": "number",
+							"description": "Sampling temperature (0.0-2.0)",
+							"minimum": 0.0,
+							"maximum": 2.0,
+							"default": 0.7
+						},
+						"max_tokens": {
+							"type": "integer",
+							"description": "Maximum tokens in response",
+							"minimum": 100,
+							"maximum": 10000,
+							"default": 2000
+						},
+						"timeout": {
+							"type": "integer",
+							"description": "Request timeout in seconds",
+							"minimum": 10,
+							"maximum": 600,
+							"default": 120
+						}
+					},
+					"additionalProperties": false
+				},
+				"openai": {
+					"type": "object",
+					"description": "OpenAI-specific configuration",
+					"properties": {
+						"api_key": {
+							"type": "string",
+							"description": "OpenAI API key"
+						},
+						"model": {
+							"type": "string",
+							"description": "OpenAI model name",
+							"default": "gpt-4-turbo"
+						},
+						"temperature": {
+							"type": "number",
+							"description": "Sampling temperature (0.0-2.0)",
+							"minimum": 0.0,
+							"maximum": 2.0,
+							"default": 0.7
+						},
+						"max_tokens": {
+							"type": "integer",
+							"description": "Maximum tokens in response",
+							"minimum": 100,
+							"maximum": 10000,
+							"default": 2000
+						},
+						"timeout": {
+							"type": "integer",
+							"description": "Request timeout in seconds",
+							"minimum": 10,
+							"maximum": 600,
+							"default": 120
+						}
+					},
+					"additionalProperties": false
+				}
+			},
+			"additionalProperties": false
 		}
 	},
 	"additionalProperties": false

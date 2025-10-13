@@ -15,6 +15,32 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// AIConfig contains AI/LLM configuration
+type AIConfig struct {
+	Enabled  bool         `yaml:"enabled" json:"enabled"`   // Enable/disable AI features
+	Provider string       `yaml:"provider" json:"provider"` // LLM provider: "ollama", "openai", etc.
+	Ollama   OllamaConfig `yaml:"ollama" json:"ollama"`     // Ollama-specific configuration
+	OpenAI   OpenAIConfig `yaml:"openai" json:"openai"`     // OpenAI specific configuration
+}
+
+// OllamaConfig contains Ollama LLM settings
+type OllamaConfig struct {
+	BaseURL     string  `yaml:"base_url" json:"base_url"`         // Ollama server URL
+	Model       string  `yaml:"model" json:"model"`               // Model name (e.g., llama3.1:8b)
+	Temperature float64 `yaml:"temperature" json:"temperature"`   // Temperature for text generation (0.0-1.0)
+	MaxTokens   int     `yaml:"max_tokens" json:"max_tokens"`     // Maximum tokens to generate
+	Timeout     int     `yaml:"timeout" json:"timeout"`           // Request timeout in seconds
+}
+
+// OpenAIConfig contains OpenAI-specific settings
+type OpenAIConfig struct {
+	APIKey      string  `yaml:"api_key" json:"api_key"`         // OpenAI API key
+	Model       string  `yaml:"model" json:"model"`             // e.g., "gpt-4", "gpt-4-turbo"
+	Temperature float64 `yaml:"temperature" json:"temperature"`
+	MaxTokens   int     `yaml:"max_tokens" json:"max_tokens"`
+	Timeout     int     `yaml:"timeout" json:"timeout"`
+}
+
 // GlobalConfig holds essential tool-level configuration parameters
 type GlobalConfig struct {
 	// Core tool settings
@@ -26,6 +52,9 @@ type GlobalConfig struct {
 
 	// Logging configuration
 	Logging LoggingConfig `yaml:"logging" json:"logging"` // Logging behavior settings
+
+	// AI Configuration
+	AI        AIConfig      `yaml:"ai" json:"ai"`
 }
 
 // LoggingConfig controls basic logging behavior
@@ -73,6 +102,25 @@ func DefaultGlobalConfig() *GlobalConfig {
 
 		Logging: LoggingConfig{
 			Level: "info",
+		},
+		
+		AI: AIConfig{
+			Enabled:  false,
+			Provider: "ollama",
+			Ollama: OllamaConfig{
+				BaseURL:     "http://localhost:11434",
+				Model:       "llama3.1:8b",
+				Temperature: 0.7,
+				MaxTokens:   2000,
+				Timeout:     120,
+			},
+			OpenAI: OpenAIConfig{
+				APIKey:      "",
+				Model:       "gpt-4-turbo",
+				Temperature: 0.7,
+				MaxTokens:   2000,
+				Timeout:     120,
+			},
 		},
 	}
 }
@@ -360,4 +408,13 @@ func GetTargetOsConfigDir(targetOs, targetDist string) (string, error) {
 		return "", fmt.Errorf("target OS config directory does not exist: %s", targetOsConfigPath)
 	}
 	return targetOsConfigPath, nil
+}
+
+
+func AIEnabled() bool {
+	return Global().AI.Enabled
+}
+
+func GetAIConfig() AIConfig {
+	return Global().AI
 }

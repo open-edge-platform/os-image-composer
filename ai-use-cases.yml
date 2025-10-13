@@ -1,0 +1,211 @@
+# OS Image Composer AI Use Cases Configuration
+# Define available use cases and their package mappings
+
+use_cases:
+  web-server:
+    name: Web Server
+    description: HTTP/HTTPS web server configuration
+    keywords:
+      - web
+      - nginx
+      - apache
+      - http
+      - https
+      - website
+    essential_packages:
+      - nginx
+      - systemd
+      - openssl
+    optional_packages:
+      - certbot
+      - logrotate
+    security_packages:
+      - ufw
+      - fail2ban
+      - openssh-server
+    performance_packages:
+      - redis
+      - memcached
+    kernel:
+      default_version: "6.12"
+      cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    disk:
+      default_size: "8GiB"
+
+  python-web:
+    name: Python Web Application
+    description: Python web application server
+    keywords:
+      - python
+      - flask
+      - django
+      - gunicorn
+      - wsgi
+      - fastapi
+    essential_packages:
+      - python3
+      - python3-pip
+      - nginx
+      - gunicorn
+      - systemd
+      - openssl
+    optional_packages:
+      - python3-venv
+      - postgresql-client
+      - redis-tools
+      - certbot
+    security_packages:
+      - ufw
+      - fail2ban
+      - openssh-server
+    performance_packages:
+      - redis
+      - memcached
+    kernel:
+      default_version: "6.12"
+      cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    disk:
+      default_size: "10GiB"
+
+  database:
+    name: Database Server
+    description: Database server configuration
+    keywords:
+      - database
+      - postgresql
+      - mysql
+      - mariadb
+      - db
+      - sql
+    essential_packages:
+      - postgresql
+      - systemd
+      - openssl
+    optional_packages:
+      - postgresql-contrib
+      - pgadmin4
+      - logrotate
+    security_packages:
+      - ufw
+      - fail2ban
+      - openssh-server
+    performance_packages:
+      - postgresql-pltcl
+    kernel:
+      default_version: "6.12"
+      cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    disk:
+      default_size: "20GiB"
+
+  embedded:
+    name: Embedded System
+    description: Minimal embedded system
+    keywords:
+      - embedded
+      - minimal
+      - iot
+      - edge
+      - tiny
+    essential_packages:
+      - systemd
+      - busybox
+    optional_packages:
+      - openssh-server
+      - vim-tiny
+    security_packages:
+      - openssl
+    performance_packages: []
+    kernel:
+      default_version: "6.12"
+      cmdline: "console=ttyS0,115200 quiet"
+    disk:
+      default_size: "4GiB"
+
+  container-host:
+    name: Container Host
+    description: Docker/container host system
+    keywords:
+      - docker
+      - container
+      - kubernetes
+      - k8s
+      - pod
+      - containerd
+    essential_packages:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - systemd
+    optional_packages:
+      - docker-compose
+      - kubernetes-client
+      - openssh-server
+    security_packages:
+      - ufw
+      - apparmor
+      - openssh-server
+    performance_packages:
+      - docker-ce-rootless-extras
+    kernel:
+      default_version: "6.12"
+      cmdline: "console=ttyS0,115200 console=tty0 loglevel=7 cgroup_enable=memory swapaccount=1"
+    disk:
+      default_size: "15GiB"
+
+  openvino-inference:
+    name: OpenVINO Inference
+    description: AI/ML inference pipeline with OpenVINO toolkit
+    keywords:
+      - openvino
+      - inference
+      - inferencing
+      - ai
+      - ml
+      - machine learning
+      - deep learning
+      - neural network
+      - model
+      - vision
+    essential_packages:
+      - systemd
+      - python3
+      - python3-pip
+      - openvino
+      - openvino-tools
+      - opencv
+      - opencv-python
+    optional_packages:
+      - python3-numpy
+      - python3-scipy
+      - libtbb2
+      - ocl-icd-libopencl1
+      - intel-opencl-icd
+      - libusb-1.0-0
+    security_packages:
+      - openssl
+      - openssh-server
+      - ufw
+    performance_packages:
+      - intel-media-driver
+      - intel-graphics-compiler
+      - level-zero
+    kernel:
+      default_version: "6.12"
+      cmdline: "console=ttyS0,115200 console=tty0 loglevel=7 intel_iommu=on"
+    disk:
+      default_size: "20GiB"  # Larger for models and datasets
+  # Add your custom use cases here:
+  # custom-use-case:
+  #   name: My Custom Use Case
+  #   description: Description of custom use case
+  #   keywords:
+  #     - custom
+  #     - myapp
+  #   essential_packages:
+  #     - package1
+  #     - package2
+  #   kernel:
+  #     default_version: "6.12"
+  #     cmdline: "console=ttyS0,115200"
+  #   disk:
+  #     default_size: "8GiB"

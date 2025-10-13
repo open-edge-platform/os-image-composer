@@ -95,6 +95,7 @@ Use 'os-image-composer <command> --help' for more information about a command.`,
 	rootCmd.AddCommand(createVersionCommand())
 	rootCmd.AddCommand(createConfigCommand())
 	rootCmd.AddCommand(createInstallCompletionCommand())
+	rootCmd.AddCommand(createAICommand())
 
 	return rootCmd
 }
