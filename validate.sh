@@ -474,6 +474,41 @@ clean_build_dirs() {
   sudo rm -rf cache/ tmp/
 }
 
+#build oic debian package
+build_oic_deb_package() {
+  echo "Building Debian Package that installs OS Image Composer Tool "
+  echo "Ensuring we're in the working directory before starting deb package build..."
+  cd "$WORKING_DIR"
+  echo "Current working directory: $(pwd)"
+
+  if [ -z "$(ls -A ./config)" ]; then
+    echo "Config Directory is empty."
+    exit 0 # should be return 1
+  fi
+  if [ -z "$(ls -A ./image-templates)" ]; then
+    echo "image-templates Directory is empty."
+    exit 0 # should be return 1
+  fi
+  mkdir os-image-composer-1.0
+  mkdir os-image-composer-1.0/etc
+  mkdir os-image-composer-1.0/etc/oic
+  mkdir os-image-composer-1.0/DEBIAN
+  cp -r config os-image-composer-1.0/etc/oic
+  cp -r image-templates os-image-composer-1.0/etc/oic
+
+  cat > os-image-composer-1.0/DEBIAN/control << EOF
+Package: os-image-composer
+Version: 1.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Subba Mungara <subba.r.mungara@intel.com>
+Description: OS Image Composer (OIC) enables users to compose a custom  bootable OS image for supported OS distros based on user populated template file that captures  package list, configurations and formats of the output OS image.
+EOF
+    dpkg-deb --build os-image-composer-1.0
+    echo "command to install the package is : sudo dpkg -i os-image-composer-1.0.deb"
+}
+
 # Call the build functions with cleaning before each except the first one
 build_azl3_raw_image
 
