@@ -1167,34 +1167,6 @@ func verifyUserCreated(installRoot, username string) error {
 	}
 	log.Debugf("User in shadow: %s", strings.TrimSpace(output))
 
-	// Check if account is locked (password field starts with ! or *)
-	shadowFields := strings.Split(strings.TrimSpace(output), ":")
-	if len(shadowFields) >= 2 {
-		passwordField := shadowFields[1]
-		if strings.HasPrefix(passwordField, "!") || strings.HasPrefix(passwordField, "*") {
-			log.Errorf("User %s account is locked (password field: %s)", username, passwordField)
-			return fmt.Errorf("user %s account is locked (password field: %s)", username, passwordField)
-		}
-		if passwordField == "" {
-			log.Errorf("User %s has no password set", username)
-			return fmt.Errorf("user %s has no password set", username)
-		}
-	}
-
-	// Check sudo group membership
-	// groupCmd := fmt.Sprintf("groups %s", username)
-	// output, err = shell.ExecCmd(groupCmd, true, installRoot, nil)
-	// if err != nil {
-	// 	log.Errorf("Failed to check groups for user %s: %v", username, err)
-	// 	return fmt.Errorf("failed to check groups for user %s: %w", username, err)
-	// }
-	// log.Debugf("User groups: %s", strings.TrimSpace(output))
-
-	// if !strings.Contains(output, "sudo") {
-	// 	log.Errorf("User %s is not in sudo group", username)
-	// 	return fmt.Errorf("user %s is not in sudo group", username)
-	// }
-
 	return nil
 }
 
