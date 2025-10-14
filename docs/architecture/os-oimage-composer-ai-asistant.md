@@ -7,6 +7,14 @@
 
 ---
 
+## Version History
+
+| Version | Date | Changes | Status |
+|---------|------|---------|--------|
+| 0.1 | 2025-10-01 | Initial draft | Draft |
+| 1.0 | 2025-10-13 | Complete ADR with Phase 1 implementation | Proposed |
+---
+
 ## Context and Problem Statement
 
 OS Image Composer users must manually create YAML templates with specific package lists, kernel configurations, and disk layouts. This requires:
@@ -22,27 +30,27 @@ OS Image Composer users must manually create YAML templates with specific packag
 ## Decision Drivers
 
 1. **User Experience**: Enable non-experts to create valid templates quickly
-2. **Cost Flexibility**: Support both free (local) and paid (cloud) AI options
-3. **Privacy**: Allow users to keep data local or use cloud services
-4. **Extensibility**: Easy to add more AI providers in the future
-5. **Offline Capability**: Must work without internet access
-6. **Quality**: Generate valid, production-ready templates
-7. **Maintainability**: Clean architecture that's easy to extend
-8. **Intelligence**: AI should intelligently mix packages from multiple use cases
+1. **Cost Flexibility**: Support both free (local) and paid (cloud) AI options
+1. **Privacy**: Allow users to keep data local or use cloud services
+1. **Extensibility**: Easy to add more AI providers in the future
+1. **Offline Capability**: Must work without internet access
+1. **Quality**: Generate valid, production-ready templates
+1. **Maintainability**: Clean architecture that's easy to extend
+1. **Intelligence**: AI should intelligently mix packages from multiple use cases
 
 ---
 
 ## Considered Options
 
-### Option 1: Single Provider (Ollama Only)
+### Option 1: Single AI Provider (Ollama Only)
 **Pros**: Simple, free, private  
 **Cons**: Limited to local LLMs, requires hardware resources
 
-### Option 2: Single Provider (OpenAI Only)
+### Option 2: Single AI Provider (OpenAI Only)
 **Pros**: Best quality, no local resources needed  
 **Cons**: Costs money, requires internet, privacy concerns
 
-### Option 3: Multi-Provider with Plugin Architecture âœ… **SELECTED**
+### Option 3: Multi-AI-Provider with Plugin Architecture (**SELECTED**)
 **Pros**: Maximum flexibility, future-proof, user choice  
 **Cons**: More complex implementation
 
@@ -54,18 +62,18 @@ OS Image Composer users must manually create YAML templates with specific packag
 
 ## Decision Outcome
 
-**Chosen option**: Multi-Provider Architecture with support for:
+**Chosen option**: Multi-AI-Provider Architecture with support for:
 - **Ollama** (free, local, open-source)
 - **OpenAI** (paid, cloud, high-quality)
-- **Extensible design** for future providers (Anthropic, Cohere, etc.)
+- **Extensible design** for future AI providers (Anthropic, Cohere, etc.)
 
 ### Rationale
 
 1. **User Freedom**: Users can choose based on their needs (cost, privacy, quality)
-2. **Future-Proof**: Easy to add new providers as AI landscape evolves
-3. **Best of Both Worlds**: Free option available, premium option for those who want it
-4. **No Lock-In**: Switch providers without code changes
-5. **Corporate Friendly**: Supports air-gapped environments (Ollama) and enterprise AI services (OpenAI)
+1. **Future-Proof**: Easy to add new AI providers as AI landscape evolves
+1. **Best of Both Worlds**: Free option available, premium option for those who want it
+1. **No Lock-In**: Switch AI providers without code changes
+1. **Corporate Friendly**: Supports air-gapped environments (Ollama) and enterprise AI services (OpenAI)
 
 ---
 
@@ -77,11 +85,11 @@ OS Image Composer users must manually create YAML templates with specific packag
 graph TB
     User[User CLI] --> AICommand[AI Command]
     AICommand --> Config[Global Config]
-    Config --> Provider{Provider Router}
+    Config --> AIProvider{AI Provider Router}
     
-    Provider -->|provider=ollama| OllamaAgent[Ollama Agent]
-    Provider -->|provider=openai| OpenAIAgent[OpenAI Agent]
-    Provider -->|provider=future| FutureAgent[Future Providers]
+    AIProvider -->|ai-provider=ollama| OllamaAgent[Ollama Agent]
+    AIProvider -->|ai-provider=openai| OpenAIAgent[OpenAI Agent]
+    AIProvider -->|ai-provider=future| FutureAgent[Future AI Providers]
     
     OllamaAgent --> OllamaAPI[Ollama HTTP API]
     OpenAIAgent --> OpenAIAPI[OpenAI REST API]
@@ -107,66 +115,50 @@ graph TB
     
     class OllamaAPI,UseCases local
     class OpenAIAPI cloud
-    class Config,Provider config
+    class Config,AIProvider config
 ```
 
 ### Component Architecture
 
 ```mermaid
 graph LR
-    subgraph "CLI Layer"
-        A[ai_command.go]
+    subgraph "CLI"
+        A[AI Command]
     end
     
-    subgraph "Configuration Layer"
-        B[global.go]
-        C[config/use-cases.yml]
+    subgraph "Config"
+        B[Global Config]
+        C[Use Cases]
     end
     
-    subgraph "Agent Layer"
-        D[AIAgent Interface]
-        E[Provider Router]
+    subgraph "AIProviders"
+        D[Ollama]
+        E[OpenAI]
     end
     
-    subgraph "Provider Implementations"
-        F[OllamaChatModel]
-        G[OpenAIChatModel]
-        H[Future Providers]
-    end
-    
-    subgraph "Business Logic"
-        I[Use Case Manager]
-        J[Template Generator]
-        K[Package Resolver]
-    end
-    
-    subgraph "Output Layer"
-        L[YAML Formatter]
+    subgraph "Template generation Logic"
+        F[Template Generator]
     end
     
     A --> B
     A --> D
+    A --> E
+    B --> D
     B --> E
-    C --> I
+    C --> F
+    D --> F
     E --> F
-    E --> G
-    E --> H
-    F --> D
-    G --> D
-    D --> I
-    I --> J
-    J --> K
-    K --> L
+    F --> G[YAML Output]
     
     classDef cli fill:#e3f2fd
     classDef config fill:#f3e5f5
-    classDef provider fill:#fff3e0
+    classDef aiprovider fill:#fff3e0
     classDef logic fill:#e8f5e9
     
     class A cli
     class B,C config
-    class F,G,H provider
-    class I,J,K logic
+    class D,E aiprovider
+    class F logic
 ```
 
 ### Data Flow
@@ -177,19 +169,19 @@ sequenceDiagram
     participant CLI
     participant Config
     participant Router
-    participant Provider
+    participant AIProvider
     participant LLM
     participant Generator
     
     User->>CLI: ai "docker host"
     CLI->>Config: Load global config
     Config-->>CLI: AI config with provider
-    CLI->>Router: Create agent for provider
-    Router->>Provider: Initialize (Ollama/OpenAI)
+    CLI->>Router: Create agent for AI provider
+    Router->>AIProvider: Initialize (Ollama/OpenAI)
     
-    Provider->>LLM: Send prompt with context
-    LLM-->>Provider: Structured JSON response
-    Provider-->>Router: Parsed intent
+    AIProvider->>LLM: Send prompt with context
+    LLM-->>AIProvider: Structured JSON response
+    AIProvider-->>Router: Parsed intent
     
     Router->>Generator: Generate template(intent)
     Generator->>Generator: Load use cases
@@ -218,9 +210,9 @@ Result: Only OpenVINO packages (missing nginx!)
 ```
 
 **Limitations**:
-- âŒ Cannot combine multiple use cases
-- âŒ Limited to predefined package lists
-- âŒ Misses obvious package combinations
+- Cannot combine multiple use cases
+- Limited to predefined package lists
+- Misses obvious package combinations
 
 ### Approach 2: Multi-Use-Case Mixing (Phase 2 - Recommended)
 
@@ -237,39 +229,10 @@ Result: OpenVINO + nginx + web packages + grafana
 ```
 
 **Advantages**:
-- âœ… Intelligent package mixing
-- âœ… Uses validated use case definitions
-- âœ… Maintains package quality control
-- âœ… Allows custom package additions
-
-**Implementation**:
-```go
-// Enhanced TemplateIntent
-type TemplateIntent struct {
-    UseCase            string   `json:"use_case"`
-    AdditionalUseCases []string `json:"additional_use_cases"`  // NEW
-    CustomPackages     []string `json:"custom_packages"`       // NEW
-    Requirements       []string `json:"requirements"`
-    // ... other fields
-}
-
-// Enhanced package selection
-func (agent *AIAgent) generateTemplate(intent *TemplateIntent) (*OSImageTemplate, error) {
-    // Primary use case packages
-    packages := agent.useCases.GetPackagesForUseCase(intent.UseCase)
-    
-    // Mix in additional use cases
-    for _, useCase := range intent.AdditionalUseCases {
-        additionalPkgs := agent.useCases.GetPackagesForUseCase(useCase)
-        packages = append(packages, additionalPkgs...)
-    }
-    
-    // Add custom AI-recommended packages
-    packages = append(packages, intent.CustomPackages...)
-    
-    return uniqueStrings(packages)
-}
-```
+- Intelligent package mixing
+- Uses validated use case definitions
+- Maintains package quality control
+- Allows custom package additions
 
 ### Approach 3: Full AI Intelligence (Phase 3 - Future)
 
@@ -290,14 +253,14 @@ AI: Analyzes requirements and recommends:
 ```
 
 **Advantages**:
-- âœ… Maximum flexibility
-- âœ… AI can recommend novel combinations
-- âœ… Adapts to any user request
+- Maximum flexibility
+- AI can recommend novel combinations
+- Adapts to any user request
 
 **Challenges**:
-- âš ï¸ May recommend non-existent packages
-- âš ï¸ Requires robust validation
-- âš ï¸ Less predictable results
+- May recommend non-existent packages
+- Requires robust validation
+- Less predictable results
 
 ### Decision: Phased Implementation
 
@@ -413,80 +376,9 @@ use_cases:
       default_size: "20GiB"
 ```
 
-### 3. Provider Interface
-
-```go
-// ChatModel interface - all providers must implement
-type ChatModel interface {
-    SendMessage(ctx context.Context, message string) (string, error)
-    SendStructuredMessage(ctx context.Context, message string, schema interface{}) error
-    SetSystemPrompt(prompt string)
-    ResetConversation()
-}
-```
-
-### 4. File Structure
-
-```
-os-image-composer/
-â”œâ”€â”€ cmd/
-â”‚   â””â”€â”€ os-image-composer/
-â”‚       â””â”€â”€ ai_command.go          # CLI command implementation
-â”œâ”€â”€ config/
-â”‚   â””â”€â”€ use-cases.yml              # Use case definitions
-â”œâ”€â”€ internal/
-â”‚   â”œâ”€â”€ aiagent/
-â”‚   â”‚   â”œâ”€â”€ types.go               # Shared types
-â”‚   â”‚   â”œâ”€â”€ utils.go               # Shared utilities
-â”‚   â”‚   â”œâ”€â”€ local_agent.go         # Main agent orchestrator
-â”‚   â”‚   â”œâ”€â”€ ollama_client.go       # Ollama provider
-â”‚   â”‚   â”œâ”€â”€ openai_client.go       # OpenAI provider
-â”‚   â”‚   â””â”€â”€ use_cases.go           # Use case management
-â”‚   â””â”€â”€ config/
-â”‚       â”œâ”€â”€ global.go              # Global configuration
-â”‚       â””â”€â”€ schema/
-â”‚           â”œâ”€â”€ os-image-composer-config.schema.json
-â”‚           â””â”€â”€ use-cases.schema.json  # Validation for use cases
-â””â”€â”€ os-image-composer.yml          # Global config
-```
-
-### 5. Key Design Patterns
-
-**Strategy Pattern**: Different AI providers as interchangeable strategies
-
-```go
-type AIAgent struct {
-    chatModel ChatModel  // Interface allows swapping providers
-    useCases  *UseCasesConfig
-}
-
-func NewAIAgent(provider string, config interface{}) (*AIAgent, error) {
-    switch provider {
-    case "ollama":
-        chatModel = NewOllamaChatModel(config)
-    case "openai":
-        chatModel = NewOpenAIChatModel(config)
-    default:
-        return nil, fmt.Errorf("unsupported provider: %s", provider)
-    }
-    // ... rest of initialization
-}
-```
-
-**Template Method Pattern**: Common workflow, provider-specific implementations
-
-```go
-// Common workflow in AIAgent
-func (agent *AIAgent) ProcessUserRequest(ctx context.Context, input string) (*OSImageTemplate, error) {
-    intent := agent.parseUserIntent(ctx, input)    // Uses provider's SendMessage
-    template := agent.generateTemplate(intent)     // Provider-agnostic
-    return template, nil
-}
-```
-
 ---
 
-## Provider Comparison
+## AI Provider Comparison
 
 | Feature | Ollama | OpenAI |
 |---------|--------|--------|
@@ -603,17 +495,7 @@ os-image-composer ai "python web app with redis cache and postgresql database" -
 - Support `.env` file loading
 - Document secure key storage practices
 
-### 2. Prompt Injection
-
-**Problem**: User input could manipulate AI behavior
-
-**Mitigation**:
-- Structured JSON responses only
-- Schema validation on all outputs
-- Sanitize user input
-- Use system prompts to constrain behavior
-
-### 3. Data Privacy
+### 2. Data Privacy
 
 **Problem**: Templates might contain sensitive information
 
@@ -623,7 +505,7 @@ os-image-composer ai "python web app with redis cache and postgresql database" -
 - Document data handling policies
 - Allow disabling AI entirely
 
-### 4. Package Validation
+### 3. Package Validation
 
 **Problem**: AI might recommend non-existent packages
 
@@ -641,7 +523,7 @@ os-image-composer ai "python web app with redis cache and postgresql database" -
 
 | Provider | First Request | Subsequent | Notes |
 |----------|--------------|------------|-------|
-| Ollama | 5-10s | 2-5s | Model loading overhead first time |
+| Ollama | 5-10s | 2-5s | Varies based on the server config. Model loading overhead first time |
 | OpenAI | 1-2s | 1-2s | Network latency |
 
 ### Resource Usage
@@ -662,36 +544,7 @@ os-image-composer ai "python web app with redis cache and postgresql database" -
 
 ### Unit Tests
 
-```go
-func TestAIAgent_MultipleProviders(t *testing.T) {
-    providers := []string{"ollama", "openai"}
-    
-    for _, provider := range providers {
-        t.Run(provider, func(t *testing.T) {
-            mockConfig := getMockConfig(provider)
-            agent, err := NewAIAgent(provider, mockConfig)
-            assert.NoError(t, err)
-            
-            template, err := agent.ProcessUserRequest(ctx, "web server")
-            assert.NoError(t, err)
-            assert.NotNil(t, template)
-        })
-    }
-}
-```
-
 ### Integration Tests
-
-```bash
-# Test with Ollama
-./test-ai.sh ollama "docker host"
-
-# Test with OpenAI (if API key available)
-./test-ai.sh openai "docker host"
-
-# Verify output compatibility
-./os-image-composer validate generated-template.yml
-```
 
 ### E2E Tests
 
@@ -711,14 +564,14 @@ os-image-composer build test.yml
 **Status**: Implementation Ready  
 **Goal**: Establish multi-provider architecture
 
-- âœ… Ollama provider implementation
-- âœ… OpenAI provider implementation
-- âœ… Provider abstraction interface
-- âœ… Single use case matching
-- âœ… YAML output only
-- âœ… Basic use cases (web-server, python-web, database, embedded, container-host)
-- âœ… Configuration system
-- âœ… Schema validation
+- Ollama provider implementation
+- OpenAI provider implementation
+- Provider abstraction interface
+- Single use case matching
+- YAML output only
+- Basic use cases (web-server, python-web, database, embedded, container-host)
+- Configuration system
+- Schema validation
 
 **Deliverables**:
 - Functional `ai` command
@@ -730,12 +583,12 @@ os-image-composer build test.yml
 **Status**: Planned  
 **Goal**: Multi-use-case package mixing
 
-- â³ Enhanced AI prompts for multiple use cases
-- â³ Package merging from multiple use cases
-- â³ Custom package recommendations
-- â³ Package validation against repositories
-- â³ Warning system for unknown packages
-- â³ Extended use case library (AI/ML, gaming, monitoring)
+- Enhanced AI prompts for multiple use cases
+- Package merging from multiple use cases
+- Custom package recommendations
+- Package validation against repositories
+- Warning system for unknown packages
+- Extended use case library (AI/ML, gaming, monitoring)
 
 **Deliverables**:
 - Smarter package selection
@@ -747,15 +600,15 @@ os-image-composer build test.yml
 **Status**: Under Consideration  
 **Goal**: Full AI intelligence and enterprise features
 
-- â³ Full AI package recommendation (no use case constraints)
-- â³ Interactive multi-turn conversations
-- â³ Template modification ("add Redis to existing template")
-- â³ Explanation mode ("why these packages?")
-- â³ Comparison mode ("nginx vs apache for my use case")
-- â³ Custom model fine-tuning
-- â³ Enterprise: Anthropic Claude support
-- â³ Enterprise: Audit logging
-- â³ Enterprise: Policy enforcement
+- Full AI package recommendation (no use case constraints)
+- Interactive multi-turn conversations
+- Template modification ("add Redis to existing template")
+- Explanation mode ("why these packages?")
+- Comparison mode ("nginx vs apache for my use case")
+- Custom model fine-tuning
+- Enterprise: Anthropic Claude support
+- Enterprise: Audit logging
+- Enterprise: Policy enforcement
 
 ---
 
@@ -801,28 +654,28 @@ os-image-composer ai "your request here" --output template.yml
 
 ### Positive
 
-âœ… **User Productivity**: Generate templates 10x faster  
-âœ… **Lower Barrier**: Non-experts can create valid templates  
-âœ… **Flexibility**: Choose provider based on needs  
-âœ… **Extensibility**: Easy to add new providers  
-âœ… **No Breaking Changes**: Existing functionality unaffected  
-âœ… **Documentation**: Use cases defined declaratively  
-âœ… **Privacy Options**: Local or cloud processing  
+- **User Productivity**: Generate templates 10x faster  
+- **Lower Barrier**: Non-experts can create valid templates  
+- **Flexibility**: Choose provider based on needs  
+- **Extensibility**: Easy to add new providers  
+- **No Breaking Changes**: Existing functionality unaffected  
+- **Documentation**: Use cases defined declaratively  
+- **Privacy Options**: Local or cloud processing  
 
 ### Negative
 
-âš ï¸ **Complexity**: More code to maintain  
-âš ï¸ **Dependencies**: Requires LLM setup (Ollama or API key)  
-âš ï¸ **Variability**: AI responses not fully deterministic  
-âš ï¸ **Resource Usage**: Ollama requires significant RAM  
-âš ï¸ **Learning Curve**: Users need to understand providers  
-âš ï¸ **Phase 1 Limitation**: Single use case only (resolved in Phase 2)
+- **Complexity**: More code to maintain  
+- **Dependencies**: Requires LLM setup (Ollama or API key)  
+- **Variability**: AI responses not fully deterministic  
+- **Resource Usage**: Ollama requires significant RAM  
+- **Learning Curve**: Users need to understand providers  
+- **Phase 1 Limitation**: Single use case only (resolved in Phase 2)
 
 ### Neutral
 
-ðŸ”· **Configuration**: More config options (but with good defaults)  
-ðŸ”· **Testing**: Need to test multiple providers  
-ðŸ”· **Documentation**: Additional docs required  
+- **Configuration**: More config options (but with good defaults)  
+- **Testing**: Need to test multiple providers  
+- **Documentation**: Additional docs required  
 
 ---
 
@@ -843,14 +696,12 @@ AI configuration validated against:
 
 ### Security Standards
 
-- API keys via environment variables (12-factor app)
+- API keys via environment variables
 - No sensitive data in logs
-- Rate limiting support
-- Timeout protections
 
 ### Output Standards
 
-- **Format**: YAML only (consistent with OS Image Composer)
+- **Format**: YAML only
 - **Validation**: All outputs validated before saving
 - **Schema Compliance**: Matches UserTemplate requirements
 
@@ -871,12 +722,6 @@ AI configuration validated against:
 - [OpenAI API Reference](https://platform.openai.com/docs/api-reference)
 - [LLM Best Practices](https://platform.openai.com/docs/guides/prompt-engineering)
 
-### Related ADRs
-
-- ADR-001: Multi-Repository Package Support
-- ADR-002: Caching Strategy
-- ADR-003: AI-Powered Template Generation (this document)
-
 ---
 
 ## Appendix: Complete API Surface
@@ -885,72 +730,8 @@ AI configuration validated against:
 
 ```bash
 os-image-composer ai [prompt]            # Generate template (YAML to stdout)
-os-image-composer ai [prompt] --output F # Save to file (YAML)
+os-image-composer ai [prompt] --output template.yml # Save to file (YAML)
 ```
-
-### Configuration API
-
-```go
-config.AIEnabled() bool
-config.GetAIConfig() AIConfig
-```
-
-### Agent API
-
-```go
-NewAIAgent(provider string, config interface{}) (*AIAgent, error)
-agent.ProcessUserRequest(ctx, input string) (*OSImageTemplate, error)
-```
-
-### Provider API
-
-```go
-type ChatModel interface {
-    SendMessage(ctx, message string) (string, error)
-    SendStructuredMessage(ctx, message string, schema interface{}) error
-    SetSystemPrompt(prompt string)
-    ResetConversation()
-}
-```
-
----
-
-## Approval and Review
-
-**Status**: â³ Pending Approval  
-**Submitted By**: OS Image Composer AI Team  
-**Review Required From**: 
-- Technical Lead
-- Security Team (for API key handling)
-- Product Owner (for user experience)
-
-**Approval Criteria**:
-- [ ] Architecture review completed
-- [ ] Security review passed
-- [ ] Documentation complete
-- [ ] Phase 1 implementation tested
-- [ ] Migration path validated
-
-**Review Cycle**: Annual or when adding new providers  
-**Next Review**: After Phase 2 implementation
-
----
-
-## Version History
-
-| Version | Date | Changes | Status |
-|---------|------|---------|--------|
-| 0.1 | 2025-10-01 | Initial draft | Draft |
-| 1.0 | 2025-10-13 | Complete ADR with Phase 1 implementation | Proposed |
-
----
-
-## Open Questions
-
-1. **Use Case File Location**: Should `config/use-cases.yml` be user-editable or internal only?
-2. **Phase 2 Timeline**: When should multi-use-case mixing be implemented?
-3. **Package Validation**: How strict should validation be in Phase 2?
-4. **Enterprise Features**: Which Phase 3 features have highest priority?
 
 ---
 
@@ -959,5 +740,4 @@ type ChatModel interface {
 - **LLM**: Large Language Model (e.g., GPT-4, Llama)
 - **Provider**: AI service implementation (Ollama, OpenAI)
 - **Use Case**: Predefined package collection for specific scenario
-- **Template Intent**: Parsed user requirements from natural language
-- **ChatModel**: Interface for LLM communication
+- **Ollama**: It is a lightweight, extensible framework for building and running language models on the local machine.
