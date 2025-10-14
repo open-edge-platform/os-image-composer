@@ -24,7 +24,7 @@ const (
 	OsName    = "edge-microvisor-toolkit"
 	configURL = "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/edge-base.repo"
 	gpgkeyURL = "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY"
-	repomdURL = "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0/repodata/repomd.xml"
+	repodata  = "repodata/repomd.xml"
 )
 
 var log = logger.Logger()
@@ -72,13 +72,15 @@ func (p *Emt) Init(dist, arch string) error {
 		return err
 	}
 
+	repomdURL := cfg.URL + repodata
+
 	href, err := rpmutils.FetchPrimaryURL(repomdURL)
 	if err != nil {
 		log.Errorf("Fetch primary.xml.zst failed: %v", err)
 		return err
 	}
 
-	p.repoURL = configURL
+	p.repoURL = cfg.URL
 	p.repoCfg = cfg
 	p.zstHref = href
 

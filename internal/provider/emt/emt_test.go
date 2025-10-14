@@ -109,7 +109,7 @@ func TestEmtProviderInit(t *testing.T) {
 
 	// Override the URLs to point to our mock server
 	originalConfigURL := configURL
-	originalRepomdURL := repomdURL
+	originalRepomdURL := ""
 	defer func() {
 		// We can't actually restore these since they're constants,
 		// but this shows the intent for cleanup
@@ -578,10 +578,6 @@ func TestEmtConfigurationStructure(t *testing.T) {
 	expectedGpgkeyURL := "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY"
 	if gpgkeyURL != expectedGpgkeyURL {
 		t.Errorf("Expected gpgkeyURL %s, got %s", expectedGpgkeyURL, gpgkeyURL)
-	}
-
-	if repomdURL == "" {
-		t.Error("repomdURL should not be empty")
 	}
 }
 
