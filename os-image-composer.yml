@@ -41,14 +41,14 @@ logging:
 # AI Configuration
 ai:
   enabled: true
-  provider: ollama
+  provider: openai
 
-  #ollama:
-  #  base_url: http://localhost:11434
-  #  model: llama3.1:8b
-  #  temperature: 0.7
-  #  max_tokens: 2000
-  #  timeout: 120  # seconds
+  ollama:
+    base_url: http://localhost:11434
+    model: llama3.1:8b
+    temperature: 0.7
+    max_tokens: 2000
+    timeout: 120  # seconds
 
   openai:
     api_key: "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"
