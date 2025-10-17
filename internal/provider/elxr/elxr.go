@@ -230,18 +230,23 @@ func loadRepoConfig(repoUrl string, arch string) (debutils.RepoConfig, error) {
 		return rc, fmt.Errorf("failed to load provider repo config: %w", err)
 	}
 
-	// Convert ProviderRepoConfig to debutils.RepoConfig using the clean conversion method
-	name, pkgList, pkgPrefix, releaseFile, releaseSign, pbGPGKey, section, buildPath, gpgCheck, repoGPGCheck, enabled := providerConfig.ToRepoConfigData(arch)
+	// Convert ProviderRepoConfig to debutils.RepoConfig using the unified conversion method
+	repoType, name, url, gpgKey, component, buildPath, pkgPrefix, releaseFile, releaseSign, gpgCheck, repoGPGCheck, enabled := providerConfig.ToRepoConfigData(arch)
+
+	// Verify this is a DEB repository
+	if repoType != "deb" {
+		return rc, fmt.Errorf("expected DEB repository type, got: %s", repoType)
+	}
 
 	rc = debutils.RepoConfig{
-		Section:      section,
+		Section:      component, // Map component to Section for DEB utils
 		Name:         name,
-		PkgList:      pkgList,
+		PkgList:      url, // For DEB repos, this is the Packages.gz URL
 		PkgPrefix:    pkgPrefix,
 		GPGCheck:     gpgCheck,
 		RepoGPGCheck: repoGPGCheck,
 		Enabled:      enabled,
-		PbGPGKey:     pbGPGKey,
+		PbGPGKey:     gpgKey, // For DEB repos, gpgKey contains the pbGPGKey value
 		ReleaseFile:  releaseFile,
 		ReleaseSign:  releaseSign,
 		BuildPath:    buildPath,

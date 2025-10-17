@@ -50,15 +50,17 @@ type PackageRepository struct {
 // ProviderRepoConfig represents the repository configuration for a provider
 type ProviderRepoConfig struct {
 	Name         string `yaml:"name"`
+	Type         string `yaml:"type"` // Repository type: "rpm" or "deb"
 	BaseURL      string `yaml:"baseURL"`
 	PkgPrefix    string `yaml:"pkgPrefix"`
 	ReleaseFile  string `yaml:"releaseFile"`
 	ReleaseSign  string `yaml:"releaseSign"`
-	PbGPGKey     string `yaml:"pbGPGKey"`
+	PbGPGKey     string `yaml:"pbGPGKey"` // For DEB repositories (eLxr)
+	GPGKey       string `yaml:"gpgKey"`   // For RPM repositories (azl, emt)
 	GPGCheck     bool   `yaml:"gpgCheck"`
 	RepoGPGCheck bool   `yaml:"repoGPGCheck"`
 	Enabled      bool   `yaml:"enabled"`
-	Section      string `yaml:"section"`
+	Component    string `yaml:"component"` // Repository component/section identifier
 	BuildPath    string `yaml:"buildPath"`
 }
 
@@ -554,19 +556,61 @@ func LoadProviderRepoConfig(targetOS, targetDist string) (*ProviderRepoConfig, e
 	return &repoConfig, nil
 }
 
-// ToRepoConfigData returns the repo configuration data without import dependencies
-func (prc *ProviderRepoConfig) ToRepoConfigData(arch string) (name, pkgList, pkgPrefix, releaseFile, releaseSign, pbGPGKey, section, buildPath string, gpgCheck, repoGPGCheck, enabled bool) {
-	return prc.Name,
-		fmt.Sprintf("%s/binary-%s/Packages.gz", prc.BaseURL, arch),
-		prc.PkgPrefix,
-		prc.ReleaseFile,
-		prc.ReleaseSign,
-		prc.PbGPGKey,
-		prc.Section,
-		prc.BuildPath,
-		prc.GPGCheck,
-		prc.RepoGPGCheck,
-		prc.Enabled
+// ToRepoConfigData returns the unified repo configuration data for both DEB and RPM repositories
+func (prc *ProviderRepoConfig) ToRepoConfigData(arch string) (repoType, name, url, gpgKey, component, buildPath string,
+	pkgPrefix, releaseFile, releaseSign string, gpgCheck, repoGPGCheck, enabled bool) {
+
+	repoType = prc.Type
+	name = prc.Name
+	component = prc.Component
+	buildPath = prc.BuildPath
+	gpgCheck = prc.GPGCheck
+	repoGPGCheck = prc.RepoGPGCheck
+	enabled = prc.Enabled
+
+	switch strings.ToLower(prc.Type) {
+	case "rpm":
+		// RPM repository configuration (Azure Linux, EMT)
+		// Check if baseURL contains {arch} placeholder for substitution
+		if strings.Contains(prc.BaseURL, "{arch}") {
+			url = strings.ReplaceAll(prc.BaseURL, "{arch}", arch)
+		} else {
+			// For repositories without {arch} placeholder, use baseURL as-is (like EMT)
+			url = prc.BaseURL
+		}
+
+		// Handle GPG key URL construction
+		gpgKey = prc.GPGKey
+		if !strings.HasPrefix(gpgKey, "http") && gpgKey != "" {
+			// For relative GPG key paths, use the constructed repository URL
+			gpgKey = fmt.Sprintf("%s/%s", url, gpgKey)
+		}
+		// If gpgKey starts with http, use it as-is
+
+		// DEB-specific fields are empty for RPM
+		pkgPrefix = ""
+		releaseFile = ""
+		releaseSign = ""
+
+	case "deb":
+		// DEB repository configuration (eLxr)
+		url = fmt.Sprintf("%s/binary-%s/Packages.gz", prc.BaseURL, arch)
+		gpgKey = prc.PbGPGKey // Use pbGPGKey for DEB repositories
+		pkgPrefix = prc.PkgPrefix
+		releaseFile = prc.ReleaseFile
+		releaseSign = prc.ReleaseSign
+
+	default:
+		// Unknown repository type - log warning and default to RPM behavior
+		log.Warnf("Unknown repository type '%s', defaulting to RPM behavior", prc.Type)
+		url = fmt.Sprintf("%s/%s", prc.BaseURL, arch)
+		gpgKey = prc.GPGKey
+		pkgPrefix = ""
+		releaseFile = ""
+		releaseSign = ""
+	}
+
+	return
 }
 
 // HasPackageRepositories returns true if additional repositories are configured

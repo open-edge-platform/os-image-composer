@@ -77,7 +77,11 @@ func TestGetProviderId(t *testing.T) {
 func TestElxrProviderInit(t *testing.T) {
 	// Change to project root for tests that need config files
 	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Logf("Failed to change back to original directory: %v", err)
+		}
+	}()
 
 	// Navigate to project root (3 levels up from internal/provider/elxr)
 	if err := os.Chdir("../../../"); err != nil {
@@ -115,7 +119,11 @@ func TestElxrProviderInit(t *testing.T) {
 func TestElxrProviderInitArchMapping(t *testing.T) {
 	// Change to project root for tests that need config files
 	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Logf("Failed to change back to original directory: %v", err)
+		}
+	}()
 
 	// Navigate to project root (3 levels up from internal/provider/elxr)
 	if err := os.Chdir("../../../"); err != nil {
