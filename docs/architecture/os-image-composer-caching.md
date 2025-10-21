@@ -449,7 +449,7 @@ sudo rm -rf workspace/azure-linux-azl3-x86_64/imagebuild/
 **Clear Everything:**
 
 ```bash
-# Nuclear option: clear all caches and workspaces
+# Clear all caches and workspaces
 sudo rm -rf cache/
 sudo rm -rf workspace/
 
