@@ -10,13 +10,13 @@ func extractJSON(response string) string {
 	response = strings.TrimPrefix(response, "```")
 	response = strings.TrimSuffix(response, "```")
 	response = strings.TrimSpace(response)
-	
+
 	start := strings.Index(response, "{")
 	end := strings.LastIndex(response, "}")
-	
+
 	if start != -1 && end != -1 && end > start {
 		return response[start : end+1]
 	}
-	
+
 	return response
 }

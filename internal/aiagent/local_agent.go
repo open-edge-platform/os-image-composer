@@ -22,7 +22,7 @@ type AIAgent struct {
 // NewAIAgent creates an agent with the appropriate provider
 func NewAIAgent(provider string, config interface{}) (*AIAgent, error) {
 	var chatModel ChatModel
-	
+
 	switch provider {
 	case "ollama":
 		ollamaConfig, ok := config.(OllamaConfig)
@@ -30,29 +30,29 @@ func NewAIAgent(provider string, config interface{}) (*AIAgent, error) {
 			return nil, fmt.Errorf("invalid Ollama configuration")
 		}
 		chatModel = NewOllamaChatModel(ollamaConfig)
-		
+
 	case "openai":
 		openaiConfig, ok := config.(OpenAIConfig)
 		if !ok {
 			return nil, fmt.Errorf("invalid OpenAI configuration")
 		}
 		chatModel = NewOpenAIChatModel(openaiConfig)
-		
+
 	default:
 		return nil, fmt.Errorf("unsupported AI provider: %s", provider)
 	}
-	
+
 	// Load use cases configuration
 	useCases, err := LoadUseCases("")
 	if err != nil {
 		fmt.Printf("Warning: Failed to load use cases config: %v\n", err)
 		useCases = &UseCasesConfig{UseCases: make(map[string]UseCaseConfig)}
 	}
-	
+
 	// Build dynamic system prompt
 	systemPrompt := buildSystemPrompt(useCases)
 	chatModel.SetSystemPrompt(systemPrompt)
-	
+
 	return &AIAgent{
 		chatModel: chatModel,
 		useCases:  useCases,
@@ -62,7 +62,7 @@ func NewAIAgent(provider string, config interface{}) (*AIAgent, error) {
 func buildSystemPrompt(useCases *UseCasesConfig) string {
 	availableUseCases := useCases.GetAllUseCaseNames()
 	useCasesList := strings.Join(availableUseCases, ", ")
-	
+
 	return fmt.Sprintf(`You are an expert AI assistant for the OS Image Composer, a system that builds custom Linux OS images.
 
 Your role is to understand user requirements and generate optimal package selections for OS Image Composer templates.
@@ -96,21 +96,21 @@ func (agent *AIAgent) ProcessUserRequest(ctx context.Context, userInput string) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse intent: %w", err)
 	}
-	
+
 	intent = cleanIntent(intent)
-	
+
 	template, err := agent.generateTemplate(intent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate template: %w", err)
 	}
-	
+
 	return template, nil
 }
 
 func (agent *AIAgent) parseUserIntent(ctx context.Context, userInput string) (*TemplateIntent, error) {
 	availableUseCases := agent.useCases.GetAllUseCaseNames()
 	useCasesList := strings.Join(availableUseCases, ", ")
-	
+
 	prompt := fmt.Sprintf(`Parse the following user request for OS Image Composer template generation.
 
 User Request: "%s"
@@ -126,13 +126,13 @@ Return ONLY a JSON object. Use SINGLE values (not comma-separated lists):
 }
 
 Return ONLY valid JSON, no markdown.`, userInput, useCasesList)
-	
+
 	var intent TemplateIntent
 	err := agent.chatModel.SendStructuredMessage(ctx, prompt, &intent)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Apply defaults
 	if intent.Architecture == "" {
 		intent.Architecture = "x86_64"
@@ -143,12 +143,12 @@ Return ONLY valid JSON, no markdown.`, userInput, useCasesList)
 	if intent.ImageType == "" {
 		intent.ImageType = "raw"
 	}
-	
+
 	// Validate use case exists
 	if intent.UseCase == "" || !agent.useCases.HasUseCase(intent.UseCase) {
 		intent.UseCase = agent.useCases.DetectUseCase(userInput)
 	}
-	
+
 	return &intent, nil
 }
 
@@ -158,11 +158,11 @@ func (agent *AIAgent) generateTemplate(intent *TemplateIntent) (*OSImageTemplate
 	if err != nil {
 		return nil, fmt.Errorf("failed to get packages for use case: %w", err)
 	}
-	
+
 	// Get kernel configuration
 	kernelVersion := agent.useCases.GetKernelVersion(intent.UseCase, intent.Distribution)
 	kernelCmdline := agent.useCases.GetKernelCmdline(intent.UseCase)
-	
+
 	template := &OSImageTemplate{
 		Image: ImageConfig{
 			Name:    fmt.Sprintf("%s-%s-%s", intent.Distribution, intent.Architecture, intent.UseCase),
@@ -184,20 +184,20 @@ func (agent *AIAgent) generateTemplate(intent *TemplateIntent) (*OSImageTemplate
 			},
 		},
 	}
-	
+
 	// Add disk configuration for raw images
 	if intent.ImageType == "raw" {
 		diskSize := agent.useCases.GetDiskSize(intent.UseCase)
 		template.Disk = generateDiskConfig(intent, diskSize)
 	}
-	
+
 	// Add immutability configuration if not minimal
 	if !contains(intent.Requirements, "minimal") {
 		template.SystemConfig.Immutability = &Immutability{
 			Enabled: false,
 		}
 	}
-	
+
 	return template, nil
 }
 
@@ -206,7 +206,7 @@ func generateDiskConfig(intent *TemplateIntent, size string) *DiskConfig {
 	if intent.Architecture == "aarch64" {
 		archType = "linux-root-arm64"
 	}
-	
+
 	return &DiskConfig{
 		Name: fmt.Sprintf("%s_disk", intent.UseCase),
 		Artifacts: []ArtifactSpec{
