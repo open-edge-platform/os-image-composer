@@ -16,12 +16,13 @@ type ChatModel interface {
 
 type AIAgent struct {
 	chatModel ChatModel
-	useCases  *UseCasesConfig
+	rag       *TemplateRAG
 }
 
-// NewAIAgent creates an agent with the appropriate provider
+// NewAIAgent creates an agent with the appropriate provider and RAG system
 func NewAIAgent(provider string, config interface{}) (*AIAgent, error) {
 	var chatModel ChatModel
+	var embeddingClient EmbeddingGenerator
 
 	switch provider {
 	case "ollama":
@@ -31,6 +32,12 @@ func NewAIAgent(provider string, config interface{}) (*AIAgent, error) {
 		}
 		chatModel = NewOllamaChatModel(ollamaConfig)
 
+		// Use Ollama for embeddings as well
+		embeddingClient = NewOllamaEmbeddingClient(
+			ollamaConfig.BaseURL,
+			"nomic-embed-text", // Dedicated embedding model
+		)
+
 	case "openai":
 		openaiConfig, ok := config.(OpenAIConfig)
 		if !ok {
@@ -38,40 +45,53 @@ func NewAIAgent(provider string, config interface{}) (*AIAgent, error) {
 		}
 		chatModel = NewOpenAIChatModel(openaiConfig)
 
+		// Use OpenAI for embeddings
+		embeddingClient = NewOpenAIEmbeddingClient(
+			openaiConfig.APIKey,
+			"text-embedding-3-small", // Cost-effective embedding model
+		)
+
 	default:
 		return nil, fmt.Errorf("unsupported AI provider: %s", provider)
 	}
 
-	// Load use cases configuration
-	useCases, err := LoadUseCases("")
+	// Initialize RAG system with template examples
+	fmt.Println("🔍 Initializing RAG system...")
+	rag, err := NewTemplateRAG("./image-templates", embeddingClient)
 	if err != nil {
-		fmt.Printf("Warning: Failed to load use cases config: %v\n", err)
-		useCases = &UseCasesConfig{UseCases: make(map[string]UseCaseConfig)}
+		// Fallback to current directory if image-templates doesn't exist
+		fmt.Println("Warning: ./image-templates not found, searching current directory...")
+		rag, err = NewTemplateRAG(".", embeddingClient)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize RAG system: %w", err)
+		}
 	}
 
-	// Build dynamic system prompt
-	systemPrompt := buildSystemPrompt(useCases)
+	// Build dynamic system prompt with available use cases
+	systemPrompt := buildSystemPromptWithRAG(rag)
 	chatModel.SetSystemPrompt(systemPrompt)
 
 	return &AIAgent{
 		chatModel: chatModel,
-		useCases:  useCases,
+		rag:       rag,
 	}, nil
 }
 
-func buildSystemPrompt(useCases *UseCasesConfig) string {
-	availableUseCases := useCases.GetAllUseCaseNames()
+func buildSystemPromptWithRAG(rag *TemplateRAG) string {
+	availableUseCases := rag.GetAllUseCases()
 	useCasesList := strings.Join(availableUseCases, ", ")
 
 	return fmt.Sprintf(`You are an expert AI assistant for the OS Image Composer, a system that builds custom Linux OS images.
 
-Your role is to understand user requirements and generate optimal package selections for OS Image Composer templates.
+Your role is to understand user requirements and generate optimal OS image templates based on REAL working examples.
 
 OS Image Composer Context:
 - Supports: Azure Linux (azl3), EMT (emt3), eLxr (elxr12)
 - Architectures: x86_64, aarch64
 - Image types: raw, iso, img
-- Available use cases: %s
+- Available use case categories: %s
+
+You will be provided with REAL template examples that match the user's request. Use these as references to generate the new template.
 
 IMPORTANT: Return SINGLE values only, not lists!
 - architecture: "x86_64" (NOT "x86_64, aarch64")
@@ -80,26 +100,55 @@ IMPORTANT: Return SINGLE values only, not lists!
 
 Always respond with structured JSON:
 {
-  "use_case": "single value from: %s",
+  "use_case": "primary use case category",
   "requirements": ["array of: security, performance, minimal"],
   "architecture": "single value: x86_64 or aarch64",
   "distribution": "single value: azl3, emt3, or elxr12",
   "image_type": "single value: raw, iso, or img",
-  "description": "brief description"
+  "description": "brief description",
+  "custom_packages": ["any additional packages user specifically requested"],
+  "package_repositories": [
+    {
+      "codename": "repository codename",
+      "url": "repository URL",
+      "pkey": "GPG key URL",
+      "component": "optional component"
+    }
+  ]
 }
 
-Return ONLY valid JSON, no markdown formatting.`, useCasesList, useCasesList)
+IMPORTANT: Extract repository information from user query!
+- Look for: "codename", "url", "pkey", "repository"
+- Parse repository details carefully
+- Include all repositories mentioned by user
+
+Return ONLY valid JSON, no markdown formatting.`, useCasesList)
 }
 
 func (agent *AIAgent) ProcessUserRequest(ctx context.Context, userInput string) (*OSImageTemplate, error) {
-	intent, err := agent.parseUserIntent(ctx, userInput)
+	// Step 1: Find relevant template examples using RAG
+	fmt.Println("🔎 Finding relevant template examples...")
+	relevantTemplates, err := agent.rag.FindRelevantTemplates(ctx, userInput, 3)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find relevant templates: %w", err)
+	}
+
+	// Display found templates
+	fmt.Printf("📋 Found %d relevant templates:\n", len(relevantTemplates))
+	for i, result := range relevantTemplates {
+		fmt.Printf("   %d. %s (similarity: %.2f)\n", i+1, result.Template.Name, result.Score)
+	}
+
+	// Step 2: Parse user intent with context from examples
+	intent, err := agent.parseUserIntentWithExamples(ctx, userInput, relevantTemplates)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse intent: %w", err)
 	}
 
 	intent = cleanIntent(intent)
 
-	template, err := agent.generateTemplate(intent)
+	// Step 3: Generate template based on examples
+	template, err := agent.generateTemplateFromExamples(intent, relevantTemplates)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate template: %w", err)
 	}
@@ -107,25 +156,29 @@ func (agent *AIAgent) ProcessUserRequest(ctx context.Context, userInput string) 
 	return template, nil
 }
 
-func (agent *AIAgent) parseUserIntent(ctx context.Context, userInput string) (*TemplateIntent, error) {
-	availableUseCases := agent.useCases.GetAllUseCaseNames()
-	useCasesList := strings.Join(availableUseCases, ", ")
+func (agent *AIAgent) parseUserIntentWithExamples(ctx context.Context, userInput string, examples []*SearchResult) (*TemplateIntent, error) {
+	// Build prompt with example context
+	examplesContext := agent.buildExamplesContext(examples)
 
 	prompt := fmt.Sprintf(`Parse the following user request for OS Image Composer template generation.
 
+RELEVANT TEMPLATE EXAMPLES FOR CONTEXT:
+%s
+
 User Request: "%s"
 
-Return ONLY a JSON object. Use SINGLE values (not comma-separated lists):
+Based on the examples above and the user's request, return ONLY a JSON object with SINGLE values:
 {
-  "use_case": "choose ONE from: %s",
+  "use_case": "choose the most appropriate use case",
   "requirements": ["array of: security, performance, minimal"],
   "architecture": "x86_64 or aarch64 (choose ONE)",
-  "distribution": "azl3, emt3, or elxr12 (choose ONE)",
+  "distribution": "azl3, emt3, or elxr12 (choose ONE based on examples)",
   "image_type": "raw, iso, or img (choose ONE)",
-  "description": "brief description"
+  "description": "brief description",
+  "custom_packages": ["any specific packages the user mentioned"]
 }
 
-Return ONLY valid JSON, no markdown.`, userInput, useCasesList)
+Return ONLY valid JSON, no markdown.`, examplesContext, userInput)
 
 	var intent TemplateIntent
 	err := agent.chatModel.SendStructuredMessage(ctx, prompt, &intent)
@@ -138,30 +191,68 @@ Return ONLY valid JSON, no markdown.`, userInput, useCasesList)
 		intent.Architecture = "x86_64"
 	}
 	if intent.Distribution == "" {
-		intent.Distribution = "azl3"
+		// Use distribution from best matching example
+		if len(examples) > 0 && examples[0].Template.Distribution != "" {
+			intent.Distribution = examples[0].Template.Distribution
+		} else {
+			intent.Distribution = "azl3"
+		}
 	}
 	if intent.ImageType == "" {
 		intent.ImageType = "raw"
 	}
 
-	// Validate use case exists
-	if intent.UseCase == "" || !agent.useCases.HasUseCase(intent.UseCase) {
-		intent.UseCase = agent.useCases.DetectUseCase(userInput)
-	}
-
 	return &intent, nil
 }
 
-func (agent *AIAgent) generateTemplate(intent *TemplateIntent) (*OSImageTemplate, error) {
-	// Get packages from configurable use cases
-	packages, err := agent.useCases.GetPackagesForUseCase(intent.UseCase, intent.Requirements)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get packages for use case: %w", err)
+func (agent *AIAgent) buildExamplesContext(examples []*SearchResult) string {
+	var sb strings.Builder
+
+	for i, result := range examples {
+		sb.WriteString(fmt.Sprintf("\n--- Example %d (Similarity: %.2f) ---\n", i+1, result.Score))
+		sb.WriteString(agent.rag.FormatTemplateForPrompt(result.Template, false))
+		sb.WriteString("\n")
 	}
 
-	// Get kernel configuration
-	kernelVersion := agent.useCases.GetKernelVersion(intent.UseCase, intent.Distribution)
-	kernelCmdline := agent.useCases.GetKernelCmdline(intent.UseCase)
+	return sb.String()
+}
+
+func (agent *AIAgent) generateTemplateFromExamples(intent *TemplateIntent, examples []*SearchResult) (*OSImageTemplate, error) {
+	// Use the best matching template as base
+	baseTemplate := examples[0].Template
+
+	// Merge packages from top examples
+	packages := make([]string, 0)
+
+	// Collect packages from relevant examples
+	for _, result := range examples {
+		if result.Score > 0.7 { // Only use highly relevant examples
+			packages = append(packages, result.Template.Packages...)
+		}
+	}
+
+	// Add custom packages requested by user
+	if len(intent.CustomPackages) > 0 {
+		packages = append(packages, intent.CustomPackages...)
+		fmt.Printf("➕ Adding custom packages: %v\n", intent.CustomPackages)
+	}
+
+	// Remove duplicates
+	packages = uniqueStrings(packages)
+
+	// Filter packages based on requirements
+	if contains(intent.Requirements, "minimal") && len(packages) > 20 {
+		// Keep only essential packages for minimal requirement
+		packages = filterEssentialPackages(packages)
+	}
+
+	// Get kernel configuration from example
+	kernelVersion := baseTemplate.KernelInfo
+	if kernelVersion == "" {
+		kernelVersion = "6.12" // fallback
+	}
+
+	kernelCmdline := "console=ttyS0,115200 console=tty0 loglevel=7"
 
 	template := &OSImageTemplate{
 		Image: ImageConfig{
@@ -185,10 +276,35 @@ func (agent *AIAgent) generateTemplate(intent *TemplateIntent) (*OSImageTemplate
 		},
 	}
 
-	// Add disk configuration for raw images
-	if intent.ImageType == "raw" {
-		diskSize := agent.useCases.GetDiskSize(intent.UseCase)
+	if len(intent.PackageRepositories) > 0 {
+		repos := make([]PackageRepository, len(intent.PackageRepositories))
+		for i, repoIntent := range intent.PackageRepositories {
+			repos[i] = PackageRepository{
+				Codename:  repoIntent.Codename,
+				URL:       repoIntent.URL,
+				PKey:      repoIntent.PKey,
+				Component: repoIntent.Component,
+			}
+		}
+		template.PackageRepositories = repos
+		fmt.Printf("📦 Added %d custom repositories\n", len(repos))
+	}
+
+	// Add disk configuration for raw images (learn from examples)
+	if intent.ImageType == "raw" && baseTemplate.HasDisk {
+		diskSize := "8GiB"
+		if len(packages) > 50 {
+			diskSize = "12GiB"
+		}
+		if len(packages) > 100 {
+			diskSize = "20GiB"
+		}
 		template.Disk = generateDiskConfig(intent, diskSize)
+	}
+
+	// Add package repositories if examples have them
+	if len(baseTemplate.Repositories) > 0 {
+		fmt.Printf("📦 Template requires custom repositories: %v\n", baseTemplate.Repositories)
 	}
 
 	// Add immutability configuration if not minimal
@@ -260,23 +376,27 @@ func cleanIntent(intent *TemplateIntent) *TemplateIntent {
 	return intent
 }
 
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
+func filterEssentialPackages(packages []string) []string {
+	// Keep only essential system packages for minimal installs
+	essential := []string{
+		"systemd", "kernel", "bash", "coreutils", "util-linux",
+		"filesystem", "glibc", "openssl", "busybox",
 	}
-	return false
-}
 
-func uniqueStrings(input []string) []string {
-	seen := make(map[string]bool)
-	result := make([]string, 0)
-	for _, item := range input {
-		if !seen[item] {
-			seen[item] = true
-			result = append(result, item)
+	filtered := make([]string, 0)
+	for _, pkg := range packages {
+		for _, ess := range essential {
+			if strings.Contains(strings.ToLower(pkg), ess) {
+				filtered = append(filtered, pkg)
+				break
+			}
 		}
 	}
-	return result
+
+	// Ensure we have at least some packages
+	if len(filtered) == 0 {
+		filtered = packages[:min(15, len(packages))]
+	}
+
+	return filtered
 }

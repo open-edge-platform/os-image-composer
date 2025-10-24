@@ -6,14 +6,24 @@ type ChatMessage struct {
 	Content string `json:"content"`
 }
 
+// RepoIntent captures repository information from user query
+type RepoIntent struct {
+	Codename  string `json:"codename"`
+	URL       string `json:"url"`
+	PKey      string `json:"pkey"`
+	Component string `json:"component,omitempty"`
+}
+
 // Internal types for AI processing
 type TemplateIntent struct {
-	UseCase      string   `json:"use_case"`
-	Requirements []string `json:"requirements"`
-	Architecture string   `json:"architecture"`
-	Distribution string   `json:"distribution"`
-	ImageType    string   `json:"image_type"`
-	Description  string   `json:"description"`
+	UseCase             string       `json:"use_case"`
+	Requirements        []string     `json:"requirements"`
+	Architecture        string       `json:"architecture"`
+	Distribution        string       `json:"distribution"`
+	ImageType           string       `json:"image_type"`
+	Description         string       `json:"description"`
+	CustomPackages      []string     `json:"custom_packages"`
+	PackageRepositories []RepoIntent `json:"package_repositories"`
 }
 
 // OSImageTemplate - OS Image Composer compatible template structure (matches UserTemplate schema)

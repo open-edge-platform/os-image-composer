@@ -38,20 +38,27 @@ logging:
   # - warn:  Only warnings and errors, minimal output
   # - error: Only errors, very quiet operation
 
-# AI Configuration
+# AI Configuration (RAG-enabled)
 ai:
   enabled: true
-  provider: openai
+  provider: openai  # or "openai"
+
+  # Template directory for RAG indexing
+  templates_dir: ./image-templates  # Directory containing .yml template examples
 
   ollama:
     base_url: http://localhost:11434
-    model: llama3.1:8b
+    model: llama3.1:8b           # Chat model for generation
+    embedding_model: nomic-embed-text  # Embedding model for RAG (768 dimensions)
     temperature: 0.7
     max_tokens: 2000
-    timeout: 120  # seconds
+    timeout: 120
 
   openai:
     api_key: "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"
-    model: gpt-4
+    model: gpt-4o-mini            # Chat model for generation
+    embedding_model: text-embedding-3-small  # Embedding model for RAG (1536 dimensions)
     temperature: 0.7
+    max_tokens: 2000
+    timeout: 120
 
