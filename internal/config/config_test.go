@@ -3399,3 +3399,135 @@ func TestSaveUpdatedConfigFileStub(t *testing.T) {
 		t.Errorf("SaveUpdatedConfigFile() = %v, want nil", err)
 	}
 }
+
+// TestUnifiedRepoConfig verifies that the unified ToRepoConfigData function
+// works correctly for both RPM and DEB repository types
+func TestUnifiedRepoConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		repoConfig   ProviderRepoConfig
+		arch         string
+		expectedType string
+		expectedURL  string
+	}{
+		{
+			name: "RPM Repository (Azure Linux)",
+			repoConfig: ProviderRepoConfig{
+				Name:      "Azure Linux 3.0",
+				Type:      "rpm",
+				BaseURL:   "https://packages.microsoft.com/azurelinux/3.0/prod/base/{arch}",
+				GPGKey:    "repodata/repomd.xml.key",
+				Component: "azl3.0-base",
+				Enabled:   true,
+			},
+			arch:         "x86_64",
+			expectedType: "rpm",
+			expectedURL:  "https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64",
+		},
+		{
+			name: "DEB Repository (eLxr)",
+			repoConfig: ProviderRepoConfig{
+				Name:        "Wind River eLxr 12",
+				Type:        "deb",
+				BaseURL:     "https://mirror.elxr.dev/elxr/dists/aria/main",
+				PbGPGKey:    "https://mirror.elxr.dev/elxr/public.gpg",
+				Component:   "main",
+				Enabled:     true,
+				PkgPrefix:   "https://mirror.elxr.dev/elxr/",
+				ReleaseFile: "https://mirror.elxr.dev/elxr/dists/aria/Release",
+			},
+			arch:         "amd64",
+			expectedType: "deb",
+			expectedURL:  "https://mirror.elxr.dev/elxr/dists/aria/main/binary-amd64/Packages.gz",
+		},
+		{
+			name: "RPM Repository with arch substitution (EMT-style)",
+			repoConfig: ProviderRepoConfig{
+				Name:      "Edge Microvisor Toolkit 3.0",
+				Type:      "rpm",
+				BaseURL:   "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0",
+				Component: "emt3.0-base",
+				Enabled:   true,
+				GPGCheck:  false,
+			},
+			arch:         "x86_64",
+			expectedType: "rpm",
+			expectedURL:  "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repoType, name, url, gpgKey, component, buildPath, pkgPrefix, releaseFile, releaseSign, gpgCheck, repoGPGCheck, enabled := tt.repoConfig.ToRepoConfigData(tt.arch)
+
+			// Verify repository type
+			if repoType != tt.expectedType {
+				t.Errorf("Expected repo type %s, got %s", tt.expectedType, repoType)
+			}
+
+			// Verify URL construction
+			if url != tt.expectedURL {
+				t.Errorf("Expected URL %s, got %s", tt.expectedURL, url)
+			}
+
+			// Verify basic fields
+			if name != tt.repoConfig.Name {
+				t.Errorf("Expected name %s, got %s", tt.repoConfig.Name, name)
+			}
+
+			if component != tt.repoConfig.Component {
+				t.Errorf("Expected component %s, got %s", tt.repoConfig.Component, component)
+			}
+
+			if enabled != tt.repoConfig.Enabled {
+				t.Errorf("Expected enabled %v, got %v", tt.repoConfig.Enabled, enabled)
+			}
+
+			// Verify type-specific fields
+			switch tt.expectedType {
+			case "rpm":
+				// For RPM: pkgPrefix, releaseFile, releaseSign should be empty
+				if pkgPrefix != "" || releaseFile != "" || releaseSign != "" {
+					t.Errorf("Expected empty DEB-specific fields for RPM repo, got pkgPrefix=%s, releaseFile=%s, releaseSign=%s",
+						pkgPrefix, releaseFile, releaseSign)
+				}
+
+				// Verify arch substitution in GPG key if applicable
+				if tt.repoConfig.GPGKey != "" && gpgKey != "" {
+					expectedGPGKey := tt.repoConfig.GPGKey
+					if expectedGPGKey == "repodata/repomd.xml.key" {
+						expectedGPGKey = "https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64/repodata/repomd.xml.key"
+					}
+					if gpgKey != expectedGPGKey {
+						t.Errorf("Expected GPG key %s, got %s", expectedGPGKey, gpgKey)
+					}
+				}
+
+			case "deb":
+				// For DEB: should have the DEB-specific fields populated
+				if pkgPrefix != tt.repoConfig.PkgPrefix {
+					t.Errorf("Expected pkgPrefix %s, got %s", tt.repoConfig.PkgPrefix, pkgPrefix)
+				}
+				if releaseFile != tt.repoConfig.ReleaseFile {
+					t.Errorf("Expected releaseFile %s, got %s", tt.repoConfig.ReleaseFile, releaseFile)
+				}
+				if gpgKey != tt.repoConfig.PbGPGKey {
+					t.Errorf("Expected gpgKey (pbGPGKey) %s, got %s", tt.repoConfig.PbGPGKey, gpgKey)
+				}
+			}
+
+			// Verify GPG settings match
+			if gpgCheck != tt.repoConfig.GPGCheck {
+				t.Errorf("Expected gpgCheck %v, got %v", tt.repoConfig.GPGCheck, gpgCheck)
+			}
+			if repoGPGCheck != tt.repoConfig.RepoGPGCheck {
+				t.Errorf("Expected repoGPGCheck %v, got %v", tt.repoConfig.RepoGPGCheck, repoGPGCheck)
+			}
+
+			// For this test, buildPath can be ignored as it's not critical to functionality
+			_ = buildPath
+
+			t.Logf("✅ %s: type=%s, url=%s, gpgKey=%s", tt.name, repoType, url, gpgKey)
+		})
+	}
+}

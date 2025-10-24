@@ -3,7 +3,6 @@ package rpmutils
 import (
 	"fmt"
 	"net/url"
-	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
@@ -222,8 +221,19 @@ func extractBasePackageNameFromFile(fullName string) string {
 	// Find the first part that looks like a version (starts with digit)
 	for i := 1; i < len(parts); i++ {
 		if len(parts[i]) > 0 && (parts[i][0] >= '0' && parts[i][0] <= '9') {
-			// Everything before this index is the package name
-			return strings.Join(parts[:i], "-")
+			// get the name
+			maybe_name := strings.Join(parts[:i], "-")
+			// check if version is part of the name
+			// full name contains version, if package name has version,
+			// it will be repeated in the full name
+			for j := i + 1; j < len(parts); j++ {
+				if len(parts[j]) > 0 && strings.Contains(parts[j], parts[i]) {
+					maybe_name = strings.Join(parts[:j], "-")
+					break
+				}
+			}
+			// return name or name-version
+			return maybe_name
 		}
 	}
 
@@ -295,15 +305,10 @@ func findAllCandidates(parent ospackage.PackageInfo, depName string, all []ospac
 }
 
 // ResolvePackage finds the best matching package for a given package name
-func ResolveTopPackageConflicts(want, pkgType string, all []ospackage.PackageInfo) (ospackage.PackageInfo, bool) {
+func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospackage.PackageInfo, bool) {
 	var candidates []ospackage.PackageInfo
 	for _, pi := range all {
-		// 1) exact name and version matched with .deb filenamae, e.g. acct_7.6.4-5+b1_amd64
-		if filepath.Base(pi.URL) == want+"."+pkgType {
-			candidates = append(candidates, pi)
-			break
-		}
-		// 2) exact name, e.g. acct-205-25.azl3.noarch.rpm
+		// 1) exact name, e.g. acct-205-25.azl3.noarch.rpm
 		if pi.Name == want {
 			candidates = append(candidates, pi)
 			break
@@ -314,20 +319,19 @@ func ResolveTopPackageConflicts(want, pkgType string, all []ospackage.PackageInf
 			candidates = append(candidates, pi)
 			continue
 		}
-		// // 3) prefix by want-version ("acl-")
-		// if strings.HasPrefix(pi.Name, want+"-") {
-		// 	candidates = append(candidates, pi)
-		// 	continue
-		// }
-		// // 4) prefix by want.release ("acl-2.3.1-2.")
-		// if strings.HasPrefix(cleanName, want+".") {
-		// 	candidates = append(candidates, pi)
-		// 	continue
-		// }
-		// // 5) Debian package format (packagename_version_arch.deb)
-		// if strings.HasPrefix(cleanName, want+"_") {
-		// 	candidates = append(candidates, pi)
-		// }
+		// 3) prefix by want-version ("acl-")
+		// expected pi.Name should look like openvino-2025.3.0-2025.3.0.19807-1.noarch.rpm
+		// want = openvino-2025.3.0
+		if strings.HasPrefix(pi.Name, want) {
+			// Extract string after "-" and compare with pi.Version
+			if dashIdx := strings.LastIndex(want, "-"); dashIdx != -1 {
+				verStr := want[dashIdx+1:]
+				if strings.Contains(pi.Version, verStr) {
+					candidates = append(candidates, pi)
+					continue
+				}
+			}
+		}
 	}
 
 	if len(candidates) == 0 {
@@ -335,7 +339,7 @@ func ResolveTopPackageConflicts(want, pkgType string, all []ospackage.PackageInf
 	}
 
 	// If we got an exact match in step (1), it's the only candidate
-	if len(candidates) == 1 && (candidates[0].Name == want || candidates[0].Name == want+"."+pkgType) {
+	if len(candidates) == 1 && (candidates[0].Name == want || extractBasePackageNameFromFile(candidates[0].Name) == want) {
 		return candidates[0], true
 	}
 
