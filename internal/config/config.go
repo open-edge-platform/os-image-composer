@@ -47,6 +47,23 @@ type PackageRepository struct {
 	Component string `yaml:"component,omitempty"` // Repository component (e.g., "main", "restricted")
 }
 
+// ProviderRepoConfig represents the repository configuration for a provider
+type ProviderRepoConfig struct {
+	Name         string `yaml:"name"`
+	Type         string `yaml:"type"` // Repository type: "rpm" or "deb"
+	BaseURL      string `yaml:"baseURL"`
+	PkgPrefix    string `yaml:"pkgPrefix"`
+	ReleaseFile  string `yaml:"releaseFile"`
+	ReleaseSign  string `yaml:"releaseSign"`
+	PbGPGKey     string `yaml:"pbGPGKey"` // For DEB repositories (eLxr)
+	GPGKey       string `yaml:"gpgKey"`   // For RPM repositories (azl, emt)
+	GPGCheck     bool   `yaml:"gpgCheck"`
+	RepoGPGCheck bool   `yaml:"repoGPGCheck"`
+	Enabled      bool   `yaml:"enabled"`
+	Component    string `yaml:"component"` // Repository component/section identifier
+	BuildPath    string `yaml:"buildPath"`
+}
+
 // ImageTemplate represents the YAML image template structure (unchanged)
 type ImageTemplate struct {
 	Image               ImageInfo           `yaml:"image"`
@@ -508,6 +525,92 @@ func (sc *SystemConfig) HasUsers() bool {
 // GetPackageRepositories returns the list of additional package repositories
 func (t *ImageTemplate) GetPackageRepositories() []PackageRepository {
 	return t.PackageRepositories
+}
+
+// LoadProviderRepoConfig loads provider repository configuration from YAML file
+func LoadProviderRepoConfig(targetOS, targetDist string) (*ProviderRepoConfig, error) {
+	// Get the target OS config directory
+	targetOsConfigDir, err := GetTargetOsConfigDir(targetOS, targetDist)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get target OS config directory: %w", err)
+	}
+
+	// Construct path to repo.yml
+	repoConfigPath := filepath.Join(targetOsConfigDir, "providerconfigs", "repo.yml")
+
+	// Read the YAML file
+	yamlData, err := security.SafeReadFile(repoConfigPath, security.RejectSymlinks)
+	if err != nil {
+		log.Errorf("Failed to read repo config file: %v", err)
+		return nil, fmt.Errorf("failed to read repo config file %s: %w", repoConfigPath, err)
+	}
+
+	// Parse YAML into our struct
+	var repoConfig ProviderRepoConfig
+	if err := yaml.Unmarshal(yamlData, &repoConfig); err != nil {
+		log.Errorf("Failed to parse repo config YAML: %v", err)
+		return nil, fmt.Errorf("failed to parse repo config YAML: %w", err)
+	}
+
+	log.Infof("Loaded provider repo config from %s: %s", repoConfigPath, repoConfig.Name)
+	return &repoConfig, nil
+}
+
+// ToRepoConfigData returns the unified repo configuration data for both DEB and RPM repositories
+func (prc *ProviderRepoConfig) ToRepoConfigData(arch string) (repoType, name, url, gpgKey, component, buildPath string,
+	pkgPrefix, releaseFile, releaseSign string, gpgCheck, repoGPGCheck, enabled bool) {
+
+	repoType = prc.Type
+	name = prc.Name
+	component = prc.Component
+	buildPath = prc.BuildPath
+	gpgCheck = prc.GPGCheck
+	repoGPGCheck = prc.RepoGPGCheck
+	enabled = prc.Enabled
+
+	switch strings.ToLower(prc.Type) {
+	case "rpm":
+		// RPM repository configuration (Azure Linux, EMT)
+		// Check if baseURL contains {arch} placeholder for substitution
+		if strings.Contains(prc.BaseURL, "{arch}") {
+			url = strings.ReplaceAll(prc.BaseURL, "{arch}", arch)
+		} else {
+			// For repositories without {arch} placeholder, use baseURL as-is (like EMT)
+			url = prc.BaseURL
+		}
+
+		// Handle GPG key URL construction
+		gpgKey = prc.GPGKey
+		if !strings.HasPrefix(gpgKey, "http") && gpgKey != "" {
+			// For relative GPG key paths, use the constructed repository URL
+			gpgKey = fmt.Sprintf("%s/%s", url, gpgKey)
+		}
+		// If gpgKey starts with http, use it as-is
+
+		// DEB-specific fields are empty for RPM
+		pkgPrefix = ""
+		releaseFile = ""
+		releaseSign = ""
+
+	case "deb":
+		// DEB repository configuration (eLxr)
+		url = fmt.Sprintf("%s/binary-%s/Packages.gz", prc.BaseURL, arch)
+		gpgKey = prc.PbGPGKey // Use pbGPGKey for DEB repositories
+		pkgPrefix = prc.PkgPrefix
+		releaseFile = prc.ReleaseFile
+		releaseSign = prc.ReleaseSign
+
+	default:
+		// Unknown repository type - log warning and default to RPM behavior
+		log.Warnf("Unknown repository type '%s', defaulting to RPM behavior", prc.Type)
+		url = fmt.Sprintf("%s/%s", prc.BaseURL, arch)
+		gpgKey = prc.GPGKey
+		pkgPrefix = ""
+		releaseFile = ""
+		releaseSign = ""
+	}
+
+	return
 }
 
 // HasPackageRepositories returns true if additional repositories are configured

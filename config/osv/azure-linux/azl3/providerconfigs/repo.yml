@@ -1,68 +1,13 @@
-3.0_x86_64:
-  -
-    tag: base
-    baseurl: "https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64"
-    config: "https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64/config.repo"
-    repodata: "https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64/repodata"
-  -
-    tag: base_debuginfo
-    baseurl: "https://packages.microsoft.com/azurelinux/3.0/prod/base/debuginfo/x86_64"
-    config: "https://packages.microsoft.com/azurelinux/3.0/prod/base/debuginfo/x86_64/config.repo"
-    repodata: "https://packages.microsoft.com/azurelinux/3.0/prod/base/debuginfo/x86_64/repodata"
-  -
-    tag: extended
-    baseurl: "https://packages.microsoft.com/azurelinux/3.0/prod/extended/x86_64"
-    config: "https://packages.microsoft.com/azurelinux/3.0/prod/extended/x86_64/config.repo"
-    repodata: "https://packages.microsoft.com/azurelinux/3.0/prod/extended/x86_64/repodata"
-  -
-    tag: extended_debuginfo
-    baseurl: "https://packages.microsoft.com/azurelinux/3.0/prod/extended/debuginfo/x86_64"
-    config: "https://packages.microsoft.com/azurelinux/3.0/prod/extended/debuginfo/x86_64/config.repo"
-    repodata: "https://packages.microsoft.com/azurelinux/3.0/prod/extended/debuginfo/x86_64/repodata"
-  -
-    tag: ms-oss
-    baseurl: "https://packages.microsoft.com/azurelinux/3.0/prod/ms-oss/x86_64"
-    config: "https://packages.microsoft.com/azurelinux/3.0/prod/ms-oss/x86_64/config.repo"
-    repodata: "https://packages.microsoft.com/azurelinux/3.0/prod/ms-oss/x86_64/repodata"
-  -
-    tag: ms-non-oss
-    baseurl: "https://packages.microsoft.com/azurelinux/3.0/prod/ms-non-oss/x86_64"
-    config: "https://packages.microsoft.com/azurelinux/3.0/prod/ms-non-oss/x86_64/config.repo"
-    repodata: "https://packages.microsoft.com/azurelinux/3.0/prod/ms-non-oss/x86_64/repodata"
-
-3.0_aarch64:
-  -
-    tag: base
-    baseurl: "https://packages.microsoft.com/azurelinux/3.0/prod/base/aarch64"
-    config: "https://packages.microsoft.com/azurelinux/3.0/prod/base/aarch64/config.repo"
-    repodata: "https://packages.microsoft.com/azurelinux/3.0/prod/base/aarch64/repodata"
-
-  -
-    tag: base_debuginfo
-    baseurl: "https://packages.microsoft.com/azurelinux/3.0/prod/base/debuginfo/aarch64"
-    config: "https://packages.microsoft.com/azurelinux/3.0/prod/base/debuginfo/aarch64/config.repo"
-    repodata: "https://packages.microsoft.com/azurelinux/3.0/prod/base/debuginfo/aarch64/repodata"
-
-  -
-    tag: extended
-    baseurl: "https://packages.microsoft.com/azurelinux/3.0/prod/extended/aarch64"
-    config: "https://packages.microsoft.com/azurelinux/3.0/prod/extended/aarch64/config.repo"
-    repodata: "https://packages.microsoft.com/azurelinux/3.0/prod/extended/aarch64/repodata"
-
-  -
-    tag: extended_debuginfo
-    baseurl: "https://packages.microsoft.com/azurelinux/3.0/prod/extended/debuginfo/aarch64"
-    config: "https://packages.microsoft.com/azurelinux/3.0/prod/extended/debuginfo/aarch64/config.repo"
-    repodata: "https://packages.microsoft.com/azurelinux/3.0/prod/extended/debuginfo/aarch64/repodata"
-
-  -
-    tag: ms-oss
-    baseurl: "https://packages.microsoft.com/azurelinux/3.0/prod/ms-oss/aarch64"
-    config: "https://packages.microsoft.com/azurelinux/3.0/prod/ms-oss/aarch64/config.repo"
-    repodata: "https://packages.microsoft.com/azurelinux/3.0/prod/ms-oss/aarch64/repodata"
-
-  -
-    tag: ms-non-oss
-    baseurl: "https://packages.microsoft.com/azurelinux/3.0/prod/ms-non-oss/aarch64"
-    config: "https://packages.microsoft.com/azurelinux/3.0/prod/ms-non-oss/aarch64/config.repo"
-    repodata: "https://packages.microsoft.com/azurelinux/3.0/prod/ms-non-oss/aarch64/repodata"
+# Azure Linux 3.0 Repository Configuration
+name: "Azure Linux 3.0"
+type: "rpm"  # Repository type: rpm or deb
+baseURL: "https://packages.microsoft.com/azurelinux/3.0/prod/base/{arch}"
+component: "azl3.0-base"  # Repository component/section identifier
+gpgCheck: true  # Re-enabled with correct GPG key
+repoGPGCheck: true  # Re-enabled with correct GPG key
+enabled: true
+gpgKey: "repodata/repomd.xml.key"  # Relative path from resolved repository URL
+# For RPM-based repositories, we use the baseURL pattern
+# The actual repository URL is constructed as: {baseURL}/{arch}/
+# Repodata is accessed at: {baseURL}/{arch}/repodata/repomd.xml
+buildPath: "./builds/azl3"

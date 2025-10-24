@@ -1,5 +1,11 @@
-3.0_x86_64:
-  -
-    tag: base
-    baseurl: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0"
-    repodata: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0/repodata"
+# Edge Microvisor Toolkit 3.0 Repository Configuration
+name: "Edge Microvisor Toolkit 3.0"
+type: "rpm"  # Repository type: rpm or deb
+baseURL: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0"
+component: "emt3.0-base"  # Repository component/section identifier
+gpgCheck: true  # Enabled with Intel GPG key
+repoGPGCheck: true  # Enabled with Intel GPG key
+enabled: true
+gpgKey: "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY"
+# Repository configuration URL (for reference): https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/edge-base.repo
+buildPath: "./builds/emt3"
