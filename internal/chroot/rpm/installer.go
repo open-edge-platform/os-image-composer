@@ -48,7 +48,7 @@ func (rpmInstaller *RpmInstaller) cleanupOnError(chrootEnvPath string, err *erro
 		*err = fmt.Errorf("operation failed: %w, cleanup errors: %v", *err, cleanErr)
 		return
 	}
-	if _, RemoveErr := shell.ExecCmd("rm -rf "+chrootEnvPath, true, "", nil); RemoveErr != nil {
+	if _, RemoveErr := shell.ExecCmd("rm -rf "+chrootEnvPath, true, shell.HostPath, nil); RemoveErr != nil {
 		log.Errorf("failed to remove chroot environment build path: %v", RemoveErr)
 		*err = fmt.Errorf("operation failed: %w, cleanup errors: %v", *err, RemoveErr)
 	}
@@ -57,7 +57,7 @@ func (rpmInstaller *RpmInstaller) cleanupOnError(chrootEnvPath string, err *erro
 func (rpmInstaller *RpmInstaller) InstallRpmPkg(targetOs, chrootEnvPath, chrootPkgCacheDir string, allPkgsList []string) (err error) {
 	chrootRpmDbPath := filepath.Join(chrootEnvPath, "var", "lib", "rpm")
 	if _, err := os.Stat(chrootRpmDbPath); os.IsNotExist(err) {
-		if _, err := shell.ExecCmd("mkdir -p "+chrootRpmDbPath, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd("mkdir -p "+chrootRpmDbPath, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to create chroot RPM database directory: %v", err)
 			return fmt.Errorf("failed to create chroot environment directory: %w", err)
 		}
@@ -86,7 +86,7 @@ func (rpmInstaller *RpmInstaller) InstallRpmPkg(targetOs, chrootEnvPath, chrootP
 		cmdStr := fmt.Sprintf("rpm -i -v --nodeps --force --root %s --define '_dbpath /var/lib/rpm' %s",
 			chrootEnvPath, pkgPath)
 		var output string
-		output, err = shell.ExecCmd(cmdStr, true, "", nil)
+		output, err = shell.ExecCmd(cmdStr, true, shell.HostPath, nil)
 		if err != nil {
 			log.Errorf("Failed to install package %s: %v, output: %s", pkg, err, output)
 			return fmt.Errorf("failed to install package %s: %w, output: %s", pkg, err, output)
@@ -109,7 +109,7 @@ func (rpmInstaller *RpmInstaller) InstallRpmPkg(targetOs, chrootEnvPath, chrootP
 // updateRpmDB updates the RPM database in the chroot environment
 func (rpmInstaller *RpmInstaller) updateRpmDB(chrootEnvBuildPath, chrootPkgCacheDir string, rpmList []string) (err error) {
 	cmdStr := "rpm -E '%{_db_backend}'"
-	hostRpmDbBackend, err := shell.ExecCmd(cmdStr, false, "", nil)
+	hostRpmDbBackend, err := shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
 	if err != nil {
 		log.Errorf("Failed to get host RPM DB backend: %v", err)
 		return fmt.Errorf("failed to get host RPM DB backend: %w", err)

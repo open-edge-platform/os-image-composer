@@ -88,7 +88,7 @@ func (rawMaker *RawMaker) cleanupImageFileOnError(imagePath string) {
 
 	if _, statErr := os.Stat(imagePath); statErr == nil {
 		log.Warnf("Cleaning up image file due to error: %s", imagePath)
-		if _, rmErr := shell.ExecCmd(fmt.Sprintf("rm -f %s", imagePath), true, "", nil); rmErr != nil {
+		if _, rmErr := shell.ExecCmd(fmt.Sprintf("rm -f %s", imagePath), true, shell.HostPath, nil); rmErr != nil {
 			log.Errorf("Failed to remove image file %s during cleanup: %v", imagePath, rmErr)
 		} else {
 			log.Infof("Successfully cleaned up image file: %s", imagePath)
@@ -104,7 +104,7 @@ func (rawMaker *RawMaker) renameImageFile(currentPath, imageName, versionInfo st
 	log.Infof("Renaming image file from %s to %s", currentPath, newFilePath)
 
 	// Move file
-	if _, err := shell.ExecCmd(fmt.Sprintf("mv %s %s", currentPath, newFilePath), true, "", nil); err != nil {
+	if _, err := shell.ExecCmd(fmt.Sprintf("mv %s %s", currentPath, newFilePath), true, shell.HostPath, nil); err != nil {
 		return "", fmt.Errorf("failed to move file from %s to %s: %w", currentPath, newFilePath, err)
 	}
 

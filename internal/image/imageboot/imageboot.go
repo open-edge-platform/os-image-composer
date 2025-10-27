@@ -77,13 +77,13 @@ func installGrubWithEfiMode(installRoot, bootUUID, bootPrefix string, template *
 	}
 
 	chmodCmd := fmt.Sprintf("chmod -R 700 %s", filepath.Dir(grubFinalPath))
-	if _, err = shell.ExecCmd(chmodCmd, true, "", nil); err != nil {
+	if _, err = shell.ExecCmd(chmodCmd, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to set permissions for grub configuration directory: %v", err)
 		return fmt.Errorf("failed to set permissions for grub configuration directory: %w", err)
 	}
 
 	chmodCmd = fmt.Sprintf("chmod 400 %s", grubFinalPath)
-	if _, err = shell.ExecCmd(chmodCmd, true, "", nil); err != nil {
+	if _, err = shell.ExecCmd(chmodCmd, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to set permissions for grub configuration file: %v", err)
 		return fmt.Errorf("failed to set permissions for grub configuration file: %w", err)
 	}

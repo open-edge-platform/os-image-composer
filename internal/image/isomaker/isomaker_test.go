@@ -871,7 +871,7 @@ func TestCreateEfiFatImage(t *testing.T) {
 			// Since createEfiFatImage is unexported, we test the individual commands
 			// Test the fallocate command
 			efiFatImgPath := filepath.Join(isoImagesPath, "efiboot.img")
-			_, err := shell.ExecCmd(fmt.Sprintf("fallocate -l 18MiB %s", efiFatImgPath), true, "", nil)
+			_, err := shell.ExecCmd(fmt.Sprintf("fallocate -l 18MiB %s", efiFatImgPath), true, shell.HostPath, nil)
 
 			if tt.expectError {
 				// For this test, we mainly check that commands are being called

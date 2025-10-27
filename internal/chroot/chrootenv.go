@@ -184,7 +184,7 @@ func (chrootEnv *ChrootEnv) MountChrootPath(hostFullPath, chrootPath, mountFlags
 		return fmt.Errorf("failed to get chroot host path for %s: %w", chrootPath, err)
 	}
 	if _, err := os.Stat(chrootHostPath); os.IsNotExist(err) {
-		if _, err = shell.ExecCmd("mkdir -p "+chrootHostPath, true, "", nil); err != nil {
+		if _, err = shell.ExecCmd("mkdir -p "+chrootHostPath, true, shell.HostPath, nil); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", chrootHostPath, err)
 		}
 	}
@@ -302,7 +302,7 @@ func (chrootEnv *ChrootEnv) createChrootRepo(targetOs, targetDist string) error 
 		if err != nil {
 			return fmt.Errorf("failed to get chroot host path for local repo config: %w", err)
 		}
-		if _, err := shell.ExecCmd("rm -f "+chrootRepoCongfigPath+"/*", true, "", nil); err != nil {
+		if _, err := shell.ExecCmd("rm -f "+chrootRepoCongfigPath+"/*", true, shell.HostPath, nil); err != nil {
 			return fmt.Errorf("failed to remove existing local repo config files: %w", err)
 		}
 
@@ -325,7 +325,7 @@ func (chrootEnv *ChrootEnv) initChrootWorkspace() error {
 	chrootWorkspace := filepath.Join(chrootEnv.ChrootEnvRoot, "workspace")
 	chrootEnv.ChrootImageBuildDir = filepath.Join(chrootWorkspace, "imagebuild")
 	if _, err := os.Stat(chrootEnv.ChrootImageBuildDir); os.IsNotExist(err) {
-		if _, err = shell.ExecCmd("mkdir -p "+chrootEnv.ChrootImageBuildDir, true, "", nil); err != nil {
+		if _, err = shell.ExecCmd("mkdir -p "+chrootEnv.ChrootImageBuildDir, true, shell.HostPath, nil); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", chrootEnv.ChrootImageBuildDir, err)
 		}
 	}

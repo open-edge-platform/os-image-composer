@@ -39,7 +39,7 @@ func (debInstaller *DebInstaller) cleanupOnError(chrootEnvPath, repoPath string,
 		return
 	}
 
-	if _, RemoveErr := shell.ExecCmd("rm -rf "+chrootEnvPath, true, "", nil); RemoveErr != nil {
+	if _, RemoveErr := shell.ExecCmd("rm -rf "+chrootEnvPath, true, shell.HostPath, nil); RemoveErr != nil {
 		log.Errorf("Failed to remove chroot environment build path: %v", RemoveErr)
 		*err = fmt.Errorf("operation failed: %w, cleanup errors: %v", *err, RemoveErr)
 	}
@@ -62,19 +62,19 @@ func (debInstaller *DebInstaller) UpdateLocalDebRepo(repoPath, targetArch string
 	metaDataPath := filepath.Join(repoPath,
 		fmt.Sprintf("dists/stable/main/binary-%s", targetArch), "Packages.gz")
 	if _, err := os.Stat(metaDataPath); err == nil {
-		if _, err = shell.ExecCmd("rm -f "+metaDataPath, false, "", nil); err != nil {
+		if _, err = shell.ExecCmd("rm -f "+metaDataPath, false, shell.HostPath, nil); err != nil {
 			return fmt.Errorf("failed to remove existing Packages.gz: %w", err)
 		}
 	}
 	metaDataDir := filepath.Dir(metaDataPath)
 	if _, err := os.Stat(metaDataDir); os.IsNotExist(err) {
-		if _, err = shell.ExecCmd("mkdir -p "+metaDataDir, false, "", nil); err != nil {
+		if _, err = shell.ExecCmd("mkdir -p "+metaDataDir, false, shell.HostPath, nil); err != nil {
 			return fmt.Errorf("failed to create metadata directory %s: %w", metaDataDir, err)
 		}
 	}
 
 	cmd := fmt.Sprintf("cd %s && sudo dpkg-scanpackages . /dev/null | gzip -9c > %s", repoPath, metaDataPath)
-	if _, err := shell.ExecCmd(cmd, false, "", nil); err != nil {
+	if _, err := shell.ExecCmd(cmd, false, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to create local debian cache repository: %w", err)
 	}
 
@@ -126,7 +126,7 @@ func (debInstaller *DebInstaller) InstallDebPkg(targetOsConfigDir, chrootEnvPath
 		"-- bookworm %s %s",
 		pkgListStr, chrootEnvPath, localRepoConfigPath)
 
-	if _, err = shell.ExecCmdWithStream(cmd, true, "", nil); err != nil {
+	if _, err = shell.ExecCmdWithStream(cmd, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to install debian packages in chroot environment: %v", err)
 		return fmt.Errorf("failed to install debian packages in chroot environment: %w", err)
 	}

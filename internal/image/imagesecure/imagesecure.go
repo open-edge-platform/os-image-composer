@@ -135,7 +135,7 @@ func createOverlayMntSvc(installRoot string, overlayDirs []string) error {
 
 	//grant execute permissions to the script
 	chmodCmd := fmt.Sprintf("chmod -R 755 %s", filepath.Dir(mountScriptPath))
-	if _, err = shell.ExecCmd(chmodCmd, true, "", nil); err != nil {
+	if _, err = shell.ExecCmd(chmodCmd, true, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to set permissions for overlay mounting script: %w", err)
 	}
 

@@ -215,7 +215,7 @@ func (initrdMaker *InitrdMaker) createInitrdImg() error {
 
 	cmdStr := fmt.Sprintf("cd %s && sudo find . | sudo cpio -o -H newc | sudo gzip > %s",
 		initrdMaker.InitrdRootfsPath, initrdMaker.InitrdFilePath)
-	if _, err := shell.ExecCmdWithStream(cmdStr, false, "", nil); err != nil {
+	if _, err := shell.ExecCmdWithStream(cmdStr, false, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to create initrd image: %v", err)
 		return fmt.Errorf("failed to create initrd image: %w", err)
 	}
@@ -247,7 +247,7 @@ func (initrdMaker *InitrdMaker) CleanInitrdRootfs() error {
 	}
 
 	// Remove the initrd rootfs directory
-	if _, err := shell.ExecCmd("rm -rf "+initrdMaker.InitrdRootfsPath, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("rm -rf "+initrdMaker.InitrdRootfsPath, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to remove initrd rootfs directory %s: %v",
 			initrdMaker.InitrdRootfsPath, err)
 		return fmt.Errorf("failed to remove initrd rootfs directory: %w", err)
