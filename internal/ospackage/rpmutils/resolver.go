@@ -432,7 +432,7 @@ func MatchRequested(requests []string, all []ospackage.PackageInfo) ([]ospackage
 	var out []ospackage.PackageInfo
 
 	for _, want := range requests {
-		if pkg, found := ResolveTopPackageConflicts(want, "rpm", all); found {
+		if pkg, found := ResolveTopPackageConflicts(want, all); found {
 			out = append(out, pkg)
 
 		} else {

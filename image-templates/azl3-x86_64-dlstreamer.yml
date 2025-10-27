@@ -19,6 +19,14 @@ packageRepositories:
     url: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0/"
     pkey: "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY" # Uncomment and replace in real config
 
+  - codename: "OpenVINO"
+    url: "https://yum.repos.intel.com/openvino/"
+    pkey: "https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB" # Uncomment and replace in real config
+
+  - codename: "mariner"
+    url: "https://packages.microsoft.com/yumrepos/cbl-mariner-2.0-prod-extended-x86_64/"
+    pkey: "https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64/repodata/repomd.xml.key" # Uncomment and replace in real config
+
 disk:
   name: Minimal_Raw # 1:1 mapping to the systemConfigs name
   artifacts:
@@ -67,6 +75,7 @@ systemConfig:
     - gstreamer
     - opencv
     - intel-dlstreamer
+    - openvino
 
   kernel:
     version: "6.12"

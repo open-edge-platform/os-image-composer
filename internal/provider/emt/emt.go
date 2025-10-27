@@ -1,11 +1,8 @@
 package emt
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"path/filepath"
-	"strings"
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
@@ -15,23 +12,19 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/rpmutils"
 	"github.com/open-edge-platform/os-image-composer/internal/provider"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
-	"github.com/open-edge-platform/os-image-composer/internal/utils/network"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/system"
 )
 
 const (
-	OsName    = "edge-microvisor-toolkit"
-	configURL = "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/edge-base.repo"
-	gpgkeyURL = "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY"
-	repodata  = "repodata/repomd.xml"
+	OsName   = "edge-microvisor-toolkit"
+	repodata = "repodata/repomd.xml"
 )
 
 var log = logger.Logger()
 
 // Emt implements provider.Provider
 type Emt struct {
-	repoURL   string
 	repoCfg   rpmutils.RepoConfig
 	zstHref   string
 	chrootEnv chroot.ChrootEnvInterface
@@ -55,39 +48,33 @@ func (p *Emt) Name(dist, arch string) string {
 	return system.GetProviderId(OsName, dist, arch)
 }
 
-// Init will initialize the provider, fetching repo configuration
+// Init will initialize the provider, using centralized config with secure HTTP
 func (p *Emt) Init(dist, arch string) error {
-
-	client := network.NewSecureHTTPClient()
-	resp, err := client.Get(configURL)
+	// Load centralized YAML configuration first
+	cfg, err := loadRepoConfigFromYAML(dist, arch)
 	if err != nil {
-		log.Errorf("Downloading repo config %s failed: %v", configURL, err)
-		return err
-	}
-	defer resp.Body.Close()
-
-	cfg, err := loadRepoConfig(resp.Body)
-	if err != nil {
-		log.Errorf("Parsing repo config failed: %v", err)
+		log.Errorf("Failed to load centralized repo config: %v", err)
 		return err
 	}
 
-	repomdURL := cfg.URL + repodata
-
-	href, err := rpmutils.FetchPrimaryURL(repomdURL)
+	// Use secure HTTP to fetch repository metadata from the centralized config URL
+	// Note: rpmutils.FetchPrimaryURL internally uses network.NewSecureHTTPClient() for secure HTTPS communication
+	repoDataURL := cfg.URL + "/" + repodata
+	href, err := rpmutils.FetchPrimaryURL(repoDataURL)
 	if err != nil {
-		log.Errorf("Fetch primary.xml.zst failed: %v", err)
+		log.Errorf("Fetch primary.xml.zst failed from %s: %v", repoDataURL, err)
 		return err
 	}
 
-	p.repoURL = cfg.URL
 	p.repoCfg = cfg
 	p.zstHref = href
 
-	log.Infof("Initialized EMT3.0 provider repo section=%s", cfg.Section)
+	log.Infof("EMT provider initialized for dist=%s, arch=%s", dist, arch)
+	log.Infof("repo section=%s", cfg.Section)
 	log.Infof("name=%s", cfg.Name)
 	log.Infof("url=%s", cfg.URL)
 	log.Infof("primary.xml.zst=%s", p.zstHref)
+	log.Infof("using %d workers for downloads", config.Workers())
 	return nil
 }
 
@@ -188,11 +175,13 @@ func (p *Emt) PostProcess(template *config.ImageTemplate, err error) error {
 
 func (p *Emt) installHostDependency() error {
 	var dependencyInfo = map[string]string{
-		"rpm":      "rpm",        // For the chroot env build RPM pkg installation
-		"mkfs.fat": "dosfstools", // For the FAT32 boot partition creation
-		"qemu-img": "qemu-utils", // For image file format conversion
-		"xorriso":  "xorriso",    // For ISO image creation
-		"sbsign":   "sbsigntool", // For the UKI image creation
+		"rpm":          "rpm",         // For the chroot env build RPM pkg installation
+		"mkfs.fat":     "dosfstools",  // For the FAT32 boot partition creation
+		"qemu-img":     "qemu-utils",  // For image file format conversion
+		"mformat":      "mtools",      // For writing files to FAT32 partition
+		"xorriso":      "xorriso",     // For ISO image creation
+		"grub-mkimage": "grub-common", // For ISO image UEFI Grub binary creation
+		"sbsign":       "sbsigntool",  // For the UKI image creation
 	}
 	hostPkgManager, err := system.GetHostOsPkgManager()
 	if err != nil {
@@ -236,45 +225,38 @@ func (p *Emt) downloadImagePkgs(template *config.ImageTemplate) error {
 	return err
 }
 
-// loadRepoConfig parses the repo configuration data
-func loadRepoConfig(r io.Reader) (rpmutils.RepoConfig, error) {
-	s := bufio.NewScanner(r)
-	var rc rpmutils.RepoConfig
-	for s.Scan() {
-		line := strings.TrimSpace(s.Text())
-		// skip comments or empty
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
-			continue
-		}
-		// section header
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-			rc.Section = strings.Trim(line, "[]")
-			continue
-		}
-		// key=value lines
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		key := strings.TrimSpace(parts[0])
-		val := strings.TrimSpace(parts[1])
-		switch key {
-		case "name":
-			rc.Name = val
-		case "baseurl":
-			rc.URL = val
-		case "gpgcheck":
-			rc.GPGCheck = (val == "1")
-		case "repo_gpgcheck":
-			rc.RepoGPGCheck = (val == "1")
-		case "enabled":
-			rc.Enabled = (val == "1")
-		case "gpgkey":
-			rc.GPGKey = gpgkeyURL
-		}
+// loadRepoConfigFromYAML loads repository configuration from centralized YAML config
+func loadRepoConfigFromYAML(dist, arch string) (rpmutils.RepoConfig, error) {
+	// Load the centralized provider config
+	providerConfig, err := config.LoadProviderRepoConfig(OsName, dist)
+	if err != nil {
+		return rpmutils.RepoConfig{}, fmt.Errorf("failed to load provider repo config: %w", err)
 	}
-	if err := s.Err(); err != nil {
-		return rc, err
+
+	// Convert to rpmutils.RepoConfig using the unified method
+	repoType, name, url, gpgKey, component, buildPath, pkgPrefix, releaseFile, releaseSign, gpgCheck, repoGPGCheck, enabled := providerConfig.ToRepoConfigData(arch)
+
+	// Verify this is an RPM repository
+	if repoType != "rpm" {
+		return rpmutils.RepoConfig{}, fmt.Errorf("expected RPM repository type, got: %s", repoType)
 	}
-	return rc, nil
+
+	cfg := rpmutils.RepoConfig{
+		Name:         name,
+		URL:          url,
+		GPGKey:       gpgKey,
+		Section:      component, // Map component to Section for RPM utils
+		GPGCheck:     gpgCheck,
+		RepoGPGCheck: repoGPGCheck,
+		Enabled:      enabled,
+	}
+
+	// Log unused DEB-specific fields for debugging
+	_ = pkgPrefix
+	_ = releaseFile
+	_ = releaseSign
+	_ = buildPath
+
+	log.Infof("Loaded repo config from YAML for %s: %+v", OsName, cfg)
+	return cfg, nil
 }

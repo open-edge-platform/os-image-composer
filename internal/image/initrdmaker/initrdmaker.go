@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
@@ -140,6 +141,10 @@ func (initrdMaker *InitrdMaker) BuildInitrdImage() (err error) {
 		return fmt.Errorf("failed to add init scripts to initrd: %w", err)
 	}
 
+	if err := copyKernelToOutput(initrdMaker.InitrdRootfsPath, initrdMaker.ImageBuildDir); err != nil {
+		return fmt.Errorf("failed to copy kernel to output directory: %w", err)
+	}
+
 	if err := initrdMaker.createInitrdImg(); err != nil {
 		return fmt.Errorf("failed to create initrd image: %w", err)
 	}
@@ -163,7 +168,51 @@ func addInitScriptsToInitrd(initrdRootfsPath string) error {
 	return file.CopyFile(rcLocalSrc, rcLocalDest, "--preserve=mode", true)
 }
 
+func copyKernelToOutput(initrdRootfsPath, outputDir string) error {
+	// Copy kernel to the target path
+	var vmlinuzFileList []string
+	cmdStr := "ls /boot | grep vmlinuz"
+	output, err := shell.ExecCmd(cmdStr, true, initrdRootfsPath, nil)
+	if err != nil {
+		log.Errorf("Failed to list vmlinuz files in /boot: %v", err)
+		return fmt.Errorf("failed to list vmlinuz files in /boot: %w", err)
+	}
+	for _, line := range strings.Split(output, "\n") {
+		vmlinuzFile := strings.TrimSpace(line)
+		if vmlinuzFile == "" {
+			continue
+		}
+		if strings.HasPrefix(vmlinuzFile, "vmlinuz") {
+			vmlinuzFileList = append(vmlinuzFileList, vmlinuzFile)
+		}
+	}
+
+	if len(vmlinuzFileList) == 0 {
+		log.Errorf("No vmlinuz files found in /boot")
+		return fmt.Errorf("no vmlinuz files found in /boot")
+	}
+
+	kernelPath := filepath.Join(initrdRootfsPath, "boot", vmlinuzFileList[0])
+	if _, err := os.Stat(kernelPath); os.IsNotExist(err) {
+		log.Errorf("Kernel file does not exist: %s", kernelPath)
+		return fmt.Errorf("kernel file does not exist: %s", kernelPath)
+	}
+	kernelDestPath := filepath.Join(outputDir, vmlinuzFileList[0])
+	if err := file.CopyFile(kernelPath, kernelDestPath, "--preserve=mode", true); err != nil {
+		log.Errorf("Failed to copy kernel to %s: %v", outputDir, err)
+		return fmt.Errorf("failed to copy kernel to %s: %w", outputDir, err)
+	}
+	return nil
+}
+
 func (initrdMaker *InitrdMaker) createInitrdImg() error {
+	if err := mount.UmountPath(initrdMaker.InitrdRootfsPath + "/cdrom/cache-repo"); err != nil {
+		log.Errorf("Failed to unmount cache-repo %s: %v",
+			initrdMaker.InitrdRootfsPath+"/cdrom/cache-repo", err)
+		return fmt.Errorf("failed to unmount cache-repo %s: %w",
+			initrdMaker.InitrdRootfsPath+"/cdrom/cache-repo", err)
+	}
+
 	cmdStr := fmt.Sprintf("cd %s && sudo find . | sudo cpio -o -H newc | sudo gzip > %s",
 		initrdMaker.InitrdRootfsPath, initrdMaker.InitrdFilePath)
 	if _, err := shell.ExecCmdWithStream(cmdStr, false, "", nil); err != nil {

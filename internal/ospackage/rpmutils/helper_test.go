@@ -477,9 +477,9 @@ func TestResolveTopPackageConflicts(t *testing.T) {
 
 	allPackages := []ospackage.PackageInfo{
 		{
-			Name:    "acct",
+			Name:    "acct-6.6.4-5+b1-amd64.rpm",
 			Version: "6.6.4-5+b1",
-			URL:     "https://example.com/acct_6.6.4-5+b1_amd64.deb",
+			URL:     "https://example.com/acct-6.6.4-5+b1-amd64.rpm",
 		},
 		{
 			Name:    "acct-205-25.azl3.noarch.rpm",
@@ -509,32 +509,28 @@ func TestResolveTopPackageConflicts(t *testing.T) {
 	}{
 		{
 			name:        "Exact match with file extension",
-			want:        "acct_6.6.4-5+b1_amd64",
-			pkgType:     "deb",
+			want:        "acct-6.6.4-5+b1-amd64.rpm",
 			dist:        "",
-			expectedPkg: "acct",
+			expectedPkg: "acct-6.6.4-5+b1-amd64.rpm",
 			expectFound: true,
 		},
 		{
 			name:        "Base name match",
 			want:        "acct",
-			pkgType:     "rpm",
 			dist:        "",
-			expectedPkg: "acct", // Should find the first acct package
+			expectedPkg: "acct-205-25.azl3.noarch.rpm", // Should find the first acct package
 			expectFound: true,
 		},
 		{
 			name:        "Base name match with dist filter",
 			want:        "acct",
-			pkgType:     "rpm",
 			dist:        "azl3",
-			expectedPkg: "acct", // The exact package name returned might be different due to filtering logic
+			expectedPkg: "acct-205-25.azl3.noarch.rpm", // The exact package name returned might be different due to filtering logic
 			expectFound: true,
 		},
 		{
 			name:        "No match",
 			want:        "nonexistent",
-			pkgType:     "rpm",
 			dist:        "",
 			expectFound: false,
 		},
@@ -543,7 +539,7 @@ func TestResolveTopPackageConflicts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			Dist = tt.dist
-			pkg, found := ResolveTopPackageConflicts(tt.want, tt.pkgType, allPackages)
+			pkg, found := ResolveTopPackageConflicts(tt.want, allPackages)
 			if found != tt.expectFound {
 				t.Errorf("ResolveTopPackageConflicts() found = %v, want %v", found, tt.expectFound)
 			}

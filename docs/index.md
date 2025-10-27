@@ -613,6 +613,7 @@ See [License](https://github.com/open-edge-platform/os-image-composer/blob/main/
 Architecture <architecture/architecture>
 Prerequisites <tutorial/prerequisite>
 Secure Boot Configuration <tutorial/configure-secure-boot>
+release-notes
 
 :::
 hide_directive-->

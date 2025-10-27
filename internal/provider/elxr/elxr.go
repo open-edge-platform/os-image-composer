@@ -21,16 +21,13 @@ import (
 // eLxr: https://mirror.elxr.dev/elxr/dists/aria/main/binary-amd64/Packages.gz
 // eLxr Download Path: https://mirror.elxr.dev/elxr/pool/main/p/python3-defaults/2to3_3.11.2-1_all.deb
 const (
-	OsName     = "wind-river-elxr"
-	baseURL    = "https://mirror.elxr.dev/elxr/dists/aria/main/"
-	configName = "Packages.gz"
+	OsName = "wind-river-elxr"
 )
 
 var log = logger.Logger()
 
 // eLxr implements provider.Provider
 type eLxr struct {
-	repoURL   string
 	repoCfg   debutils.RepoConfig
 	gzHref    string
 	chrootEnv chroot.ChrootEnvInterface
@@ -60,9 +57,8 @@ func (p *eLxr) Init(dist, arch string) error {
 	if arch == "x86_64" {
 		arch = "amd64"
 	}
-	p.repoURL = baseURL + "binary-" + arch + "/" + configName
 
-	cfg, err := loadRepoConfig(p.repoURL, arch)
+	cfg, err := loadRepoConfig("", arch) // repoURL no longer needed
 	if err != nil {
 		log.Errorf("Parsing repo config failed: %v", err)
 		return err
@@ -174,14 +170,15 @@ func (p *eLxr) PostProcess(template *config.ImageTemplate, err error) error {
 
 func (p *eLxr) installHostDependency() error {
 	var dependencyInfo = map[string]string{
-		"mmdebstrap":        "mmdebstrap",    // For the chroot env build
-		"mkfs.fat":          "dosfstools",    // For the FAT32 boot partition creation
-		"xorriso":           "xorriso",       // For ISO image creation
-		"qemu-img":          "qemu-utils",    // For image file format conversion
-		"ukify":             "systemd-ukify", // For the UKI image creation
-		"grub-mkstandalone": "grub-common",   // For ISO image UEFI Grub binary creation
-		"veritysetup":       "cryptsetup",    // For the veritysetup command
-		"sbsign":            "sbsigntool",    // For the UKI image creation
+		"mmdebstrap":   "mmdebstrap",    // For the chroot env build
+		"mkfs.fat":     "dosfstools",    // For the FAT32 boot partition creation
+		"mformat":      "mtools",        // For writing files to FAT32 partition
+		"xorriso":      "xorriso",       // For ISO image creation
+		"qemu-img":     "qemu-utils",    // For image file format conversion
+		"ukify":        "systemd-ukify", // For the UKI image creation
+		"grub-mkimage": "grub-common",   // For ISO image UEFI Grub binary creation
+		"veritysetup":  "cryptsetup",    // For the veritysetup command
+		"sbsign":       "sbsigntool",    // For the UKI image creation
 	}
 	hostPkgManager, err := system.GetHostOsPkgManager()
 	if err != nil {
@@ -226,24 +223,38 @@ func (p *eLxr) downloadImagePkgs(template *config.ImageTemplate) error {
 }
 
 func loadRepoConfig(repoUrl string, arch string) (debutils.RepoConfig, error) {
-
 	var rc debutils.RepoConfig
 
-	rc.PkgList = repoUrl
-	// rc.ReleaseFile = "https://mirror.elxr.dev/elxr/dists/aria/main/binary-amd64/Release" //negative test
-	rc.ReleaseFile = "https://mirror.elxr.dev/elxr/dists/aria/Release"
-	rc.PkgPrefix = "https://mirror.elxr.dev/elxr/"
-	rc.Name = "Wind River eLxr 12"
-	rc.GPGCheck = true
-	rc.RepoGPGCheck = true
-	rc.Enabled = true
-	rc.PbGPGKey = "https://mirror.elxr.dev/elxr/public.gpg"
-	rc.ReleaseSign = "https://mirror.elxr.dev/elxr/dists/aria/Release.gpg"
-	rc.Section = "main"
-	rc.BuildPath = "./builds/elxr12"
-	rc.Arch = arch
+	// Load provider repo config using the centralized config function
+	providerConfig, err := config.LoadProviderRepoConfig(OsName, "elxr12")
+	if err != nil {
+		return rc, fmt.Errorf("failed to load provider repo config: %w", err)
+	}
 
-	log.Infof("Repo config: %+v", rc)
+	// Convert ProviderRepoConfig to debutils.RepoConfig using the unified conversion method
+	repoType, name, url, gpgKey, component, buildPath, pkgPrefix, releaseFile, releaseSign, gpgCheck, repoGPGCheck, enabled := providerConfig.ToRepoConfigData(arch)
+
+	// Verify this is a DEB repository
+	if repoType != "deb" {
+		return rc, fmt.Errorf("expected DEB repository type, got: %s", repoType)
+	}
+
+	rc = debutils.RepoConfig{
+		Section:      component, // Map component to Section for DEB utils
+		Name:         name,
+		PkgList:      url, // For DEB repos, this is the Packages.gz URL
+		PkgPrefix:    pkgPrefix,
+		GPGCheck:     gpgCheck,
+		RepoGPGCheck: repoGPGCheck,
+		Enabled:      enabled,
+		PbGPGKey:     gpgKey, // For DEB repos, gpgKey contains the pbGPGKey value
+		ReleaseFile:  releaseFile,
+		ReleaseSign:  releaseSign,
+		BuildPath:    buildPath,
+		Arch:         arch,
+	}
+
+	log.Infof("Loaded repo config for %s: %+v", OsName, rc)
 
 	return rc, nil
 }

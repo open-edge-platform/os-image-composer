@@ -396,6 +396,8 @@ func TestInitrdMaker_BuildInitrdImage(t *testing.T) {
 	originalExecutor := shell.Default
 	defer func() { shell.Default = originalExecutor }()
 
+	tempDir := t.TempDir()
+
 	tests := []struct {
 		name          string
 		template      *config.ImageTemplate
@@ -418,6 +420,7 @@ func TestInitrdMaker_BuildInitrdImage(t *testing.T) {
 			mockCommands: []shell.MockCommand{
 				{Pattern: "mkdir", Output: "", Error: nil},
 				{Pattern: "mount", Output: "", Error: nil},
+				{Pattern: "ls", Output: "vmlinuz", Error: nil},
 				{Pattern: "cp", Output: "", Error: nil},
 				{Pattern: "cd.*cpio.*gzip", Output: "", Error: nil},
 			},
@@ -425,13 +428,22 @@ func TestInitrdMaker_BuildInitrdImage(t *testing.T) {
 				// Create general config directory and rc.local file
 				generalConfigDir := filepath.Join(tempDir, "config", "general")
 				isolinuxDir := filepath.Join(generalConfigDir, "isolinux")
+				imageBuildDir := filepath.Join(tempDir, "install-root")
 				if err := os.MkdirAll(isolinuxDir, 0700); err != nil {
 					return err
 				}
 				rcLocalPath := filepath.Join(isolinuxDir, "rc.local")
-				return os.WriteFile(rcLocalPath, []byte("#!/bin/bash\necho 'init script'"), 0755)
+				if err := os.WriteFile(rcLocalPath, []byte("#!/bin/bash\necho 'init script'"), 0755); err != nil {
+					return err
+				}
+				bootDir := filepath.Join(imageBuildDir, "boot")
+				if err := os.MkdirAll(bootDir, 0700); err != nil {
+					return err
+				}
+				vmlinuzPath := filepath.Join(bootDir, "vmlinuz")
+				return os.WriteFile(vmlinuzPath, []byte("mock kernel"), 0755)
 			},
-			imageOs:     NewMockImageOs(t.TempDir(), "1.0.0", nil),
+			imageOs:     NewMockImageOs(tempDir, "1.0.0", nil),
 			expectError: false,
 		},
 		{
@@ -447,7 +459,7 @@ func TestInitrdMaker_BuildInitrdImage(t *testing.T) {
 			mockCommands: []shell.MockCommand{
 				{Pattern: "mkdir", Output: "", Error: nil},
 			},
-			imageOs:       NewMockImageOs(t.TempDir(), "1.0.0", fmt.Errorf("failed to install initrd")),
+			imageOs:       NewMockImageOs(tempDir, "1.0.0", fmt.Errorf("failed to install initrd")),
 			expectError:   true,
 			expectedError: "failed to install initrd",
 		},
@@ -470,9 +482,13 @@ func TestInitrdMaker_BuildInitrdImage(t *testing.T) {
 				if err := os.MkdirAll(isolinuxDir, 0700); err != nil {
 					return err
 				}
+				rcLocalPath := filepath.Join(isolinuxDir, "rc.local")
+				if err := os.Remove(rcLocalPath); err != nil && !os.IsNotExist(err) {
+					return err
+				}
 				return nil
 			},
-			imageOs:       NewMockImageOs(t.TempDir(), "1.0.0", nil),
+			imageOs:       NewMockImageOs(tempDir, "1.0.0", nil),
 			expectError:   true,
 			expectedError: "failed to add init scripts to initrd",
 		},
@@ -488,20 +504,30 @@ func TestInitrdMaker_BuildInitrdImage(t *testing.T) {
 			},
 			mockCommands: []shell.MockCommand{
 				{Pattern: "mkdir", Output: "", Error: nil},
-				{Pattern: "cp", Output: "", Error: nil},
+				{Pattern: "ls", Output: "vmlinuz", Error: nil},
 				{Pattern: "cd.*cpio.*gzip", Output: "", Error: fmt.Errorf("cpio failed")},
+				{Pattern: "cp", Output: "", Error: nil},
 			},
 			setupFunc: func(tempDir string) error {
 				// Create general config directory and rc.local file
 				generalConfigDir := filepath.Join(tempDir, "config", "general")
 				isolinuxDir := filepath.Join(generalConfigDir, "isolinux")
+				imageBuildDir := filepath.Join(tempDir, "install-root")
 				if err := os.MkdirAll(isolinuxDir, 0700); err != nil {
 					return err
 				}
 				rcLocalPath := filepath.Join(isolinuxDir, "rc.local")
-				return os.WriteFile(rcLocalPath, []byte("#!/bin/bash\necho 'init script'"), 0755)
+				if err := os.WriteFile(rcLocalPath, []byte("#!/bin/bash\necho 'init script'"), 0755); err != nil {
+					return err
+				}
+				bootDir := filepath.Join(imageBuildDir, "boot")
+				if err := os.MkdirAll(bootDir, 0700); err != nil {
+					return err
+				}
+				vmlinuzPath := filepath.Join(bootDir, "vmlinuz")
+				return os.WriteFile(vmlinuzPath, []byte("mock kernel"), 0755)
 			},
-			imageOs:       NewMockImageOs(t.TempDir(), "1.0.0", nil),
+			imageOs:       NewMockImageOs(tempDir, "1.0.0", nil),
 			expectError:   true,
 			expectedError: "failed to create initrd image",
 		},
@@ -511,7 +537,6 @@ func TestInitrdMaker_BuildInitrdImage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shell.Default = shell.NewMockExecutor(tt.mockCommands)
 
-			tempDir := t.TempDir()
 			chrootEnv := NewMockChrootEnv("deb", tempDir, nil)
 
 			if tt.setupFunc != nil {
