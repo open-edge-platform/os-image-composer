@@ -26,7 +26,6 @@ OS Image Composer users must manually create YAML templates with specific packag
 - Manual research for optimal package combinations
 - Trial-and-error for dependency resolution
 
-
 **Problem**: How can we enable users to generate OS image templates from natural language descriptions using real working examples as references, while maintaining flexibility for different AI providers?
 
 ---
@@ -65,14 +64,16 @@ OS Image Composer users must manually create YAML templates with specific packag
 
 **Description**: Index real template examples using embeddings, retrieve relevant examples for each request, and generate new templates based on proven configurations.
 
-**Pros**: 
+**Pros**:
+
 - Learns from real working templates
 - Reduces hallucination by grounding in examples
 - Automatically stays current as templates are added
 - Intelligent merging of multiple example patterns
 - No manual use-case definitions needed
 
-**Cons**: 
+**Cons**:
+
 - Requires embedding generation (one-time setup cost)
 - More complex implementation
 - Needs embedding model in addition to chat model
@@ -274,33 +275,34 @@ The RAG system generates templates through intelligent retrieval and merging of 
 User Request: "docker host with monitoring"
 
 **Step 1 - Semantic Search:**
-   Query Embedding: [0.23, -0.45, 0.67, ...]
-   
-   Template Matches:
-   ✓ elxr12-x86_64-edge-raw.yml (similarity: 0.89)
-     - Packages: docker, containerd, systemd, ...
-   ✓ azl3-x86_64-minimal-raw.yml (similarity: 0.75)
-     - Packages: systemd, bash, coreutils, ...
-   ✓ azl3-x86_64-dlstreamer.yml (similarity: 0.65)
-     - Packages: gstreamer, monitoring tools, ...
+Query Embedding: [0.23, -0.45, 0.67, ...]
+
+Template Matches:
+
+- elxr12-x86_64-edge-raw.yml (similarity: 0.89)
+  - Packages: docker, containerd, systemd, ...
+- azl3-x86_64-minimal-raw.yml (similarity: 0.75)
+  - Packages: systemd, bash, coreutils, ...
+- azl3-x86_64-dlstreamer.yml (similarity: 0.65)
+  - Packages: gstreamer, monitoring tools, ...
 
 **Step 2 - Context-Aware Intent Parsing:**
-   LLM sees examples and generates:
-   {
-     "use_case": "container",
-     "architecture": "x86_64",
-     "distribution": "elxr12",  // from best match
-     "custom_packages": ["prometheus", "grafana"]  // user-mentioned
-   }
+LLM sees examples and generates:
+
+```bash
+{
+  "use_case": "container",
+  "architecture": "x86_64",
+  "distribution": "elxr12",  // from best match
+  "custom_packages": ["prometheus", "grafana"]  // user-mentioned
+}
+```
 
 **Step 3 - Intelligent Merging:**
-   Base: elxr12-x86_64-edge-raw.yml (best match)
-   + Packages from high-similarity templates (score > 0.7)
-   + User's custom packages: prometheus, grafana
-   = Final template with 45 packages
-   
-   Disk Config: Learned from examples (8GiB, GPT, EFI+rootfs)
-   Kernel: From example (6.12, console config)
+
+- Base: elxr12-x86_64-edge-raw.yml (best match) + Packages from high-similarity templates (score > 0.7) + User's custom packages: prometheus, grafana = Final template with 45 packages
+- Disk Config: Learned from examples (8GiB, GPT, EFI+rootfs)
+- Kernel: From example (6.12, console config)
 
 ---
 
@@ -345,7 +347,7 @@ ai:
     timeout: 120
   
   openai:
-    api_key: ${OPENAI_API_KEY}
+    api_key: <OPENAI_API_KEY>
     model: gpt-4o-mini                         # Chat model for generation
     embedding_model: text-embedding-3-small    # Embedding model for RAG (1536d)
     temperature: 0.7
@@ -455,31 +457,18 @@ ai:
 #    Generated 10/15 embeddings
 #    Generated 15/15 embeddings
 # ✅ Indexed 15 templates across 5 use cases
-
-os-image-composer ai "docker host for production"
-
-# Subsequent runs: Fast (uses cached embeddings)
-# Output:
-# 🔎 Finding relevant template examples...
-# 📋 Found 3 relevant templates:
-#    1. elxr12-x86_64-edge-raw.yml (similarity: 0.89)
-#    2. azl3-x86_64-edge-raw.yml (similarity: 0.84)
-#    3. azl3-x86_64-minimal-raw.yml (similarity: 0.72)
+```
 
 # Save to file
+
+```bash
 os-image-composer ai "docker host for production" --output docker-host.yml
 ```
 
 
 ### Example 2: Using OpenAI with RAG (Paid, Cloud, Fast)
 
-**Step 1**: Set API key
-
-```bash
-export OPENAI_API_KEY="sk-..."
-```
-
-**Step 2**: Enable OpenAI with RAG in configuration
+**Step 1**: Enable OpenAI with RAG in configuration
 
 Edit `os-image-composer.yml`:
 
@@ -490,13 +479,13 @@ ai:
   templates_dir: ./image-templates  # RAG template source
   
   openai:
-    api_key: ${OPENAI_API_KEY}
+    api_key: "sk-..."                       # <OPENAI_API_KEY>
     model: gpt-4o-mini                      # Chat model
     embedding_model: text-embedding-3-small # Embedding model for RAG
     temperature: 0.7
 ```
 
-**Step 3**: Generate templates (same command, faster embeddings!)
+**Step 2**: Generate templates (same command, faster embeddings!)
 
 ```bash
 # First run: RAG indexes templates with OpenAI embeddings (~5-10 seconds)
@@ -567,7 +556,7 @@ os-image-composer ai "video streaming with AI inference and monitoring" --output
 # 3. Finds: edge template (monitoring tools)
 # 4. Merges packages from all high-similarity templates
 # 5. Adds custom packages mentioned: [monitoring, inference tools]
-# 6. Result: Comprehensive template with 60+ packages
+# 6. Result: Comprehensive template with required packages
 ```
 
 ---
@@ -580,11 +569,8 @@ os-image-composer ai "video streaming with AI inference and monitoring" --output
 
 **Solution**:
 
-- Use environment variables: `${OPENAI_API_KEY}`
 - Never commit keys to version control
-- Support `.env` file loading
 - Document secure key storage practices
-
 
 ### 1. Data Privacy
 
@@ -599,7 +585,6 @@ os-image-composer ai "video streaming with AI inference and monitoring" --output
 - Document data handling policies
 - Allow disabling AI entirely
 
-
 ### 1. Package Validation and Hallucination Prevention
 
 **Problem**: Traditional LLMs might recommend non-existent packages
@@ -612,7 +597,6 @@ os-image-composer ai "video streaming with AI inference and monitoring" --output
 - Custom packages explicitly marked (user-requested additions)
 - Optional: Validate custom packages against repository metadata (future enhancement)
 - Warn users about user-requested packages that don't exist in examples
-
 
 ---
 
@@ -1164,6 +1148,7 @@ The `ai` command respects these environment variables:
 
 **`OPENAI_API_KEY`**
 [NOTE: Need to check if yaml template can resolve environment variable]
+
 - OpenAI API authentication key
 - Required when using OpenAI provider
 - Example: `export OPENAI_API_KEY="sk-..."`
@@ -1171,7 +1156,6 @@ The `ai` command respects these environment variables:
 ### Output Format
 
 **YAML to stdout (default):**
-
 
 **File output (`--output` flag):**
 
