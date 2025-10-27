@@ -8,12 +8,10 @@ import (
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
-	"github.com/open-edge-platform/os-image-composer/internal/image/imagedisc"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imageos"
 	"github.com/open-edge-platform/os-image-composer/internal/image/initrdmaker"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/file"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
-	"github.com/open-edge-platform/os-image-composer/internal/utils/mount"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/system"
 )
@@ -156,27 +154,15 @@ func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfs
 
 	log.Infof("Creating ISO image: %s", isoFilePath)
 
-	// Get the config file path to the static ISO root files
-	generalConfigDir, err := config.GetGeneralConfigDir()
-	if err != nil {
-		return fmt.Errorf("failed to get general config directory: %w", err)
-	}
-
-	staticIsoRootFilesDir := filepath.Join(generalConfigDir, "isolinux", isoMaker.template.Target.Arch)
-	if _, err := os.Stat(staticIsoRootFilesDir); os.IsNotExist(err) {
-		log.Errorf("Static ISO root files directory does not exist: %s", staticIsoRootFilesDir)
-		return fmt.Errorf("static ISO root files directory does not exist: %s", staticIsoRootFilesDir)
-	}
-
 	// Create standard ISO directory structure
+	isoBootPath := filepath.Join(installRoot, "boot")
 	isoEfiPath := filepath.Join(installRoot, "EFI", "BOOT")
 	isoImagesPath := filepath.Join(installRoot, "images")
-	isoIsolinuxPath := filepath.Join(installRoot, "isolinux")
 
 	dirs := []string{
+		isoBootPath,
 		isoEfiPath,
 		isoImagesPath,
-		isoIsolinuxPath,
 	}
 
 	log.Infof("Creating ISO directory structure...")
@@ -187,31 +173,14 @@ func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfs
 		}
 	}
 
-	// Copy ISOLINUX files
-	log.Infof("Copying static files to isolinux path...")
-	if err := copyStaticFilesToIsolinuxPath(staticIsoRootFilesDir, isoIsolinuxPath); err != nil {
-		return fmt.Errorf("failed to copy static files to isolinux path: %w", err)
-	}
-
-	// Create ISOLINUX config
-	if err := createIsolinuxCfg(isoIsolinuxPath, imageName); err != nil {
-		return fmt.Errorf("failed to create isolinux configuration: %w", err)
-	}
-
 	// Copy kernel and initrd
 	log.Infof("Copying kernel and initrd files...")
 	if err := copyKernelToIsoImagesPath(initrdRootfsPath, isoImagesPath); err != nil {
-		return fmt.Errorf("failed to copy kernel to isolinux path: %w", err)
+		return fmt.Errorf("failed to copy kernel to iso image path: %w", err)
 	}
 
 	if err := copyInitrdToIsoImagesPath(initrdFilePath, isoImagesPath); err != nil {
-		return fmt.Errorf("failed to copy initrd to isolinux path: %w", err)
-	}
-
-	// Copy EFI bootloader files
-	log.Infof("Copying EFI bootloader files...")
-	if err := isoMaker.copyEfiBootloaderFiles(initrdRootfsPath, isoEfiPath); err != nil {
-		return fmt.Errorf("failed to copy EFI bootloader files: %w", err)
+		return fmt.Errorf("failed to copy initrd to iso image path: %w", err)
 	}
 
 	// Create GRUB config for EFI boot
@@ -219,38 +188,49 @@ func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfs
 		return fmt.Errorf("failed to create GRUB configuration: %w", err)
 	}
 
-	// Handle package type specific logic
-	pkgType := isoMaker.ChrootEnv.GetTargetOsPkgType()
-	switch pkgType {
-	case "deb":
-		if err := createGrubStandAlone(isoMaker.template, initrdRootfsPath, installRoot, isoEfiPath); err != nil {
-			return fmt.Errorf("failed to create standalone GRUB: %w", err)
-		}
+	// Copy GRUB files to ISO boot path
+	log.Infof("Copying GRUB files to ISO boot path...")
+	if err := copyGrubFilesToGrubPath(initrdRootfsPath, installRoot); err != nil {
+		return fmt.Errorf("failed to copy GRUB files to ISO boot path: %w", err)
 	}
 
 	log.Infof("Creating EFI FAT image...")
-	efiFatImgPath, err := createEfiFatImage(isoEfiPath, isoImagesPath)
+	efiFatImgPath, err := createEfiFatImage(template, initrdRootfsPath, installRoot)
 	if err != nil {
 		return fmt.Errorf("failed to create EFI FAT image: %w", err)
 	}
 	efiFatImgRelPath := strings.TrimPrefix(efiFatImgPath, installRoot)
 
-	// Check isolinux mbr file for hybrid ISO
-	mbrFilePath := filepath.Join(staticIsoRootFilesDir, "isohdpfx.bin")
-	if _, err := os.Stat(mbrFilePath); os.IsNotExist(err) {
-		log.Errorf("ISOLINUX MBR file does not exist: %s", mbrFilePath)
-		return fmt.Errorf("ISOLINUX MBR file does not exist: %s", mbrFilePath)
+	log.Infof("Creating image for Bios boot...")
+	biosImgRelPath, err := createBiosImage(template, initrdRootfsPath, installRoot)
+	if err != nil {
+		return fmt.Errorf("failed to create BIOS image: %w", err)
 	}
 
 	// Create ISO image with xorriso
 	log.Infof("Creating ISO image with xorriso...")
-	xorrisoCmd := fmt.Sprintf("xorriso -as mkisofs -isohybrid-mbr %s", mbrFilePath)
-	xorrisoCmd += " -c isolinux/boot.cat -b isolinux/isolinux.bin"
-	xorrisoCmd += " -no-emul-boot -boot-load-size 4 -boot-info-table"
-	xorrisoCmd += fmt.Sprintf(" -eltorito-alt-boot -e %s", efiFatImgRelPath)
-	xorrisoCmd += " -no-emul-boot -isohybrid-gpt-basdat"
-	xorrisoCmd += fmt.Sprintf(" -volid \"%s\" -o \"%s\" \"%s\"",
-		isoLabel, isoFilePath, installRoot)
+	var xorrisoCmd string
+	if biosImgRelPath != "" {
+		// Support both BIOS and UEFI boot mode
+		log.Infof("Creating hybrid ISO for both BIOS and UEFI boot modes...")
+		biosImgRelDir := filepath.Dir(biosImgRelPath)
+		xorrisoCmd = fmt.Sprintf("xorriso -as mkisofs -graft-points -r -J -l -b %s", biosImgRelPath)
+		xorrisoCmd += " -no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info"
+		xorrisoCmd += fmt.Sprintf(" --grub2-mbr %s", filepath.Join(installRoot, biosImgRelDir, "boot_hybrid.img"))
+		xorrisoCmd += fmt.Sprintf(" -eltorito-alt-boot -e %s -no-emul-boot", efiFatImgRelPath)
+		xorrisoCmd += fmt.Sprintf(" -append_partition 2 0xef %s -appended_part_as_gpt", efiFatImgPath)
+		xorrisoCmd += fmt.Sprintf(" -r %s --sort-weight 0 / --sort-weight 1 /boot", installRoot)
+		xorrisoCmd += fmt.Sprintf(" -volid \"%s\" --protective-msdos-label -o \"%s\" \"%s\"",
+			isoLabel, isoFilePath, installRoot)
+	} else {
+		// Support only UEFI boot mode
+		log.Infof("Creating ISO for UEFI boot mode only...")
+		xorrisoCmd = fmt.Sprintf("xorriso -as mkisofs -graft-points -r -J -l --efi-boot %s", efiFatImgPath)
+		xorrisoCmd += " -efi-boot-part --efi-boot-image --protective-msdos-label"
+		xorrisoCmd += fmt.Sprintf(" -r %s --sort-weight 0 / --sort-weight 1 /boot", installRoot)
+		xorrisoCmd += fmt.Sprintf(" -volid \"%s\" -o \"%s\" \"%s\"",
+			isoLabel, isoFilePath, installRoot)
+	}
 
 	if _, err := shell.ExecCmdWithStream(xorrisoCmd, true, "", nil); err != nil {
 		log.Errorf("Failed to create ISO image: %v", err)
@@ -295,75 +275,8 @@ func sanitizeIsoLabel(isoLabel string) string {
 	return result
 }
 
-func copyStaticFilesToIsolinuxPath(staticIsoRootFilesDir, isoIsolinuxPath string) error {
-	// Copy static ISO root files
-	// These ISOLINUX bootloader files are part of the "syslinux" package,
-	// which is required for creating bootable ISOs
-	// After installlation, the files should be available in the following locations:
-	// Locations (depending on distribution):
-	//     /usr/lib/syslinux/modules/bios
-	//     /usr/lib/ISOLINUX/
-
-	// Required BIOS boot files
-	requiredBiosFiles := []string{
-		"isolinux.bin", // ISOLINUX bootloader binary
-		"ldlinux.c32",
-		"libcom32.c32",
-		"libutil.c32",
-		"vesamenu.c32",
-		"menu.c32",
-		"linux.c32",   // For booting Linux kernels
-		"libmenu.c32", // Required by vesamenu.c32
-	}
-
-	log.Infof("Copying static ISO root files...")
-
-	for _, biosFile := range requiredBiosFiles {
-		srcFilePath := filepath.Join(staticIsoRootFilesDir, biosFile)
-		if _, err := os.Stat(srcFilePath); os.IsNotExist(err) {
-			log.Errorf("Required BIOS boot file does not exist: %s", srcFilePath)
-			return fmt.Errorf("required BIOS boot file does not exist: %s", srcFilePath)
-		}
-		destFilePath := filepath.Join(isoIsolinuxPath, biosFile)
-		if err := file.CopyFile(srcFilePath, destFilePath, "--preserve=mode", true); err != nil {
-			log.Errorf("Failed to copy file %s to %s: %v", srcFilePath, destFilePath, err)
-			return fmt.Errorf("failed to copy file %s to %s: %w", srcFilePath, destFilePath, err)
-		}
-		log.Debugf("Copied %s to %s", srcFilePath, destFilePath)
-	}
-
-	return nil
-}
-
-func createIsolinuxCfg(isoIsolinuxPath, imageName string) error {
-	log.Infof("Creating ISOLINUX configuration...")
-
-	generalConfigDir, err := config.GetGeneralConfigDir()
-	if err != nil {
-		return fmt.Errorf("failed to get general config directory: %w", err)
-	}
-	isolinuxCfgSrc := filepath.Join(generalConfigDir, "isolinux", "isolinux.cfg")
-	if _, err := os.Stat(isolinuxCfgSrc); os.IsNotExist(err) {
-		log.Errorf("isolinux.cfg file does not exist: %s", isolinuxCfgSrc)
-		return fmt.Errorf("isolinux.cfg file does not exist: %s", isolinuxCfgSrc)
-	}
-
-	isolinuxCfgDest := filepath.Join(isoIsolinuxPath, "isolinux.cfg")
-	if err := file.CopyFile(isolinuxCfgSrc, isolinuxCfgDest, "--preserve=mode", true); err != nil {
-		log.Errorf("Failed to copy isolinux.cfg to isolinux path: %v", err)
-		return fmt.Errorf("failed to copy isolinux.cfg to isolinux path: %w", err)
-	}
-
-	if err := file.ReplacePlaceholdersInFile("{{.ImageName}}", imageName, isolinuxCfgDest); err != nil {
-		log.Errorf("Failed to replace ImageName in isolinux configuration: %v", err)
-		return fmt.Errorf("failed to replace ImageName in isolinux configuration: %w", err)
-	}
-
-	return nil
-}
-
 func copyKernelToIsoImagesPath(initrdRootfsPath, isoImagesPath string) error {
-	// Copy kernel to isolinux path
+	// Copy kernel to iso image path
 	var vmlinuzFileList []string
 	cmdStr := "ls /boot | grep vmlinuz"
 	output, err := shell.ExecCmd(cmdStr, true, initrdRootfsPath, nil)
@@ -393,57 +306,18 @@ func copyKernelToIsoImagesPath(initrdRootfsPath, isoImagesPath string) error {
 	}
 	kernelDestPath := filepath.Join(isoImagesPath, "vmlinuz")
 	if err := file.CopyFile(kernelPath, kernelDestPath, "--preserve=mode", true); err != nil {
-		log.Errorf("Failed to copy kernel to isolinux path: %v", err)
-		return fmt.Errorf("failed to copy kernel to isolinux path: %w", err)
+		log.Errorf("Failed to copy kernel to iso image path: %v", err)
+		return fmt.Errorf("failed to copy kernel to iso image path: %w", err)
 	}
 	return nil
 }
 
 func copyInitrdToIsoImagesPath(initrdFilePath, isoImagesPath string) error {
-	// Copy initrd image to isolinux path
+	// Copy initrd image to iso image path
 	initrdDestPath := filepath.Join(isoImagesPath, "initrd.img")
 	if err := file.CopyFile(initrdFilePath, initrdDestPath, "--preserve=mode", true); err != nil {
-		log.Errorf("Failed to copy initrd image to isolinux path: %v", err)
-		return fmt.Errorf("failed to copy initrd image to isolinux path: %w", err)
-	}
-	return nil
-}
-
-func (isoMaker *IsoMaker) copyEfiBootloaderFiles(initrdRootfsPath, isoEfiPath string) error {
-	log.Infof("Copying EFI bootloader files...")
-
-	// Copy EFI bootloader files
-	var efiBootFilesSrc string
-	var efiGrubFilesSrc string
-	pkgType := isoMaker.ChrootEnv.GetTargetOsPkgType()
-	switch pkgType {
-	case "rpm":
-		efiGrubFilesSrc = filepath.Join(initrdRootfsPath, "/boot/efi/EFI/BOOT/grubx64.efi")
-		efiBootFilesSrc = filepath.Join(initrdRootfsPath, "/boot/efi/EFI/BOOT/bootx64.efi")
-
-		if _, err := os.Stat(efiBootFilesSrc); os.IsNotExist(err) {
-			log.Errorf("EFI boot file does not exist: %s", efiBootFilesSrc)
-			return fmt.Errorf("EFI boot file does not exist: %s", efiBootFilesSrc)
-		}
-		efiBootFilesDest := filepath.Join(isoEfiPath, "BOOTX64.EFI")
-		if err := file.CopyFile(efiBootFilesSrc, efiBootFilesDest, "--preserve=mode", true); err != nil {
-			log.Errorf("Failed to copy EFI bootloader files: %v", err)
-			return fmt.Errorf("failed to copy EFI bootloader files: %w", err)
-		}
-
-	case "deb":
-		efiGrubFilesSrc = filepath.Join(initrdRootfsPath, "/usr/lib/grub/x86_64-efi/monolithic/grubx64.efi")
-	}
-
-	if _, err := os.Stat(efiGrubFilesSrc); os.IsNotExist(err) {
-		log.Errorf("EFI boot file does not exist: %s", efiGrubFilesSrc)
-		return fmt.Errorf("EFI boot file does not exist: %s", efiGrubFilesSrc)
-	}
-
-	efiGrubFilesDest := filepath.Join(isoEfiPath, "grubx64.efi")
-	if err := file.CopyFile(efiGrubFilesSrc, efiGrubFilesDest, "--preserve=mode", true); err != nil {
-		log.Errorf("Failed to copy EFI bootloader files: %v", err)
-		return fmt.Errorf("failed to copy EFI bootloader files: %w", err)
+		log.Errorf("Failed to copy initrd image to iso image path: %v", err)
+		return fmt.Errorf("failed to copy initrd image to iso image path: %w", err)
 	}
 	return nil
 }
@@ -461,7 +335,7 @@ func createGrubCfg(installRoot, imageName string) error {
 		return fmt.Errorf("grub.cfg file does not exist: %s", grubCfgSrc)
 	}
 
-	grubCfgDest := filepath.Join(installRoot, "boot", "grub2", "grub.cfg")
+	grubCfgDest := filepath.Join(installRoot, "boot", "grub", "grub.cfg")
 	if err := file.CopyFile(grubCfgSrc, grubCfgDest, "--preserve=mode", true); err != nil {
 		log.Errorf("Failed to copy grub.cfg to install root: %v", err)
 		return fmt.Errorf("failed to copy grub.cfg to install root: %w", err)
@@ -482,137 +356,160 @@ func createGrubCfg(installRoot, imageName string) error {
 	return nil
 }
 
-func createGrubStandAlone(template *config.ImageTemplate, initrdRootfsPath, installRoot, isoEfiPath string) error {
-	log.Infof("Creating standalone GRUB for EFI boot...")
+func copyGrubFilesToGrubPath(initrdRootfsPath, installRoot string) error {
 
-	target := template.GetTargetInfo()
-	arch := target.Arch
-
-	baseDir := filepath.Join(initrdRootfsPath, "boot", "efi", "EFI", "BOOT")
-	efiBootFilesDest := filepath.Join(baseDir, "bootx64.efi")
-	grubDir := filepath.Join(initrdRootfsPath, "usr", "lib", "grub", "x86_64-efi")
-	grubCfgSrc := filepath.Join(installRoot, "EFI", "BOOT", "grub.cfg")
-	grubModInfoSrc := filepath.Join(grubDir, "modinfo.sh")
-
-	if _, err := shell.ExecCmd("mkdir -p "+baseDir, true, "", nil); err != nil {
-		log.Errorf("Failed to create base dir %s: %v", baseDir, err)
-		return fmt.Errorf("failed to create base dir %s: %w", baseDir, err)
+	// Copy GRUB locale files if exists
+	localSrcDir := filepath.Join(initrdRootfsPath, "usr", "share", "locale")
+	localLangpackDir := filepath.Join(initrdRootfsPath, "usr", "share", "locale-langpack")
+	for _, dir := range []string{localSrcDir, localLangpackDir} {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			log.Warnf("GRUB locale directory does not exist: %s", dir)
+		} else {
+			// traverse locale directory and copy only language directories
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				log.Errorf("Failed to read GRUB locale directory: %v", err)
+				return fmt.Errorf("failed to read GRUB locale directory: %w", err)
+			}
+			for _, entry := range entries {
+				if entry.IsDir() {
+					langDir := entry.Name()
+					langSrc := filepath.Join(dir, langDir, "LC_MESSAGES", "grub.mo")
+					if _, err := os.Stat(langSrc); os.IsNotExist(err) {
+						continue
+					}
+					langDest := filepath.Join(installRoot, "boot", "grub", "locale", fmt.Sprintf("%s.mo", langDir))
+					if err := file.CopyFile(langSrc, langDest, "--preserve=mode", true); err != nil {
+						log.Errorf("Failed to copy GRUB locale file to iso boot dir: %v", err)
+						return fmt.Errorf("failed to copy GRUB locale file to iso boot dir: %w", err)
+					}
+				}
+			}
+		}
 	}
 
-	if _, err := os.Stat(grubModInfoSrc); os.IsNotExist(err) {
-		log.Errorf("Grub modinfo file does not exist: %s", grubModInfoSrc)
-		return fmt.Errorf("grub modinfo file does not exist: %s", grubModInfoSrc)
-	}
-
-	if _, err := os.Stat(grubCfgSrc); os.IsNotExist(err) {
-		log.Errorf("Grub cfg file does not exist: %s", grubCfgSrc)
-		return fmt.Errorf("grub cfg file does not exist: %s", grubCfgSrc)
-	}
-
-	grubmkCmd := "grub-mkstandalone"
-	grubmkCmd += fmt.Sprintf(" --directory=%s", grubDir)
-	formatName, err := archToGrubFormat(arch)
-	if err != nil {
-		log.Errorf("Unsupported architecture for GRUB: %s", arch)
-		return fmt.Errorf("unsupported architecture for GRUB: %s", arch)
-	}
-	grubmkCmd += fmt.Sprintf(" --format=%s-efi", formatName)
-	grubmkCmd += fmt.Sprintf(" --output=%s", efiBootFilesDest)
-	grubmkCmd += fmt.Sprintf(" \"boot/grub/grub.cfg=%s\"", grubCfgSrc)
-	if _, err := shell.ExecCmd(grubmkCmd, true, "", nil); err != nil {
-		log.Errorf("Failed to create standalone efi: %v", err)
-		return fmt.Errorf("failed to create standalone efi: %w", err)
-	}
-
-	// check output
-	if _, err := os.Stat(efiBootFilesDest); os.IsNotExist(err) {
-		log.Errorf("EFI boot file does not exist: %s", efiBootFilesDest)
-		return fmt.Errorf("EFI boot file does not exist: %s", efiBootFilesDest)
-	}
-
-	efiBootFilesFDest := filepath.Join(isoEfiPath, "BOOTX64.EFI")
-	if err := file.CopyFile(efiBootFilesDest, efiBootFilesFDest, "--preserve=mode", true); err != nil {
-		log.Errorf("Failed to copy EFI bootloader files: %v", err)
-		return fmt.Errorf("failed to copy EFI bootloader files: %w", err)
+	// Copy GRUB font file if exists
+	fontsSrc := filepath.Join(initrdRootfsPath, "usr", "share", "grub", "unicode.pf2")
+	if _, err := os.Stat(fontsSrc); os.IsNotExist(err) {
+		log.Warnf("GRUB font file does not exist: %s", fontsSrc)
+	} else {
+		fontsDest := filepath.Join(installRoot, "boot", "grub", "fonts", "unicode.pf2")
+		if err := file.CopyFile(fontsSrc, fontsDest, "--preserve=mode", true); err != nil {
+			log.Errorf("Failed to copy GRUB font file to iso boot dir: %v", err)
+			return fmt.Errorf("failed to copy GRUB font file to iso boot dir: %w", err)
+		}
 	}
 
 	return nil
 }
 
-// archToGrubFormat maps a CPU architecture to its GRUB platform name
-func archToGrubFormat(arch string) (string, error) {
-	switch arch {
-	case "x86_64":
-		return "x86_64", nil
-	case "i386":
-		return "i386", nil
-	case "arm64", "aarch64":
-		return "arm64", nil
-	case "arm":
-		return "arm", nil
-	case "riscv64":
-		return "riscv64", nil
+func createBiosImage(template *config.ImageTemplate, initrdRootfsPath, installRoot string) (biosImgRelPath string, err error) {
+	target := template.GetTargetInfo()
+	switch target.Arch {
+	case "x86_64", "i386":
+		format := "i386-pc"
+		prefixDir := "/boot/grub/"
+
+		generalConfigDir, err := config.GetGeneralConfigDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to get general config directory: %w", err)
+		}
+		loadCfgSrc := filepath.Join(generalConfigDir, "isolinux", "load.cfg")
+		if _, err := os.Stat(loadCfgSrc); os.IsNotExist(err) {
+			log.Errorf("load.cfg file does not exist: %s", loadCfgSrc)
+			return "", fmt.Errorf("load.cfg file does not exist: %s", loadCfgSrc)
+		}
+
+		grubLibDir := filepath.Join(initrdRootfsPath, "usr", "lib", "grub", format)
+		if _, err := os.Stat(grubLibDir); os.IsNotExist(err) {
+			log.Debugf("GRUB modules directory does not exist: %s, skip BIOS boot enabling", grubLibDir)
+			return "", nil
+		}
+
+		bootGrubLibDir := filepath.Join(installRoot, "boot", "grub", format)
+		if err = file.CopyDir(grubLibDir, bootGrubLibDir, "--preserve=mode", true); err != nil {
+			log.Errorf("Failed to copy grub modules to iso boot dir: %v", err)
+			return "", fmt.Errorf("failed to copy grub modules to iso boot dir: %w", err)
+		}
+
+		biosImgRelPath = filepath.Join("boot", "grub", format, "eltorito.img")
+		biosImgPath := filepath.Join(installRoot, biosImgRelPath)
+
+		grubmkCmd := fmt.Sprintf("grub-mkimage --format=%s-eltorito --output=%s", format, biosImgPath)
+		grubmkCmd += fmt.Sprintf(" --config=%s --directory=%s --prefix=%s", loadCfgSrc, grubLibDir, prefixDir)
+		grubmkCmd += " biosdisk iso9660"
+
+		if _, err := shell.ExecCmd(grubmkCmd, true, "", nil); err != nil {
+			log.Errorf("Failed to create eltorito image: %v", err)
+			return biosImgRelPath, fmt.Errorf("failed to create eltorito image: %w", err)
+		}
+
 	default:
-		return "", fmt.Errorf("unsupported architecture: %s", arch)
+		log.Debugf("BIOS boot not supported for architecture: %s", target.Arch)
+		return "", nil
 	}
+	return biosImgRelPath, nil
 }
 
-func createEfiFatImage(isoEfiPath, isoImagesPath string) (efiFatImgPath string, err error) {
-	log.Infof("Creating EFI FAT image for UEFI boot...")
-	efiFatImgPath = filepath.Join(isoImagesPath, "efiboot.img")
-	// For the EFI FAT image, create it with sudo as the image rootfs path is owned by root.
-	if err = imagedisc.CreateRawFile(efiFatImgPath, "18MiB", true); err != nil {
-		return // Bare return - returns efiFatImgPath and err
-	}
+func createEfiFatImage(template *config.ImageTemplate, initrdRootfsPath, installRoot string) (efiFatImgPath string, err error) {
+	target := template.GetTargetInfo()
+	switch target.Arch {
+	case "x86_64":
+		format := "x86_64-efi"
+		prefixDir := "/boot/grub"
 
-	cmdStr := fmt.Sprintf("mkfs -t vfat %s", efiFatImgPath)
-	if _, err = shell.ExecCmd(cmdStr, true, "", nil); err != nil {
-		log.Errorf("Failed to create FAT filesystem on EFI image: %v", err)
-		return // Bare return - returns efiFatImgPath and err
-	}
-
-	// Create a temporary directory to mount the FAT image
-	tempMountDir := filepath.Join(isoImagesPath, "efi_tmp")
-	if err = mount.MountPath(efiFatImgPath, tempMountDir, "-o loop"); err != nil {
-		log.Errorf("Failed to mount EFI FAT image: %v", err)
-		return
-	}
-
-	defer func() {
-		if umountErr := mount.UmountPath(tempMountDir); umountErr != nil {
-			log.Errorf("Failed to unmount temporary mount directory %s: %v", tempMountDir, umountErr)
-			if err == nil {
-				err = fmt.Errorf("failed to unmount temporary mount directory %s: %w", tempMountDir, umountErr)
-			} else {
-				err = fmt.Errorf("operation failed: %w, cleanup errors: %v", err, umountErr)
-			}
-			return
+		generalConfigDir, err := config.GetGeneralConfigDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to get general config directory: %w", err)
 		}
-		if _, rmErr := shell.ExecCmd("rm -rf "+tempMountDir, true, "", nil); rmErr != nil {
-			log.Errorf("Failed to remove temporary mount directory %s: %v", tempMountDir, rmErr)
-			if err == nil {
-				err = fmt.Errorf("failed to remove temporary mount directory %s: %w", tempMountDir, rmErr)
-			} else {
-				err = fmt.Errorf("operation failed: %w, cleanup errors: %v", err, rmErr)
-			}
-			return
+		loadCfgSrc := filepath.Join(generalConfigDir, "isolinux", "load.cfg")
+		if _, err := os.Stat(loadCfgSrc); os.IsNotExist(err) {
+			log.Errorf("load.cfg file does not exist: %s", loadCfgSrc)
+			return "", fmt.Errorf("load.cfg file does not exist: %s", loadCfgSrc)
 		}
-	}()
 
-	// Copy the EFI bootloader to the FAT image
-	efiBootDir := filepath.Join(tempMountDir, "EFI", "BOOT")
-	if err = file.CopyDir(isoEfiPath, efiBootDir, "--preserve=mode", true); err != nil {
-		log.Errorf("Failed to copy EFI bootloader to FAT image: %v", err)
-		return
+		grubLibDir := filepath.Join(initrdRootfsPath, "usr", "lib", "grub", format)
+		if _, err := os.Stat(grubLibDir); os.IsNotExist(err) {
+			log.Errorf("GRUB modules directory does not exist: %s", grubLibDir)
+			return "", fmt.Errorf("GRUB modules directory does not exist: %s", grubLibDir)
+		}
+
+		bootGrubLibDir := filepath.Join(installRoot, "boot", "grub", format)
+		if err = file.CopyDir(grubLibDir, bootGrubLibDir, "--preserve=mode", true); err != nil {
+			log.Errorf("Failed to copy grub modules to iso boot dir: %v", err)
+			return "", fmt.Errorf("failed to copy grub modules to iso boot dir: %w", err)
+		}
+
+		efiFatImgPath = filepath.Join(installRoot, prefixDir, "efi.img")
+		cmdStr := fmt.Sprintf("mformat -C -f 2880 -L 16 -i %s ::.", efiFatImgPath)
+		if _, err := shell.ExecCmd(cmdStr, true, "", nil); err != nil {
+			log.Errorf("Failed to create EFI FAT image: %v", err)
+			return efiFatImgPath, fmt.Errorf("failed to create EFI FAT image: %w", err)
+		}
+
+		efiDirPath := filepath.Join(installRoot, "EFI")
+		efiImgPath := filepath.Join(efiDirPath, "BOOT", "BOOTX64.EFI")
+
+		grubmkCmd := fmt.Sprintf("grub-mkimage --format=%s --output=%s", format, efiImgPath)
+		grubmkCmd += fmt.Sprintf(" --config=%s --directory=%s --prefix=%s", loadCfgSrc, grubLibDir, prefixDir)
+		grubmkCmd += " part_gpt part_msdos fat ext2 ntfs search iso9660"
+
+		if _, err := shell.ExecCmd(grubmkCmd, true, "", nil); err != nil {
+			log.Errorf("Failed to create EFI image: %v", err)
+			return efiFatImgPath, fmt.Errorf("failed to create EFI image: %w", err)
+		}
+
+		cmdStr = fmt.Sprintf("mcopy -s -i %s %s ::/.", efiFatImgPath, efiDirPath)
+		if _, err := shell.ExecCmd(cmdStr, true, "", nil); err != nil {
+			log.Errorf("Failed to copy EFI files to FAT image: %v", err)
+			return efiFatImgPath, fmt.Errorf("failed to copy EFI files to FAT image: %w", err)
+		}
+
+	default:
+		return "", fmt.Errorf("unsupported architecture for EFI FAT image: %s", target.Arch)
 	}
 
-	// Sync to ensure all data is written to disk
-	if _, err = shell.ExecCmd("sync", true, "", nil); err != nil {
-		log.Errorf("Failed to sync temporary mount directory %s: %v", tempMountDir, err)
-		return
-	}
-
-	return
+	return efiFatImgPath, nil
 }
 
 func cleanIsoInstallRoot(installRoot string) error {

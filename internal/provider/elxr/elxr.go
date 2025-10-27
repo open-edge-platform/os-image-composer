@@ -170,14 +170,15 @@ func (p *eLxr) PostProcess(template *config.ImageTemplate, err error) error {
 
 func (p *eLxr) installHostDependency() error {
 	var dependencyInfo = map[string]string{
-		"mmdebstrap":        "mmdebstrap",    // For the chroot env build
-		"mkfs.fat":          "dosfstools",    // For the FAT32 boot partition creation
-		"xorriso":           "xorriso",       // For ISO image creation
-		"qemu-img":          "qemu-utils",    // For image file format conversion
-		"ukify":             "systemd-ukify", // For the UKI image creation
-		"grub-mkstandalone": "grub-common",   // For ISO image UEFI Grub binary creation
-		"veritysetup":       "cryptsetup",    // For the veritysetup command
-		"sbsign":            "sbsigntool",    // For the UKI image creation
+		"mmdebstrap":   "mmdebstrap",    // For the chroot env build
+		"mkfs.fat":     "dosfstools",    // For the FAT32 boot partition creation
+		"mformat":      "mtools",        // For writing files to FAT32 partition
+		"xorriso":      "xorriso",       // For ISO image creation
+		"qemu-img":     "qemu-utils",    // For image file format conversion
+		"ukify":        "systemd-ukify", // For the UKI image creation
+		"grub-mkimage": "grub-common",   // For ISO image UEFI Grub binary creation
+		"veritysetup":  "cryptsetup",    // For the veritysetup command
+		"sbsign":       "sbsigntool",    // For the UKI image creation
 	}
 	hostPkgManager, err := system.GetHostOsPkgManager()
 	if err != nil {
