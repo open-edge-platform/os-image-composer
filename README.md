@@ -36,6 +36,72 @@ earthly +build
 earthly +build --version=1.0.0
 ```
 
+### Install via Debian Package (Ubuntu/Debian)
+
+For Ubuntu and Debian systems, you can build and install OS Image Composer as a Debian package. This method provides a cleaner installation with proper package management.
+
+#### Build the Debian Package
+
+Use the Earthly `+deb` target to create a `.deb` package:
+
+```bash
+# Build with default parameters (version 1.0.0, amd64)
+earthly +deb
+
+# Build with custom version and architecture
+earthly +deb --VERSION=1.2.0 --ARCH=amd64
+
+# Build for ARM64
+earthly +deb --VERSION=1.0.0 --ARCH=arm64
+```
+
+The package will be created in the `dist/` directory as `os-image-composer_<VERSION>_<ARCH>.deb`.
+
+#### Install the Package
+
+```bash
+# Install using apt (recommended - automatically resolves dependencies)
+sudo apt install ./dist/os-image-composer_1.0.0_amd64.deb
+
+# Or using dpkg
+sudo dpkg -i dist/os-image-composer_1.0.0_amd64.deb
+sudo apt-get install -f  # Fix any missing dependencies if needed
+```
+
+#### Verify Installation
+
+```bash
+# Check if package is installed
+dpkg -l | grep os-image-composer
+
+# View installed files
+dpkg -L os-image-composer
+
+# Verify the binary works
+os-image-composer version
+```
+
+#### Package Contents
+
+The Debian package installs the following files:
+
+* **Binary:** `/usr/local/bin/os-image-composer` - Main executable
+* **Configuration:** `/etc/os-image-composer/` - Default configuration and OS variant configs
+* **Examples:** `/usr/share/os-image-composer/examples/` - Sample image templates
+* **Documentation:** `/usr/share/doc/os-image-composer/` - README, LICENSE, and CLI specification
+
+After installation via the Debian package, you can use `os-image-composer` directly from any directory, and reference the example templates from `/usr/share/os-image-composer/examples/`.
+
+#### Uninstall the Package
+
+```bash
+# Remove package (keeps configuration files)
+sudo dpkg -r os-image-composer
+
+# Remove package and configuration files
+sudo dpkg --purge os-image-composer
+```
+
 ### Install the Prerequisites for Composing an Image
 
 Before you compose an operating system image with the OS Image Composer tool, follow the [instructions to install two prerequisites](./docs/tutorial/prerequisite.md):  

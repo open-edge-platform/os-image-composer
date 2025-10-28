@@ -140,3 +140,56 @@ test-debug:
 test-quick:
     FROM +golang-base
     RUN go test ./...
+
+deb:
+    FROM debian:bookworm-slim
+    ARG VERSION=1.0.0
+    ARG ARCH=amd64
+    
+    WORKDIR /pkg
+    
+    # Create directory structure following FHS (Filesystem Hierarchy Standard)
+    RUN mkdir -p usr/local/bin \
+                 etc/os-image-composer/config \
+                 usr/share/os-image-composer/examples \
+                 usr/share/doc/os-image-composer \
+                 DEBIAN
+    
+    # Copy the built binary from the build target
+    COPY +build/os-image-composer usr/local/bin/os-image-composer
+    
+    # Make the binary executable
+    RUN chmod +x usr/local/bin/os-image-composer
+    
+    # Copy default global configuration (user-editable)
+    COPY os-image-composer.yml etc/os-image-composer/os-image-composer.yml
+    
+    # Copy OS variant configuration files (user-editable)
+    COPY config etc/os-image-composer/config
+    
+    # Copy image templates as examples (read-only, for reference)
+    COPY image-templates usr/share/os-image-composer/examples
+    
+    # Copy documentation
+    COPY README.md usr/share/doc/os-image-composer/
+    COPY LICENSE usr/share/doc/os-image-composer/
+    COPY docs/architecture/os-image-composer-cli-specification.md usr/share/doc/os-image-composer/
+    
+    # Create the DEBIAN control file with proper metadata
+    RUN echo "Package: os-image-composer" > DEBIAN/control && \
+        echo "Version: ${VERSION}" >> DEBIAN/control && \
+        echo "Section: utils" >> DEBIAN/control && \
+        echo "Priority: optional" >> DEBIAN/control && \
+        echo "Architecture: ${ARCH}" >> DEBIAN/control && \
+        echo "Maintainer: Intel Edge Software Team <edge.platform@intel.com>" >> DEBIAN/control && \
+        echo "Depends: bash, coreutils" >> DEBIAN/control && \
+        echo "Description: OS Image Composer (OIC)" >> DEBIAN/control && \
+        echo " OIC enables users to compose custom bootable OS images based on a" >> DEBIAN/control && \
+        echo " user-provided template that specifies package lists, configurations," >> DEBIAN/control && \
+        echo " and output formats for supported distributions." >> DEBIAN/control
+    
+    # Build the debian package
+    RUN dpkg-deb --build . os-image-composer_${VERSION}_${ARCH}.deb
+    
+    # Save the debian package artifact to dist/ directory
+    SAVE ARTIFACT os-image-composer_${VERSION}_${ARCH}.deb AS LOCAL dist/os-image-composer_${VERSION}_${ARCH}.deb
