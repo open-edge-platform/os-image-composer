@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/config/version"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
@@ -24,6 +25,8 @@ const (
 	DefaultSupplier   = "Organization: UNKNOWN"
 	DefaultLicense    = "NOASSERTION"
 	DefaultSPDXFile   = "spdx_manifest.json"
+	// Path where SBOM will be stored inside the image filesystem
+	ImageSBOMPath = "/usr/share/sbom"
 )
 
 // SoftwarePackageManifest represents the structure of the manifest file.
@@ -180,9 +183,6 @@ func WriteSPDXToFile(pkgs []ospackage.PackageInfo, outFile string) error {
 		spdx.Packages = append(spdx.Packages, spdxPkg)
 	}
 
-	// TODO: The relative file path here should be where
-	// the final image is being stored and not under temp
-
 	if err := os.MkdirAll(filepath.Dir(outFile), 0700); err != nil {
 		log.Errorf("Failed to create SPDX output directory: %v", err)
 		return fmt.Errorf("failed to create output directory: %w", err)
@@ -235,4 +235,80 @@ func spdxSupplier(origin string) string {
 		}
 	}
 	return fmt.Sprintf("Organization: %s", o)
+}
+
+// CopySBOMToImageBuildDir copies the SBOM from temp directory to the image build directory
+// This ensures the SBOM is packaged alongside the final image artifact
+func CopySBOMToImageBuildDir(imageBuildDir string) error {
+	log.Infof("Copying SBOM to image build directory: %s", imageBuildDir)
+
+	// Source: SBOM in temp directory (same location where it was generated)
+	srcSBOM := filepath.Join(config.TempDir(), DefaultSPDXFile)
+
+	// Destination: SBOM in image build directory
+	dstSBOM := filepath.Join(imageBuildDir, DefaultSPDXFile)
+
+	// Check if source SBOM exists
+	if _, err := os.Stat(srcSBOM); os.IsNotExist(err) {
+		log.Warnf("SBOM file not found at %s, skipping copy", srcSBOM)
+		return nil
+	}
+
+	// Read source SBOM with security checks
+	data, err := security.SafeReadFile(srcSBOM, security.RejectSymlinks)
+	if err != nil {
+		log.Errorf("Failed to read SBOM file: %v", err)
+		return fmt.Errorf("failed to read SBOM file: %w", err)
+	}
+
+	// Write to destination with security checks
+	if err := security.SafeWriteFile(dstSBOM, data, 0644, security.RejectSymlinks); err != nil {
+		log.Errorf("Failed to write SBOM to image build directory: %v", err)
+		return fmt.Errorf("failed to write SBOM to image build directory: %w", err)
+	}
+
+	log.Infof("Successfully copied SBOM to: %s", dstSBOM)
+	return nil
+}
+
+// CopySBOMToChroot copies the SBOM from temp directory into the image's filesystem at /usr/share/sbom/
+// This embeds the SBOM inside the image for CVE scanning and compliance tools
+func CopySBOMToChroot(chrootPath string) error {
+	log.Infof("Copying SBOM into image filesystem at %s", ImageSBOMPath)
+
+	// Source: SBOM in temp directory (same location where it was generated)
+	srcSBOM := filepath.Join(config.TempDir(), DefaultSPDXFile)
+
+	// Destination: SBOM inside the chroot filesystem
+	dstDir := filepath.Join(chrootPath, ImageSBOMPath)
+	dstSBOM := filepath.Join(dstDir, DefaultSPDXFile)
+
+	// Check if source SBOM exists
+	if _, err := os.Stat(srcSBOM); os.IsNotExist(err) {
+		log.Warnf("SBOM file not found at %s, skipping copy to chroot", srcSBOM)
+		return nil
+	}
+
+	// Create the SBOM directory inside the chroot with appropriate permissions
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		log.Errorf("Failed to create SBOM directory in chroot: %v", err)
+		return fmt.Errorf("failed to create SBOM directory in chroot: %w", err)
+	}
+
+	// Read source SBOM with security checks
+	data, err := security.SafeReadFile(srcSBOM, security.RejectSymlinks)
+	if err != nil {
+		log.Errorf("Failed to read SBOM file: %v", err)
+		return fmt.Errorf("failed to read SBOM file: %w", err)
+	}
+
+	// Write to destination inside chroot with security checks
+	// Use 0644 permissions so the file is readable by all users
+	if err := security.SafeWriteFile(dstSBOM, data, 0644, security.RejectSymlinks); err != nil {
+		log.Errorf("Failed to write SBOM to chroot filesystem: %v", err)
+		return fmt.Errorf("failed to write SBOM to chroot filesystem: %w", err)
+	}
+
+	log.Infof("Successfully copied SBOM into image filesystem at: %s", dstSBOM)
+	return nil
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/config/manifest"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imageos"
 	"github.com/open-edge-platform/os-image-composer/internal/image/initrdmaker"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/file"
@@ -98,6 +99,12 @@ func (isoMaker *IsoMaker) BuildIsoImage() (err error) {
 	initrdFilePath := isoMaker.InitrdMaker.GetInitrdFilePath()
 	if err := isoMaker.createIso(isoMaker.template, initrdRootfsPath, initrdFilePath, isoFilePath); err != nil {
 		return fmt.Errorf("failed to create ISO image: %w", err)
+	}
+
+	// Copy SBOM to image build directory
+	if err := manifest.CopySBOMToImageBuildDir(isoMaker.ImageBuildDir); err != nil {
+		log.Warnf("Failed to copy SBOM to image build directory: %v", err)
+		// Don't fail the build if SBOM copy fails, just log warning
 	}
 
 	return nil

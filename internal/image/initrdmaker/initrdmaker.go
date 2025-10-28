@@ -8,6 +8,7 @@ import (
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/config/manifest"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imageos"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/debutils"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/rpmutils"
@@ -137,6 +138,12 @@ func (initrdMaker *InitrdMaker) BuildInitrdImage() (err error) {
 	initrdMaker.InitrdFilePath = filepath.Join(initrdMaker.ImageBuildDir, fmt.Sprintf("%s-%s.img",
 		imageName, initrdMaker.VersionInfo))
 
+	// Copy SBOM into the initrd rootfs (inside the image)
+	if err := manifest.CopySBOMToChroot(initrdMaker.InitrdRootfsPath); err != nil {
+		log.Warnf("Failed to copy SBOM into initrd filesystem: %v", err)
+		// Don't fail the build if SBOM copy fails, just log warning
+	}
+
 	if err := addInitScriptsToInitrd(initrdMaker.InitrdRootfsPath); err != nil {
 		return fmt.Errorf("failed to add init scripts to initrd: %w", err)
 	}
@@ -148,6 +155,13 @@ func (initrdMaker *InitrdMaker) BuildInitrdImage() (err error) {
 	if err := initrdMaker.createInitrdImg(); err != nil {
 		return fmt.Errorf("failed to create initrd image: %w", err)
 	}
+
+	// Copy SBOM to image build directory
+	if err := manifest.CopySBOMToImageBuildDir(initrdMaker.ImageBuildDir); err != nil {
+		log.Warnf("Failed to copy SBOM to image build directory: %v", err)
+		// Don't fail the build if SBOM copy fails, just log warning
+	}
+
 	return nil
 }
 
