@@ -138,6 +138,12 @@ func (initrdMaker *InitrdMaker) BuildInitrdImage() (err error) {
 	initrdMaker.InitrdFilePath = filepath.Join(initrdMaker.ImageBuildDir, fmt.Sprintf("%s-%s.img",
 		imageName, initrdMaker.VersionInfo))
 
+	// Copy SBOM into the initrd rootfs (inside the image)
+	if err := manifest.CopySBOMToChroot(initrdMaker.InitrdRootfsPath); err != nil {
+		log.Warnf("Failed to copy SBOM into initrd filesystem: %v", err)
+		// Don't fail the build if SBOM copy fails, just log warning
+	}
+
 	if err := addInitScriptsToInitrd(initrdMaker.InitrdRootfsPath); err != nil {
 		return fmt.Errorf("failed to add init scripts to initrd: %w", err)
 	}

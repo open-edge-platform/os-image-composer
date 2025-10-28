@@ -147,6 +147,13 @@ func (rawMaker *RawMaker) BuildRawImage() error {
 
 	log.Infof("OS installation completed with version: %s", versionInfo)
 
+	// Copy SBOM into the chroot filesystem (inside the image)
+	chrootPath := rawMaker.ChrootEnv.GetChrootEnvRoot()
+	if err := manifest.CopySBOMToChroot(chrootPath); err != nil {
+		log.Warnf("Failed to copy SBOM into image filesystem: %v", err)
+		// Don't fail the build if SBOM copy fails, just log warning
+	}
+
 	// File renaming
 	finalImagePath, err := rawMaker.renameImageFile(imageFile, imageName, versionInfo)
 	if err != nil {
