@@ -18,6 +18,8 @@ import (
 
 const (
 	ChrootRepoDir       = "/cdrom/cache-repo"
+	RPMRepoConfigFile   = "local.repo"
+	DEBRepoConfigFile   = "local.list"
 	RPMRepoConfigDir    = "/etc/yum.repos.d/"
 	DEBRepoConfigDir    = "/etc/apt/sources.list.d/"
 	ResolvConfPath      = "/etc/resolv.conf"
@@ -183,9 +185,13 @@ func (chrootEnv *ChrootEnv) MountChrootPath(hostFullPath, chrootPath, mountFlags
 	if err != nil {
 		return fmt.Errorf("failed to get chroot host path for %s: %w", chrootPath, err)
 	}
-	if _, err := os.Stat(chrootHostPath); os.IsNotExist(err) {
-		if _, err = shell.ExecCmd("mkdir -p "+chrootHostPath, true, shell.HostPath, nil); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", chrootHostPath, err)
+	if hostFullPath == chrootHostPath {
+		return nil
+	} else {
+		if _, err := os.Stat(chrootHostPath); os.IsNotExist(err) {
+			if _, err = shell.ExecCmd("mkdir -p "+chrootHostPath, true, shell.HostPath, nil); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", chrootHostPath, err)
+			}
 		}
 	}
 	return mount.MountPath(hostFullPath, chrootHostPath, mountFlags)
@@ -207,7 +213,11 @@ func (chrootEnv *ChrootEnv) CopyFileFromHostToChroot(hostFilePath, chrootPath st
 	if err != nil {
 		return fmt.Errorf("failed to get chroot host path for %s: %w", chrootPath, err)
 	}
-	return file.CopyFile(hostFilePath, chrootHostPath, "-f", true)
+	if hostFilePath == chrootHostPath {
+		return nil
+	} else {
+		return file.CopyFile(hostFilePath, chrootHostPath, "-f", true)
+	}
 }
 
 // CopyFileFromChrootToHost copies a file from the chroot environment to the host
@@ -216,7 +226,11 @@ func (chrootEnv *ChrootEnv) CopyFileFromChrootToHost(hostFilePath, chrootPath st
 	if err != nil {
 		return fmt.Errorf("failed to get chroot host path for %s: %w", chrootPath, err)
 	}
-	return file.CopyFile(chrootHostPath, hostFilePath, "-f", true)
+	if hostFilePath == chrootHostPath {
+		return nil
+	} else {
+		return file.CopyFile(chrootHostPath, hostFilePath, "-f", true)
+	}
 }
 
 func (chrootEnv *ChrootEnv) updateChrootLocalRPMRepo(chrootRepoDir string) error {
@@ -286,36 +300,46 @@ func (chrootEnv *ChrootEnv) initChrootLocalRepo(targetArch string) error {
 }
 
 func (chrootEnv *ChrootEnv) createChrootRepo(targetOs, targetDist string) error {
+	var repoConfigDir string
+	var repoConfigFile string
+
 	targetOsConfigDir := chrootEnv.GetTargetOsConfigDir()
 	pkgType := chrootEnv.GetTargetOsPkgType()
 	if pkgType == "rpm" {
-		chrootRepoCongfigPath := filepath.Join(targetOsConfigDir, "chrootenvconfigs", "local.repo")
-		if _, err := os.Stat(chrootRepoCongfigPath); os.IsNotExist(err) {
-			return fmt.Errorf("chroot repo config file does not exist: %s", chrootRepoCongfigPath)
-		}
-
-		if err := chrootEnv.CopyFileFromHostToChroot(chrootRepoCongfigPath, RPMRepoConfigDir); err != nil {
-			return fmt.Errorf("failed to copy local.repo: %w", err)
-		}
+		repoConfigDir = RPMRepoConfigDir
+		repoConfigFile = RPMRepoConfigFile
 	} else if pkgType == "deb" {
-		chrootRepoCongfigPath, err := chrootEnv.GetChrootEnvHostPath(DEBRepoConfigDir)
-		if err != nil {
-			return fmt.Errorf("failed to get chroot host path for local repo config: %w", err)
-		}
-		if _, err := shell.ExecCmd("rm -f "+chrootRepoCongfigPath+"/*", true, shell.HostPath, nil); err != nil {
-			return fmt.Errorf("failed to remove existing local repo config files: %w", err)
-		}
-
-		RepoCongfigPath := filepath.Join(targetOsConfigDir, "chrootenvconfigs", "local.list")
-		if _, err := os.Stat(RepoCongfigPath); os.IsNotExist(err) {
-			return fmt.Errorf("chroot repo config file does not exist: %s", RepoCongfigPath)
-		}
-
-		if err := chrootEnv.CopyFileFromHostToChroot(RepoCongfigPath, DEBRepoConfigDir); err != nil {
-			return fmt.Errorf("failed to copy local.repo: %w", err)
-		}
+		repoConfigDir = DEBRepoConfigDir
+		repoConfigFile = DEBRepoConfigFile
 	} else {
 		return fmt.Errorf("unsupported package type: %s", pkgType)
+	}
+
+	// Backup existing local repo config files in chroot environment
+	chrootRepoCongfigPath, err := chrootEnv.GetChrootEnvHostPath(repoConfigDir)
+	if err != nil {
+		return fmt.Errorf("failed to get chroot host path for local repo config: %w", err)
+	}
+	if _, err := os.Stat(chrootRepoCongfigPath); err == nil {
+		if files, _ := os.ReadDir(chrootRepoCongfigPath); len(files) != 0 {
+			repoConfigBackupPath := filepath.Join(chrootEnv.ChrootEnvRoot, "repo-config-backup")
+			if err := file.CopyDir(chrootRepoCongfigPath, repoConfigBackupPath, "-f", true); err != nil {
+				return fmt.Errorf("failed to backup existing repo config files: %w", err)
+			}
+			if _, err := shell.ExecCmd("rm -f "+chrootRepoCongfigPath+"/*", true, shell.HostPath, nil); err != nil {
+				return fmt.Errorf("failed to remove existing local repo config files: %w", err)
+			}
+		}
+	}
+
+	// Copy local repo config file to chroot environment
+	localRepoCongfigPath := filepath.Join(targetOsConfigDir, "chrootenvconfigs", repoConfigFile)
+	if _, err := os.Stat(localRepoCongfigPath); os.IsNotExist(err) {
+		return fmt.Errorf("chroot repo config file does not exist: %s", localRepoCongfigPath)
+	}
+
+	if err := chrootEnv.CopyFileFromHostToChroot(localRepoCongfigPath, repoConfigDir); err != nil {
+		return fmt.Errorf("failed to copy local.repo: %w", err)
 	}
 
 	return nil
@@ -333,10 +357,7 @@ func (chrootEnv *ChrootEnv) initChrootWorkspace() error {
 }
 
 func (chrootEnv *ChrootEnv) InitChrootEnv(targetOs, targetDist, targetArch string) (err error) {
-	var chrootRootfsExist bool = true
-
 	if files, _ := os.ReadDir(chrootEnv.ChrootEnvRoot); len(files) == 0 {
-		chrootRootfsExist = false
 		chrootBuildDir := chrootEnv.ChrootBuilder.GetChrootBuildDir()
 		chrootEnvTarPath := filepath.Join(chrootBuildDir, "chrootenv.tar.gz")
 		if _, err := os.Stat(chrootEnvTarPath); os.IsNotExist(err) {
@@ -362,26 +383,26 @@ func (chrootEnv *ChrootEnv) InitChrootEnv(targetOs, targetDist, targetArch strin
 		return fmt.Errorf("failed to initialize chroot workspace: %w", err)
 	}
 
-	// Mount sysfs to the chroot environment
-	err = chrootEnv.MountChrootSysfs("/")
-	if err != nil {
-		return fmt.Errorf("failed to mount sysfs for chroot environment: %w", err)
+	if chrootEnv.ChrootEnvRoot != shell.HostPath {
+		// Mount sysfs to the chroot environment
+		err = chrootEnv.MountChrootSysfs("/")
+		if err != nil {
+			return fmt.Errorf("failed to mount sysfs for chroot environment: %w", err)
+		}
+
+		defer func() {
+			if err != nil {
+				if umountErr := chrootEnv.UmountChrootSysfs("/"); umountErr != nil {
+					log.Errorf("Failed to unmount sysfs for chroot environment: %v", umountErr)
+					err = fmt.Errorf("operation failed: %w, cleanup errors: %v", err, umountErr)
+				}
+			}
+		}()
 	}
 
-	defer func() {
-		if err != nil {
-			if umountErr := chrootEnv.UmountChrootSysfs("/"); umountErr != nil {
-				log.Errorf("Failed to unmount sysfs for chroot environment: %v", umountErr)
-				err = fmt.Errorf("operation failed: %w, cleanup errors: %v", err, umountErr)
-			}
-		}
-	}()
-
-	if !chrootRootfsExist {
-		// Create chroot repository
-		if err = chrootEnv.createChrootRepo(targetOs, targetDist); err != nil {
-			return fmt.Errorf("failed to create chroot repository: %w", err)
-		}
+	// Create chroot local repository
+	if err = chrootEnv.createChrootRepo(targetOs, targetDist); err != nil {
+		return fmt.Errorf("failed to create chroot repository: %w", err)
 	}
 
 	if err = chrootEnv.initChrootLocalRepo(targetArch); err != nil {
@@ -399,6 +420,38 @@ func (chrootEnv *ChrootEnv) CleanupChrootEnv(targetOs, targetDist, targetArch st
 		}
 		if err := mount.UmountSubPath(chrootEnv.ChrootEnvRoot); err != nil {
 			return fmt.Errorf("failed to unmount path for chroot environment: %w", err)
+		}
+
+		// Restore existing local repo config files in chroot environment
+		repoConfigBackupPath := filepath.Join(chrootEnv.ChrootEnvRoot, "repo-config-backup")
+		if _, err := os.Stat(repoConfigBackupPath); err == nil {
+			var repoConfigDir string
+			pkgType := chrootEnv.GetTargetOsPkgType()
+			if pkgType == "rpm" {
+				repoConfigDir = RPMRepoConfigDir
+			} else if pkgType == "deb" {
+				repoConfigDir = DEBRepoConfigDir
+			} else {
+				return fmt.Errorf("unsupported package type: %s", pkgType)
+			}
+
+			chrootRepoCongfigPath, err := chrootEnv.GetChrootEnvHostPath(repoConfigDir)
+			if err != nil {
+				return fmt.Errorf("failed to get chroot host path for local repo config: %w", err)
+			}
+			if _, err := os.Stat(chrootRepoCongfigPath); err == nil {
+				if files, _ := os.ReadDir(chrootRepoCongfigPath); len(files) != 0 {
+					if _, err := shell.ExecCmd("rm -f "+chrootRepoCongfigPath+"/*", true, shell.HostPath, nil); err != nil {
+						return fmt.Errorf("failed to remove existing local repo config files: %w", err)
+					}
+					if err := file.CopyDir(repoConfigBackupPath, chrootRepoCongfigPath, "-f", true); err != nil {
+						return fmt.Errorf("failed to backup existing repo config files: %w", err)
+					}
+					if _, err := shell.ExecCmd("rm -rf "+repoConfigBackupPath, true, shell.HostPath, nil); err != nil {
+						return fmt.Errorf("failed to remove repo config backup directory %s: %w", repoConfigBackupPath, err)
+					}
+				}
+			}
 		}
 	} else {
 		log.Infof("Chroot environment root %s does not exist, skipping cleanup", chrootEnv.ChrootEnvRoot)

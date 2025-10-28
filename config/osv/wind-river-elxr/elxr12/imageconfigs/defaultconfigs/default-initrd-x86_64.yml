@@ -44,6 +44,15 @@ systemConfig:
       final: /etc/systemd/network/dhcp.network
     - local: ../additionalfiles/elxr-aria.list
       final: /etc/apt/sources.list.d/elxr-aria.list
+    - local: ../additionalfiles/getty@.service
+      final: /usr/lib/systemd/system/getty@.service
+    - local: ../additionalfiles/serial-getty@.service
+      final: /usr/lib/systemd/system/serial-getty@.service
+
+  users:
+    - name: root
+      passwordMaxAge: 99999
+      password: ""
 
   kernel:
     name: kernel

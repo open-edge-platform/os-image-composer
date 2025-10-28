@@ -1199,6 +1199,13 @@ func createUser(installRoot string, template *config.ImageTemplate) error {
 			if err := setUserPassword(installRoot, user); err != nil {
 				return fmt.Errorf("failed to set password for user %s: %w", user.Name, err)
 			}
+		} else {
+			cmd := fmt.Sprintf("passwd -d %s", user.Name)
+			if _, err := shell.ExecCmd(cmd, true, installRoot, nil); err != nil {
+				log.Errorf("Failed to delete password for user %s: %v", user.Name, err)
+				return fmt.Errorf("failed to delete password for user %s: %w", user.Name, err)
+			}
+			log.Debugf("Deleted password for user %s (no password set)", user.Name)
 		}
 
 		// Add user to groups if specified, filtering out template placeholders
