@@ -8,6 +8,7 @@ import (
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/config/manifest"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imageos"
 	"github.com/open-edge-platform/os-image-composer/internal/image/initrdmaker"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/file"
@@ -100,6 +101,12 @@ func (isoMaker *IsoMaker) BuildIsoImage() (err error) {
 		return fmt.Errorf("failed to create ISO image: %w", err)
 	}
 
+	// Copy SBOM to image build directory
+	if err := manifest.CopySBOMToImageBuildDir(isoMaker.ImageBuildDir); err != nil {
+		log.Warnf("Failed to copy SBOM to image build directory: %v", err)
+		// Don't fail the build if SBOM copy fails, just log warning
+	}
+
 	return nil
 }
 
@@ -167,7 +174,7 @@ func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfs
 
 	log.Infof("Creating ISO directory structure...")
 	for _, dir := range dirs {
-		if _, err := shell.ExecCmd("mkdir -p "+dir, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd("mkdir -p "+dir, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to create directory %s: %v", dir, err)
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
@@ -232,7 +239,7 @@ func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfs
 			isoLabel, isoFilePath, installRoot)
 	}
 
-	if _, err := shell.ExecCmdWithStream(xorrisoCmd, true, "", nil); err != nil {
+	if _, err := shell.ExecCmdWithStream(xorrisoCmd, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to create ISO image: %v", err)
 		return fmt.Errorf("failed to create ISO image: %w", err)
 	}
@@ -439,7 +446,7 @@ func createBiosImage(template *config.ImageTemplate, initrdRootfsPath, installRo
 		grubmkCmd += fmt.Sprintf(" --config=%s --directory=%s --prefix=%s", loadCfgSrc, grubLibDir, prefixDir)
 		grubmkCmd += " biosdisk iso9660"
 
-		if _, err := shell.ExecCmd(grubmkCmd, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd(grubmkCmd, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to create eltorito image: %v", err)
 			return biosImgRelPath, fmt.Errorf("failed to create eltorito image: %w", err)
 		}
@@ -482,7 +489,7 @@ func createEfiFatImage(template *config.ImageTemplate, initrdRootfsPath, install
 
 		efiFatImgPath = filepath.Join(installRoot, prefixDir, "efi.img")
 		cmdStr := fmt.Sprintf("mformat -C -f 2880 -L 16 -i %s ::.", efiFatImgPath)
-		if _, err := shell.ExecCmd(cmdStr, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd(cmdStr, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to create EFI FAT image: %v", err)
 			return efiFatImgPath, fmt.Errorf("failed to create EFI FAT image: %w", err)
 		}
@@ -494,13 +501,13 @@ func createEfiFatImage(template *config.ImageTemplate, initrdRootfsPath, install
 		grubmkCmd += fmt.Sprintf(" --config=%s --directory=%s --prefix=%s", loadCfgSrc, grubLibDir, prefixDir)
 		grubmkCmd += " part_gpt part_msdos fat ext2 ntfs search iso9660"
 
-		if _, err := shell.ExecCmd(grubmkCmd, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd(grubmkCmd, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to create EFI image: %v", err)
 			return efiFatImgPath, fmt.Errorf("failed to create EFI image: %w", err)
 		}
 
 		cmdStr = fmt.Sprintf("mcopy -s -i %s %s ::/.", efiFatImgPath, efiDirPath)
-		if _, err := shell.ExecCmd(cmdStr, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd(cmdStr, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to copy EFI files to FAT image: %v", err)
 			return efiFatImgPath, fmt.Errorf("failed to copy EFI files to FAT image: %w", err)
 		}
@@ -516,7 +523,7 @@ func cleanIsoInstallRoot(installRoot string) error {
 	log.Infof("Cleaning up ISO workspace: %s", installRoot)
 
 	// Remove the entire image build directory
-	if _, err := shell.ExecCmd("rm -rf "+installRoot, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("rm -rf "+installRoot, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to remove iso installRoot directory %s: %v", installRoot, err)
 		return fmt.Errorf("failed to remove iso installRoot directory %s: %w", installRoot, err)
 	}

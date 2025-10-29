@@ -189,13 +189,13 @@ func (p *Emt) installHostDependency() error {
 	}
 
 	for cmd, pkg := range dependencyInfo {
-		cmdExist, err := shell.IsCommandExist(cmd, "")
+		cmdExist, err := shell.IsCommandExist(cmd, shell.HostPath)
 		if err != nil {
 			return fmt.Errorf("failed to check command %s existence: %w", cmd, err)
 		}
 		if !cmdExist {
 			cmdStr := fmt.Sprintf("%s install -y %s", hostPkgManager, pkg)
-			if _, err := shell.ExecCmdWithStream(cmdStr, true, "", nil); err != nil {
+			if _, err := shell.ExecCmdWithStream(cmdStr, true, shell.HostPath, nil); err != nil {
 				return fmt.Errorf("failed to install host dependency %s: %w", pkg, err)
 			}
 			log.Debugf("Installed host dependency: %s", pkg)

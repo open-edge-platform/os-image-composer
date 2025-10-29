@@ -22,17 +22,17 @@ func DecompressFile(decompressPath, outputPath, decompressType string, sudo bool
 	case "tar.xz":
 		// cd is a shell built-in command, can't be used with sudo.
 		cmdStr = fmt.Sprintf("cd %s && %s tar -xJf %s -C %s", dirName, sudoStr, fileName, outputPath)
-		_, err = shell.ExecCmd(cmdStr, false, "", nil)
+		_, err = shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
 	case "tar.gz":
 		// cd is a shell built-in command, can't be used with sudo.
 		cmdStr = fmt.Sprintf("cd %s && %s tar -xzf %s -C %s", dirName, sudoStr, fileName, outputPath)
-		_, err = shell.ExecCmd(cmdStr, false, "", nil)
+		_, err = shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
 	case "gz":
 		cmdStr = fmt.Sprintf("gzip -d -c %s > %s", decompressPath, outputPath)
-		_, err = shell.ExecCmd(cmdStr, sudo, "", nil)
+		_, err = shell.ExecCmd(cmdStr, sudo, shell.HostPath, nil)
 	case "xz":
 		cmdStr = fmt.Sprintf("xz -d -c %s > %s", decompressPath, outputPath)
-		_, err = shell.ExecCmd(cmdStr, sudo, "", nil)
+		_, err = shell.ExecCmd(cmdStr, sudo, shell.HostPath, nil)
 	default:
 		return fmt.Errorf("unsupported decompression type: %s", decompressType)
 	}
@@ -54,16 +54,16 @@ func CompressFile(compressPath, outputPath, compressType string, sudo bool) erro
 	switch compressType {
 	case "tar.xz":
 		cmdStr = fmt.Sprintf("cd %s && %s tar -cJf %s %s", dirName, sudoStr, outputPath, fileName)
-		_, err = shell.ExecCmd(cmdStr, false, "", nil)
+		_, err = shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
 	case "tar.gz":
 		cmdStr = fmt.Sprintf("cd %s && %s tar -czf %s %s", dirName, sudoStr, outputPath, fileName)
-		_, err = shell.ExecCmd(cmdStr, false, "", nil)
+		_, err = shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
 	case "gz":
 		cmdStr = fmt.Sprintf("gzip -c %s > %s", compressPath, outputPath)
-		_, err = shell.ExecCmd(cmdStr, sudo, "", nil)
+		_, err = shell.ExecCmd(cmdStr, sudo, shell.HostPath, nil)
 	case "xz":
 		cmdStr = fmt.Sprintf("xz -z -c %s > %s", compressPath, outputPath)
-		_, err = shell.ExecCmd(cmdStr, sudo, "", nil)
+		_, err = shell.ExecCmd(cmdStr, sudo, shell.HostPath, nil)
 	default:
 		return fmt.Errorf("unsupported compression type: %s", compressType)
 	}
@@ -82,6 +82,6 @@ func CompressFolder(compressPath, outputPath, compressType string, sudo bool) er
 	default:
 		return fmt.Errorf("unsupported compression type: %s", compressType)
 	}
-	_, err := shell.ExecCmd(cmdStr, sudo, "", nil)
+	_, err := shell.ExecCmd(cmdStr, sudo, shell.HostPath, nil)
 	return err
 }

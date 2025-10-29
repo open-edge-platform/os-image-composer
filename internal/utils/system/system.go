@@ -23,7 +23,7 @@ func GetHostOsInfo() (map[string]string, error) {
 	}
 
 	// Get architecture using uname command
-	output, err := shell.ExecCmd("uname -m", false, "", nil)
+	output, err := shell.ExecCmd("uname -m", false, shell.HostPath, nil)
 	if err != nil {
 		log.Errorf("Failed to get host architecture: %v", err)
 		return hostOsInfo, fmt.Errorf("failed to get host architecture: %w", err)
@@ -60,14 +60,14 @@ func GetHostOsInfo() (map[string]string, error) {
 		}
 	}
 
-	output, err = shell.ExecCmd("lsb_release -si", false, "", nil)
+	output, err = shell.ExecCmd("lsb_release -si", false, shell.HostPath, nil)
 	if err != nil {
 		log.Errorf("Failed to get host OS name: %v", err)
 		return hostOsInfo, fmt.Errorf("failed to get host OS name: %w", err)
 	} else {
 		if output != "" {
 			hostOsInfo["name"] = strings.TrimSpace(output)
-			output, err = shell.ExecCmd("lsb_release -sr", false, "", nil)
+			output, err = shell.ExecCmd("lsb_release -sr", false, shell.HostPath, nil)
 			if err != nil {
 				log.Errorf("Failed to get host OS version: %v", err)
 				return hostOsInfo, fmt.Errorf("failed to get host OS version: %w", err)

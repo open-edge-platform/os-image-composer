@@ -49,7 +49,7 @@ func SignImage(installRoot string, template *config.ImageTemplate) error {
 	ukiSignedPath := filepath.Join(espDir, "EFI", "Linux", "linux.efi.signed")
 	cmd := fmt.Sprintf("sbsign --key %s --cert %s --output %s %s",
 		pbKeyPath, prKeyPath, ukiSignedPath, ukiPath)
-	if _, err := shell.ExecCmd(cmd, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd(cmd, true, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to sign UKI: %w", err)
 	}
 
@@ -62,7 +62,7 @@ func SignImage(installRoot string, template *config.ImageTemplate) error {
 	bootloaderSignedPath := filepath.Join(espDir, "EFI", "BOOT", "BOOTX64.EFI.signed")
 	cmd = fmt.Sprintf("sbsign --key %s --cert %s --output %s %s",
 		pbKeyPath, prKeyPath, bootloaderSignedPath, bootloaderPath)
-	if _, err := shell.ExecCmd(cmd, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd(cmd, true, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to sign bootloader: %w", err)
 	}
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/config/version"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
 )
@@ -282,5 +283,141 @@ func TestWriteSPDXToFile_MissingFields(t *testing.T) {
 	}
 	if p.Supplier != "NOASSERTION" {
 		t.Errorf("Expected Supplier to be NOASSERTION, got %q", p.Supplier)
+	}
+}
+
+func TestCopySBOMToChroot_Success(t *testing.T) {
+	// Create temporary chroot directory
+	chrootDir := t.TempDir()
+
+	// Use config.TempDir() to get the actual temp directory where SBOM is expected
+	tempDir := config.TempDir()
+
+	// Ensure temp directory exists
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+
+	// Create source SBOM file in the expected location
+	srcSBOM := filepath.Join(tempDir, DefaultSPDXFile)
+	testData := []byte(`{"test": "data"}`)
+	if err := os.WriteFile(srcSBOM, testData, 0644); err != nil {
+		t.Fatalf("Failed to create source SBOM: %v", err)
+	}
+	// Clean up the source SBOM after test
+	defer os.Remove(srcSBOM)
+
+	// Call the function
+	err := CopySBOMToChroot(chrootDir)
+	if err != nil {
+		t.Fatalf("CopySBOMToChroot failed: %v", err)
+	}
+
+	// Verify the SBOM was copied to the correct location
+	dstSBOM := filepath.Join(chrootDir, ImageSBOMPath, DefaultSPDXFile)
+	if _, err := os.Stat(dstSBOM); os.IsNotExist(err) {
+		t.Fatalf("SBOM file was not copied to chroot: %s", dstSBOM)
+	}
+
+	// Verify the content matches
+	copiedData, err := os.ReadFile(dstSBOM)
+	if err != nil {
+		t.Fatalf("Failed to read copied SBOM: %v", err)
+	}
+	if string(copiedData) != string(testData) {
+		t.Errorf("Copied SBOM content doesn't match. Expected %q, got %q", string(testData), string(copiedData))
+	}
+
+	// Verify directory permissions
+	dirInfo, err := os.Stat(filepath.Join(chrootDir, ImageSBOMPath))
+	if err != nil {
+		t.Fatalf("Failed to stat SBOM directory: %v", err)
+	}
+	if dirInfo.Mode().Perm() != 0755 {
+		t.Errorf("Expected directory permissions 0755, got %o", dirInfo.Mode().Perm())
+	}
+
+	// Verify file permissions
+	fileInfo, err := os.Stat(dstSBOM)
+	if err != nil {
+		t.Fatalf("Failed to stat SBOM file: %v", err)
+	}
+	if fileInfo.Mode().Perm() != 0644 {
+		t.Errorf("Expected file permissions 0644, got %o", fileInfo.Mode().Perm())
+	}
+}
+
+func TestCopySBOMToChroot_MissingSourceSBOM(t *testing.T) {
+	// Create temporary chroot directory
+	chrootDir := t.TempDir()
+
+	// Ensure source SBOM does NOT exist by checking and removing if present
+	srcSBOM := filepath.Join(config.TempDir(), DefaultSPDXFile)
+	os.Remove(srcSBOM) // Remove if it exists from previous tests
+
+	// Should not fail, just log warning and return nil
+	err := CopySBOMToChroot(chrootDir)
+	if err != nil {
+		t.Errorf("CopySBOMToChroot should not fail when source SBOM is missing, got error: %v", err)
+	}
+
+	// Verify no SBOM was created in chroot
+	dstSBOM := filepath.Join(chrootDir, ImageSBOMPath, DefaultSPDXFile)
+	if _, err := os.Stat(dstSBOM); !os.IsNotExist(err) {
+		t.Errorf("SBOM should not exist in chroot when source is missing")
+	}
+}
+
+func TestCopySBOMToChroot_InvalidChrootPath(t *testing.T) {
+	// Skip this test if running as root (e.g., in Docker/Earthly containers)
+	// because root can write to read-only directories
+	if os.Geteuid() == 0 {
+		t.Skip("Skipping test when running as root (permission checks don't apply)")
+	}
+
+	// Create a directory and make it read-only to simulate permission issues
+	tmpDir := t.TempDir()
+	invalidPath := filepath.Join(tmpDir, "readonly")
+
+	// Create the directory
+	if err := os.MkdirAll(invalidPath, 0755); err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+
+	// Make it read-only (no write permissions)
+	if err := os.Chmod(invalidPath, 0555); err != nil {
+		t.Fatalf("Failed to change directory permissions: %v", err)
+	}
+	// Restore permissions after test for cleanup
+	defer func() {
+		_ = os.Chmod(invalidPath, 0755) // Ignore error on cleanup
+	}()
+
+	// Create source SBOM file
+	tempDir := config.TempDir()
+
+	// Ensure temp directory exists
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+
+	srcSBOM := filepath.Join(tempDir, DefaultSPDXFile)
+	if err := os.WriteFile(srcSBOM, []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to create source SBOM: %v", err)
+	}
+	defer os.Remove(srcSBOM)
+
+	// Should return an error when trying to create subdirectory in read-only dir
+	err := CopySBOMToChroot(invalidPath)
+	if err == nil {
+		t.Errorf("Expected error when copying to read-only chroot path, got nil")
+	}
+}
+
+func TestImageSBOMPathConstant(t *testing.T) {
+	// Verify the constant is set correctly
+	expectedPath := "/usr/share/sbom"
+	if ImageSBOMPath != expectedPath {
+		t.Errorf("Expected ImageSBOMPath to be %q, got %q", expectedPath, ImageSBOMPath)
 	}
 }

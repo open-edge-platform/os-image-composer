@@ -97,7 +97,7 @@ func (t *testableChrootBuilder) BuildChrootEnv(targetOs, targetDist, targetArch 
 
 		log.Infof("Chroot environment build completed successfully")
 
-		if _, err = shell.ExecCmd("rm -rf "+chrootEnvPath, true, "", nil); err != nil {
+		if _, err = shell.ExecCmd("rm -rf "+chrootEnvPath, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to remove chroot environment build path: %v", err)
 			return fmt.Errorf("failed to remove chroot environment build path: %w", err)
 		}
