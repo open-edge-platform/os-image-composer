@@ -383,7 +383,32 @@ func (t *ImageTemplate) GetSystemConfigName() string {
 	return t.SystemConfig.Name
 }
 
-func SaveUpdatedConfigFile(path string, config *ImageTemplate) error {
+func (t *ImageTemplate) SaveUpdatedConfigFile(path string) error {
+	if path == "" {
+		return fmt.Errorf("output path is empty")
+	}
+
+	// Ensure destination directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		log.Errorf("Failed to create directory for config file %s: %v", dir, err)
+		return fmt.Errorf("failed to create directory for config file: %w", err)
+	}
+
+	// Marshal the template to YAML
+	data, err := yaml.Marshal(t)
+	if err != nil {
+		log.Errorf("Error marshaling image template to YAML: %v", err)
+		return fmt.Errorf("error marshaling template to YAML: %w", err)
+	}
+
+	// Write file safely with symlink protection
+	if err := security.SafeWriteFile(path, data, 0644, security.RejectSymlinks); err != nil {
+		log.Errorf("Failed to write image template to %s: %v", path, err)
+		return fmt.Errorf("failed to write image template: %w", err)
+	}
+
+	log.Infof("Saved image template to %s", path)
 	return nil
 }
 
