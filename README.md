@@ -94,7 +94,7 @@ The Debian package installs the following files:
 
 * **Binary:** `/usr/local/bin/os-image-composer` - Main executable
 * **Configuration:** `/etc/os-image-composer/` - Default configuration and OS variant configs
-  - `/etc/os-image-composer/os-image-composer.yml` - Global configuration with system paths
+  - `/etc/os-image-composer/config.yml` - Global configuration with system paths
   - `/etc/os-image-composer/config/` - OS variant configuration files
 * **Examples:** `/usr/share/os-image-composer/examples/` - Sample image templates
 * **Documentation:** `/usr/share/doc/os-image-composer/` - README, LICENSE, and CLI specification
@@ -158,7 +158,9 @@ Now you're ready to compose an image from a built-in template or validate a temp
 sudo -E ./os-image-composer build image-templates/azl3-x86_64-edge-raw.yml
 
 # If installed via Debian package, use system paths:
-sudo os-image-composer build --config /etc/os-image-composer/os-image-composer.yml /usr/share/os-image-composer/examples/azl3-x86_64-edge-raw.yml
+sudo os-image-composer build /usr/share/os-image-composer/examples/azl3-x86_64-edge-raw.yml
+
+> Note: The default configuration at `/etc/os-image-composer/config.yml` is discovered automatically; no extra flags are required.
 
 # Validate a template: 
 ./os-image-composer validate image-templates/azl3-x86_64-edge-raw.yml
@@ -190,7 +192,7 @@ The tool searches for configuration files in the following order:
 5. `~/.config/os-image-composer/config.yaml` (XDG config directory)
 6. `/etc/os-image-composer/config.yaml` (system-wide)
 
-**Note:** When installed via the Debian package, the default configuration is located at `/etc/os-image-composer/os-image-composer.yml` and is pre-configured with system paths.
+**Note:** When installed via the Debian package, the default configuration is located at `/etc/os-image-composer/config.yml` and is pre-configured with system paths.
 
 
 ### Configuration Parameters

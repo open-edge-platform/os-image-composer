@@ -209,7 +209,7 @@ deb:
         echo "Maintainer: Intel Edge Software Team <edge.platform@intel.com>" >> DEBIAN/control && \
         echo "Depends: bash, coreutils, unzip, dosfstools, xorriso, grub-common" >> DEBIAN/control && \
         echo "Recommends: mmdebstrap, debootstrap" >> DEBIAN/control && \
-        echo "License: Apache-2.0" >> DEBIAN/control && \
+        echo "License: MIT" >> DEBIAN/control && \
         echo "Description: OS Image Composer (OIC)" >> DEBIAN/control && \
         echo " OIC enables users to compose custom bootable OS images based on a" >> DEBIAN/control && \
         echo " user-provided template that specifies package lists, configurations," >> DEBIAN/control && \
