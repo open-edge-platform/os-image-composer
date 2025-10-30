@@ -60,13 +60,20 @@ The package will be created in the `dist/` directory as `os-image-composer_<VERS
 #### Install the Package
 
 ```bash
-# Install using apt (recommended - automatically resolves dependencies)
-sudo apt install ./dist/os-image-composer_1.0.0_amd64.deb
+# Install using apt (recommended - automatically resolves and installs dependencies)
+sudo apt install <PATH TO FILE>/os-image-composer_1.0.0_amd64.deb
 
-# Or using dpkg
+# Or using dpkg (requires manual dependency installation)
+# First install required dependencies:
+sudo apt-get update
+sudo apt-get install -y bash coreutils unzip dosfstools xorriso grub-common
+# Then install the package:
 sudo dpkg -i dist/os-image-composer_1.0.0_amd64.deb
-sudo apt-get install -f  # Fix any missing dependencies if needed
+# Optionally install bootstrap tools:
+sudo apt-get install -y mmdebstrap || sudo apt-get install -y debootstrap
 ```
+
+**Note:** Using `apt install` is strongly recommended as it automatically handles all dependencies. If you use `dpkg -i` and encounter dependency errors, run `sudo apt-get install -f` to fix them.
 
 #### Verify Installation
 
@@ -87,10 +94,31 @@ The Debian package installs the following files:
 
 * **Binary:** `/usr/local/bin/os-image-composer` - Main executable
 * **Configuration:** `/etc/os-image-composer/` - Default configuration and OS variant configs
+  - `/etc/os-image-composer/os-image-composer.yml` - Global configuration with system paths
+  - `/etc/os-image-composer/config/` - OS variant configuration files
 * **Examples:** `/usr/share/os-image-composer/examples/` - Sample image templates
 * **Documentation:** `/usr/share/doc/os-image-composer/` - README, LICENSE, and CLI specification
+* **Cache Directory:** `/var/cache/os-image-composer/` - Package cache storage
 
-After installation via the Debian package, you can use `os-image-composer` directly from any directory, and reference the example templates from `/usr/share/os-image-composer/examples/`.
+After installation via the Debian package, you can use `os-image-composer` directly from any directory. The configuration is pre-set to use system paths, and you can reference the example templates from `/usr/share/os-image-composer/examples/`.
+
+#### Package Dependencies
+
+The Debian package automatically installs the following runtime dependencies:
+
+**Required Dependencies:**
+* `bash` - Shell for script execution
+* `coreutils` - Core GNU utilities
+* `unzip` - Archive extraction utility
+* `dosfstools` - FAT filesystem utilities
+* `xorriso` - ISO image creation tool
+* `grub-common` - Bootloader utilities
+
+**Recommended Dependencies (installed if available):**
+* `mmdebstrap` - Debian bootstrap tool (preferred, version 1.4.3+ required)
+* `debootstrap` - Alternative Debian bootstrap tool
+
+**Important:** `mmdebstrap` version 0.8.x (included in Ubuntu 22.04) has known issues. For Ubuntu 22.04 users, you must install `mmdebstrap` version 1.4.3+ manually as described in the [prerequisite documentation](./docs/tutorial/prerequisite.md#mmdebstrap).
 
 #### Uninstall the Package
 
@@ -104,19 +132,33 @@ sudo dpkg --purge os-image-composer
 
 ### Install the Prerequisites for Composing an Image
 
-Before you compose an operating system image with the OS Image Composer tool, follow the [instructions to install two prerequisites](./docs/tutorial/prerequisite.md):  
+Before you compose an operating system image with the OS Image Composer tool, you need to install additional prerequisites:
 
-* `ukify`, which combines components -- typically a kernel, an initrd, and a UEFI boot stub -- to create a signed Unified Kernel Image (UKI), which is a PE binary that firmware executes to start an embedded Linux kernel.
+**Required Tools:**
 
-* `mmdebstrap`, which downloads, unpacks, and installs Debian packages to initialize a chroot. 
+* **`ukify`** - Combines kernel, initrd, and UEFI boot stub to create signed Unified Kernel Images (UKI)
+  * **Ubuntu 23.04+**: Available via `sudo apt install systemd-ukify`
+  * **Ubuntu 22.04 and earlier**: Must be installed manually from systemd source
+  * See [detailed ukify installation instructions](./docs/tutorial/prerequisite.md#ukify)
+
+* **`mmdebstrap`** - Downloads and installs Debian packages to initialize a chroot
+  * **Ubuntu 23.04+**: Automatically installed with the Debian package (version 1.4.3+)
+  * **Ubuntu 22.04**: The version in Ubuntu 22.04 repositories (0.8.x) has known bugs and will not work
+    * **Required:** Manually install version 1.4.3+ following [mmdebstrap installation instructions](./docs/tutorial/prerequisite.md#mmdebstrap)
+  * **Alternative**: Can use `debootstrap` for Debian-based images
+
+**Note:** If you installed os-image-composer via the Debian package, `mmdebstrap` may already be installed. You still need to install `ukify` separately following the instructions above. 
 
 ### Compose or Validate an Image
 
-Now you're ready to compose an image from a built-in template or validate a template. 
+Now you're ready to compose an image from a built-in template or validate a template.
 
 ```bash
 # Build an image from template
 sudo -E ./os-image-composer build image-templates/azl3-x86_64-edge-raw.yml
+
+# If installed via Debian package, use system paths:
+sudo os-image-composer build --config /etc/os-image-composer/os-image-composer.yml /usr/share/os-image-composer/examples/azl3-x86_64-edge-raw.yml
 
 # Validate a template: 
 ./os-image-composer validate image-templates/azl3-x86_64-edge-raw.yml
@@ -147,6 +189,8 @@ The tool searches for configuration files in the following order:
 4. `~/.os-image-composer/config.yaml` (user home directory)
 5. `~/.config/os-image-composer/config.yaml` (XDG config directory)
 6. `/etc/os-image-composer/config.yaml` (system-wide)
+
+**Note:** When installed via the Debian package, the default configuration is located at `/etc/os-image-composer/os-image-composer.yml` and is pre-configured with system paths.
 
 
 ### Configuration Parameters

@@ -153,6 +153,7 @@ deb:
                  etc/os-image-composer/config \
                  usr/share/os-image-composer/examples \
                  usr/share/doc/os-image-composer \
+                 var/cache/os-image-composer \
                  DEBIAN
     
     # Copy the built binary from the build target
@@ -161,8 +162,32 @@ deb:
     # Make the binary executable
     RUN chmod +x usr/local/bin/os-image-composer
     
-    # Copy default global configuration (user-editable)
-    COPY os-image-composer.yml etc/os-image-composer/os-image-composer.yml
+    # Create default global configuration with system paths (user-editable)
+    # Note: Must be named config.yml to match the default search paths in the code
+    RUN echo "# OS Image Composer - Global Configuration" > etc/os-image-composer/config.yml && \
+        echo "# This file contains tool-level settings that apply across all image builds." >> etc/os-image-composer/config.yml && \
+        echo "# Image-specific parameters should be defined in the image specification." >> etc/os-image-composer/config.yml && \
+        echo "" >> etc/os-image-composer/config.yml && \
+        echo "# Core tool settings" >> etc/os-image-composer/config.yml && \
+        echo "workers: 8" >> etc/os-image-composer/config.yml && \
+        echo "# Number of concurrent download workers (1-100, default: 8)" >> etc/os-image-composer/config.yml && \
+        echo "" >> etc/os-image-composer/config.yml && \
+        echo "config_dir: \"/etc/os-image-composer/config\"" >> etc/os-image-composer/config.yml && \
+        echo "# Directory containing configuration files for different target OSs" >> etc/os-image-composer/config.yml && \
+        echo "" >> etc/os-image-composer/config.yml && \
+        echo "cache_dir: \"/var/cache/os-image-composer\"" >> etc/os-image-composer/config.yml && \
+        echo "# Package cache directory where downloaded RPMs/DEBs are stored" >> etc/os-image-composer/config.yml && \
+        echo "" >> etc/os-image-composer/config.yml && \
+        echo "work_dir: \"/tmp/os-image-composer\"" >> etc/os-image-composer/config.yml && \
+        echo "# Working directory for build operations and image assembly" >> etc/os-image-composer/config.yml && \
+        echo "" >> etc/os-image-composer/config.yml && \
+        echo "temp_dir: \"/tmp\"" >> etc/os-image-composer/config.yml && \
+        echo "# Temporary directory for short-lived files" >> etc/os-image-composer/config.yml && \
+        echo "" >> etc/os-image-composer/config.yml && \
+        echo "# Logging configuration" >> etc/os-image-composer/config.yml && \
+        echo "logging:" >> etc/os-image-composer/config.yml && \
+        echo "  level: \"info\"" >> etc/os-image-composer/config.yml && \
+        echo "  # Log verbosity level: debug, info, warn, error" >> etc/os-image-composer/config.yml
     
     # Copy OS variant configuration files (user-editable)
     COPY config etc/os-image-composer/config
@@ -182,7 +207,9 @@ deb:
         echo "Priority: optional" >> DEBIAN/control && \
         echo "Architecture: ${ARCH}" >> DEBIAN/control && \
         echo "Maintainer: Intel Edge Software Team <edge.platform@intel.com>" >> DEBIAN/control && \
-        echo "Depends: bash, coreutils" >> DEBIAN/control && \
+        echo "Depends: bash, coreutils, unzip, dosfstools, xorriso, grub-common" >> DEBIAN/control && \
+        echo "Recommends: mmdebstrap, debootstrap" >> DEBIAN/control && \
+        echo "License: Apache-2.0" >> DEBIAN/control && \
         echo "Description: OS Image Composer (OIC)" >> DEBIAN/control && \
         echo " OIC enables users to compose custom bootable OS images based on a" >> DEBIAN/control && \
         echo " user-provided template that specifies package lists, configurations," >> DEBIAN/control && \
