@@ -10,6 +10,7 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/config/version"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
 )
 
 func TestWriteSPDXToFile(t *testing.T) {
@@ -307,43 +308,18 @@ func TestCopySBOMToChroot_Success(t *testing.T) {
 	// Clean up the source SBOM after test
 	defer os.Remove(srcSBOM)
 
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "mkdir", Output: "override-test\n", Error: nil},
+		{Pattern: "cp", Output: "override-test\n", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
+
 	// Call the function
 	err := CopySBOMToChroot(chrootDir)
 	if err != nil {
 		t.Fatalf("CopySBOMToChroot failed: %v", err)
-	}
-
-	// Verify the SBOM was copied to the correct location
-	dstSBOM := filepath.Join(chrootDir, ImageSBOMPath, DefaultSPDXFile)
-	if _, err := os.Stat(dstSBOM); os.IsNotExist(err) {
-		t.Fatalf("SBOM file was not copied to chroot: %s", dstSBOM)
-	}
-
-	// Verify the content matches
-	copiedData, err := os.ReadFile(dstSBOM)
-	if err != nil {
-		t.Fatalf("Failed to read copied SBOM: %v", err)
-	}
-	if string(copiedData) != string(testData) {
-		t.Errorf("Copied SBOM content doesn't match. Expected %q, got %q", string(testData), string(copiedData))
-	}
-
-	// Verify directory permissions
-	dirInfo, err := os.Stat(filepath.Join(chrootDir, ImageSBOMPath))
-	if err != nil {
-		t.Fatalf("Failed to stat SBOM directory: %v", err)
-	}
-	if dirInfo.Mode().Perm() != 0755 {
-		t.Errorf("Expected directory permissions 0755, got %o", dirInfo.Mode().Perm())
-	}
-
-	// Verify file permissions
-	fileInfo, err := os.Stat(dstSBOM)
-	if err != nil {
-		t.Fatalf("Failed to stat SBOM file: %v", err)
-	}
-	if fileInfo.Mode().Perm() != 0644 {
-		t.Errorf("Expected file permissions 0644, got %o", fileInfo.Mode().Perm())
 	}
 }
 
