@@ -333,13 +333,13 @@ func (chrootEnv *ChrootEnv) createChrootRepo(targetOs, targetDist string) error 
 	}
 
 	// Copy local repo config file to chroot environment
-	localRepoCongfigPath := filepath.Join(targetOsConfigDir, "chrootenvconfigs", repoConfigFile)
-	if _, err := os.Stat(localRepoCongfigPath); os.IsNotExist(err) {
-		return fmt.Errorf("chroot repo config file does not exist: %s", localRepoCongfigPath)
+	localRepoConfigPath := filepath.Join(targetOsConfigDir, "chrootenvconfigs", repoConfigFile)
+	if _, err := os.Stat(localRepoConfigPath); os.IsNotExist(err) {
+		return fmt.Errorf("chroot repo config file does not exist: %s", localRepoConfigPath)
 	}
 
 	repoConfigDistFile := filepath.Join(repoConfigDir, repoConfigFile)
-	if err := chrootEnv.CopyFileFromHostToChroot(localRepoCongfigPath, repoConfigDistFile); err != nil {
+	if err := chrootEnv.CopyFileFromHostToChroot(localRepoConfigPath, repoConfigDistFile); err != nil {
 		return fmt.Errorf("failed to copy local.repo: %w", err)
 	}
 
