@@ -227,16 +227,15 @@ func CopyFile(srcFile, dstFile, flags string, sudo bool) error {
 		return fmt.Errorf("failed to get absolute path of destination file: %w", err)
 	}
 	dstDir := filepath.Dir(dstFilePath)
-	if _, err := os.Stat(dstDir); os.IsNotExist(err) {
-		if _, err := shell.ExecCmd("mkdir -p "+dstDir, sudo, shell.HostPath, nil); err != nil {
-			return fmt.Errorf("failed to create directory for destination file: %w", err)
-		}
+	if _, err := shell.ExecCmd(fmt.Sprintf("mkdir -p '%s'", dstDir), sudo, shell.HostPath, nil); err != nil {
+		return fmt.Errorf("failed to create directory for destination file: %w", err)
 	}
+
 	var cmdStr string
 	if flags == "" {
-		cmdStr = fmt.Sprintf("cp %s %s", srcFilePath, dstFilePath)
+		cmdStr = fmt.Sprintf("cp '%s' '%s'", srcFilePath, dstFilePath)
 	} else {
-		cmdStr = fmt.Sprintf("cp %s %s %s", flags, srcFilePath, dstFilePath)
+		cmdStr = fmt.Sprintf("cp %s '%s' '%s'", flags, srcFilePath, dstFilePath)
 	}
 	if _, err := shell.ExecCmd(cmdStr, sudo, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to copy file from %s to %s: %w", srcFilePath, dstFilePath, err)
@@ -258,16 +257,16 @@ func CopyDir(srcDir, dstDir, flags string, sudo bool) error {
 		return fmt.Errorf("failed to get absolute path of destination directory: %w", err)
 	}
 	if _, err := os.Stat(dstDirPath); os.IsNotExist(err) {
-		if _, err := shell.ExecCmd("mkdir -p "+dstDirPath, sudo, shell.HostPath, nil); err != nil {
+		if _, err := shell.ExecCmd(fmt.Sprintf("mkdir -p '%s'", dstDirPath), sudo, shell.HostPath, nil); err != nil {
 			return fmt.Errorf("failed to create destination directory: %w", err)
 		}
 	}
 
 	var cmdStr string
 	if flags == "" {
-		cmdStr = fmt.Sprintf("cp -r %s/* %s", srcDirPath, dstDirPath)
+		cmdStr = fmt.Sprintf("cp -r '%s'/* '%s'", srcDirPath, dstDirPath)
 	} else {
-		cmdStr = fmt.Sprintf("cp -r %s %s/* %s", flags, srcDirPath, dstDirPath)
+		cmdStr = fmt.Sprintf("cp -r %s '%s'/* '%s'", flags, srcDirPath, dstDirPath)
 	}
 	if _, err := shell.ExecCmd(cmdStr, sudo, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to copy directory from %s to %s: %w", srcDirPath, dstDirPath, err)
