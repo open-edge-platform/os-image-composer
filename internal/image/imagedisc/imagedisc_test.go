@@ -83,7 +83,7 @@ func TestTranslateSizeStrToBytes(t *testing.T) {
 	tests := []struct {
 		name        string
 		input       string
-		expected    int
+		expected    uint64
 		expectError bool
 		errorMsg    string
 	}{

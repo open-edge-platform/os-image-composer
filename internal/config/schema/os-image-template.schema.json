@@ -71,6 +71,10 @@
           "type": "string",
           "description": "Name of the disk configuration"
         },
+        "path": {
+          "type": "string",
+          "description": "Path to the disk device"
+        },
         "artifacts": {
           "type": "array",
           "description": "Output artifacts configuration",
@@ -242,6 +246,9 @@
         "name": { "type": "string", "description": "Name of the system configuration" },
         "description": { "type": "string", "description": "Description of the system configuration" },
         "initramfs": { "$ref": "#/$defs/Initramfs" },
+        "hostname": {
+          "type": "string",
+          "description": "Hostname of the system"},
         "immutability": { "$ref": "#/$defs/Immutability" },
         "users": { "$ref": "#/$defs/Users" },
         "bootloader": { "$ref": "#/$defs/Bootloader" },

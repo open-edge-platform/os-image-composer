@@ -655,6 +655,18 @@ func (imageOs *ImageOs) postImageOsInstall(installRoot string, template *config.
 }
 
 func updateImageHostname(installRoot string, template *config.ImageTemplate) error {
+	hostname := template.SystemConfig.HostName
+	if hostname != "" {
+		log.Infof("Configuring Hostname...")
+		hostnameFilePath := filepath.Join(installRoot, "etc", "hostname")
+		if err := file.Write(hostname+"\n", hostnameFilePath); err != nil {
+			return fmt.Errorf("failed to write hostname to %s: %w", hostnameFilePath, err)
+		}
+		if _, err := shell.ExecCmd("chmod 0644 "+hostnameFilePath, true, shell.HostPath, nil); err != nil {
+			log.Errorf("Failed to set permissions for hostname file %s: %v", hostnameFilePath, err)
+			return fmt.Errorf("failed to set permissions for hostname file %s: %w", hostnameFilePath, err)
+		}
+	}
 	return nil
 }
 

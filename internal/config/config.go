@@ -33,6 +33,7 @@ type ArtifactInfo struct {
 
 type DiskConfig struct {
 	Name               string          `yaml:"name"`
+	Path               string          `yaml:"path"` // Path to the disk device (e.g., /dev/sda), used by live installer
 	Artifacts          []ArtifactInfo  `yaml:"artifacts"`
 	Size               string          `yaml:"size"`
 	PartitionTableType string          `yaml:"partitionTableType"`
@@ -114,6 +115,7 @@ type SystemConfig struct {
 	Name            string               `yaml:"name"`
 	Description     string               `yaml:"description"`
 	Initramfs       Initramfs            `yaml:"initramfs,omitempty"`
+	HostName        string               `yaml:"hostname,omitempty"`
 	Immutability    ImmutabilityConfig   `yaml:"immutability,omitempty"`
 	Users           []UserConfig         `yaml:"users,omitempty"`
 	Bootloader      Bootloader           `yaml:"bootloader"`
@@ -148,15 +150,6 @@ type PartitionInfo struct {
 	End          string   `yaml:"end"`          // End: end offset of the partition; can be a absolute size (e.g., "2GiB") or "0" for the end of the disk
 	MountPoint   string   `yaml:"mountPoint"`   // MountPoint: optional mount point for the partition (e.g., "/boot", "/rootfs")
 	MountOptions string   `yaml:"mountOptions"` // MountOptions: optional mount options for the partition (e.g., "defaults", "noatime")
-}
-
-// Disk Info holds information about the disk layout
-type Disk struct {
-	Name               string          `yaml:"name"`               // Name of the disk
-	Compression        string          `yaml:"compression"`        // Compression type (e.g., "gzip", "zstd", "none")
-	Size               uint64          `yaml:"size"`               // Size of the disk in bytes (4GB, 4GiB, 4096Mib also valid)
-	PartitionTableType string          `yaml:"partitionTableType"` // Type of partition table (e.g., "gpt", "mbr")
-	Partitions         []PartitionInfo `yaml:"partitions"`         // List of partitions to create in the disk image
 }
 
 var log = logger.Logger()

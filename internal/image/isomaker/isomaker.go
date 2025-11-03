@@ -107,6 +107,8 @@ func (isoMaker *IsoMaker) BuildIsoImage() (err error) {
 		// Don't fail the build if SBOM copy fails, just log warning
 	}
 
+	log.Infof("ISO image build completed successfully: %s", isoFilePath)
+
 	return nil
 }
 
