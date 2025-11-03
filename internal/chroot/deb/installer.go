@@ -73,7 +73,13 @@ func (debInstaller *DebInstaller) UpdateLocalDebRepo(repoPath, targetArch string
 		}
 	}
 
-	cmd := fmt.Sprintf("bash -c 'cd %s && dpkg-scanpackages . /dev/null | gzip -9c > %s'", repoPath, metaDataPath)
+	// Escape any double quotes and dollar signs in the paths
+	safeRepoPath := strings.ReplaceAll(repoPath, `"`, `\"`)
+	safeRepoPath = strings.ReplaceAll(safeRepoPath, "$", `\$`)
+	safeMetaDataPath := strings.ReplaceAll(metaDataPath, `"`, `\"`)
+	safeMetaDataPath = strings.ReplaceAll(safeMetaDataPath, "$", `\$`)
+
+	cmd := fmt.Sprintf("bash -c \"cd %s && dpkg-scanpackages . /dev/null | gzip -9c > %s\"", safeRepoPath, safeMetaDataPath)
 	if _, err := shell.ExecCmd(cmd, sudo, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to create local debian cache repository: %w", err)
 	}
