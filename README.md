@@ -19,6 +19,10 @@ The initial release of the OS Image Composer tool has been tested and validated 
 
 Build the OS Image Composer command-line utility by using Go directly or by using the Earthly framework: 
 
+#### Development Build (Go)
+
+For development and testing purposes, you can use Go directly:
+
 ```bash
 # Build the tool:
 go build -buildmode=pie -ldflags "-s -w" ./cmd/os-image-composer
@@ -26,10 +30,32 @@ go build -buildmode=pie -ldflags "-s -w" ./cmd/os-image-composer
 # Or run it directly:
 go run ./cmd/os-image-composer --help
 ```
-Using the Earthly framework produces a reproducible build that automatically includes the version number (from the `--version` parameter), the build date (the current UTC date), and the Git commit SHA (current repository commit).
+
+**Note**: Development builds using `go build` will show default version information (e.g., `Version: 0.1.0`, `Build Date: unknown`). This is expected during development.
+
+To include version information in a development build, use ldflags with git commands:
 
 ```bash
-# Default build
+VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_DATE=$(date -u '+%Y-%m-%d')
+
+go build -buildmode=pie \
+  -ldflags "-s -w \
+    -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.Version=$VERSION' \
+    -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.Toolname=Image-Composer' \
+    -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.Organization=Open Edge Platform' \
+    -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.BuildDate=$BUILD_DATE' \
+    -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.CommitSHA=$COMMIT'" \
+  ./cmd/os-image-composer
+```
+
+#### Production Build (Earthly)
+
+For production and release builds, use the Earthly framework, which produces a reproducible build that automatically includes the version number (from git tags), the build date (the current UTC date), and the Git commit SHA:
+
+```bash
+# Default build (uses latest git tag for version)
 earthly +build
 
 # Build with specific version:
@@ -328,11 +354,16 @@ The `os-image-composer validate` command is useful for verifying template config
 
 #### version
 
-Displays the tool’s version number, build date, and Git commit SHA:
+Displays the tool's version number, build date, and Git commit SHA:
 
 ```bash
 ./os-image-composer version
 ```
+
+**Note**: The version information depends on how the binary was built:
+- **Earthly build** (`earthly +build`): Shows actual version from git tags, build date, and commit SHA
+- **Simple Go build** (`go build`): Shows default development values unless ldflags are used
+- For production releases, always use the Earthly build or equivalent build system that injects version information
 
 #### install-completion
 
