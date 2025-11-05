@@ -38,13 +38,39 @@ systemConfig: # Required
 
   bootloader:
     bootType: efi # (efi or legacy)
-    provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
+    provider: grub # (grub for efi and legacy mode, or systemd-boot for efi mode)
 
   packages:
-    - filesystem
+    # grub2-mkconfig
     - grub2
-    - dracut-hyperv
-    - hyperv-daemons
+
+    # developer-packages
+    - build-essential
+    - cmake
+    - createrepo_c
+    - curl-devel
+    - device-mapper
+    - flex
+    - fuse-devel
+    - git
+    - golang
+    - iputils
+    - less
+    - linux-firmware
+    - net-tools
+    - ninja-build
+    - parted
+    - pciutils
+    - python3-pip
+    - tar
+    - texinfo
+    - usbutils
+
+    # virtualization-host-packages
+    - qemu-kvm
+    - qemu-img
+
+    # core-packages-image
     - shim
     - grub2-efi-binary
     - ca-certificates
@@ -53,10 +79,37 @@ systemConfig: # Required
     - core-packages-base-image
     - dracut-hostonly
     - dracut-vrf
+    - initramfs
     - shadow-utils
+
+    # core-tools-packages
+    - dnf
+    - vim
+    - wget
+
+    # hyperv packages
+    - dracut-hyperv
+    - hyperv-daemons
+
+    # ssh-server
+    - openssh-server
+
+    # selinux-full
+    - selinux-policy
+    - selinux-policy-devel
+    - policycoreutils-python-utils
+    - checkpolicy
+    - secilc
+    - setools-console
+
+    # drtm
+    - tboot
+    - tpm2-tools
+    - tpm2-tss
+
+    # virt-guest-packages
     - dracut-virtio
     - dracut-xen
-    - initramfs
 
   additionalFiles:
     - local: ../additionalfiles/99-dhcp-en.network
@@ -64,3 +117,6 @@ systemConfig: # Required
 
   kernel:
     name: kernel
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    packages:
+     - kernel

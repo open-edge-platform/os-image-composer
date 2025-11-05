@@ -38,7 +38,7 @@ systemConfig: # Required
 
   bootloader:
     bootType: efi # (efi or legacy)
-    provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
+    provider: grub # (grub for efi and legacy mode, or systemd-boot for efi mode)
 
   packages:
     # grub2-mkconfig
@@ -130,3 +130,6 @@ systemConfig: # Required
 
   kernel:
     name: kernel
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    packages:
+     - kernel

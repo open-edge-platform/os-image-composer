@@ -38,7 +38,7 @@ systemConfig: # Required
 
   bootloader:
     bootType: efi # (efi or legacy)
-    provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
+    provider: grub # (grub for efi and legacy mode, or systemd-boot for efi mode)
 
   packages:
     - ca-certificates
@@ -71,5 +71,6 @@ systemConfig: # Required
 
   kernel:
     name: kernel
+    cmdline: "quiet splash console=ttyS0,115200 console=tty0 loglevel=7"
     packages:
      - linux-image-amd64
