@@ -3458,7 +3458,7 @@ func TestUnifiedRepoConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repoType, name, url, gpgKey, component, buildPath, pkgPrefix, releaseFile, releaseSign, gpgCheck, repoGPGCheck, enabled := tt.repoConfig.ToRepoConfigData(tt.arch)
+			repoType, name, url, gpgKey, component, buildPath, pkgPrefix, releaseFile, releaseSign, _, gpgCheck, repoGPGCheck, enabled := tt.repoConfig.ToRepoConfigData(tt.arch)
 
 			// Verify repository type
 			if repoType != tt.expectedType {

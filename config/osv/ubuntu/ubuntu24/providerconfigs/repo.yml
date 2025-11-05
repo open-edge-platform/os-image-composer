@@ -1,12 +1,25 @@
-name: "Wind River eLxr 12"
-type: "deb"  # Repository type: rpm or deb
-baseURL: "https://mirror.elxr.dev/elxr/dists/aria/main"
-pkgPrefix: "https://mirror.elxr.dev/elxr/"
-releaseFile: "https://mirror.elxr.dev/elxr/dists/aria/Release"
-releaseSign: "https://mirror.elxr.dev/elxr/dists/aria/Release.gpg"
-pbGPGKey: "https://mirror.elxr.dev/elxr/public.gpg"
-gpgCheck: true
-repoGPGCheck: true
-enabled: true
-component: "main"  # Repository component/section identifier
-buildPath: "./builds/elxr12"
+repositories:
+  - name: "noble"
+    type: "deb"  # Repository type: rpm or deb
+    baseURL: "http://archive.ubuntu.com/ubuntu"
+    pkgPrefix: "http://archive.ubuntu.com/ubuntu"
+    releaseFile: "http://archive.ubuntu.com/ubuntu/dists/noble/Release"
+    releaseSign: "http://archive.ubuntu.com/ubuntu/dists/noble/Release.gpg"
+    pbGPGKey: "/usr/share/keyrings/ubuntu-archive-keyring.gpg"
+    gpgCheck: true
+    repoGPGCheck: true
+    enabled: true
+    component: "main restricted universe multiverse"  # Repository component/section identifier
+    buildPath: "./builds/ubuntu24/main"
+  - name: "noble-security"
+    type: "deb"
+    baseURL: "http://security.ubuntu.com/ubuntu"
+    pkgPrefix: "http://security.ubuntu.com/ubuntu"
+    releaseFile: "http://security.ubuntu.com/ubuntu/dists/noble-security/Release"
+    releaseSign: "http://security.ubuntu.com/ubuntu/dists/noble-security/Release.gpg"
+    pbGPGKey: "/usr/share/keyrings/ubuntu-archive-keyring.gpg"
+    gpgCheck: true
+    repoGPGCheck: true
+    enabled: true
+    component: "main restricted universe multiverse"
+    buildPath: "./builds/ubuntu24/security"

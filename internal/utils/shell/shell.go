@@ -115,6 +115,7 @@ var commandMap = map[string]string{
 	"sbsign":             "/usr/bin/sbsign",
 	"test":               "/bin/test",
 	"systemctl":          "/usr/bin/systemctl",
+	"update-initramfs":   "/usr/sbin/update-initramfs",
 	// Add more mappings as needed
 }
 

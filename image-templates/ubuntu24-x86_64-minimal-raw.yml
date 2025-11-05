@@ -26,7 +26,7 @@ packageRepositories:
 
 systemConfig:
   name: edge
-  description: Minimal eLxr image with immutable rootfs
+  description: Minimal ubuntu image with immutable rootfs
 
   immutability:
     enabled: true # default is true
@@ -34,34 +34,10 @@ systemConfig:
     # secureBootDBKey: "<SECURE_BOOT_DB_KEY_PATH>"
     # secureBootDBCrt: "<SECURE_BOOT_DB_CRT_PATH>"
     # secureBootDBCer: "<SECURE_BOOT_DB_CER_PATH>"
+  users:
+    # Example: Pre-hashed password (production approach)
+    - name: admin
+      password: "admin"               # leave empty in sample
+      # password: "<HASHED_PASSWORD>"  # Uncomment and replace in real config
+      groups: ["sudo"]     # e.g., "wheel" for admin, "users" for non-admin
 
-  packages:
-    - systemd-boot
-    - dracut
-    - linux-image-amd64
-    - ca-certificates
-    - vim
-    - sudo
-    - net-tools
-    - openssh-client
-    - openssh-server
-    - procps
-    - less
-    - dbus
-    - policykit-1
-    - curl
-    - wget
-    - ostree
-    - ostree-boot
-    - python3-apt-ostree
-    - uefi-ext4
-    - systemd-resolved
-    - cloud-guest-utils
-    - xterm
-
-  kernel:
-    version: "6.1"
-    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
-    #packages:
-    #  - kernel-elxr12
-    #  - kernel-modules-elxr12

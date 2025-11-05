@@ -64,6 +64,11 @@ type ProviderRepoConfig struct {
 	BuildPath    string `yaml:"buildPath"`
 }
 
+// ProviderRepoConfigs represents multiple repository configurations for a provider
+type ProviderRepoConfigs struct {
+	Repositories []ProviderRepoConfig `yaml:"repositories"`
+}
+
 // ImageTemplate represents the YAML image template structure (unchanged)
 type ImageTemplate struct {
 	Image               ImageInfo           `yaml:"image"`
@@ -528,7 +533,8 @@ func (t *ImageTemplate) GetPackageRepositories() []PackageRepository {
 }
 
 // LoadProviderRepoConfig loads provider repository configuration from YAML file
-func LoadProviderRepoConfig(targetOS, targetDist string) (*ProviderRepoConfig, error) {
+// Returns a slice of ProviderRepoConfig to support multiple repositories
+func LoadProviderRepoConfig(targetOS, targetDist string) ([]ProviderRepoConfig, error) {
 	// Get the target OS config directory
 	targetOsConfigDir, err := GetTargetOsConfigDir(targetOS, targetDist)
 	if err != nil {
@@ -545,20 +551,27 @@ func LoadProviderRepoConfig(targetOS, targetDist string) (*ProviderRepoConfig, e
 		return nil, fmt.Errorf("failed to read repo config file %s: %w", repoConfigPath, err)
 	}
 
-	// Parse YAML into our struct
-	var repoConfig ProviderRepoConfig
-	if err := yaml.Unmarshal(yamlData, &repoConfig); err != nil {
+	// Try to parse as new multiple repository format first
+	var repoConfigs ProviderRepoConfigs
+	if err := yaml.Unmarshal(yamlData, &repoConfigs); err == nil && len(repoConfigs.Repositories) > 0 {
+		log.Infof("Loaded provider repo config from %s: %d repositories", repoConfigPath, len(repoConfigs.Repositories))
+		return repoConfigs.Repositories, nil
+	}
+
+	// Fall back to old single repository format for backward compatibility
+	var singleRepoConfig ProviderRepoConfig
+	if err := yaml.Unmarshal(yamlData, &singleRepoConfig); err != nil {
 		log.Errorf("Failed to parse repo config YAML: %v", err)
 		return nil, fmt.Errorf("failed to parse repo config YAML: %w", err)
 	}
 
-	log.Infof("Loaded provider repo config from %s: %s", repoConfigPath, repoConfig.Name)
-	return &repoConfig, nil
+	log.Infof("Loaded provider repo config from %s: %s (single repository format)", repoConfigPath, singleRepoConfig.Name)
+	return []ProviderRepoConfig{singleRepoConfig}, nil
 }
 
 // ToRepoConfigData returns the unified repo configuration data for both DEB and RPM repositories
 func (prc *ProviderRepoConfig) ToRepoConfigData(arch string) (repoType, name, url, gpgKey, component, buildPath string,
-	pkgPrefix, releaseFile, releaseSign string, gpgCheck, repoGPGCheck, enabled bool) {
+	pkgPrefix, releaseFile, releaseSign, baseURL string, gpgCheck, repoGPGCheck, enabled bool) {
 
 	repoType = prc.Type
 	name = prc.Name
@@ -567,6 +580,7 @@ func (prc *ProviderRepoConfig) ToRepoConfigData(arch string) (repoType, name, ur
 	gpgCheck = prc.GPGCheck
 	repoGPGCheck = prc.RepoGPGCheck
 	enabled = prc.Enabled
+	baseURL = prc.BaseURL
 
 	switch strings.ToLower(prc.Type) {
 	case "rpm":

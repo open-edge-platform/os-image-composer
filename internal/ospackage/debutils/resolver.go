@@ -37,8 +37,22 @@ func ParseRepositoryMetadata(baseURL string, pkggz string, releaseFile string, r
 	localReleaseSign := filepath.Join(pkgMetaDir, filepath.Base(releaseSign))
 	localPBGPGKey := filepath.Join(pkgMetaDir, filepath.Base(pbGPGKey))
 
-	// Remove any existing local files to ensure fresh downloads
-	localFiles := []string{localPkggzFile, localReleaseFile, localReleaseSign, localPBGPGKey}
+	// Determine if pbGPGKey is a URL or file path
+	pbkeyIsURL := false
+	if strings.HasPrefix(pbGPGKey, "http://") || strings.HasPrefix(pbGPGKey, "https://") {
+		pbkeyIsURL = true
+	} else {
+		localPBGPGKey = pbGPGKey
+	}
+
+	var localFiles []string
+	if pbkeyIsURL {
+		// Remove any existing local files to ensure fresh downloads
+		localFiles = []string{localPkggzFile, localReleaseFile, localReleaseSign, localPBGPGKey}
+	} else {
+		localFiles = []string{localPkggzFile, localReleaseFile, localReleaseSign}
+	}
+
 	for _, f := range localFiles {
 		if _, err := os.Stat(f); err == nil {
 			if remErr := os.Remove(f); remErr != nil {
@@ -47,8 +61,16 @@ func ParseRepositoryMetadata(baseURL string, pkggz string, releaseFile string, r
 		}
 	}
 
+	var urllist []string
+	if pbkeyIsURL {
+		// Remove any existing local files to ensure fresh downloads
+		urllist = []string{pkggz, releaseFile, releaseSign, pbGPGKey}
+	} else {
+		urllist = []string{pkggz, releaseFile, releaseSign}
+	}
+
 	// Download the debian repo files
-	err := pkgfetcher.FetchPackages([]string{pkggz, releaseFile, releaseSign, pbGPGKey}, pkgMetaDir, 1)
+	err := pkgfetcher.FetchPackages(urllist, pkgMetaDir, 1)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch critical repo config packages: %w", err)
 	}

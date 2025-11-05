@@ -1595,6 +1595,181 @@ func TestUpdateInitramfsWithMock(t *testing.T) {
 	t.Log("UpdateInitramfs mock test completed - shell commands intercepted")
 }
 
+// TestUpdateInitramfsUbuntu tests the Ubuntu-specific initramfs update path
+func TestUpdateInitramfsUbuntu(t *testing.T) {
+	// Save original shell
+	originalShell := shell.Default
+	defer func() { shell.Default = originalShell }()
+
+	// Mock shell commands for Ubuntu initramfs operations
+	mockCommands := []shell.MockCommand{
+		{
+			Pattern: `sudo.*chroot.*update-initramfs.*`,
+			Output:  "update-initramfs: Generating /boot/initrd.img-5.15.0-generic",
+			Error:   nil,
+		},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	// Create temp directory
+	tempDir, err := os.MkdirTemp("", "ubuntu_initramfs_test_*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create Ubuntu test template
+	template := &config.ImageTemplate{
+		Image: config.ImageInfo{
+			Name: "test-ubuntu-image",
+		},
+		Target: config.TargetInfo{
+			OS:   "ubuntu",
+			Dist: "ubuntu24",
+		},
+	}
+
+	// Test updateInitramfs with Ubuntu template - should use initramfs-tools path
+	err = updateInitramfs(tempDir, "5.15.0-generic", template)
+	if err != nil {
+		t.Errorf("updateInitramfs failed for Ubuntu: %v", err)
+	}
+
+	t.Log("Ubuntu UpdateInitramfs mock test completed - update-initramfs command intercepted")
+}
+
+// TestUpdateInitramfsUbuntuWithVerity tests the Ubuntu dm-verity initramfs path
+func TestUpdateInitramfsUbuntuWithVerity(t *testing.T) {
+	// Save original shell
+	originalShell := shell.Default
+	defer func() { shell.Default = originalShell }()
+
+	// Mock shell commands for Ubuntu initramfs with verity operations
+	mockCommands := []shell.MockCommand{
+		{
+			Pattern: `sudo.*chroot.*update-initramfs.*`,
+			Output:  "update-initramfs: Generating /boot/initrd.img-5.15.0-generic with dm-verity support",
+			Error:   nil,
+		},
+		{
+			Pattern: `mkdir -p.*`,
+			Output:  "",
+			Error:   nil,
+		},
+		{
+			Pattern: `chmod.*`,
+			Output:  "",
+			Error:   nil,
+		},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	// Create temp directory
+	tempDir, err := os.MkdirTemp("", "ubuntu_verity_test_*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create Ubuntu test template with immutability enabled
+	template := &config.ImageTemplate{
+		Image: config.ImageInfo{
+			Name: "test-ubuntu-verity-image",
+		},
+		Target: config.TargetInfo{
+			OS:   "ubuntu",
+			Dist: "ubuntu24",
+		},
+		SystemConfig: config.SystemConfig{
+			Immutability: config.ImmutabilityConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	// Test updateInitramfs with Ubuntu template and verity enabled
+	err = updateInitramfs(tempDir, "5.15.0-generic", template)
+	if err != nil {
+		t.Errorf("updateInitramfs failed for Ubuntu with verity: %v", err)
+	}
+
+	t.Log("Ubuntu UpdateInitramfs with verity mock test completed - dm-verity support added")
+}
+
+// TestCreateUbuntuVerityHook tests the creation of Ubuntu dm-verity hook
+func TestCreateUbuntuVerityHook(t *testing.T) {
+	// Save original shell
+	originalShell := shell.Default
+	defer func() { shell.Default = originalShell }()
+
+	// Mock shell commands
+	mockCommands := []shell.MockCommand{
+		{
+			Pattern: `mkdir -p.*`,
+			Output:  "",
+			Error:   nil,
+		},
+		{
+			Pattern: `chmod.*`,
+			Output:  "",
+			Error:   nil,
+		},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	// Create temp directory
+	tempDir, err := os.MkdirTemp("", "ubuntu_hook_test_*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Test createUbuntuVerityHook
+	err = createUbuntuVerityHook(tempDir)
+	if err != nil {
+		t.Errorf("createUbuntuVerityHook failed: %v", err)
+	}
+
+	t.Log("Ubuntu dm-verity hook creation test completed")
+}
+
+// TestCreateUbuntuVerityScript tests the creation of Ubuntu dm-verity script
+func TestCreateUbuntuVerityScript(t *testing.T) {
+	// Save original shell
+	originalShell := shell.Default
+	defer func() { shell.Default = originalShell }()
+
+	// Mock shell commands
+	mockCommands := []shell.MockCommand{
+		{
+			Pattern: `mkdir -p.*`,
+			Output:  "",
+			Error:   nil,
+		},
+		{
+			Pattern: `chmod.*`,
+			Output:  "",
+			Error:   nil,
+		},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	// Create temp directory
+	tempDir, err := os.MkdirTemp("", "ubuntu_script_test_*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Test createUbuntuVerityScript
+	err = createUbuntuVerityScript(tempDir)
+	if err != nil {
+		t.Errorf("createUbuntuVerityScript failed: %v", err)
+	}
+
+	t.Log("Ubuntu dm-verity script creation test completed")
+}
+
 // TestMountUmountSysfs tests the sysfs mount/unmount functionality
 func TestMountUmountSysfs(t *testing.T) {
 	// Set up mock executor

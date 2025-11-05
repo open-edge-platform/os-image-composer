@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/schollz/progressbar/v3"
@@ -24,6 +25,73 @@ type Result struct {
 	OK       bool          // signature + checksum OK?
 	Duration time.Duration // how long the check took
 	Error    error         // any error (signature fail, I/O, etc)
+}
+
+// isBinaryGPGKey checks if the data appears to be a binary GPG key
+func isBinaryGPGKey(data []byte) bool {
+	// Check for ASCII armored format first
+	if bytes.HasPrefix(data, []byte("-----BEGIN PGP PUBLIC KEY BLOCK-----")) {
+		return false // This is ASCII armored, not binary
+	}
+
+	// Try to parse as OpenPGP packet to determine if it's binary
+	reader := bytes.NewReader(data)
+	_, err := openpgp.ReadKeyRing(reader)
+	if err == nil {
+		return true // Successfully parsed as binary OpenPGP
+	}
+
+	// Additional heuristic: if it contains mostly non-printable characters
+	if len(data) < 4 {
+		return false
+	}
+
+	printableCount := 0
+	checkLength := len(data)
+	if checkLength > 100 {
+		checkLength = 100
+	}
+
+	for i := 0; i < checkLength; i++ {
+		if data[i] >= 32 && data[i] <= 126 {
+			printableCount++
+		}
+	}
+
+	// If less than 70% printable characters, likely binary
+	return float64(printableCount)/float64(checkLength) < 0.7
+}
+
+// convertBinaryGPGToAscii converts binary GPG key to ASCII armored format using Go crypto
+func convertBinaryGPGToAscii(binaryData []byte) ([]byte, error) {
+	// Try to parse the binary data as an OpenPGP key ring
+	reader := bytes.NewReader(binaryData)
+	keyRing, err := openpgp.ReadKeyRing(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse binary GPG key: %w", err)
+	}
+
+	var armoredBuf bytes.Buffer
+
+	// Create ASCII armor encoder
+	armorWriter, err := armor.Encode(&armoredBuf, openpgp.PublicKeyType, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create armor encoder: %w", err)
+	}
+
+	// Serialize each entity in the keyring
+	for _, entity := range keyRing {
+		if err := entity.Serialize(armorWriter); err != nil {
+			armorWriter.Close()
+			return nil, fmt.Errorf("failed to serialize key entity: %w", err)
+		}
+	}
+
+	if err := armorWriter.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close armor encoder: %w", err)
+	}
+
+	return armoredBuf.Bytes(), nil
 }
 
 func VerifyPackagegz(relPath string, pkggzPath string, arch string, component string) (bool, error) {
@@ -65,6 +133,20 @@ func VerifyRelease(relPath string, relSignPath string, pKeyPath string) (bool, e
 	keyringBytes, err := os.ReadFile(pKeyPath)
 	if err != nil {
 		return false, fmt.Errorf("failed to read public key: %w", err)
+	}
+
+	// Check if the key file is a binary GPG key and convert if needed
+	if isBinaryGPGKey(keyringBytes) {
+		log.Infof("GPG key %s is binary format, converting to ASCII armored format", pKeyPath)
+		convertedBytes, err := convertBinaryGPGToAscii(keyringBytes)
+		if err != nil {
+			log.Warnf("Failed to convert binary GPG key to ASCII: %v, trying original data", err)
+		} else {
+			keyringBytes = convertedBytes
+			log.Infof("Successfully converted binary GPG key to ASCII armored format")
+		}
+	} else {
+		log.Infof("GPG key data appears to be ASCII armored already or is a standard key format")
 	}
 
 	// Read the Release file and its signature

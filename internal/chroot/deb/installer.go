@@ -120,13 +120,24 @@ func (debInstaller *DebInstaller) InstallDebPkg(targetOsConfigDir, chrootEnvPath
 		"--variant=custom "+
 		"--format=directory "+
 		"--aptopt=APT::Authentication::Trusted=true "+
+		"--aptopt=Dpkg::Options::=--force-confdef "+
+		"--aptopt=Dpkg::Options::=--force-confold "+
+		"--aptopt=APT::Get::Assume-Yes=true "+
 		"--hook-dir=/usr/share/mmdebstrap/hooks/file-mirror-automount "+
 		"--include=%s "+
 		"--verbose --debug "+
-		"-- bookworm %s %s",
+		"-- noble %s %s",
+		//"-- bookworm %s %s",
 		pkgListStr, chrootEnvPath, localRepoConfigPath)
 
-	if _, err = shell.ExecCmdWithStream(cmd, true, shell.HostPath, nil); err != nil {
+	// Set environment variables to ensure non-interactive installation
+	envVars := []string{
+		"DEBIAN_FRONTEND=noninteractive",
+		"DEBCONF_NONINTERACTIVE_SEEN=true",
+		"DEBCONF_NOWARNINGS=yes",
+	}
+
+	if _, err = shell.ExecCmdWithStream(cmd, true, shell.HostPath, envVars); err != nil {
 		log.Errorf("Failed to install debian packages in chroot environment: %v", err)
 		return fmt.Errorf("failed to install debian packages in chroot environment: %w", err)
 	}

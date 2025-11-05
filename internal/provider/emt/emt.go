@@ -228,13 +228,20 @@ func (p *Emt) downloadImagePkgs(template *config.ImageTemplate) error {
 // loadRepoConfigFromYAML loads repository configuration from centralized YAML config
 func loadRepoConfigFromYAML(dist, arch string) (rpmutils.RepoConfig, error) {
 	// Load the centralized provider config
-	providerConfig, err := config.LoadProviderRepoConfig(OsName, dist)
+	providerConfigs, err := config.LoadProviderRepoConfig(OsName, dist)
 	if err != nil {
 		return rpmutils.RepoConfig{}, fmt.Errorf("failed to load provider repo config: %w", err)
 	}
 
+	// Use the first repository configuration for backward compatibility
+	if len(providerConfigs) == 0 {
+		return rpmutils.RepoConfig{}, fmt.Errorf("no repository configurations found")
+	}
+
+	providerConfig := providerConfigs[0]
+
 	// Convert to rpmutils.RepoConfig using the unified method
-	repoType, name, url, gpgKey, component, buildPath, pkgPrefix, releaseFile, releaseSign, gpgCheck, repoGPGCheck, enabled := providerConfig.ToRepoConfigData(arch)
+	repoType, name, url, gpgKey, component, buildPath, pkgPrefix, releaseFile, releaseSign, _, gpgCheck, repoGPGCheck, enabled := providerConfig.ToRepoConfigData(arch)
 
 	// Verify this is an RPM repository
 	if repoType != "rpm" {
