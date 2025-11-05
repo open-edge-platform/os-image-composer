@@ -54,7 +54,7 @@ func installGrubWithEfiMode(installRoot, bootUUID, bootPrefix string, template *
 	grubAssetPath := filepath.Join(configDir, "image", "efi", "grub", "grub.cfg")
 	grubFinalPath := filepath.Join(installRoot, efiDir, "boot/grub2/grub.cfg")
 
-	if err = file.CopyFile(grubAssetPath, grubFinalPath, "", true); err != nil {
+	if err = file.CopyFile(grubAssetPath, grubFinalPath, "-f", true); err != nil {
 		log.Errorf("Failed to copy grub configuration file: %v", err)
 		return fmt.Errorf("failed to copy grub configuration file: %w", err)
 	}
@@ -98,7 +98,7 @@ func copyGrubEnvFile(installRoot string) error {
 	}
 	grubEnvAssetPath := filepath.Join(configDir, "image", "grub2", "grubenv")
 	grubEnvFinalPath := filepath.Join(installRoot, "boot", "grub2", "grubenv")
-	if err = file.CopyFile(grubEnvAssetPath, grubEnvFinalPath, "", true); err != nil {
+	if err = file.CopyFile(grubEnvAssetPath, grubEnvFinalPath, "-f", true); err != nil {
 		log.Errorf("Failed to copy grubenv file: %v", err)
 		return fmt.Errorf("failed to copy grubenv file: %w", err)
 	}
@@ -130,7 +130,7 @@ func updateBootConfigTemplate(installRoot, rootDevID, bootUUID, bootPrefix, hash
 	case "grub":
 		configAssetPath = filepath.Join(configDir, "image", "grub2", "grub")
 		configFinalPath = filepath.Join(installRoot, "etc", "default", "grub")
-		if err = file.CopyFile(configAssetPath, configFinalPath, "", true); err != nil {
+		if err = file.CopyFile(configAssetPath, configFinalPath, "-f", true); err != nil {
 			log.Errorf("Failed to copy boot configuration file: %v", err)
 			return fmt.Errorf("failed to copy boot configuration file: %w", err)
 		}
@@ -142,7 +142,7 @@ func updateBootConfigTemplate(installRoot, rootDevID, bootUUID, bootPrefix, hash
 	case "systemd-boot":
 		configAssetPath = filepath.Join(configDir, "image", "efi", "bootParams.conf")
 		configFinalPath = filepath.Join(installRoot, "boot", "cmdline.conf")
-		if err = file.CopyFile(configAssetPath, configFinalPath, "", true); err != nil {
+		if err = file.CopyFile(configAssetPath, configFinalPath, "-f", true); err != nil {
 			log.Errorf("Failed to copy boot configuration file: %v", err)
 			return fmt.Errorf("failed to copy boot configuration file: %w", err)
 		}
