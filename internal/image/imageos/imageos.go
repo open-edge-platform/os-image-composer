@@ -1247,6 +1247,12 @@ func createUser(installRoot string, template *config.ImageTemplate) error {
 			return fmt.Errorf("user verification failed for %s: %w", user.Name, err)
 		}
 
+		if user.StartupScript != "" {
+			if err := configUserStartupScript(installRoot, user); err != nil {
+				return fmt.Errorf("failed to configure startup script for user %s: %w", user.Name, err)
+			}
+		}
+
 		log.Infof("User %s created successfully", user.Name)
 	}
 
@@ -1326,4 +1332,18 @@ func hashPassword(password, hashAlgo, installRoot string) (string, error) {
 	log.Debugf("Password hashed successfully with algorithm %s", hashAlgo)
 
 	return hashedPassword, nil
+}
+
+func configUserStartupScript(installRoot string, user config.UserConfig) error {
+	log.Infof("Configuring user '%s' startup script to: %s", user.Name, user.StartupScript)
+
+	findPattern := fmt.Sprintf(`^\(%s.*\):[^:]*$`, user.Name)
+	replacePattern := fmt.Sprintf(`\1:%s`, user.StartupScript)
+	passwdFile := filepath.Join(installRoot, "etc", "passwd")
+
+	if err := file.ReplacePlaceholdersInFile(findPattern, replacePattern, passwdFile); err != nil {
+		log.Errorf("Failed to update user %s startup command: %v", user.Name, err)
+		return fmt.Errorf("failed to update user %s startup command: %w", user.Name, err)
+	}
+	return nil
 }
