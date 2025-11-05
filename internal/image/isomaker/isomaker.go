@@ -30,6 +30,8 @@ type IsoMaker struct {
 	InitrdMaker   initrdmaker.InitrdMakerInterface
 }
 
+const IsoLabel = "OIC_CDROM"
+
 var log = logger.Logger()
 
 func NewIsoMaker(chrootEnv chroot.ChrootEnvInterface, template *config.ImageTemplate) (*IsoMaker, error) {
@@ -244,7 +246,6 @@ func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfs
 
 	installRoot := isoMaker.ImageOs.GetInstallRoot()
 	imageName := template.GetImageName()
-	isoLabel := sanitizeIsoLabel(imageName)
 
 	log.Infof("Creating ISO image: %s", isoFilePath)
 
@@ -327,7 +328,7 @@ func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfs
 		xorrisoCmd += fmt.Sprintf(" -append_partition 2 0xef %s -appended_part_as_gpt", efiFatImgPath)
 		xorrisoCmd += fmt.Sprintf(" -r %s --sort-weight 0 / --sort-weight 1 /boot", installRoot)
 		xorrisoCmd += fmt.Sprintf(" -volid \"%s\" --protective-msdos-label -o \"%s\" \"%s\"",
-			isoLabel, isoFilePath, installRoot)
+			IsoLabel, isoFilePath, installRoot)
 	} else {
 		// Support only UEFI boot mode
 		log.Infof("Creating ISO for UEFI boot mode only...")
@@ -335,7 +336,7 @@ func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfs
 		xorrisoCmd += " -efi-boot-part --efi-boot-image --protective-msdos-label"
 		xorrisoCmd += fmt.Sprintf(" -r %s --sort-weight 0 / --sort-weight 1 /boot", installRoot)
 		xorrisoCmd += fmt.Sprintf(" -volid \"%s\" -o \"%s\" \"%s\"",
-			isoLabel, isoFilePath, installRoot)
+			IsoLabel, isoFilePath, installRoot)
 	}
 
 	if _, err := shell.ExecCmdWithStream(xorrisoCmd, true, shell.HostPath, nil); err != nil {
@@ -349,36 +350,6 @@ func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfs
 
 	log.Infof("ISO creation completed successfully")
 	return nil
-}
-
-// sanitizeIsoLabel ensures the IsoLabel complies with ISO 9660 rules
-// 1. Maximum length of 32 characters
-// 2. Can only contain uppercase letters A-Z, digits 0-9, and underscore (_)
-// 3. No spaces or other special characters are allowed
-func sanitizeIsoLabel(isoLabel string) string {
-	// Limit to 32 characters
-	if len(isoLabel) > 32 {
-		isoLabel = isoLabel[:32]
-	}
-
-	// Replace invalid characters with underscores
-	result := ""
-	for _, char := range isoLabel {
-		if (char >= 'A' && char <= 'Z') ||
-			(char >= '0' && char <= '9') ||
-			char == '_' {
-			// Character is already valid
-			result += string(char)
-		} else if char >= 'a' && char <= 'z' {
-			// Convert lowercase to uppercase
-			result += string(char - 32)
-		} else {
-			// Replace invalid character with underscore
-			result += "_"
-		}
-	}
-
-	return result
 }
 
 func copyKernelToIsoImagesPath(initrdRootfsPath, isoImagesPath string) error {
