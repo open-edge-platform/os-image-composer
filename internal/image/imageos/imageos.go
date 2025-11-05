@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -1337,11 +1338,15 @@ func hashPassword(password, hashAlgo, installRoot string) (string, error) {
 func configUserStartupScript(installRoot string, user config.UserConfig) error {
 	log.Infof("Configuring user '%s' startup script to: %s", user.Name, user.StartupScript)
 
-	findPattern := fmt.Sprintf(`^\(%s.*\):[^:]*$`, user.Name)
-	replacePattern := fmt.Sprintf(`\1:%s`, user.StartupScript)
+	// Escape user.Name and user.StartupScript for regex safety
+	escapedUserName := regexp.QuoteMeta(user.Name)
+	escapedStartupScript := regexp.QuoteMeta(user.StartupScript)
+
+	findPattern := fmt.Sprintf(`^(%s.*):[^:]*$`, escapedUserName)
+	replacePattern := fmt.Sprintf(`\1:%s`, escapedStartupScript)
 	passwdFile := filepath.Join(installRoot, "etc", "passwd")
 
-	if err := file.ReplacePlaceholdersInFile(findPattern, replacePattern, passwdFile); err != nil {
+	if err := file.ReplaceRegexInFile(findPattern, replacePattern, passwdFile); err != nil {
 		log.Errorf("Failed to update user %s startup command: %v", user.Name, err)
 		return fmt.Errorf("failed to update user %s startup command: %w", user.Name, err)
 	}
