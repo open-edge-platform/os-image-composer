@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -16,107 +15,6 @@ import (
 const HostPath string = "/"
 
 var log = logger.Logger()
-
-var commandMap = map[string]string{
-	"apt":                "/usr/bin/apt",
-	"apt-cache":          "/usr/bin/apt-cache",
-	"apt-get":            "/usr/bin/apt-get",
-	"basename":           "/usr/bin/basename",
-	"bash":               "/usr/bin/bash",
-	"blkid":              "/usr/sbin/blkid",
-	"bootctl":            "/usr/bin/bootctl",
-	"bunzip2":            "/usr/bin/bunzip2",
-	"cat":                "/bin/cat",
-	"cd":                 "cd", // 'cd' is a shell builtin, not a standalone command
-	"chroot":             "/usr/sbin/chroot",
-	"chmod":              "/usr/bin/chmod",
-	"command":            "command", // 'command' is a shell builtin
-	"cp":                 "/bin/cp",
-	"createrepo_c":       "/usr/bin/createrepo_c",
-	"cryptsetup":         "/usr/sbin/cryptsetup",
-	"dd":                 "/usr/bin/dd",
-	"df":                 "/usr/bin/df",
-	"dirname":            "/usr/bin/dirname",
-	"dnf":                "/usr/bin/dnf",
-	"dpkg":               "/usr/bin/dpkg",
-	"dpkg-scanpackages":  "/usr/bin/dpkg-scanpackages",
-	"echo":               "/bin/echo",
-	"e2fsck":             "/usr/sbin/e2fsck",
-	"fallocate":          "/usr/bin/fallocate",
-	"fdisk":              "/usr/sbin/fdisk",
-	"find":               "/usr/bin/find",
-	"findmnt":            "/usr/bin/findmnt",
-	"flock":              "/usr/bin/flock",
-	"fuser":              "/usr/bin/fuser",
-	"gpgconf":            "/usr/bin/gpgconf",
-	"gunzip":             "/usr/bin/gunzip",
-	"grep":               "/usr/bin/grep",
-	"grub2-mkconfig":     "/usr/sbin/grub2-mkconfig",
-	"gzip":               "/usr/bin/gzip",
-	"head":               "/usr/bin/head",
-	"ln":                 "/usr/bin/ln",
-	"ls":                 "/bin/ls",
-	"lsof":               "/usr/bin/lsof",
-	"lsb_release":        "/usr/bin/lsb_release",
-	"lsblk":              "/usr/bin/lsblk",
-	"losetup":            "/usr/sbin/losetup",
-	"lvcreate":           "/usr/sbin/lvcreate",
-	"mformat":            "/usr/bin/mformat",
-	"mcopy":              "/usr/bin/mcopy",
-	"mmdebstrap":         "/usr/bin/mmdebstrap",
-	"mkdir":              "/bin/mkdir",
-	"mkfs":               "/usr/sbin/mkfs",
-	"mkswap":             "/usr/sbin/mkswap",
-	"mktemp":             "/usr/bin/mktemp",
-	"mount":              "/usr/bin/mount",
-	"opkg":               "/usr/bin/opkg",
-	"parted":             "/usr/sbin/parted",
-	"partx":              "/usr/bin/partx",
-	"pvcreate":           "/usr/sbin/pvcreate",
-	"qemu-img":           "/usr/bin/qemu-img",
-	"qemu-system-x86_64": "/usr/bin/qemu-system-x86_64",
-	"rm":                 "/bin/rm",
-	"rpm":                "/usr/bin/rpm",
-	"run":                "/usr/bin/run",
-	"sed":                "/usr/bin/sed",
-	"sfdisk":             "/usr/sbin/sfdisk",
-	"sgdisk":             "/usr/bin/sgdisk",
-	"sha256sum":          "/usr/bin/sha256sum",
-	"sh":                 "/bin/sh",
-	"sleep":              "/usr/bin/sleep",
-	"sudo":               "/usr/bin/sudo",
-	"swapon":             "/usr/sbin/swapon",
-	"swapoff":            "/usr/sbin/swapoff",
-	"sync":               "/usr/bin/sync",
-	"tail":               "/usr/bin/tail",
-	"tar":                "/usr/bin/tar",
-	"tdnf":               "/usr/bin/tdnf",
-	"touch":              "/usr/bin/touch",
-	"truncate":           "/usr/bin/truncate",
-	"tune2fs":            "/usr/sbin/tune2fs",
-	"ukify":              "/usr/bin/ukify",
-	"umount":             "/usr/bin/umount",
-	"uname":              "/usr/bin/uname",
-	"uniq":               "/usr/bin/uniq",
-	"veritysetup":        "/usr/sbin/veritysetup",
-	"vgcreate":           "/usr/sbin/vgcreate",
-	"wipefs":             "/usr/sbin/wipefs",
-	"xorriso":            "/usr/bin/xorriso",
-	"xz":                 "/usr/bin/xz",
-	"yum":                "/usr/bin/yum",
-	"zstd":               "/usr/bin/zstd",
-	"dracut":             "/usr/bin/dracut",
-	"useradd":            "/usr/sbin/useradd",
-	"usermod":            "/usr/sbin/usermod",
-	"groups":             "/usr/bin/groups",
-	"passwd":             "/usr/bin/passwd",
-	"mv":                 "/bin/mv",
-	"grub-mkimage":       "/usr/bin/grub-mkimage",
-	"sbsign":             "/usr/bin/sbsign",
-	"test":               "/bin/test",
-	"systemctl":          "/usr/bin/systemctl",
-	// Add more mappings as needed
-}
 
 type Executor interface {
 	ExecCmd(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error)
@@ -160,14 +58,11 @@ func GetOSProxyEnvirons() map[string]string {
 
 // IsBashAvailable checks if bash is available in the given chroot environment
 func IsBashAvailable(chrootPath string) bool {
-	if bashPath, ok := commandMap["bash"]; ok {
-		if _, err := os.Stat(filepath.Join(chrootPath, bashPath)); err == nil {
-			return true
-		}
-		log.Debugf("bash not found in chroot path %s", chrootPath)
-	} else {
-		log.Debugf("bash path not found in commandMap")
+	bashPath := "/usr/bin/bash"
+	if _, err := os.Stat(filepath.Join(chrootPath, bashPath)); err == nil {
+		return true
 	}
+	log.Debugf("bash not found in chroot path %s", chrootPath)
 	return false
 }
 
@@ -190,123 +85,6 @@ func IsCommandExist(cmd string, chrootPath string) (bool, error) {
 	return true, nil
 }
 
-func extractSedPattern(command string) (string, error) {
-	// This regex handles common sed patterns:
-	// - sed -i 's/pattern/replacement/'
-	// - sed -i 's/pattern/replacement/g'
-	// - sed -i '/pattern/d'
-	// - sed -i '/pattern/c\replacement'
-	// - sed -i '1,10 d'
-	// - sed -i '10 i\text to insert'
-
-	// First try single quotes
-	singleRe := regexp.MustCompile(`(?s)sed\s+(?:-[^\s'"]*)?\s+'(.*?)'`)
-	matches := singleRe.FindStringSubmatch(command)
-
-	if len(matches) >= 2 {
-		return matches[1], nil
-	}
-
-	// Then try double quotes
-	doubleRe := regexp.MustCompile(`(?s)sed\s+(?:-[^\s'"]*)?\s+"(.*?)"`)
-	matches = doubleRe.FindStringSubmatch(command)
-	if len(matches) >= 2 {
-		return matches[1], nil
-	}
-	return "", fmt.Errorf("no quoted string found in sed command")
-}
-
-func extractEchoString(command string) (string, error) {
-	// Match strings inside echo with single or double quotes
-	// Note: Ideally, the pattern should be `(?s)echo\s+(?:-e\s+)?(['"])(.*?)\1'`
-	// But the go built-in lib regexp doesn't support this backreferences.
-
-	// First try single quotes
-	singleRe := regexp.MustCompile(`(?s)echo\s+(?:-e\s+)?'(.*?)'`)
-	matches := singleRe.FindStringSubmatch(command)
-
-	if len(matches) >= 2 {
-		return matches[1], nil
-	}
-
-	// Then try double quotes
-	doubleRe := regexp.MustCompile(`echo\s+(?:-e\s+)?"(.*?)"`)
-	matches = doubleRe.FindStringSubmatch(command)
-	if len(matches) >= 2 {
-		return matches[1], nil
-	}
-
-	return "", fmt.Errorf("no quoted string found in echo command")
-}
-
-func verifyCmdWithFullPath(cmd string) (string, error) {
-	var ignoreStr string
-	var err error
-	separators := []string{"&&", ";", "|", "||"}
-
-	// If the command is 'sed' or 'echo', we need to ignore the string content
-	if strings.HasPrefix(cmd, "sed ") {
-		ignoreStr, err = extractSedPattern(cmd)
-		if err != nil {
-			return "", fmt.Errorf("failed to extract sed pattern: %w", err)
-		}
-	} else if strings.HasPrefix(cmd, "echo ") {
-		ignoreStr, err = extractEchoString(cmd)
-		if err != nil {
-			return "", fmt.Errorf("failed to extract echo string: %w", err)
-		}
-	}
-
-	if ignoreStr != "" {
-		// Remove the ignore string from the command
-		cmd = strings.ReplaceAll(cmd, ignoreStr, "<ignored>")
-	}
-
-	sepIdx := -1
-	sep := ""
-	for _, s := range separators {
-		if idx := strings.Index(cmd, s); idx != -1 && (sepIdx == -1 || idx < sepIdx) {
-			sepIdx = idx
-			sep = s
-		}
-	}
-	if sepIdx != -1 {
-		left := strings.TrimSpace(cmd[:sepIdx])
-		right := strings.TrimSpace(cmd[sepIdx+len(sep):])
-		leftCmdStr, err := verifyCmdWithFullPath(left)
-		if err != nil {
-			return "", fmt.Errorf("failed to verify command: %w", err)
-		}
-		rightCmdStr, err := verifyCmdWithFullPath(right)
-		if err != nil {
-			return "", fmt.Errorf("failed to verify command: %w", err)
-		}
-		updatedCmdStr := leftCmdStr + " " + sep + " " + rightCmdStr
-		if ignoreStr != "" && ignoreStr != "<ignored>" {
-			updatedCmdStr = strings.ReplaceAll(updatedCmdStr, "<ignored>", ignoreStr)
-		}
-		return updatedCmdStr, nil
-	}
-
-	fields := strings.Fields(cmd)
-	if len(fields) == 0 {
-		return cmd, nil
-	}
-	bin := fields[0]
-	fullPath, ok := commandMap[bin]
-	if ok {
-		fields[0] = fullPath
-	} else {
-		return "", fmt.Errorf("command %s not found in commandMap", bin)
-	}
-
-	updatedCmdStr := strings.Join(fields, " ")
-	if ignoreStr != "" && ignoreStr != "<ignored>" {
-		updatedCmdStr = strings.ReplaceAll(updatedCmdStr, "<ignored>", ignoreStr)
-	}
-	return updatedCmdStr, nil
-}
-
 // GetFullCmdStr prepares a command string with necessary prefixes
 func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
 	var fullCmdStr string
@@ -315,14 +93,9 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 		envValStr += env + " "
 	}
 
-	fullPathCmdStr, err := verifyCmdWithFullPath(cmdStr)
-	if err != nil {
-		return fullPathCmdStr, fmt.Errorf("failed to verify command with full path: %w", err)
-	}
-
 	if chrootPath != HostPath {
 		if _, err := os.Stat(chrootPath); os.IsNotExist(err) {
-			return fullPathCmdStr, fmt.Errorf("chroot path %s does not exist", chrootPath)
+			return "", fmt.Errorf("chroot path %s does not exist", chrootPath)
 		}
 
 		proxyEnv := GetOSProxyEnvirons()
@@ -331,9 +104,9 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 			envValStr += key + "=" + value + " "
 		}
 
-		fullCmdStr = "sudo " + envValStr + "chroot " + chrootPath + " " + fullPathCmdStr
+		fullCmdStr = "sudo " + envValStr + "chroot " + chrootPath + " " + cmdStr
 		chrootDir := filepath.Base(chrootPath)
-		log.Debugf("Chroot " + chrootDir + " Exec: [" + fullPathCmdStr + "]")
+		log.Debugf("Chroot " + chrootDir + " Exec: [" + cmdStr + "]")
 
 	} else {
 		if sudo {
@@ -343,11 +116,11 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 				envValStr += key + "=" + value + " "
 			}
 
-			fullCmdStr = "sudo " + envValStr + fullPathCmdStr
-			log.Debugf("Exec: [sudo " + fullPathCmdStr + "]")
+			fullCmdStr = "sudo " + envValStr + cmdStr
+			log.Debugf("Exec: [sudo " + cmdStr + "]")
 		} else {
-			fullCmdStr = fullPathCmdStr
-			log.Debugf("Exec: [" + fullPathCmdStr + "]")
+			fullCmdStr = cmdStr
+			log.Debugf("Exec: [" + cmdStr + "]")
 		}
 	}
 
