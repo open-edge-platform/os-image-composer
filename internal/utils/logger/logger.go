@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -11,22 +12,38 @@ import (
 )
 
 type nopSyncer struct {
-	writer *os.File
+	mu     sync.RWMutex
+	writer io.Writer
 }
 
-func (n nopSyncer) Write(p []byte) (int, error) {
+func (n *nopSyncer) Write(p []byte) (int, error) {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	if n.writer == nil {
+		return 0, nil
+	}
 	return n.writer.Write(p)
 }
 
-func (n nopSyncer) Sync() error {
+func (n *nopSyncer) Sync() error {
 	return nil // no-op
 }
 
+type StatusWriter struct {
+	Status chan string
+}
+
+func (sw *StatusWriter) Write(p []byte) (int, error) {
+	sw.Status <- string(p)
+	return len(p), nil
+}
+
 var (
-	sugarLogger *zap.SugaredLogger
-	baseLogger  *zap.Logger
-	atomicLevel zap.AtomicLevel // This allows dynamic level changes
-	once        sync.Once
+	sugarLogger  *zap.SugaredLogger
+	baseLogger   *zap.Logger
+	atomicLevel  zap.AtomicLevel // This allows dynamic level changes
+	once         sync.Once
+	stderrSyncer = &nopSyncer{writer: os.Stderr}
 )
 
 func initLogger() {
@@ -60,8 +77,7 @@ func initLoggerWithLevel(level string) {
 	cfg.EncoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
 
 	encoder := zapcore.NewConsoleEncoder(cfg.EncoderConfig)
-	writer := nopSyncer{os.Stderr}
-	core := zapcore.NewCore(encoder, writer, atomicLevel)
+	core := zapcore.NewCore(encoder, zapcore.AddSync(stderrSyncer), atomicLevel)
 
 	opts := []zap.Option{
 		zap.AddCaller(),
@@ -149,4 +165,22 @@ func SetLogLevel(level string) {
 	}
 
 	atomicLevel.SetLevel(zapLevel)
+}
+
+// ReplaceStderrWriter swaps the current stderr writer used by the logger.
+// It returns the previous writer (never nil; defaults to os.Stderr).
+func ReplaceStderrWriter(newOut io.Writer) (oldOut io.Writer) {
+	if newOut == nil {
+		newOut = os.Stderr
+	}
+
+	stderrSyncer.mu.Lock()
+	defer stderrSyncer.mu.Unlock()
+
+	oldOut = stderrSyncer.writer
+	if oldOut == nil {
+		oldOut = os.Stderr
+	}
+	stderrSyncer.writer = newOut
+	return
 }
