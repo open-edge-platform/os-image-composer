@@ -34,7 +34,6 @@ func VerifyAll(paths []string, pubkeyPaths []string, workers int) []Result {
 	// build the progress bar
 	bar := progressbar.NewOptions(total,
 		progressbar.OptionEnableColorCodes(true),
-		progressbar.OptionShowDescriptionAtLineEnd(),
 		progressbar.OptionShowCount(),
 		progressbar.OptionSetWidth(30),
 		progressbar.OptionThrottle(200*time.Millisecond),
