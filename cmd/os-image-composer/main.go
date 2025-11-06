@@ -12,8 +12,9 @@ import (
 
 // Command-line flags that can override config file settings
 var (
-	configFile string = "" // Path to config file
-	logLevel   string = "" // Empty means use config file value
+	configFile       string = "" // Path to config file
+	logLevel         string = "" // Empty means use config file value
+	actualConfigFile string = "" // Actual config file path found during init
 )
 
 func main() {
@@ -35,6 +36,7 @@ func initConfig() {
 	if configFilePath == "" {
 		configFilePath = config.FindConfigFile()
 	}
+	actualConfigFile = configFilePath
 
 	globalConfig, err := config.LoadGlobalConfig(configFilePath)
 	if err != nil {
@@ -45,19 +47,8 @@ func initConfig() {
 	// Set global config singleton
 	config.SetGlobal(globalConfig)
 
-	// Setup logger with configured level
-	cleanup := logger.InitWithLevel(globalConfig.Logging.Level)
-	defer cleanup()
-
-	// Log configuration info
-	log := logger.Logger()
-	if configFilePath != "" {
-		log.Infof("Using configuration from: %s", configFilePath)
-	}
-	cacheDir, _ := config.CacheDir()
-	workDir, _ := config.WorkDir()
-	log.Debugf("Config: workers=%d, cache_dir=%s, work_dir=%s, temp_dir=%s",
-		config.Workers(), cacheDir, workDir, config.TempDir())
+	// Setup logger with configured level (will be overridden in PersistentPreRun if needed)
+	logger.InitWithLevel(globalConfig.Logging.Level)
 }
 
 // createRootCommand creates and configures the root cobra command with all subcommands
@@ -84,6 +75,16 @@ Use 'os-image-composer <command> --help' for more information about a command.`,
 				config.SetGlobal(globalConfig)
 				logger.SetLogLevel(logLevel)
 			}
+
+			// Log configuration info after log level is finalized
+			log := logger.Logger()
+			if actualConfigFile != "" {
+				log.Infof("Using configuration from: %s", actualConfigFile)
+			}
+			cacheDir, _ := config.CacheDir()
+			workDir, _ := config.WorkDir()
+			log.Debugf("Config: workers=%d, cache_dir=%s, work_dir=%s, temp_dir=%s",
+				config.Workers(), cacheDir, workDir, config.TempDir())
 		},
 	}
 
