@@ -46,7 +46,8 @@ func initConfig() {
 	config.SetGlobal(globalConfig)
 
 	// Setup logger with configured level
-	logger.InitWithLevel(globalConfig.Logging.Level)
+	cleanup := logger.InitWithLevel(globalConfig.Logging.Level)
+	defer cleanup()
 
 	// Handle log level override
 	if logLevel != "" {
