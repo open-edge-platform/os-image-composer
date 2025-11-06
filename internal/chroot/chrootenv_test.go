@@ -17,7 +17,7 @@ type mockChrootBuilder struct {
 }
 
 // Add the missing method to satisfy ChrootBuilderInterface
-func (m *mockChrootBuilder) UpdateLocalDebRepo(repoPath, targetArch string) error {
+func (m *mockChrootBuilder) UpdateLocalDebRepo(repoPath, targetArch string, sudo bool) error {
 	// For testing, just return the error field
 	return m.err
 }

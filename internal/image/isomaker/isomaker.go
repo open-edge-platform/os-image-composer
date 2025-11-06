@@ -8,6 +8,7 @@ import (
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/config/manifest"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imageos"
 	"github.com/open-edge-platform/os-image-composer/internal/image/initrdmaker"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/file"
@@ -100,6 +101,14 @@ func (isoMaker *IsoMaker) BuildIsoImage() (err error) {
 		return fmt.Errorf("failed to create ISO image: %w", err)
 	}
 
+	// Copy SBOM to image build directory
+	if err := manifest.CopySBOMToImageBuildDir(isoMaker.ImageBuildDir); err != nil {
+		log.Warnf("Failed to copy SBOM to image build directory: %v", err)
+		// Don't fail the build if SBOM copy fails, just log warning
+	}
+
+	log.Infof("ISO image build completed successfully: %s", isoFilePath)
+
 	return nil
 }
 
@@ -143,6 +152,91 @@ func (isoMaker *IsoMaker) getInitrdTemplate(template *config.ImageTemplate) (*co
 	return initrdTemplate, nil
 }
 
+func (isoMaker *IsoMaker) copyConfigFilesToIso(template *config.ImageTemplate, installRoot string) error {
+	// Copy general config files to ISO
+	generalConfigSrcDir, err := config.GetGeneralConfigDir()
+	if err != nil {
+		return fmt.Errorf("failed to get general config directory: %w", err)
+	}
+	generalConfigDestDir := filepath.Join(installRoot, "config", "general")
+	if err := file.CopyDir(generalConfigSrcDir, generalConfigDestDir, "--preserve=mode", true); err != nil {
+		log.Errorf("Failed to copy general config files to iso root: %v", err)
+		return fmt.Errorf("failed to copy general config files to iso root: %w", err)
+	}
+
+	// Copy OSV config files to ISO
+	osvConfigSrcDir := isoMaker.ChrootEnv.GetTargetOsConfigDir()
+	osvConfigDestDir := filepath.Join(installRoot, "config", "osv", template.Target.OS, template.Target.Dist)
+	if err := file.CopyDir(osvConfigSrcDir, osvConfigDestDir, "--preserve=mode", true); err != nil {
+		log.Errorf("Failed to copy OSV config files to iso root: %v", err)
+		return fmt.Errorf("failed to copy OSV config files to iso root: %w", err)
+	}
+
+	// Copy additional files to ISO and update path info
+	var PathUpdatedList []config.AdditionalFileInfo
+	additionalFiles := template.GetAdditionalFileInfo()
+	if len(additionalFiles) != 0 {
+		for _, fileInfo := range additionalFiles {
+			srcFile := fileInfo.Local
+			srcFileName := filepath.Base(srcFile)
+			newPath := fmt.Sprintf("../additionalfiles/%s", srcFileName)
+			dstFile := filepath.Join(osvConfigDestDir, "imageconfigs", "additionalfiles", srcFileName)
+			if err := file.CopyFile(srcFile, dstFile, "-p", true); err != nil {
+				log.Errorf("Failed to copy additional file %s to image: %v", srcFile, err)
+				return fmt.Errorf("failed to copy additional file %s to image: %w", srcFile, err)
+			}
+			newFileInfo := config.AdditionalFileInfo{
+				Local: newPath,
+				Final: fileInfo.Final,
+			}
+			PathUpdatedList = append(PathUpdatedList, newFileInfo)
+		}
+	}
+	template.SystemConfig.AdditionalFiles = PathUpdatedList
+
+	// Dump updated template to ISO
+	templateDumpFilePath := filepath.Join(isoMaker.ImageBuildDir, "template-dump.yaml")
+	if err := template.SaveUpdatedConfigFile(templateDumpFilePath); err != nil {
+		log.Errorf("Failed to dump updated template to file: %v", err)
+		return fmt.Errorf("failed to dump updated template to file: %w", err)
+	}
+	templateDestFilePath := filepath.Join(osvConfigDestDir, "imageconfigs", "defaultconfigs", "template-dump.yaml")
+	if err := file.CopyFile(templateDumpFilePath, templateDestFilePath, "--preserve=mode", true); err != nil {
+		log.Errorf("Failed to copy template dump file to iso root: %v", err)
+		return fmt.Errorf("failed to copy template dump file to iso root: %w", err)
+	}
+
+	return nil
+}
+
+func (isoMaker *IsoMaker) copyImagePkgsToIso(template *config.ImageTemplate, installRoot string) error {
+	pkgCacheSrcDir := isoMaker.ChrootEnv.GetChrootPkgCacheDir()
+	pkgCacheDestDir := filepath.Join(installRoot, "cache-repo")
+	for _, pkg := range template.FullPkgList {
+		pkgFileSrcPath := filepath.Join(pkgCacheSrcDir, pkg)
+		if _, err := os.Stat(pkgFileSrcPath); os.IsNotExist(err) {
+			log.Errorf("Package file does not exist in cache: %s", pkgFileSrcPath)
+			return fmt.Errorf("package file does not exist in cache: %s", pkgFileSrcPath)
+		}
+		pkgFileDestPath := filepath.Join(pkgCacheDestDir, pkg)
+		if err := file.CopyFile(pkgFileSrcPath, pkgFileDestPath, "--preserve=mode", true); err != nil {
+			log.Errorf("Failed to copy package file to iso cache-repo: %v", err)
+			return fmt.Errorf("failed to copy package file to iso cache-repo: %w", err)
+		}
+	}
+
+	pkgCacheChrootDir, err := isoMaker.ChrootEnv.GetChrootEnvPath(pkgCacheDestDir)
+	if err != nil {
+		return fmt.Errorf("failed to get chroot path for iso cache-repo: %w", err)
+	}
+
+	if err := isoMaker.ChrootEnv.UpdateChrootLocalRepoMetadata(pkgCacheChrootDir, template.Target.Arch, true); err != nil {
+		return fmt.Errorf("failed to update local cache repository metadata in iso: %w", err)
+	}
+
+	return nil
+}
+
 func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfsPath, initrdFilePath, isoFilePath string) error {
 	var err error
 
@@ -167,7 +261,7 @@ func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfs
 
 	log.Infof("Creating ISO directory structure...")
 	for _, dir := range dirs {
-		if _, err := shell.ExecCmd("mkdir -p "+dir, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd("mkdir -p "+dir, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to create directory %s: %v", dir, err)
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
@@ -181,6 +275,18 @@ func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfs
 
 	if err := copyInitrdToIsoImagesPath(initrdFilePath, isoImagesPath); err != nil {
 		return fmt.Errorf("failed to copy initrd to iso image path: %w", err)
+	}
+
+	// Copy config files to ISO
+	log.Infof("Copying config files to ISO...")
+	if err := isoMaker.copyConfigFilesToIso(template, installRoot); err != nil {
+		return fmt.Errorf("failed to copy config files to ISO: %w", err)
+	}
+
+	// Copy image packages to ISO
+	log.Infof("Copying image packages to ISO...")
+	if err := isoMaker.copyImagePkgsToIso(template, installRoot); err != nil {
+		return fmt.Errorf("failed to copy image packages to ISO: %w", err)
 	}
 
 	// Create GRUB config for EFI boot
@@ -232,7 +338,7 @@ func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfs
 			isoLabel, isoFilePath, installRoot)
 	}
 
-	if _, err := shell.ExecCmdWithStream(xorrisoCmd, true, "", nil); err != nil {
+	if _, err := shell.ExecCmdWithStream(xorrisoCmd, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to create ISO image: %v", err)
 		return fmt.Errorf("failed to create ISO image: %w", err)
 	}
@@ -439,7 +545,7 @@ func createBiosImage(template *config.ImageTemplate, initrdRootfsPath, installRo
 		grubmkCmd += fmt.Sprintf(" --config=%s --directory=%s --prefix=%s", loadCfgSrc, grubLibDir, prefixDir)
 		grubmkCmd += " biosdisk iso9660"
 
-		if _, err := shell.ExecCmd(grubmkCmd, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd(grubmkCmd, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to create eltorito image: %v", err)
 			return biosImgRelPath, fmt.Errorf("failed to create eltorito image: %w", err)
 		}
@@ -482,7 +588,7 @@ func createEfiFatImage(template *config.ImageTemplate, initrdRootfsPath, install
 
 		efiFatImgPath = filepath.Join(installRoot, prefixDir, "efi.img")
 		cmdStr := fmt.Sprintf("mformat -C -f 2880 -L 16 -i %s ::.", efiFatImgPath)
-		if _, err := shell.ExecCmd(cmdStr, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd(cmdStr, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to create EFI FAT image: %v", err)
 			return efiFatImgPath, fmt.Errorf("failed to create EFI FAT image: %w", err)
 		}
@@ -494,13 +600,13 @@ func createEfiFatImage(template *config.ImageTemplate, initrdRootfsPath, install
 		grubmkCmd += fmt.Sprintf(" --config=%s --directory=%s --prefix=%s", loadCfgSrc, grubLibDir, prefixDir)
 		grubmkCmd += " part_gpt part_msdos fat ext2 ntfs search iso9660"
 
-		if _, err := shell.ExecCmd(grubmkCmd, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd(grubmkCmd, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to create EFI image: %v", err)
 			return efiFatImgPath, fmt.Errorf("failed to create EFI image: %w", err)
 		}
 
 		cmdStr = fmt.Sprintf("mcopy -s -i %s %s ::/.", efiFatImgPath, efiDirPath)
-		if _, err := shell.ExecCmd(cmdStr, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd(cmdStr, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to copy EFI files to FAT image: %v", err)
 			return efiFatImgPath, fmt.Errorf("failed to copy EFI files to FAT image: %w", err)
 		}
@@ -516,7 +622,7 @@ func cleanIsoInstallRoot(installRoot string) error {
 	log.Infof("Cleaning up ISO workspace: %s", installRoot)
 
 	// Remove the entire image build directory
-	if _, err := shell.ExecCmd("rm -rf "+installRoot, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("rm -rf "+installRoot, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to remove iso installRoot directory %s: %v", installRoot, err)
 		return fmt.Errorf("failed to remove iso installRoot directory %s: %w", installRoot, err)
 	}

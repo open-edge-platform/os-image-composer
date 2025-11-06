@@ -24,7 +24,7 @@ func NewLoopDev() *LoopDev {
 
 func loopSetupCreate(imagePath string) (string, error) {
 	cmd := fmt.Sprintf("losetup --direct-io=on --show -f -P %s", imagePath)
-	loopDevPath, err := shell.ExecCmd(cmd, true, "", nil)
+	loopDevPath, err := shell.ExecCmd(cmd, true, shell.HostPath, nil)
 	if err != nil {
 		log.Errorf("Losetup failed for %s: %v", imagePath, err)
 		return "", err
@@ -55,7 +55,7 @@ func loopSetupCreateEmptyRawDisk(filePath, fileSize string) (string, error) {
 
 func (loopDev *LoopDev) LoopSetupDelete(loopDevPath string) error {
 	cmd := fmt.Sprintf("losetup -d %s", loopDevPath)
-	if _, err := shell.ExecCmd(cmd, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd(cmd, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to delete loop device %s: %v", loopDevPath, err)
 		return fmt.Errorf("failed to delete loop device %s: %w", loopDevPath, err)
 	}
@@ -64,7 +64,7 @@ func (loopDev *LoopDev) LoopSetupDelete(loopDevPath string) error {
 
 func LoopDevGetInfo(loopDevPath string) (map[string]interface{}, error) {
 	cmd := fmt.Sprintf("losetup -l %s --json", loopDevPath)
-	output, err := shell.ExecCmd(cmd, true, "", nil)
+	output, err := shell.ExecCmd(cmd, true, shell.HostPath, nil)
 	if err != nil {
 		log.Errorf("Failed to get info for loop device %s: %v", loopDevPath, err)
 		return nil, err
@@ -100,7 +100,7 @@ func LoopDevGetBackFile(loopDevPath string) (string, error) {
 
 func LoopDevGetInfoAll() ([]map[string]interface{}, error) {
 	cmd := "losetup -l --json"
-	output, err := shell.ExecCmd(cmd, true, "", nil)
+	output, err := shell.ExecCmd(cmd, true, shell.HostPath, nil)
 	if err != nil {
 		log.Errorf("Failed to get info for all loop devices: %v", err)
 		return nil, err

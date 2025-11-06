@@ -12,16 +12,31 @@ import (
 
 // Command-line flags that can override config file settings
 var (
-	configFile string = "" // Path to config file
-	logLevel   string = "" // Empty means use config file value
+	configFile       string = "" // Path to config file
+	logLevel         string = "" // Empty means use config file value
+	actualConfigFile string = "" // Actual config file path found during init
 )
 
 func main() {
-	// Initialize global configuration first
+	cobra.OnInitialize(initConfig)
+
+	// Create and execute root command
+	rootCmd := createRootCommand()
+	security.AttachRecursive(rootCmd, security.DefaultLimits())
+
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+// initConfig reads in config file and ENV variables if set.
+func initConfig() {
+	// Initialize global configuration
 	configFilePath := configFile
 	if configFilePath == "" {
 		configFilePath = config.FindConfigFile()
 	}
+	actualConfigFile = configFilePath
 
 	globalConfig, err := config.LoadGlobalConfig(configFilePath)
 	if err != nil {
@@ -32,37 +47,9 @@ func main() {
 	// Set global config singleton
 	config.SetGlobal(globalConfig)
 
-	// Setup logger with configured level
+	// Setup logger with configured level (will be overridden in PersistentPreRun if needed)
 	_, cleanup := logger.InitWithLevel(globalConfig.Logging.Level)
 	defer cleanup()
-
-	// Create and execute root command
-	rootCmd := createRootCommand()
-	security.AttachRecursive(rootCmd, security.DefaultLimits())
-
-	// Handle log level override after flag parsing
-	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		if logLevel != "" {
-			// Update both the local config and the global singleton
-			globalConfig.Logging.Level = logLevel
-			config.SetGlobal(globalConfig) // Update singleton with new log level
-			logger.SetLogLevel(logLevel)
-		}
-	}
-
-	// Log configuration info using global config functions
-	log := logger.Logger()
-	if configFilePath != "" {
-		log.Infof("Using configuration from: %s", configFilePath)
-	}
-	cacheDir, _ := config.CacheDir()
-	workDir, _ := config.WorkDir()
-	log.Debugf("Config: workers=%d, cache_dir=%s, work_dir=%s, temp_dir=%s",
-		config.Workers(), cacheDir, workDir, config.TempDir())
-
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
-	}
 }
 
 // createRootCommand creates and configures the root cobra command with all subcommands
@@ -81,6 +68,25 @@ The tool supports building custom images for:
 
 Use 'os-image-composer --help' to see available commands.
 Use 'os-image-composer <command> --help' for more information about a command.`,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Handle log level override after flag parsing
+			if logLevel != "" {
+				globalConfig := config.Global()
+				globalConfig.Logging.Level = logLevel
+				config.SetGlobal(globalConfig)
+				logger.SetLogLevel(logLevel)
+			}
+
+			// Log configuration info after log level is finalized
+			log := logger.Logger()
+			if actualConfigFile != "" {
+				log.Infof("Using configuration from: %s", actualConfigFile)
+			}
+			cacheDir, _ := config.CacheDir()
+			workDir, _ := config.WorkDir()
+			log.Debugf("Config: workers=%d, cache_dir=%s, work_dir=%s, temp_dir=%s",
+				config.Workers(), cacheDir, workDir, config.TempDir())
+		},
 	}
 
 	// Add global flags
@@ -94,6 +100,7 @@ Use 'os-image-composer <command> --help' for more information about a command.`,
 	rootCmd.AddCommand(createValidateCommand())
 	rootCmd.AddCommand(createVersionCommand())
 	rootCmd.AddCommand(createConfigCommand())
+	rootCmd.AddCommand(createCacheCommand())
 	rootCmd.AddCommand(createInstallCompletionCommand())
 
 	return rootCmd

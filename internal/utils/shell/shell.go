@@ -13,7 +13,7 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 )
 
-const HostPath string = ""
+const HostPath string = "/"
 
 var log = logger.Logger()
 

@@ -16,7 +16,7 @@ var log = logger.Logger()
 
 func GetMountPathList() ([]string, error) {
 	var mountPathList []string
-	output, err := shell.ExecCmdSilent("mount", false, "", nil)
+	output, err := shell.ExecCmdSilent("mount", false, shell.HostPath, nil)
 	if err != nil {
 		return mountPathList, err
 	}
@@ -65,7 +65,7 @@ func IsMountPathExist(mountPoint string) (bool, error) {
 // MountPath mounts a target path to a mount point with specific flags
 func MountPath(targetPath, mountPoint, mountFlags string) error {
 	if _, err := os.Stat(mountPoint); os.IsNotExist(err) {
-		if _, err := shell.ExecCmd("mkdir -p "+mountPoint, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd("mkdir -p "+mountPoint, true, shell.HostPath, nil); err != nil {
 			return fmt.Errorf("failed to create mount point %s: %w", mountPoint, err)
 		}
 	}
@@ -75,7 +75,7 @@ func MountPath(targetPath, mountPoint, mountFlags string) error {
 	}
 	if !pathExist {
 		mountCmdStr := "mount " + mountFlags + " " + targetPath + " " + mountPoint
-		if _, err := shell.ExecCmd(mountCmdStr, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd(mountCmdStr, true, shell.HostPath, nil); err != nil {
 			return fmt.Errorf("failed to mount %s to %s: %w", targetPath, mountPoint, err)
 		} else {
 			log.Debugf("Mounted:", targetPath, "to", mountPoint)
@@ -99,7 +99,7 @@ func umountPath(mountPoint string) error {
 	}
 	for _, strategy := range unmountStrategies {
 		log.Debugf("Trying %s unmount for %s", strategy.desc, mountPoint)
-		if output, err := shell.ExecCmd(strategy.cmd, true, "", nil); err == nil {
+		if output, err := shell.ExecCmd(strategy.cmd, true, shell.HostPath, nil); err == nil {
 			log.Debugf("Successfully unmounted %s using %s approach", mountPoint, strategy.desc)
 			return nil
 		} else {
@@ -125,7 +125,7 @@ func UmountAndDeletePath(mountPoint string) error {
 	if err := UmountPath(mountPoint); err != nil {
 		return fmt.Errorf("failed to unmount %s: %w", mountPoint, err)
 	}
-	if _, err := shell.ExecCmd("rm -rf "+mountPoint, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("rm -rf "+mountPoint, true, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to remove mount point directory %s: %w", mountPoint, err)
 	}
 	return nil
@@ -184,15 +184,15 @@ func MountSysfs(mountPoint string) error {
 	}
 
 	runShmMountPoint := filepath.Join(mountPoint, "run/shm")
-	if _, err := shell.ExecCmd("mkdir -p "+runShmMountPoint, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("mkdir -p "+runShmMountPoint, true, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to create %s: %w", runShmMountPoint, err)
 	}
-	if _, err := shell.ExecCmd("chmod 1700 "+runShmMountPoint, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("chmod 1700 "+runShmMountPoint, true, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to set permissions on %s: %w", runShmMountPoint, err)
 	}
 
 	runLockMountPoint := filepath.Join(mountPoint, "run/lock")
-	if _, err := shell.ExecCmd("mkdir -p "+runLockMountPoint, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("mkdir -p "+runLockMountPoint, true, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to create %s: %w", runLockMountPoint, err)
 	}
 
@@ -252,7 +252,7 @@ func CleanSysfs(mountPoint string) error {
 	for _, _mountPoint := range []string{"run", "sys", "proc", "dev"} {
 		fullPath := filepath.Join(mountPoint, _mountPoint)
 		if !slice.Contains(pathList, fullPath) {
-			if _, err := shell.ExecCmd("rm -rf "+fullPath, true, "", nil); err != nil {
+			if _, err := shell.ExecCmd("rm -rf "+fullPath, true, shell.HostPath, nil); err != nil {
 				return fmt.Errorf("failed to remove path %s: %w", fullPath, err)
 			}
 		} else {

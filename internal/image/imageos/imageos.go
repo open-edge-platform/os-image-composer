@@ -47,7 +47,7 @@ func NewImageOs(chrootEnv chroot.ChrootEnvInterface, template *config.ImageTempl
 	}
 	sysConfigName := template.GetSystemConfigName()
 	installRoot := filepath.Join(chrootImageBuildDir, sysConfigName)
-	if _, err := shell.ExecCmd("mkdir -p "+installRoot, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("mkdir -p "+installRoot, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to create install root directory %s: %v", installRoot, err)
 		return nil, fmt.Errorf("failed to create directory %s: %w", installRoot, err)
 	}
@@ -399,7 +399,7 @@ func (imageOs *ImageOs) initImageRpmDb(installRoot string, template *config.Imag
 	log.Infof("Initializing RPM database in %s", installRoot)
 	rpmDbPath := filepath.Join(installRoot, "var", "lib", "rpm")
 	if _, err := os.Stat(rpmDbPath); os.IsNotExist(err) {
-		if _, err := shell.ExecCmd("mkdir -p "+rpmDbPath, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd("mkdir -p "+rpmDbPath, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to create RPM database directory %s: %v", rpmDbPath, err)
 			return fmt.Errorf("failed to create RPM database directory: %w", err)
 		}
@@ -432,7 +432,7 @@ func (imageOs *ImageOs) initDebLocalRepoWithinInstallRoot(installRoot string) er
 	}
 
 	imageRepoCongfigPath := filepath.Join(installRoot, "/etc/apt/sources.list.d/", "*")
-	if _, err := shell.ExecCmd("rm -f "+imageRepoCongfigPath, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("rm -f "+imageRepoCongfigPath, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to remove existing local repo config files: %v", err)
 		return fmt.Errorf("failed to remove existing local repo config files: %w", err)
 	}
@@ -458,7 +458,7 @@ func (imageOs *ImageOs) initDebLocalRepoWithinInstallRoot(installRoot string) er
 	policyFile := filepath.Join(installRoot, "/usr/sbin/policy-rc.d")
 	policyContent := "#!/bin/sh\nexit 101\n"
 
-	if _, err := shell.ExecCmd("mkdir -p "+filepath.Dir(policyFile), true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("mkdir -p "+filepath.Dir(policyFile), true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to create policy-rc.d directory: %v", err)
 		return fmt.Errorf("failed to create policy-rc.d directory: %w", err)
 	}
@@ -480,7 +480,7 @@ func (imageOs *ImageOs) deInitDebLocalRepoWithinInstallRoot(installRoot string) 
 
 	repoconfigPath := filepath.Join(installRoot, "/etc/apt/sources.list.d/local.list")
 	if _, err := os.Stat(repoconfigPath); err == nil {
-		if _, err := shell.ExecCmd("rm -f "+repoconfigPath, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd("rm -f "+repoconfigPath, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to remove local repository config file %s: %v", repoconfigPath, err)
 			return fmt.Errorf("failed to remove local repository config file %s: %w", repoconfigPath, err)
 		}
@@ -488,7 +488,7 @@ func (imageOs *ImageOs) deInitDebLocalRepoWithinInstallRoot(installRoot string) 
 
 	policyFile := filepath.Join(installRoot, "/usr/sbin/policy-rc.d")
 	if _, err := os.Stat(policyFile); err == nil {
-		if _, err := shell.ExecCmd("rm -f "+policyFile, true, "", nil); err != nil {
+		if _, err := shell.ExecCmd("rm -f "+policyFile, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to remove policy-rc.d file %s: %v", policyFile, err)
 			return fmt.Errorf("failed to remove policy-rc.d file %s: %w", policyFile, err)
 		}
@@ -655,6 +655,18 @@ func (imageOs *ImageOs) postImageOsInstall(installRoot string, template *config.
 }
 
 func updateImageHostname(installRoot string, template *config.ImageTemplate) error {
+	hostname := template.SystemConfig.HostName
+	if hostname != "" {
+		log.Infof("Configuring Hostname...")
+		hostnameFilePath := filepath.Join(installRoot, "etc", "hostname")
+		if err := file.Write(hostname+"\n", hostnameFilePath); err != nil {
+			return fmt.Errorf("failed to write hostname to %s: %w", hostnameFilePath, err)
+		}
+		if _, err := shell.ExecCmd("chmod 0644 "+hostnameFilePath, true, shell.HostPath, nil); err != nil {
+			log.Errorf("Failed to set permissions for hostname file %s: %v", hostnameFilePath, err)
+			return fmt.Errorf("failed to set permissions for hostname file %s: %w", hostnameFilePath, err)
+		}
+	}
 	return nil
 }
 
@@ -673,7 +685,7 @@ func updateImageNetwork(installRoot string, template *config.ImageTemplate) erro
 		return nil
 	}
 	cmd := "systemctl enable --root=\"" + installRoot + "\" systemd-networkd"
-	if _, err := shell.ExecCmd(cmd, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd(cmd, true, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to enable systemd-networkd: %w", err)
 	}
 	return nil
@@ -689,7 +701,7 @@ func addImageIDFile(installRoot string, template *config.ImageTemplate) error {
 		log.Errorf("Failed to write file %s: %v", imageIDFilePath, err)
 		return fmt.Errorf("failed to write file %s: %w", imageIDFilePath, err)
 	}
-	if _, err := shell.ExecCmd("chmod 0444 "+imageIDFilePath, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("chmod 0444 "+imageIDFilePath, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to set permissions for image ID file %s: %v", imageIDFilePath, err)
 		return fmt.Errorf("failed to set permissions for image ID file %s: %w", imageIDFilePath, err)
 	}
@@ -981,7 +993,7 @@ func prepareVeritySetup(partPair, installRoot string) error {
 
 	// Create and mount /tmp for ukify (Python tempfile needs this)
 	tmpDir := filepath.Join(installRoot, "tmp")
-	if _, err := shell.ExecCmd("mkdir -p "+tmpDir, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("mkdir -p "+tmpDir, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to create /tmp directory: %v", err)
 		return fmt.Errorf("failed to create /tmp directory: %w", err)
 	}
@@ -996,7 +1008,7 @@ func prepareVeritySetup(partPair, installRoot string) error {
 
 	// Create and mount /boot/efi/tmp for veritysetup
 	veritytmpDir := filepath.Join(installRoot, "boot/efi/tmp")
-	if _, err := shell.ExecCmd("mkdir -p "+veritytmpDir, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("mkdir -p "+veritytmpDir, true, shell.HostPath, nil); err != nil {
 		log.Errorf("Failed to create /boot/efi/tmp directory: %v", err)
 		return fmt.Errorf("failed to create /boot/efi/tmp directory: %w", err)
 	}
@@ -1018,7 +1030,7 @@ func removeVerityTmp(installRoot string) {
 	if _, err := shell.ExecCmd("umount /tmp", true, installRoot, nil); err != nil {
 		log.Warnf("Failed to unmount tmpfs on /tmp: %v", err)
 	}
-	if _, err := shell.ExecCmd("rm -rf "+tmpDir, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("rm -rf "+tmpDir, true, shell.HostPath, nil); err != nil {
 		log.Warnf("Failed to remove tmp directory %s: %v", tmpDir, err)
 	}
 
@@ -1028,7 +1040,7 @@ func removeVerityTmp(installRoot string) {
 		log.Warnf("Failed to unmount tmpfs on /boot/efi/tmp: %v", err)
 	}
 
-	if _, err := shell.ExecCmd("rm -rf "+veritytmpDir, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd("rm -rf "+veritytmpDir, true, shell.HostPath, nil); err != nil {
 		log.Warnf("Failed to remove tmp directory %s: %v", veritytmpDir, err)
 	}
 }
@@ -1040,7 +1052,7 @@ func getVerityRootHash(partPair, installRoot string) (string, error) {
 	exists, _ := shell.IsCommandExist("ukify", installRoot)
 	if !exists {
 		log.Debugf("Ukify not found, running veritysetup on host")
-		installRoot = ""
+		installRoot = shell.HostPath
 	}
 	output, err := shell.ExecCmd(cmd, true, installRoot, nil)
 	if err != nil {
@@ -1091,7 +1103,7 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 		initrdPath = filepath.Join(installRoot, initrdPath)
 		outputPath = filepath.Join(installRoot, outputPath)
 		osRelease := filepath.Join(installRoot, "/etc/os-release")
-		installRoot = ""
+		installRoot = shell.HostPath
 
 		cmd = fmt.Sprintf(
 			"ukify build --linux \"%s\" --initrd \"%s\" --cmdline \"%s\" --os-release @\"%s\" --output \"%s\"",
@@ -1199,6 +1211,13 @@ func createUser(installRoot string, template *config.ImageTemplate) error {
 			if err := setUserPassword(installRoot, user); err != nil {
 				return fmt.Errorf("failed to set password for user %s: %w", user.Name, err)
 			}
+		} else {
+			cmd := fmt.Sprintf("passwd -d %s", user.Name)
+			if _, err := shell.ExecCmd(cmd, true, installRoot, nil); err != nil {
+				log.Errorf("Failed to delete password for user %s: %v", user.Name, err)
+				return fmt.Errorf("failed to delete password for user %s: %w", user.Name, err)
+			}
+			log.Debugf("Deleted password for user %s (no password set)", user.Name)
 		}
 
 		// Add user to groups if specified, filtering out template placeholders

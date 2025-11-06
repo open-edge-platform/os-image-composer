@@ -7,7 +7,7 @@ import (
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
-
+	"github.com/open-edge-platform/os-image-composer/internal/config/manifest"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imageconvert"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imagedisc"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imageos"
@@ -88,7 +88,7 @@ func (rawMaker *RawMaker) cleanupImageFileOnError(imagePath string) {
 
 	if _, statErr := os.Stat(imagePath); statErr == nil {
 		log.Warnf("Cleaning up image file due to error: %s", imagePath)
-		if _, rmErr := shell.ExecCmd(fmt.Sprintf("rm -f %s", imagePath), true, "", nil); rmErr != nil {
+		if _, rmErr := shell.ExecCmd(fmt.Sprintf("rm -f %s", imagePath), true, shell.HostPath, nil); rmErr != nil {
 			log.Errorf("Failed to remove image file %s during cleanup: %v", imagePath, rmErr)
 		} else {
 			log.Infof("Successfully cleaned up image file: %s", imagePath)
@@ -104,7 +104,7 @@ func (rawMaker *RawMaker) renameImageFile(currentPath, imageName, versionInfo st
 	log.Infof("Renaming image file from %s to %s", currentPath, newFilePath)
 
 	// Move file
-	if _, err := shell.ExecCmd(fmt.Sprintf("mv %s %s", currentPath, newFilePath), true, "", nil); err != nil {
+	if _, err := shell.ExecCmd(fmt.Sprintf("mv %s %s", currentPath, newFilePath), true, shell.HostPath, nil); err != nil {
 		return "", fmt.Errorf("failed to move file from %s to %s: %w", currentPath, newFilePath, err)
 	}
 
@@ -147,6 +147,13 @@ func (rawMaker *RawMaker) BuildRawImage() error {
 
 	log.Infof("OS installation completed with version: %s", versionInfo)
 
+	// Copy SBOM into the chroot filesystem (inside the image)
+	chrootPath := rawMaker.ChrootEnv.GetChrootEnvRoot()
+	if err := manifest.CopySBOMToChroot(chrootPath); err != nil {
+		log.Warnf("Failed to copy SBOM into image filesystem: %v", err)
+		// Don't fail the build if SBOM copy fails, just log warning
+	}
+
 	// File renaming
 	finalImagePath, err := rawMaker.renameImageFile(imageFile, imageName, versionInfo)
 	if err != nil {
@@ -154,12 +161,19 @@ func (rawMaker *RawMaker) BuildRawImage() error {
 		return fmt.Errorf("failed to rename image file: %w", err)
 	}
 
-	// Image conversion
+	log.Infof("Raw image build completed successfully: %s", finalImagePath)
+
+	// Image conversion (may compress/remove original file)
 	if err := rawMaker.ImageConvert.ConvertImageFile(finalImagePath, rawMaker.template); err != nil {
 		rawMaker.cleanupImageFileOnError(finalImagePath)
 		return fmt.Errorf("failed to convert image file: %w", err)
 	}
 
-	log.Infof("Raw image build completed successfully: %s", finalImagePath)
+	// Copy SBOM to image build directory
+	if err := manifest.CopySBOMToImageBuildDir(rawMaker.ImageBuildDir); err != nil {
+		log.Warnf("Failed to copy SBOM to image build directory: %v", err)
+		// Don't fail the build if SBOM copy fails, just log warning
+	}
+
 	return nil
 }

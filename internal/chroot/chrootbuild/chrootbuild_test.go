@@ -31,7 +31,7 @@ type mockDebInstaller struct {
 	shouldFailInstall bool
 }
 
-func (m *mockDebInstaller) UpdateLocalDebRepo(cacheDir, arch string) error {
+func (m *mockDebInstaller) UpdateLocalDebRepo(cacheDir, arch string, sudo bool) error {
 	if m.shouldFailRepo {
 		return fmt.Errorf("mock deb repo failure")
 	}
@@ -77,7 +77,7 @@ func (t *testableChrootBuilder) BuildChrootEnv(targetOs, targetDist, targetArch 
 			}
 		} else if pkgType == "deb" {
 			if err = t.ChrootBuilder.DebInstaller.UpdateLocalDebRepo(t.ChrootBuilder.ChrootPkgCacheDir,
-				targetArch); err != nil {
+				targetArch, false); err != nil {
 				return fmt.Errorf("failed to create debian local repository: %w", err)
 			}
 
@@ -97,7 +97,7 @@ func (t *testableChrootBuilder) BuildChrootEnv(targetOs, targetDist, targetArch 
 
 		log.Infof("Chroot environment build completed successfully")
 
-		if _, err = shell.ExecCmd("rm -rf "+chrootEnvPath, true, "", nil); err != nil {
+		if _, err = shell.ExecCmd("rm -rf "+chrootEnvPath, true, shell.HostPath, nil); err != nil {
 			log.Errorf("Failed to remove chroot environment build path: %v", err)
 			return fmt.Errorf("failed to remove chroot environment build path: %w", err)
 		}

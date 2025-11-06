@@ -44,7 +44,7 @@ func TestUpdateLocalDebRepo_ArchitectureMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := installer.UpdateLocalDebRepo(tempDir, tt.inputArch)
+			err := installer.UpdateLocalDebRepo(tempDir, tt.inputArch, false)
 
 			if tt.expectError {
 				if err == nil {
@@ -76,7 +76,7 @@ func TestUpdateLocalDebRepo_DirectoryCreation(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	// Test that it attempts to create the metadata directory structure
-	err := installer.UpdateLocalDebRepo(tempDir, "x86_64")
+	err := installer.UpdateLocalDebRepo(tempDir, "x86_64", false)
 
 	// We expect this to fail due to missing dpkg-scanpackages, but the directory should be created
 	expectedDir := filepath.Join(tempDir, "dists/stable/main/binary-amd64")
@@ -113,7 +113,7 @@ func TestUpdateLocalDebRepo_ExistingPackagesGz(t *testing.T) {
 	}
 
 	// Run UpdateLocalDebRepo
-	err := installer.UpdateLocalDebRepo(tempDir, "amd64")
+	err := installer.UpdateLocalDebRepo(tempDir, "amd64", false)
 
 	// The file should be removed (and the command will fail due to missing dpkg-scanpackages)
 	if err != nil && !strings.Contains(err.Error(), "failed to create local debian cache repository") {
@@ -372,7 +372,7 @@ func TestUpdateLocalDebRepo_EmptyRepoPath(t *testing.T) {
 	}
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
-	err := installer.UpdateLocalDebRepo("", "amd64")
+	err := installer.UpdateLocalDebRepo("", "amd64", false)
 
 	// Should fail when trying to create directory structure in empty path
 	if err == nil {

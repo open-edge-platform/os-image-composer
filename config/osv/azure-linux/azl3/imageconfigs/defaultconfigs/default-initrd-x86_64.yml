@@ -88,6 +88,13 @@ systemConfig:
   additionalFiles:
     - local: ../additionalfiles/99-dhcp-en.network
       final: /etc/systemd/network/99-dhcp-en.network
+    - local: ../additionalfiles/getty@.service
+      final: /usr/lib/systemd/system/getty@.service
+    - local: ../additionalfiles/serial-getty@.service
+      final: /usr/lib/systemd/system/serial-getty@.service
+
+  users:
+    - name: root
 
   kernel:
     name: kernel

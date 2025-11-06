@@ -38,7 +38,7 @@ func IsSubPath(base, target string) (bool, error) {
 
 func ReplacePlaceholdersInFile(placeholder, value, filePath string) error {
 	sedCmd := fmt.Sprintf("sed -i 's|%s|%s|g' %s", placeholder, value, filePath)
-	if _, err := shell.ExecCmd(sedCmd, true, "", nil); err != nil {
+	if _, err := shell.ExecCmd(sedCmd, true, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to replace placeholder %s with %s in file %s: %w", placeholder, value, filePath, err)
 	}
 	return nil
@@ -46,7 +46,7 @@ func ReplacePlaceholdersInFile(placeholder, value, filePath string) error {
 
 func GetFileList(dir string) ([]string, error) {
 	var fileList []string
-	output, err := shell.ExecCmd("ls "+dir, true, "", nil)
+	output, err := shell.ExecCmd("ls "+dir, true, shell.HostPath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list files in directory %s: %w", dir, err)
 	}
@@ -61,7 +61,7 @@ func GetFileList(dir string) ([]string, error) {
 }
 
 func Read(filePath string) (string, error) {
-	content, err := shell.ExecCmd("cat "+filePath, true, "", nil)
+	content, err := shell.ExecCmd("cat "+filePath, true, shell.HostPath, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file %s: %w", filePath, err)
 	}
@@ -103,7 +103,7 @@ func Append(data, dst string) error {
 
 	// Use a safer approach with shell.ExecCmd that avoids command injection
 	cmdStr := fmt.Sprintf("cat %s | sudo tee -a %s >/dev/null", tmpPath, dst)
-	if _, err := shell.ExecCmd(cmdStr, false, "", nil); err != nil {
+	if _, err := shell.ExecCmd(cmdStr, false, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to append content to %s: %w", dst, err)
 	}
 	return nil
@@ -227,18 +227,17 @@ func CopyFile(srcFile, dstFile, flags string, sudo bool) error {
 		return fmt.Errorf("failed to get absolute path of destination file: %w", err)
 	}
 	dstDir := filepath.Dir(dstFilePath)
-	if _, err := os.Stat(dstDir); os.IsNotExist(err) {
-		if _, err := shell.ExecCmd("mkdir -p "+dstDir, sudo, "", nil); err != nil {
-			return fmt.Errorf("failed to create directory for destination file: %w", err)
-		}
+	if _, err := shell.ExecCmd(fmt.Sprintf("mkdir -p '%s'", dstDir), sudo, shell.HostPath, nil); err != nil {
+		return fmt.Errorf("failed to create directory for destination file: %w", err)
 	}
+
 	var cmdStr string
 	if flags == "" {
-		cmdStr = fmt.Sprintf("cp %s %s", srcFilePath, dstFilePath)
+		cmdStr = fmt.Sprintf("cp '%s' '%s'", srcFilePath, dstFilePath)
 	} else {
-		cmdStr = fmt.Sprintf("cp %s %s %s", flags, srcFilePath, dstFilePath)
+		cmdStr = fmt.Sprintf("cp %s '%s' '%s'", flags, srcFilePath, dstFilePath)
 	}
-	if _, err := shell.ExecCmd(cmdStr, sudo, "", nil); err != nil {
+	if _, err := shell.ExecCmd(cmdStr, sudo, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to copy file from %s to %s: %w", srcFilePath, dstFilePath, err)
 	}
 	return nil
@@ -258,18 +257,18 @@ func CopyDir(srcDir, dstDir, flags string, sudo bool) error {
 		return fmt.Errorf("failed to get absolute path of destination directory: %w", err)
 	}
 	if _, err := os.Stat(dstDirPath); os.IsNotExist(err) {
-		if _, err := shell.ExecCmd("mkdir -p "+dstDirPath, sudo, "", nil); err != nil {
+		if _, err := shell.ExecCmd(fmt.Sprintf("mkdir -p '%s'", dstDirPath), sudo, shell.HostPath, nil); err != nil {
 			return fmt.Errorf("failed to create destination directory: %w", err)
 		}
 	}
 
 	var cmdStr string
 	if flags == "" {
-		cmdStr = fmt.Sprintf("cp -r %s/* %s", srcDirPath, dstDirPath)
+		cmdStr = fmt.Sprintf("cp -r '%s'/* '%s'", srcDirPath, dstDirPath)
 	} else {
-		cmdStr = fmt.Sprintf("cp -r %s %s/* %s", flags, srcDirPath, dstDirPath)
+		cmdStr = fmt.Sprintf("cp -r %s '%s'/* '%s'", flags, srcDirPath, dstDirPath)
 	}
-	if _, err := shell.ExecCmd(cmdStr, sudo, "", nil); err != nil {
+	if _, err := shell.ExecCmd(cmdStr, sudo, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to copy directory from %s to %s: %w", srcDirPath, dstDirPath, err)
 	}
 	return nil

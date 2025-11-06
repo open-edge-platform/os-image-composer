@@ -140,3 +140,83 @@ test-debug:
 test-quick:
     FROM +golang-base
     RUN go test ./...
+
+deb:
+    FROM debian:bookworm-slim
+    ARG VERSION=1.0.0
+    ARG ARCH=amd64
+    
+    WORKDIR /pkg
+    
+    # Create directory structure following FHS (Filesystem Hierarchy Standard)
+    RUN mkdir -p usr/local/bin \
+                 etc/os-image-composer/config \
+                 usr/share/os-image-composer/examples \
+                 usr/share/doc/os-image-composer \
+                 var/cache/os-image-composer \
+                 DEBIAN
+    
+    # Copy the built binary from the build target
+    COPY +build/os-image-composer usr/local/bin/os-image-composer
+    
+    # Make the binary executable
+    RUN chmod +x usr/local/bin/os-image-composer
+    
+    # Create default global configuration with system paths (user-editable)
+    # Note: Must be named config.yml to match the default search paths in the code
+    RUN echo "# OS Image Composer - Global Configuration" > etc/os-image-composer/config.yml && \
+        echo "# This file contains tool-level settings that apply across all image builds." >> etc/os-image-composer/config.yml && \
+        echo "# Image-specific parameters should be defined in the image specification." >> etc/os-image-composer/config.yml && \
+        echo "" >> etc/os-image-composer/config.yml && \
+        echo "# Core tool settings" >> etc/os-image-composer/config.yml && \
+        echo "workers: 8" >> etc/os-image-composer/config.yml && \
+        echo "# Number of concurrent download workers (1-100, default: 8)" >> etc/os-image-composer/config.yml && \
+        echo "" >> etc/os-image-composer/config.yml && \
+        echo "config_dir: \"/etc/os-image-composer/config\"" >> etc/os-image-composer/config.yml && \
+        echo "# Directory containing configuration files for different target OSs" >> etc/os-image-composer/config.yml && \
+        echo "" >> etc/os-image-composer/config.yml && \
+        echo "cache_dir: \"/var/cache/os-image-composer\"" >> etc/os-image-composer/config.yml && \
+        echo "# Package cache directory where downloaded RPMs/DEBs are stored" >> etc/os-image-composer/config.yml && \
+        echo "" >> etc/os-image-composer/config.yml && \
+        echo "work_dir: \"/tmp/os-image-composer\"" >> etc/os-image-composer/config.yml && \
+        echo "# Working directory for build operations and image assembly" >> etc/os-image-composer/config.yml && \
+        echo "" >> etc/os-image-composer/config.yml && \
+        echo "temp_dir: \"/tmp\"" >> etc/os-image-composer/config.yml && \
+        echo "# Temporary directory for short-lived files" >> etc/os-image-composer/config.yml && \
+        echo "" >> etc/os-image-composer/config.yml && \
+        echo "# Logging configuration" >> etc/os-image-composer/config.yml && \
+        echo "logging:" >> etc/os-image-composer/config.yml && \
+        echo "  level: \"info\"" >> etc/os-image-composer/config.yml && \
+        echo "  # Log verbosity level: debug, info, warn, error" >> etc/os-image-composer/config.yml
+    
+    # Copy OS variant configuration files (user-editable)
+    COPY config etc/os-image-composer/config
+    
+    # Copy image templates as examples (read-only, for reference)
+    COPY image-templates usr/share/os-image-composer/examples
+    
+    # Copy documentation
+    COPY README.md usr/share/doc/os-image-composer/
+    COPY LICENSE usr/share/doc/os-image-composer/
+    COPY docs/architecture/os-image-composer-cli-specification.md usr/share/doc/os-image-composer/
+    
+    # Create the DEBIAN control file with proper metadata
+    RUN echo "Package: os-image-composer" > DEBIAN/control && \
+        echo "Version: ${VERSION}" >> DEBIAN/control && \
+        echo "Section: utils" >> DEBIAN/control && \
+        echo "Priority: optional" >> DEBIAN/control && \
+        echo "Architecture: ${ARCH}" >> DEBIAN/control && \
+        echo "Maintainer: Intel Edge Software Team <edge.platform@intel.com>" >> DEBIAN/control && \
+        echo "Depends: bash, coreutils, unzip, dosfstools, xorriso, grub-common" >> DEBIAN/control && \
+        echo "Recommends: mmdebstrap, debootstrap" >> DEBIAN/control && \
+        echo "License: MIT" >> DEBIAN/control && \
+        echo "Description: OS Image Composer (OIC)" >> DEBIAN/control && \
+        echo " OIC enables users to compose custom bootable OS images based on a" >> DEBIAN/control && \
+        echo " user-provided template that specifies package lists, configurations," >> DEBIAN/control && \
+        echo " and output formats for supported distributions." >> DEBIAN/control
+    
+    # Build the debian package
+    RUN dpkg-deb --build . os-image-composer_${VERSION}_${ARCH}.deb
+    
+    # Save the debian package artifact to dist/ directory
+    SAVE ARTIFACT os-image-composer_${VERSION}_${ARCH}.deb AS LOCAL dist/os-image-composer_${VERSION}_${ARCH}.deb

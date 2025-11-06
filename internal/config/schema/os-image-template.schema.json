@@ -71,6 +71,10 @@
           "type": "string",
           "description": "Name of the disk configuration"
         },
+        "path": {
+          "type": "string",
+          "description": "Path to the disk device"
+        },
         "artifacts": {
           "type": "array",
           "description": "Output artifacts configuration",
@@ -110,6 +114,7 @@
               "id": { "type": "string", "description": "Partition identifier" },
               "name": { "type": "string", "description": "Partition name/label" },
               "type": { "type": "string", "description": "Partition type" },
+              "typeUUID": { "type": "string", "description": "Partition type UUID" },
               "fsType": { "type": "string", "description": "Filesystem type" },
               "start": { "type": "string", "description": "Partition start offset" },
               "end": { "type": "string", "description": "Partition end offset (0 = rest of disk)" },
@@ -242,6 +247,9 @@
         "name": { "type": "string", "description": "Name of the system configuration" },
         "description": { "type": "string", "description": "Description of the system configuration" },
         "initramfs": { "$ref": "#/$defs/Initramfs" },
+        "hostname": {
+          "type": "string",
+          "description": "Hostname of the system"},
         "immutability": { "$ref": "#/$defs/Immutability" },
         "users": { "$ref": "#/$defs/Users" },
         "bootloader": { "$ref": "#/$defs/Bootloader" },

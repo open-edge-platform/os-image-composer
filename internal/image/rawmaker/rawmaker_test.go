@@ -84,7 +84,11 @@ func (m *mockChrootEnv) CopyFileFromChrootToHost(hostFilePath, chrootPath string
 	return nil
 }
 
-func (m *mockChrootEnv) RefreshLocalCacheRepo(arch string) error {
+func (m *mockChrootEnv) UpdateChrootLocalRepoMetadata(chrootRepoDir string, targetArch string, sudo bool) error {
+	return nil
+}
+
+func (m *mockChrootEnv) RefreshLocalCacheRepo() error {
 	if m.shouldFailRefresh {
 		return fmt.Errorf("mock refresh cache repo failure")
 	}
@@ -1014,7 +1018,7 @@ func TestRawMaker_CleanupOnError(t *testing.T) {
 
 				if fileExists && tt.shouldFailRemove {
 					// The actual cleanup would call shell command to remove
-					_, err := shell.ExecCmd(fmt.Sprintf("rm -f %s", imagePath), true, "", nil)
+					_, err := shell.ExecCmd(fmt.Sprintf("rm -f %s", imagePath), true, shell.HostPath, nil)
 					if err == nil {
 						t.Error("Expected file removal to fail")
 					}

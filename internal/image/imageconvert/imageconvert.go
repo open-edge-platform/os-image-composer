@@ -102,7 +102,7 @@ func convertImageFile(filePath, imageType string) (string, error) {
 		return outputFilePath, fmt.Errorf("unsupported image type: %s", imageType)
 	}
 
-	_, err := shell.ExecCmd(cmdStr, false, "", nil)
+	_, err := shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
 	if err != nil {
 		log.Errorf("Failed to convert image file to %s: %v", imageType, err)
 		return outputFilePath, fmt.Errorf("failed to convert image file to %s: %w", imageType, err)
