@@ -11,6 +11,8 @@
   - [Commands](#commands)
     - [Build Command](#build-command)
     - [Validate Command](#validate-command)
+    - [Cache Command](#cache-command)
+      - [cache clean](#cache-clean)
     - [Config Command](#config-command)
       - [config init](#config-init)
       - [config show](#config-show)
@@ -72,6 +74,9 @@ flowchart TD
     Commands -->|config| ConfigCmd[Manage Configuration]
     ConfigCmd --> ConfigOps[init/show]
 
+    Commands -->|cache| Cache[Manage Cache]
+    Cache --> CacheOps[Clean Cache]
+
     Commands -->|version| Version[Show Version Info]
     
     Commands -->|install-completion| Completion[Install Shell Completion]
@@ -81,8 +86,8 @@ flowchart TD
     classDef process fill:#f8edeb,stroke:#333,stroke-width:1px;
 
     class Start command;
-    class Build,Validate,ConfigCmd,Version,Completion command;
-    class ReadTemplate,BuildProcess,SaveImage,ConfigOps process;
+    class Build,Validate,ConfigCmd,Cache,Version,Completion command;
+    class ReadTemplate,BuildProcess,SaveImage,ConfigOps,CacheOps process;
 ```
 
 The primary workflow is through the `build` command, which reads an image
@@ -123,6 +128,7 @@ os-image-composer build [flags] TEMPLATE_FILE
 ```
 
 **Arguments:**
+
 - `TEMPLATE_FILE` - Path to the YAML image template file (required)
 
 **Flags:**
@@ -168,11 +174,13 @@ os-image-composer validate TEMPLATE_FILE
 ```
 
 **Arguments:**
+
 - `TEMPLATE_FILE` - Path to the YAML image template file to validate (required)
 
 **Description:**
 
 The validate command performs the following checks:
+
 - YAML syntax validation
 - Schema validation against the image template JSON schema
 - Required fields verification
@@ -192,6 +200,47 @@ See also:
 
 - [Validate Stage](./os-image-composer-build-process.md#1-validate-stage)
   for details on the validation process
+
+### Cache Command
+
+Manage cached artifacts created during the build process.
+
+```bash
+os-image-composer cache SUBCOMMAND
+```
+
+#### cache clean
+
+Remove cached packages or workspace chroot data.
+
+```bash
+os-image-composer cache clean [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--packages` | Remove cached packages (default when no scope flags are provided). |
+| `--workspace` | Remove cached chroot environments and chroot tarballs under the workspace directory. |
+| `--all` | Enable both package and workspace cleanup in a single invocation. |
+| `--provider-id STRING` | Restrict cleanup to a specific provider (format: `os-dist-arch`). |
+| `--dry-run` | Show what would be removed without deleting anything. |
+
+**Examples:**
+
+```bash
+# Remove all cached packages
+os-image-composer cache clean
+
+# Remove chroot caches for a single provider
+os-image-composer cache clean --workspace --provider-id azure-linux-azl3-x86_64
+
+# Preview everything that would be deleted
+os-image-composer cache clean --all --dry-run
+```
+
+When no scope flag is supplied, the command defaults to `--packages`.
 
 ### Config Command
 
@@ -213,6 +262,7 @@ os-image-composer config init [CONFIG_FILE]
 ```
 
 **Arguments:**
+
 - `CONFIG_FILE` - Path where the configuration file should be created (optional). If not specified, creates the configuration in a standard location.
 
 **Example:**
@@ -258,6 +308,7 @@ os-image-composer version
 ```
 
 **Output includes:**
+
 - Version number
 - Build date
 - Git commit SHA
@@ -296,12 +347,14 @@ os-image-composer install-completion --force
 After installing completion, you need to reload your shell configuration:
 
 **Bash:**
+
 ```bash
 echo "source ~/.bash_completion.d/os-image-composer.bash" >> ~/.bashrc
 source ~/.bashrc
 ```
 
 **Zsh:**
+
 ```zsh
 echo 'fpath=(~/.zsh/completion $fpath)' >> ~/.zshrc
 source ~/.zshrc
@@ -311,6 +364,7 @@ source ~/.zshrc
 Fish automatically loads completions from the standard location. Just restart your terminal.
 
 **PowerShell:**
+
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 . $PROFILE
@@ -345,6 +399,19 @@ os-image-composer config show
 
 # Use a specific configuration file
 os-image-composer --config /etc/os-image-composer/config.yml build template.yml
+```
+
+### Managing Cache
+
+```bash
+# Remove all cached packages
+os-image-composer cache clean
+
+# Remove workspace chroot caches for a specific provider
+os-image-composer cache clean --workspace --provider-id azure-linux-azl3-x86_64
+
+# Preview both package and workspace cleanup without deleting files
+os-image-composer cache clean --all --dry-run
 ```
 
 ### Validating Templates
