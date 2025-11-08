@@ -78,7 +78,6 @@ build:
     COPY .git .git
     # Reuse canonical version metadata emitted by +version-info
     COPY +version-info/version.txt /tmp/version.txt
-    RUN if [ -n "$VERSION" ] && [ "$VERSION" != "__auto__" ]; then echo "$VERSION" > /tmp/version.txt; fi
     
     # Get git commit SHA
     RUN COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown") && \
@@ -163,7 +162,6 @@ deb:
     
     WORKDIR /pkg
     COPY +version-info/version.txt /tmp/version.txt
-    RUN if [ -n "$VERSION" ] && [ "$VERSION" != "__auto__" ]; then echo "$VERSION" > /tmp/version.txt; fi
     RUN cp /tmp/version.txt /tmp/pkg_version
     
     # Create directory structure following FHS (Filesystem Hierarchy Standard)
@@ -237,9 +235,9 @@ deb:
     # Build the debian package and stage in a stable location
     RUN VERSION=$(cat /tmp/pkg_version) && \
         mkdir -p /tmp/dist && \
-        dpkg-deb --build . /tmp/dist/os-image-composer_${VERSION}_${ARCH}.deb && \
-        cp /tmp/dist/os-image-composer_${VERSION}_${ARCH}.deb /tmp/os-image-composer_${ARCH}.deb
+        dpkg-deb --build . /tmp/dist/os-image-composer_${VERSION}_${ARCH}.deb
 
     # Save the debian package artifact and resolved version information to dist/
-    SAVE ARTIFACT /tmp/os-image-composer_${ARCH}.deb AS LOCAL dist/os-image-composer_${ARCH}.deb
-    SAVE ARTIFACT /tmp/pkg_version AS LOCAL dist/os-image-composer.version
+    RUN cp /tmp/pkg_version /tmp/dist/os-image-composer.version
+    SAVE ARTIFACT /tmp/dist/os-image-composer_*_${ARCH}.deb AS LOCAL dist/
+    SAVE ARTIFACT /tmp/dist/os-image-composer.version AS LOCAL dist/
