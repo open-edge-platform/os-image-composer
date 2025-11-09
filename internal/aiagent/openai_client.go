@@ -12,10 +12,12 @@ import (
 
 // OpenAIConfig for OpenAI API
 type OpenAIConfig struct {
-	APIKey      string
-	Model       string
-	Temperature float64
-	MaxTokens   int
+	APIKey         string
+	Model          string
+	Temperature    float64
+	MaxTokens      int
+	Timeout        int
+	EmbeddingModel string
 }
 
 // OpenAIChatModel implements ChatModel interface for OpenAI
@@ -69,10 +71,16 @@ func NewOpenAIChatModel(config OpenAIConfig) *OpenAIChatModel {
 	if config.MaxTokens == 0 {
 		config.MaxTokens = 2000
 	}
+	if config.Timeout <= 0 {
+		config.Timeout = 120
+	}
+	if config.EmbeddingModel == "" {
+		config.EmbeddingModel = "text-embedding-3-small"
+	}
 
 	return &OpenAIChatModel{
 		config:  config,
-		client:  &http.Client{Timeout: 120 * time.Second},
+		client:  &http.Client{Timeout: time.Duration(config.Timeout) * time.Second},
 		history: make([]ChatMessage, 0),
 	}
 }

@@ -20,7 +20,7 @@ type AIAgent struct {
 }
 
 // NewAIAgent creates an agent with the appropriate provider and RAG system
-func NewAIAgent(provider string, config interface{}) (*AIAgent, error) {
+func NewAIAgent(provider string, config interface{}, templatesDir string) (*AIAgent, error) {
 	var chatModel ChatModel
 	var embeddingClient EmbeddingGenerator
 
@@ -35,7 +35,8 @@ func NewAIAgent(provider string, config interface{}) (*AIAgent, error) {
 		// Use Ollama for embeddings as well
 		embeddingClient = NewOllamaEmbeddingClient(
 			ollamaConfig.BaseURL,
-			"nomic-embed-text", // Dedicated embedding model
+			ollamaConfig.EmbeddingModel,
+			ollamaConfig.Timeout,
 		)
 
 	case "openai":
@@ -48,7 +49,8 @@ func NewAIAgent(provider string, config interface{}) (*AIAgent, error) {
 		// Use OpenAI for embeddings
 		embeddingClient = NewOpenAIEmbeddingClient(
 			openaiConfig.APIKey,
-			"text-embedding-3-small", // Cost-effective embedding model
+			openaiConfig.EmbeddingModel,
+			openaiConfig.Timeout,
 		)
 
 	default:
@@ -56,11 +58,16 @@ func NewAIAgent(provider string, config interface{}) (*AIAgent, error) {
 	}
 
 	// Initialize RAG system with template examples
-	fmt.Println("🔍 Initializing RAG system...")
-	rag, err := NewTemplateRAG("./image-templates", embeddingClient)
+	templatesDir = strings.TrimSpace(templatesDir)
+	if templatesDir == "" {
+		templatesDir = "./image-templates"
+	}
+
+	fmt.Printf("🔍 Initializing RAG system from %s...\n", templatesDir)
+	rag, err := NewTemplateRAG(templatesDir, embeddingClient)
 	if err != nil {
 		// Fallback to current directory if image-templates doesn't exist
-		fmt.Println("Warning: ./image-templates not found, searching current directory...")
+		fmt.Printf("Warning: %s not found, searching current directory...\n", templatesDir)
 		rag, err = NewTemplateRAG(".", embeddingClient)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize RAG system: %w", err)

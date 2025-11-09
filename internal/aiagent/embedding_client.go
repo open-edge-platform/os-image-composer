@@ -18,17 +18,20 @@ type OllamaEmbeddingClient struct {
 }
 
 // NewOllamaEmbeddingClient creates a new Ollama embedding client
-func NewOllamaEmbeddingClient(baseURL, model string) *OllamaEmbeddingClient {
+func NewOllamaEmbeddingClient(baseURL, model string, timeout int) *OllamaEmbeddingClient {
 	if model == "" {
 		// Use smaller embedding model for efficiency
 		model = "nomic-embed-text"
+	}
+	if timeout <= 0 {
+		timeout = 120
 	}
 
 	return &OllamaEmbeddingClient{
 		baseURL: baseURL,
 		model:   model,
 		client: &http.Client{
-			Timeout: 120 * time.Second,
+			Timeout: time.Duration(timeout) * time.Second,
 		},
 	}
 }
@@ -109,16 +112,19 @@ type OpenAIEmbeddingClient struct {
 }
 
 // NewOpenAIEmbeddingClient creates a new OpenAI embedding client
-func NewOpenAIEmbeddingClient(apiKey, model string) *OpenAIEmbeddingClient {
+func NewOpenAIEmbeddingClient(apiKey, model string, timeout int) *OpenAIEmbeddingClient {
 	if model == "" {
 		model = "text-embedding-3-small" // Cost-effective embedding model
+	}
+	if timeout <= 0 {
+		timeout = 60
 	}
 
 	return &OpenAIEmbeddingClient{
 		apiKey: apiKey,
 		model:  model,
 		client: &http.Client{
-			Timeout: 60 * time.Second,
+			Timeout: time.Duration(timeout) * time.Second,
 		},
 	}
 }

@@ -11,10 +11,12 @@ import (
 )
 
 type OllamaConfig struct {
-	BaseURL     string
-	Model       string
-	Temperature float64
-	NumPredict  int
+	BaseURL        string
+	Model          string
+	Temperature    float64
+	NumPredict     int
+	Timeout        int
+	EmbeddingModel string
 }
 
 type OllamaChatModel struct {
@@ -55,10 +57,16 @@ func NewOllamaChatModel(config OllamaConfig) *OllamaChatModel {
 	if config.NumPredict == 0 {
 		config.NumPredict = 2000
 	}
+	if config.Timeout <= 0 {
+		config.Timeout = 120
+	}
+	if config.EmbeddingModel == "" {
+		config.EmbeddingModel = "nomic-embed-text"
+	}
 
 	return &OllamaChatModel{
 		config:  config,
-		client:  &http.Client{Timeout: 120 * time.Second},
+		client:  &http.Client{Timeout: time.Duration(config.Timeout) * time.Second},
 		history: make([]ChatMessage, 0),
 	}
 }

@@ -83,6 +83,11 @@
 					],
 					"default": "ollama"
 				},
+				"templates_dir": {
+					"type": "string",
+					"description": "Directory containing template examples for retrieval",
+					"default": "./image-templates"
+				},
 				"ollama": {
 					"type": "object",
 					"description": "Ollama-specific configuration",
@@ -118,6 +123,11 @@
 							"minimum": 10,
 							"maximum": 600,
 							"default": 120
+						},
+						"embedding_model": {
+							"type": "string",
+							"description": "Embedding model name used for retrieval",
+							"default": "nomic-embed-text"
 						}
 					},
 					"additionalProperties": false
@@ -155,6 +165,11 @@
 							"minimum": 10,
 							"maximum": 600,
 							"default": 120
+						},
+						"embedding_model": {
+							"type": "string",
+							"description": "Embedding model name used for retrieval",
+							"default": "text-embedding-3-small"
 						}
 					},
 					"additionalProperties": false

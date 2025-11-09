@@ -57,22 +57,26 @@ func runAIGeneration(userInput string, aiConfig config.AIConfig, outputPath stri
 	case "ollama":
 		fmt.Printf(" (%s)...\n", aiConfig.Ollama.Model)
 		ollamaConfig := aiagent.OllamaConfig{
-			BaseURL:     aiConfig.Ollama.BaseURL,
-			Model:       aiConfig.Ollama.Model,
-			Temperature: aiConfig.Ollama.Temperature,
-			NumPredict:  aiConfig.Ollama.MaxTokens,
+			BaseURL:        aiConfig.Ollama.BaseURL,
+			Model:          aiConfig.Ollama.Model,
+			Temperature:    aiConfig.Ollama.Temperature,
+			NumPredict:     aiConfig.Ollama.MaxTokens,
+			Timeout:        aiConfig.Ollama.Timeout,
+			EmbeddingModel: aiConfig.Ollama.EmbeddingModel,
 		}
-		agent, err = aiagent.NewAIAgent("ollama", ollamaConfig)
+		agent, err = aiagent.NewAIAgent("ollama", ollamaConfig, aiConfig.TemplatesDir)
 
 	case "openai":
 		fmt.Printf(" (%s)...\n", aiConfig.OpenAI.Model)
 		openaiConfig := aiagent.OpenAIConfig{
-			APIKey:      aiConfig.OpenAI.APIKey,
-			Model:       aiConfig.OpenAI.Model,
-			Temperature: aiConfig.OpenAI.Temperature,
-			MaxTokens:   aiConfig.OpenAI.MaxTokens,
+			APIKey:         aiConfig.OpenAI.APIKey,
+			Model:          aiConfig.OpenAI.Model,
+			Temperature:    aiConfig.OpenAI.Temperature,
+			MaxTokens:      aiConfig.OpenAI.MaxTokens,
+			Timeout:        aiConfig.OpenAI.Timeout,
+			EmbeddingModel: aiConfig.OpenAI.EmbeddingModel,
 		}
-		agent, err = aiagent.NewAIAgent("openai", openaiConfig)
+		agent, err = aiagent.NewAIAgent("openai", openaiConfig, aiConfig.TemplatesDir)
 
 	default:
 		return fmt.Errorf("unsupported AI provider: %s", aiConfig.Provider)

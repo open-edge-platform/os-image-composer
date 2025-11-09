@@ -17,28 +17,31 @@ import (
 
 // AIConfig contains AI/LLM configuration
 type AIConfig struct {
-	Enabled  bool         `yaml:"enabled" json:"enabled"`   // Enable/disable AI features
-	Provider string       `yaml:"provider" json:"provider"` // LLM provider: "ollama", "openai", etc.
-	Ollama   OllamaConfig `yaml:"ollama" json:"ollama"`     // Ollama-specific configuration
-	OpenAI   OpenAIConfig `yaml:"openai" json:"openai"`     // OpenAI specific configuration
+	Enabled      bool         `yaml:"enabled" json:"enabled"`             // Enable/disable AI features
+	Provider     string       `yaml:"provider" json:"provider"`           // LLM provider: "ollama", "openai", etc.
+	TemplatesDir string       `yaml:"templates_dir" json:"templates_dir"` // Directory containing template examples for RAG
+	Ollama       OllamaConfig `yaml:"ollama" json:"ollama"`               // Ollama-specific configuration
+	OpenAI       OpenAIConfig `yaml:"openai" json:"openai"`               // OpenAI specific configuration
 }
 
 // OllamaConfig contains Ollama LLM settings
 type OllamaConfig struct {
-	BaseURL     string  `yaml:"base_url" json:"base_url"`         // Ollama server URL
-	Model       string  `yaml:"model" json:"model"`               // Model name (e.g., llama3.1:8b)
-	Temperature float64 `yaml:"temperature" json:"temperature"`   // Temperature for text generation (0.0-1.0)
-	MaxTokens   int     `yaml:"max_tokens" json:"max_tokens"`     // Maximum tokens to generate
-	Timeout     int     `yaml:"timeout" json:"timeout"`           // Request timeout in seconds
+	BaseURL        string  `yaml:"base_url" json:"base_url"`               // Ollama server URL
+	Model          string  `yaml:"model" json:"model"`                     // Model name (e.g., llama3.1:8b)
+	Temperature    float64 `yaml:"temperature" json:"temperature"`         // Temperature for text generation (0.0-1.0)
+	MaxTokens      int     `yaml:"max_tokens" json:"max_tokens"`           // Maximum tokens to generate
+	Timeout        int     `yaml:"timeout" json:"timeout"`                 // Request timeout in seconds
+	EmbeddingModel string  `yaml:"embedding_model" json:"embedding_model"` // Embedding model for template retrieval
 }
 
 // OpenAIConfig contains OpenAI-specific settings
 type OpenAIConfig struct {
-	APIKey      string  `yaml:"api_key" json:"api_key"`         // OpenAI API key
-	Model       string  `yaml:"model" json:"model"`             // e.g., "gpt-4", "gpt-4-turbo"
-	Temperature float64 `yaml:"temperature" json:"temperature"`
-	MaxTokens   int     `yaml:"max_tokens" json:"max_tokens"`
-	Timeout     int     `yaml:"timeout" json:"timeout"`
+	APIKey         string  `yaml:"api_key" json:"api_key"` // OpenAI API key
+	Model          string  `yaml:"model" json:"model"`     // e.g., "gpt-4", "gpt-4-turbo"
+	Temperature    float64 `yaml:"temperature" json:"temperature"`
+	MaxTokens      int     `yaml:"max_tokens" json:"max_tokens"`
+	Timeout        int     `yaml:"timeout" json:"timeout"`
+	EmbeddingModel string  `yaml:"embedding_model" json:"embedding_model"` // Embedding model for template retrieval
 }
 
 // GlobalConfig holds essential tool-level configuration parameters
@@ -54,7 +57,7 @@ type GlobalConfig struct {
 	Logging LoggingConfig `yaml:"logging" json:"logging"` // Logging behavior settings
 
 	// AI Configuration
-	AI        AIConfig      `yaml:"ai" json:"ai"`
+	AI AIConfig `yaml:"ai" json:"ai"`
 }
 
 // LoggingConfig controls basic logging behavior
@@ -103,23 +106,26 @@ func DefaultGlobalConfig() *GlobalConfig {
 		Logging: LoggingConfig{
 			Level: "info",
 		},
-		
+
 		AI: AIConfig{
-			Enabled:  false,
-			Provider: "ollama",
+			Enabled:      false,
+			Provider:     "ollama",
+			TemplatesDir: "./image-templates",
 			Ollama: OllamaConfig{
-				BaseURL:     "http://localhost:11434",
-				Model:       "llama3.1:8b",
-				Temperature: 0.7,
-				MaxTokens:   2000,
-				Timeout:     120,
+				BaseURL:        "http://localhost:11434",
+				Model:          "llama3.1:8b",
+				Temperature:    0.7,
+				MaxTokens:      2000,
+				Timeout:        120,
+				EmbeddingModel: "nomic-embed-text",
 			},
 			OpenAI: OpenAIConfig{
-				APIKey:      "",
-				Model:       "gpt-4-turbo",
-				Temperature: 0.7,
-				MaxTokens:   2000,
-				Timeout:     120,
+				APIKey:         "",
+				Model:          "gpt-4-turbo",
+				Temperature:    0.7,
+				MaxTokens:      2000,
+				Timeout:        120,
+				EmbeddingModel: "text-embedding-3-small",
 			},
 		},
 	}
@@ -409,7 +415,6 @@ func GetTargetOsConfigDir(targetOs, targetDist string) (string, error) {
 	}
 	return targetOsConfigPath, nil
 }
-
 
 func AIEnabled() bool {
 	return Global().AI.Enabled
