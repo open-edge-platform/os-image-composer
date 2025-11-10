@@ -420,13 +420,18 @@ func (agent *AIAgent) generateTemplateFromExamples(intent *TemplateIntent, examp
 		curatedPackages := curatedConfig.PackagesForRequirements(intent.Requirements)
 		if len(curatedPackages) > 0 {
 			packages = append(packages, curatedPackages...)
-			fmt.Printf("🧭 Including %d curated packages for use case '%s'.\n", len(curatedPackages), intent.UseCase)
+			fmt.Printf("🧭 Curated packages for use case '%s' (%d): %v\n", intent.UseCase, len(curatedPackages), curatedPackages)
 		}
 	}
 
 	for _, result := range examples {
 		if result.Score >= 0.60 {
+			if len(result.Template.Packages) > 0 {
+				fmt.Printf("📘 Template '%s' contributing packages (%d, score %.2f): %v\n", result.Template.Name, len(result.Template.Packages), result.Score, result.Template.Packages)
+			}
 			packages = append(packages, result.Template.Packages...)
+		} else {
+			fmt.Printf("ℹ️  Skipping template '%s' (score %.2f below threshold).\n", result.Template.Name, result.Score)
 		}
 	}
 
