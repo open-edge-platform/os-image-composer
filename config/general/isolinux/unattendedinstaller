@@ -45,6 +45,9 @@ else
     exit 1
 fi
 
+# Turn off echoing while the installer runs to stop sensitive data from rendering in the TTY session.
+stty -echo
+
 live-installer --config $TEMPLATE_DUMP_YAML --repo $CACHE_REPO
 installerExitCode=$?
 
@@ -54,6 +57,9 @@ while read -t 1 -n 10000
 do
     echo ""
 done
+
+# Turn back on echoing input so the TTY session is usable for the user.
+stty echo
 
 if [ $installerExitCode -eq 0 ]; then
     reboot
