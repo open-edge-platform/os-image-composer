@@ -29,6 +29,7 @@ systemConfig:
     - policykit-1
     - dosfstools
     - efibootmgr
+    - eject
     - curl
     - mmdebstrap
     - wget
@@ -38,7 +39,6 @@ systemConfig:
     - cloud-guest-utils
     - xterm
     - dracut
-    - systemd-boot
     - grub2
     - grub-pc-bin
     - grub-efi-amd64-bin

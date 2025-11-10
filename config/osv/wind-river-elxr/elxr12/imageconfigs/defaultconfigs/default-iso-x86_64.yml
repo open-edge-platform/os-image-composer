@@ -58,9 +58,8 @@ systemConfig: # Required
     - cloud-guest-utils
     - xterm
     - dracut
-    - systemd-boot
     - grub2
-    - grub-pc-bin
+    - grub2-common
     - grub-efi-amd64-bin
 
   additionalFiles:
