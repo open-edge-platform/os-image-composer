@@ -132,10 +132,11 @@ type AdditionalFileInfo struct {
 
 // KernelConfig holds the kernel configuration
 type KernelConfig struct {
-	Version  string   `yaml:"version"`
-	Cmdline  string   `yaml:"cmdline"`
-	Packages []string `yaml:"packages"`
-	UKI      bool     `yaml:"uki,omitempty"`
+	Version            string   `yaml:"version"`
+	Cmdline            string   `yaml:"cmdline"`
+	Packages           []string `yaml:"packages"`
+	UKI                bool     `yaml:"uki,omitempty"`
+	EnableExtraModules string   `yaml:"enableExtraModules"`
 }
 
 // PartitionInfo holds information about a partition in the disk layout

@@ -36,6 +36,27 @@ else
   echo "QEMU boot tests will be skipped"
 fi
 
+# Centralized cleanup function for image files
+cleanup_image_files() {
+  local cleanup_type="${1:-all}"  # Options: all, raw, extracted
+  
+  case "$cleanup_type" in
+    "raw")
+      echo "Cleaning up raw image files from build directories..."
+      sudo rm -rf ./tmp/*/imagebuild/*/*.raw 2>/dev/null || true
+      ;;
+    "extracted")
+      echo "Cleaning up extracted image files in current directory..."
+      rm -f *.raw 2>/dev/null || true
+      ;;
+    "all"|*)
+      echo "Cleaning up all temporary image files..."
+      sudo rm -rf ./tmp/*/imagebuild/*/*.raw 2>/dev/null || true
+      rm -f *.raw 2>/dev/null || true
+      ;;
+  esac
+}
+
 run_qemu_boot_test() {
   local IMAGE_PATTERN="$1"
   if [ -z "$IMAGE_PATTERN" ]; then
@@ -65,10 +86,41 @@ run_qemu_boot_test() {
     COMPRESSED_IMAGE=$(basename "$FOUND_PATH")
     RAW_IMAGE="${COMPRESSED_IMAGE%.gz}"
     echo "Extracting $COMPRESSED_IMAGE to $RAW_IMAGE..."
-    gunzip -c "$COMPRESSED_IMAGE" > "$RAW_IMAGE"
+    
+    # Check available disk space before extraction
+    AVAILABLE_SPACE=$(df . | tail -1 | awk '{print $4}')
+    COMPRESSED_SIZE=$(stat -c%s "$COMPRESSED_IMAGE" 2>/dev/null || echo "0")
+    # Estimate uncompressed size (typically 3-4x larger for these images)
+    ESTIMATED_SIZE=$((COMPRESSED_SIZE * 4 / 1024))
+    
+    if [ "$AVAILABLE_SPACE" -lt "$ESTIMATED_SIZE" ]; then
+      echo "Warning: Insufficient disk space. Available: ${AVAILABLE_SPACE}KB, Estimated needed: ${ESTIMATED_SIZE}KB"
+      echo "Attempting to clean up space before extraction..."
+      # Clean up any existing raw files in the current directory
+      sudo rm -f *.raw 2>/dev/null || true
+      # Clean up other build artifacts
+      sudo rm -rf ../../../cache/ 2>/dev/null || true
+      # Try to use /tmp if available space is still insufficient
+      AVAILABLE_SPACE=$(df . | tail -1 | awk '{print $4}')
+      if [ "$AVAILABLE_SPACE" -lt "$ESTIMATED_SIZE" ]; then
+        echo "Still insufficient space, attempting extraction to /tmp..."
+        TMP_RAW="/tmp/$RAW_IMAGE"
+        gunzip -c "$COMPRESSED_IMAGE" > "$TMP_RAW"
+        if [ -f "$TMP_RAW" ]; then
+          echo "Moving extracted image from /tmp to current directory..."
+          mv "$TMP_RAW" "$RAW_IMAGE"
+        fi
+      else
+        gunzip -c "$COMPRESSED_IMAGE" > "$RAW_IMAGE"
+      fi
+    else
+      gunzip -c "$COMPRESSED_IMAGE" > "$RAW_IMAGE"
+    fi
     
     if [ ! -f "$RAW_IMAGE" ]; then
       echo "Failed to extract image!"
+      # Clean up any partially extracted files
+      sudo rm -f "$RAW_IMAGE" /tmp/"$RAW_IMAGE" 2>/dev/null || true
       cd "$ORIGINAL_DIR"
       return 1
     fi
@@ -262,6 +314,8 @@ build_azl3_raw_image() {
         echo "QEMU boot test FAILED for AZL3 raw image"
         exit 1
       fi
+      # Clean up after QEMU test to free space
+      cleanup_image_files raw
     fi
   else
     echo "AZL3 raw Image build failed."
@@ -313,6 +367,8 @@ build_emt3_raw_image() {
         echo "QEMU boot test FAILED for EMT3 raw image"
         exit 1
       fi
+      # Clean up after QEMU test to free space
+      cleanup_image_files raw
     fi
   else
     echo "EMT3 raw Image build failed."
@@ -363,6 +419,8 @@ build_elxr12_raw_image() {
         echo "QEMU boot test FAILED for ELXR12 raw image"
         exit 1
       fi
+      # Clean up after QEMU test to free space
+      cleanup_image_files raw
     fi
   else
     echo "ELXR12 raw Image build failed."
@@ -400,6 +458,13 @@ build_elxr12_immutable_raw_image() {
   echo "Ensuring we're in the working directory before starting builds..."
   cd "$WORKING_DIR"
   echo "Current working directory: $(pwd)"
+  
+  # Check disk space before building (require at least 15GB for immutable images)
+  if ! check_disk_space 15; then
+    echo "Insufficient disk space for ELXR12 immutable raw image build"
+    exit 1
+  fi
+  
   output=$( sudo -S ./build/os-image-composer build image-templates/elxr12-x86_64-edge-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -412,6 +477,8 @@ build_elxr12_immutable_raw_image() {
         echo "QEMU boot test FAILED for ELXR12 immutable raw image"
         exit 1
       fi
+      # Clean up after QEMU test to free space
+      cleanup_image_files raw
     fi
   else
     echo "ELXR12 immutable raw Image build failed."
@@ -425,6 +492,13 @@ build_emt3_immutable_raw_image() {
   echo "Ensuring we're in the working directory before starting builds..."
   cd "$WORKING_DIR"
   echo "Current working directory: $(pwd)"
+  
+  # Check disk space before building (require at least 15GB for immutable images)
+  if ! check_disk_space 15; then
+    echo "Insufficient disk space for EMT3 immutable raw image build"
+    exit 1
+  fi
+  
   output=$( sudo -S ./os-image-composer build image-templates/emt3-x86_64-edge-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -437,6 +511,8 @@ build_emt3_immutable_raw_image() {
         echo "QEMU boot test FAILED for EMT3 immutable raw image"
         exit 1
       fi
+      # Clean up after QEMU test to free space
+      cleanup_image_files raw
     fi
   else
     echo "EMT3 immutable raw Image build failed."
@@ -450,6 +526,13 @@ build_azl3_immutable_raw_image() {
   echo "Ensuring we're in the working directory before starting builds..."
   cd "$WORKING_DIR"
   echo "Current working directory: $(pwd)"
+  
+  # Check disk space before building (require at least 15GB for immutable images)
+  if ! check_disk_space 15; then
+    echo "Insufficient disk space for AZL3 immutable raw image build"
+    exit 1
+  fi
+  
   output=$( sudo -S ./build/os-image-composer build image-templates/azl3-x86_64-edge-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -462,6 +545,8 @@ build_azl3_immutable_raw_image() {
         echo "QEMU boot test FAILED for AZL3 immutable raw image"
         exit 1
       fi
+      # Clean up after QEMU test to free space
+      cleanup_image_files raw
     fi
   else
     echo "AZL3 immutable raw Image build failed."
@@ -472,6 +557,36 @@ build_azl3_immutable_raw_image() {
 clean_build_dirs() {
   echo "Cleaning build directories: cache/ and tmp/"
   sudo rm -rf cache/ tmp/
+  # Also clean up any extracted raw files in current directory
+  cleanup_image_files extracted
+  # Force garbage collection and sync filesystem
+  sync
+}
+
+check_disk_space() {
+  local min_required_gb=${1:-10}  # Default 10GB minimum
+  local available_kb=$(df . | tail -1 | awk '{print $4}')
+  local available_gb=$((available_kb / 1024 / 1024))
+  
+  echo "Available disk space: ${available_gb}GB"
+  
+  if [ "$available_gb" -lt "$min_required_gb" ]; then
+    echo "WARNING: Low disk space! Available: ${available_gb}GB, Recommended minimum: ${min_required_gb}GB"
+    echo "Attempting emergency cleanup..."
+    cleanup_image_files all
+    clean_build_dirs
+    
+    # Recheck after cleanup
+    available_kb=$(df . | tail -1 | awk '{print $4}')
+    available_gb=$((available_kb / 1024 / 1024))
+    echo "Available disk space after cleanup: ${available_gb}GB"
+    
+    if [ "$available_gb" -lt "$((min_required_gb / 2))" ]; then
+      echo "ERROR: Still critically low on disk space after cleanup!"
+      return 1
+    fi
+  fi
+  return 0
 }
 
 # Call the build functions with cleaning before each except the first one
