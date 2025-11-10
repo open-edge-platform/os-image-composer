@@ -179,7 +179,7 @@ func (imageOs *ImageOs) InstallImageOs(diskPathIdMap map[string]string) (version
 	}
 
 	log.Infof("Installing bootloader...")
-	if err = imageOs.imageBoot.InstallImageBoot(imageOs.installRoot, diskPathIdMap, imageOs.template); err != nil {
+	if err = imageOs.imageBoot.InstallImageBoot(imageOs.installRoot, diskPathIdMap, imageOs.template, pkgType); err != nil {
 		err = fmt.Errorf("failed to install image boot: %w", err)
 		return
 	}

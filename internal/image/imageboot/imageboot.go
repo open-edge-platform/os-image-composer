@@ -14,7 +14,7 @@ import (
 var log = logger.Logger()
 
 type ImageBootInterface interface {
-	InstallImageBoot(installRoot string, diskPathIdMap map[string]string, template *config.ImageTemplate) error
+	InstallImageBoot(installRoot string, diskPathIdMap map[string]string, template *config.ImageTemplate, pkgType string) error
 }
 
 type ImageBoot struct{}
@@ -41,18 +41,44 @@ func installGrubWithLegacyMode(installRoot, bootUUID, bootPrefix string, templat
 	return fmt.Errorf("legacy boot mode is not implemented yet")
 }
 
-func installGrubWithEfiMode(installRoot, bootUUID, bootPrefix string, template *config.ImageTemplate) error {
-	// Expect that shim (bootx64.efi) and grub2 (grub2.efi) are installed
+func getGrubVersion(installRoot string) (string, error) {
+	var grubVersion string
+	program := "grub2-mkconfig"
+	exists, err := shell.IsCommandExist(program, installRoot)
+	if err != nil {
+		return "", fmt.Errorf("failed to check if %s exists: %w", program, err)
+	}
+	if !exists {
+		log.Debugf("%s not found, try grub-mkconfig instead", program)
+		program = "grub-mkconfig"
+		exists, err = shell.IsCommandExist(program, installRoot)
+		if err != nil {
+			return "", fmt.Errorf("failed to check if %s exists: %w", program, err)
+		}
+		if !exists {
+			return "", fmt.Errorf("neither grub2-mkconfig nor grub-mkconfig found in the install root")
+		}
+		grubVersion = "grub"
+		log.Debugf("Found %s, setting grub version to grub", program)
+	} else {
+		grubVersion = "grub2"
+		log.Debugf("Found %s, setting grub version to grub2", program)
+	}
+	return grubVersion, nil
+}
+
+func installGrubWithEfiMode(installRoot, bootUUID, bootPrefix, pkgType, grubVersion string, template *config.ImageTemplate) error {
+	// Expect that shim (bootx64.efi) and grub (grub.efi) are installed
 	// into the EFI directory via the package installation step previously.
 
-	log.Infof("Installing Grub2 bootloader with EFI mode")
+	log.Infof("Installing Grub bootloader with EFI mode")
 	efiDir := "/boot/efi"
 	configDir, err := config.GetGeneralConfigDir()
 	if err != nil {
 		return fmt.Errorf("failed to get general config directory: %w", err)
 	}
 	grubAssetPath := filepath.Join(configDir, "image", "efi", "grub", "grub.cfg")
-	grubFinalPath := filepath.Join(installRoot, efiDir, "boot/grub2/grub.cfg")
+	grubFinalPath := filepath.Join(installRoot, efiDir, "boot", grubVersion, "grub.cfg")
 
 	if err = file.CopyFile(grubAssetPath, grubFinalPath, "-f", true); err != nil {
 		log.Errorf("Failed to copy grub configuration file: %v", err)
@@ -70,7 +96,7 @@ func installGrubWithEfiMode(installRoot, bootUUID, bootPrefix string, template *
 		return fmt.Errorf("failed to replace CryptoMountCommand in grub configuration: %w", err)
 	}
 
-	prefixPath := fmt.Sprintf("%s/grub2", bootPrefix)
+	prefixPath := fmt.Sprintf("%s/%s", bootPrefix, grubVersion)
 	if err := file.ReplacePlaceholdersInFile("{{.PrefixPath}}", prefixPath, grubFinalPath); err != nil {
 		log.Errorf("Failed to replace PrefixPath in grub configuration: %v", err)
 		return fmt.Errorf("failed to replace prefix path in grub configuration: %w", err)
@@ -88,16 +114,25 @@ func installGrubWithEfiMode(installRoot, bootUUID, bootPrefix string, template *
 		return fmt.Errorf("failed to set permissions for grub configuration file: %w", err)
 	}
 
+	if pkgType == "deb" {
+		// Generate bootx64.efi for debian based systems at /EFI/BOOT/bootx64.efi
+		installCmd := fmt.Sprintf("grub-install --target=x86_64-efi --efi-directory=%s --removable", efiDir)
+		if _, err = shell.ExecCmd(installCmd, true, installRoot, nil); err != nil {
+			log.Errorf("Failed to install bootx64.efi for GRUB EFI bootloader: %v", err)
+			return fmt.Errorf("failed to install bootx64.efi for GRUB EFI bootloader: %w", err)
+		}
+	}
+
 	return nil
 }
 
-func copyGrubEnvFile(installRoot string) error {
+func copyGrubEnvFile(installRoot, grubVersion string) error {
 	configDir, err := config.GetGeneralConfigDir()
 	if err != nil {
 		return fmt.Errorf("failed to get general config directory: %w", err)
 	}
 	grubEnvAssetPath := filepath.Join(configDir, "image", "grub2", "grubenv")
-	grubEnvFinalPath := filepath.Join(installRoot, "boot", "grub2", "grubenv")
+	grubEnvFinalPath := filepath.Join(installRoot, "boot", grubVersion, "grubenv")
 	if err = file.CopyFile(grubEnvAssetPath, grubEnvFinalPath, "-f", true); err != nil {
 		log.Errorf("Failed to copy grubenv file: %v", err)
 		return fmt.Errorf("failed to copy grubenv file: %w", err)
@@ -105,9 +140,10 @@ func copyGrubEnvFile(installRoot string) error {
 	return nil
 }
 
-func updateGrubConfig(installRoot string) error {
-	grubConfigFile := "/boot/grub2/grub.cfg"
-	cmdStr := fmt.Sprintf("grub2-mkconfig -o %s", grubConfigFile)
+func updateGrubConfig(installRoot, grubVersion string) error {
+	grubConfigFile := fmt.Sprintf("/boot/%s/grub.cfg", grubVersion)
+	program := fmt.Sprintf("%s-mkconfig", grubVersion)
+	cmdStr := fmt.Sprintf("%s -o %s", program, grubConfigFile)
 	if _, err := shell.ExecCmd(cmdStr, true, installRoot, nil); err != nil {
 		log.Errorf("Failed to update grub configuration: %v", err)
 		return fmt.Errorf("failed to update grub configuration: %w", err)
@@ -250,7 +286,7 @@ func updateBootConfigTemplate(installRoot, rootDevID, bootUUID, bootPrefix, hash
 	return nil
 }
 
-func (imageBoot *ImageBoot) InstallImageBoot(installRoot string, diskPathIdMap map[string]string, template *config.ImageTemplate) error {
+func (imageBoot *ImageBoot) InstallImageBoot(installRoot string, diskPathIdMap map[string]string, template *config.ImageTemplate, pkgType string) error {
 	var bootUUID string
 	var bootPrefix string = ""
 	var rootDev string
@@ -292,8 +328,15 @@ func (imageBoot *ImageBoot) InstallImageBoot(installRoot string, diskPathIdMap m
 	switch bootloaderConfig.Provider {
 	case "grub":
 		log.Infof("Installing GRUB bootloader")
+
+		grubVersion, err := getGrubVersion(installRoot)
+		if err != nil {
+			log.Errorf("Failed to get grub version: %v", err)
+			return fmt.Errorf("failed to get grub version: %w", err)
+		}
+
 		if bootloaderConfig.BootType == "efi" {
-			if err := installGrubWithEfiMode(installRoot, bootUUID, bootPrefix, template); err != nil {
+			if err := installGrubWithEfiMode(installRoot, bootUUID, bootPrefix, pkgType, grubVersion, template); err != nil {
 				return fmt.Errorf("failed to install GRUB bootloader with EFI mode: %w", err)
 			}
 		} else if bootloaderConfig.BootType == "legacy" {
@@ -306,11 +349,11 @@ func (imageBoot *ImageBoot) InstallImageBoot(installRoot string, diskPathIdMap m
 			return fmt.Errorf("failed to update boot configuration: %w", err)
 		}
 
-		if err := copyGrubEnvFile(installRoot); err != nil {
+		if err := copyGrubEnvFile(installRoot, grubVersion); err != nil {
 			return fmt.Errorf("failed to copy grubenv file: %w", err)
 		}
 
-		if err := updateGrubConfig(installRoot); err != nil {
+		if err := updateGrubConfig(installRoot, grubVersion); err != nil {
 			return fmt.Errorf("failed to update grub configuration: %w", err)
 		}
 
