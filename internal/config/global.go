@@ -190,6 +190,8 @@ func LoadGlobalConfig(configPath string) (*GlobalConfig, error) {
 
 // SaveGlobalConfig saves the configuration to the specified path
 func (gc *GlobalConfig) SaveGlobalConfig(configPath string) error {
+	gc.applyAIDefaults()
+
 	// Ensure directory exists
 	dir := filepath.Dir(configPath)
 	if dir != "." && dir != "" {
@@ -225,6 +227,54 @@ func (gc *GlobalConfig) SaveGlobalConfig(configPath string) error {
 	}
 
 	return nil
+}
+
+func (gc *GlobalConfig) applyAIDefaults() {
+	defaults := DefaultGlobalConfig().AI
+
+	if gc.AI.Provider == "" {
+		gc.AI.Provider = defaults.Provider
+	}
+	if gc.AI.TemplatesDir == "" {
+		gc.AI.TemplatesDir = defaults.TemplatesDir
+	}
+
+	// Normalize Ollama configuration
+	if gc.AI.Ollama.BaseURL == "" {
+		gc.AI.Ollama.BaseURL = defaults.Ollama.BaseURL
+	}
+	if gc.AI.Ollama.Model == "" {
+		gc.AI.Ollama.Model = defaults.Ollama.Model
+	}
+	if gc.AI.Ollama.Temperature == 0 && defaults.Ollama.Temperature != 0 {
+		gc.AI.Ollama.Temperature = defaults.Ollama.Temperature
+	}
+	if gc.AI.Ollama.MaxTokens < 100 {
+		gc.AI.Ollama.MaxTokens = defaults.Ollama.MaxTokens
+	}
+	if gc.AI.Ollama.Timeout < 10 {
+		gc.AI.Ollama.Timeout = defaults.Ollama.Timeout
+	}
+	if gc.AI.Ollama.EmbeddingModel == "" {
+		gc.AI.Ollama.EmbeddingModel = defaults.Ollama.EmbeddingModel
+	}
+
+	// Normalize OpenAI configuration
+	if gc.AI.OpenAI.Model == "" {
+		gc.AI.OpenAI.Model = defaults.OpenAI.Model
+	}
+	if gc.AI.OpenAI.Temperature == 0 && defaults.OpenAI.Temperature != 0 {
+		gc.AI.OpenAI.Temperature = defaults.OpenAI.Temperature
+	}
+	if gc.AI.OpenAI.MaxTokens < 100 {
+		gc.AI.OpenAI.MaxTokens = defaults.OpenAI.MaxTokens
+	}
+	if gc.AI.OpenAI.Timeout < 10 {
+		gc.AI.OpenAI.Timeout = defaults.OpenAI.Timeout
+	}
+	if gc.AI.OpenAI.EmbeddingModel == "" {
+		gc.AI.OpenAI.EmbeddingModel = defaults.OpenAI.EmbeddingModel
+	}
 }
 
 // Validate checks the configuration for consistency and applies constraints
