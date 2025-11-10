@@ -116,6 +116,36 @@ func TestFindRelevantTemplatesReturnsSortedResults(t *testing.T) {
 	}
 }
 
+func TestFindRelevantTemplatesForUseCasesFiltersResults(t *testing.T) {
+	t.Parallel()
+
+	edgeTemplate := &TemplateExample{Name: "edge", UseCase: "edge", Embedding: []float64{1, 0}}
+	webTemplate := &TemplateExample{Name: "web", UseCase: "web", Embedding: []float64{0, 1}}
+
+	rag := &TemplateRAG{
+		templates: map[string]*TemplateExample{
+			"edge": edgeTemplate,
+			"web":  webTemplate,
+		},
+		templatesByUse: map[string][]*TemplateExample{
+			"edge": {edgeTemplate},
+			"web":  {webTemplate},
+		},
+		embeddingClient: &staticVectorEmbedding{query: []float64{1, 0}},
+	}
+
+	results, err := rag.FindRelevantTemplatesForUseCases(context.Background(), "edge compute", []string{"edge"}, 2)
+	if err != nil {
+		t.Fatalf("FindRelevantTemplatesForUseCases returned error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected filtered results length 1, got %d", len(results))
+	}
+	if results[0].Template.Name != "edge" {
+		t.Fatalf("expected edge template, got %s", results[0].Template.Name)
+	}
+}
+
 func TestBuildSearchableTextIncludesMetadata(t *testing.T) {
 	t.Parallel()
 

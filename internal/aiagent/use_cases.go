@@ -21,6 +21,34 @@ type UseCaseConfig struct {
 	Disk                UseCaseDisk   `yaml:"disk"`
 }
 
+// PackagesForRequirements returns the curated package set for this use case
+func (cfg *UseCaseConfig) PackagesForRequirements(requirements []string) []string {
+	if cfg == nil {
+		return nil
+	}
+
+	packages := make([]string, 0, len(cfg.EssentialPackages)+len(cfg.OptionalPackages))
+	packages = append(packages, cfg.EssentialPackages...)
+
+	hasMinimal := false
+	for _, req := range requirements {
+		switch req {
+		case "security":
+			packages = append(packages, cfg.SecurityPackages...)
+		case "performance":
+			packages = append(packages, cfg.PerformancePackages...)
+		case "minimal":
+			hasMinimal = true
+		}
+	}
+
+	if !hasMinimal {
+		packages = append(packages, cfg.OptionalPackages...)
+	}
+
+	return uniqueStrings(packages)
+}
+
 type UseCaseKernel struct {
 	DefaultVersion string `yaml:"default_version"`
 	Cmdline        string `yaml:"cmdline"`
@@ -112,30 +140,7 @@ func (uc *UseCasesConfig) GetPackagesForUseCase(useCaseName string, requirements
 		return nil, err
 	}
 
-	packages := make([]string, 0)
-
-	// Always include essential packages
-	packages = append(packages, useCase.EssentialPackages...)
-
-	// Add packages based on requirements
-	hasMinimal := false
-	for _, req := range requirements {
-		switch req {
-		case "security":
-			packages = append(packages, useCase.SecurityPackages...)
-		case "performance":
-			packages = append(packages, useCase.PerformancePackages...)
-		case "minimal":
-			hasMinimal = true
-		}
-	}
-
-	// Add optional packages unless minimal is specified
-	if !hasMinimal && len(useCase.OptionalPackages) > 0 {
-		packages = append(packages, useCase.OptionalPackages...)
-	}
-
-	return uniqueStrings(packages), nil
+	return useCase.PackagesForRequirements(requirements), nil
 }
 
 // GetKernelVersion returns kernel version for use case and distribution

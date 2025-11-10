@@ -40,6 +40,12 @@ func TestGenerateDiskConfigForArm(t *testing.T) {
 	if disk.Partitions[1].Type != "linux-root-arm64" {
 		t.Fatalf("expected second partition type 'linux-root-arm64', got %q", disk.Partitions[1].Type)
 	}
+	if len(disk.Artifacts) != 1 {
+		t.Fatalf("expected a single artifact, got %d", len(disk.Artifacts))
+	}
+	if disk.Artifacts[0].Type != "raw" || disk.Artifacts[0].Compression != "gz" {
+		t.Fatalf("expected raw artifact with gzip compression, got %#v", disk.Artifacts[0])
+	}
 }
 
 func TestGenerateDiskConfigForX86(t *testing.T) {
@@ -52,6 +58,29 @@ func TestGenerateDiskConfigForX86(t *testing.T) {
 	}
 	if disk.Partitions[1].Type != "linux-root-amd64" {
 		t.Fatalf("expected second partition type 'linux-root-amd64', got %q", disk.Partitions[1].Type)
+	}
+	if len(disk.Artifacts) != 1 {
+		t.Fatalf("expected a single artifact, got %d", len(disk.Artifacts))
+	}
+	if disk.Artifacts[0].Type != "raw" || disk.Artifacts[0].Compression != "gz" {
+		t.Fatalf("expected raw artifact with gzip compression, got %#v", disk.Artifacts[0])
+	}
+}
+
+func TestGenerateDiskConfigForQcow2(t *testing.T) {
+	intent := &TemplateIntent{UseCase: "cloud", Architecture: "x86_64", ImageType: "qcow2"}
+
+	disk := generateDiskConfig(intent, "15GiB")
+
+	if len(disk.Artifacts) != 1 {
+		t.Fatalf("expected a single artifact, got %d", len(disk.Artifacts))
+	}
+	artifact := disk.Artifacts[0]
+	if artifact.Type != "qcow2" {
+		t.Fatalf("expected qcow2 artifact, got %q", artifact.Type)
+	}
+	if artifact.Compression != "" {
+		t.Fatalf("expected no compression for qcow2, got %q", artifact.Compression)
 	}
 }
 
@@ -129,7 +158,21 @@ func TestContainsMatchesExactString(t *testing.T) {
 }
 
 func TestGenerateTemplateFromExamplesMergesData(t *testing.T) {
-	agent := &AIAgent{}
+	webConfig := UseCaseConfig{
+		Name:                "web",
+		Description:         "Web server stack",
+		EssentialPackages:   []string{"systemd", "openssl"},
+		OptionalPackages:    []string{"curl"},
+		PerformancePackages: []string{"varnish"},
+	}
+
+	agent := &AIAgent{
+		useCases: &UseCasesConfig{
+			UseCases: map[string]UseCaseConfig{
+				"web": webConfig,
+			},
+		},
+	}
 	intent := &TemplateIntent{
 		UseCase:      "web",
 		Requirements: []string{"performance"},
@@ -165,7 +208,13 @@ func TestGenerateTemplateFromExamplesMergesData(t *testing.T) {
 		},
 	}
 
-	tmpl, err := agent.generateTemplateFromExamples(intent, examples)
+	primaryMatch := &UseCaseMatch{
+		Name:   "web",
+		Score:  0.9,
+		Config: &webConfig,
+	}
+
+	tmpl, err := agent.generateTemplateFromExamples(intent, examples, primaryMatch)
 	if err != nil {
 		t.Fatalf("generateTemplateFromExamples returned error: %v", err)
 	}
@@ -184,19 +233,16 @@ func TestGenerateTemplateFromExamplesMergesData(t *testing.T) {
 	}
 
 	packages := tmpl.SystemConfig.Packages
-	if len(packages) != 4 {
-		t.Fatalf("expected 4 packages, got %d", len(packages))
+	if len(packages) != 6 {
+		t.Fatalf("expected 6 packages with curated additions, got %d", len(packages))
 	}
-	var opensslCount int
-	for _, pkg := range packages {
-		if pkg == "openssl" {
-			opensslCount++
-		}
+	if !contains(packages, "systemd") {
+		t.Fatalf("expected curated package 'systemd', got %v", packages)
 	}
-	if opensslCount != 1 {
-		t.Fatalf("expected openssl to appear once, got %d", opensslCount)
+	if !contains(packages, "varnish") {
+		t.Fatalf("expected performance package from use case, got %v", packages)
 	}
-	if packages[len(packages)-1] != "htop" {
+	if !contains(packages, "htop") {
 		t.Fatalf("expected custom package 'htop' to be included, got %#v", packages)
 	}
 
@@ -209,7 +255,19 @@ func TestGenerateTemplateFromExamplesMergesData(t *testing.T) {
 }
 
 func TestGenerateTemplateFromExamplesMinimalRequirement(t *testing.T) {
-	agent := &AIAgent{}
+	minimalConfig := UseCaseConfig{
+		Name:              "minimal",
+		Description:       "Minimal footprint",
+		EssentialPackages: []string{"systemd-networkd", "kernel-core"},
+	}
+
+	agent := &AIAgent{
+		useCases: &UseCasesConfig{
+			UseCases: map[string]UseCaseConfig{
+				"minimal": minimalConfig,
+			},
+		},
+	}
 	intent := &TemplateIntent{
 		UseCase:      "minimal",
 		Requirements: []string{"minimal"},
@@ -236,7 +294,13 @@ func TestGenerateTemplateFromExamplesMinimalRequirement(t *testing.T) {
 		},
 	}
 
-	tmpl, err := agent.generateTemplateFromExamples(intent, examples)
+	primaryMatch := &UseCaseMatch{
+		Name:   "minimal",
+		Score:  0.85,
+		Config: &minimalConfig,
+	}
+
+	tmpl, err := agent.generateTemplateFromExamples(intent, examples, primaryMatch)
 	if err != nil {
 		t.Fatalf("generateTemplateFromExamples returned error: %v", err)
 	}
@@ -261,6 +325,63 @@ func TestGenerateTemplateFromExamplesMinimalRequirement(t *testing.T) {
 	}
 }
 
+func TestGenerateTemplateFromExamplesSupportsQcow2(t *testing.T) {
+	cloudConfig := UseCaseConfig{
+		Name: "cloud",
+		Disk: UseCaseDisk{DefaultSize: "20GiB"},
+	}
+
+	agent := &AIAgent{
+		useCases: &UseCasesConfig{UseCases: map[string]UseCaseConfig{
+			"cloud": cloudConfig,
+		}},
+	}
+
+	intent := cleanIntent(&TemplateIntent{
+		UseCase:      "cloud",
+		Requirements: nil,
+		Architecture: "x86_64",
+		Distribution: "elxr12",
+		ImageType:    "qcow2",
+	})
+
+	examples := []*SearchResult{
+		{
+			Template: &TemplateExample{
+				UseCase:      "cloud",
+				Distribution: "elxr12",
+				Packages:     []string{"base-cloud"},
+				HasDisk:      false,
+				KernelInfo:   "6.1",
+			},
+			Score: 0.8,
+		},
+	}
+
+	primaryMatch := &UseCaseMatch{Name: "cloud", Score: 0.9, Config: &cloudConfig}
+
+	tmpl, err := agent.generateTemplateFromExamples(intent, examples, primaryMatch)
+	if err != nil {
+		t.Fatalf("generateTemplateFromExamples returned error: %v", err)
+	}
+
+	if tmpl.Target.ImageType != "qcow2" {
+		t.Fatalf("expected target image type 'qcow2', got %q", tmpl.Target.ImageType)
+	}
+	if tmpl.Disk == nil {
+		t.Fatalf("expected disk configuration for qcow2 output")
+	}
+	if tmpl.Disk.Size != "20GiB" {
+		t.Fatalf("expected disk size from curated config, got %q", tmpl.Disk.Size)
+	}
+	if len(tmpl.Disk.Artifacts) != 1 || tmpl.Disk.Artifacts[0].Type != "qcow2" {
+		t.Fatalf("expected qcow2 artifact, got %#v", tmpl.Disk.Artifacts)
+	}
+	if tmpl.Disk.Artifacts[0].Compression != "" {
+		t.Fatalf("expected no compression for qcow2, got %q", tmpl.Disk.Artifacts[0].Compression)
+	}
+}
+
 func TestMapDistToOS(t *testing.T) {
 	if got := mapDistToOS("azl3"); got != "azure-linux" {
 		t.Fatalf("expected 'azure-linux', got %q", got)
@@ -279,7 +400,7 @@ func TestBuildSystemPromptWithRAGListsUseCases(t *testing.T) {
 		"web-server": nil,
 	}}
 
-	prompt := buildSystemPromptWithRAG(rag)
+	prompt := buildSystemPromptWithRAG(rag, nil)
 
 	if !strings.Contains(prompt, "edge, web-server") {
 		t.Fatalf("expected prompt to include use cases, got %q", prompt)
@@ -366,6 +487,33 @@ func TestProcessUserRequestGeneratesTemplate(t *testing.T) {
 		Embedding:    []float64{1.0, 0.5, 0.25},
 	}
 
+	edgeConfig := UseCaseConfig{
+		Name:              "edge",
+		Description:       "Edge compute node",
+		EssentialPackages: []string{"systemd"},
+		SecurityPackages:  []string{"selinux-policy"},
+		Disk: UseCaseDisk{
+			DefaultSize: "12GiB",
+		},
+	}
+
+	useCases := &UseCasesConfig{UseCases: map[string]UseCaseConfig{
+		"edge": edgeConfig,
+	}}
+
+	useCaseRAG := &UseCaseRAG{
+		useCases:        useCases,
+		embeddingClient: &staticEmbedding{vector: []float64{1.0, 0.5, 0.25}},
+		entries: map[string]*useCaseEntry{
+			"edge": {
+				Name:      "edge",
+				Config:    edgeConfig,
+				Embedding: []float64{1.0, 0.5, 0.25},
+				Context:   buildUseCaseContextText("edge", edgeConfig),
+			},
+		},
+	}
+
 	agent := &AIAgent{
 		chatModel: chat,
 		rag: &TemplateRAG{
@@ -377,6 +525,8 @@ func TestProcessUserRequestGeneratesTemplate(t *testing.T) {
 			},
 			embeddingClient: &staticEmbedding{vector: []float64{1.0, 0.5, 0.25}},
 		},
+		useCaseRAG: useCaseRAG,
+		useCases:   useCases,
 	}
 
 	tmpl, err := agent.ProcessUserRequest(context.Background(), "edge compute node")
@@ -392,6 +542,9 @@ func TestProcessUserRequestGeneratesTemplate(t *testing.T) {
 	}
 	if !contains(tmpl.SystemConfig.Packages, "custom-agent") {
 		t.Fatalf("expected custom package to be included, got %v", tmpl.SystemConfig.Packages)
+	}
+	if !contains(tmpl.SystemConfig.Packages, "systemd") {
+		t.Fatalf("expected curated package 'systemd', got %v", tmpl.SystemConfig.Packages)
 	}
 	if len(tmpl.PackageRepositories) != 1 || tmpl.PackageRepositories[0].Codename != "custom" {
 		t.Fatalf("expected custom repository, got %v", tmpl.PackageRepositories)

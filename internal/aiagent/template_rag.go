@@ -255,15 +255,53 @@ func (rag *TemplateRAG) buildSearchableText(template *TemplateExample) string {
 
 // FindRelevantTemplates searches for templates similar to the query
 func (rag *TemplateRAG) FindRelevantTemplates(ctx context.Context, query string, topK int) ([]*SearchResult, error) {
-	// Generate embedding for user query
 	queryEmbedding, err := rag.embeddingClient.GenerateEmbedding(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
 	}
 
-	// Calculate similarity scores for all templates
-	results := make([]*SearchResult, 0, len(rag.templates))
+	candidates := make([]*TemplateExample, 0, len(rag.templates))
 	for _, template := range rag.templates {
+		candidates = append(candidates, template)
+	}
+
+	return rankTemplateCandidates(queryEmbedding, candidates, topK), nil
+}
+
+// FindRelevantTemplatesForUseCases restricts retrieval to the provided use case set
+func (rag *TemplateRAG) FindRelevantTemplatesForUseCases(ctx context.Context, query string, useCases []string, topK int) ([]*SearchResult, error) {
+	if len(useCases) == 0 {
+		return rag.FindRelevantTemplates(ctx, query, topK)
+	}
+
+	queryEmbedding, err := rag.embeddingClient.GenerateEmbedding(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
+	}
+
+	candidateMap := make(map[string]*TemplateExample)
+	for _, name := range useCases {
+		templates := rag.templatesByUse[name]
+		for _, tmpl := range templates {
+			candidateMap[tmpl.FilePath] = tmpl
+		}
+	}
+
+	if len(candidateMap) == 0 {
+		return rag.FindRelevantTemplates(ctx, query, topK)
+	}
+
+	candidates := make([]*TemplateExample, 0, len(candidateMap))
+	for _, tmpl := range candidateMap {
+		candidates = append(candidates, tmpl)
+	}
+
+	return rankTemplateCandidates(queryEmbedding, candidates, topK), nil
+}
+
+func rankTemplateCandidates(queryEmbedding []float64, candidates []*TemplateExample, topK int) []*SearchResult {
+	results := make([]*SearchResult, 0, len(candidates))
+	for _, template := range candidates {
 		score := cosineSimilarity(queryEmbedding, template.Embedding)
 		results = append(results, &SearchResult{
 			Template: template,
@@ -271,17 +309,15 @@ func (rag *TemplateRAG) FindRelevantTemplates(ctx context.Context, query string,
 		})
 	}
 
-	// Sort by score descending
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Score > results[j].Score
 	})
 
-	// Return top K results
-	if topK > len(results) {
+	if topK <= 0 || topK > len(results) {
 		topK = len(results)
 	}
 
-	return results[:topK], nil
+	return results[:topK]
 }
 
 // GetTemplatesByUseCase returns all templates for a specific use case
@@ -324,14 +360,14 @@ func inferUseCaseFromName(name string) string {
 	name = strings.ToLower(name)
 
 	patterns := map[string][]string{
-		"minimal":       {"minimal", "bare", "basic"},
-		"edge":          {"edge", "cloud-init"},
-		"dlstreamer":    {"dlstreamer", "dl-streamer", "video", "streaming"},
-		"web-server":    {"web", "nginx", "apache", "http"},
-		"database":      {"database", "db", "postgres", "mysql"},
-		"container":     {"container", "docker", "kubernetes"},
-		"ai-inference":  {"inference", "ai", "ml", "openvino"},
-		"embedded":      {"embedded", "iot"},
+		"minimal":      {"minimal", "bare", "basic"},
+		"edge":         {"edge", "cloud-init"},
+		"dlstreamer":   {"dlstreamer", "dl-streamer", "video", "streaming"},
+		"web-server":   {"web", "nginx", "apache", "http"},
+		"database":     {"database", "db", "postgres", "mysql"},
+		"container":    {"container", "docker", "kubernetes"},
+		"ai-inference": {"inference", "ai", "ml", "openvino"},
+		"embedded":     {"embedded", "iot"},
 	}
 
 	for useCase, keywords := range patterns {
