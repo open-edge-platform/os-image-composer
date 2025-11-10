@@ -282,8 +282,10 @@ The RAG system generates templates through intelligent retrieval and merging of 
 User Request: "docker host with monitoring"
 
 **Step 0 - Curated Use-Case Matching:**
+
 - Use-case RAG embeds request and finds closest curated definitions
 - Top match: `edge` (score 0.92) with default packages `[systemd, docker, containerd]`
+- Only curated matches scoring ≥ 0.60 seed the template search filter; lower scores fall back to template-only retrieval
 
 **Step 1 - Template Semantic Search (Use-Case Aware):**
 Query Embedding: [0.23, -0.45, 0.67, ...] filtered to `edge`
@@ -313,7 +315,7 @@ LLM sees examples and generates:
 
 - Base: elxr12-x86_64-edge-raw.yml (best match)
 - Curated packages from `use-cases.yml`: `[systemd, docker, containerd]`
-- Packages from high-similarity templates (score > 0.7)
+- Packages from high-similarity templates (score ≥ 0.60)
 - User custom packages: prometheus, grafana
 - Disk Config: Curated default (12GiB) unless examples provide richer guidance
 - Kernel: Curated default (6.12 + console config) when examples omit details
@@ -327,7 +329,7 @@ LLM sees examples and generates:
 1. **Multi-Template Merging**: Intelligently combines best parts of multiple examples
 1. **Contextual Awareness**: Sees full template structure (disk, kernel, repos)
 1. **Custom Package Support**: Can add user-requested packages to base template
-1. **Quality Filtering**: Only uses high-similarity templates (score > 0.7)
+1. **Quality Filtering**: Only uses high-similarity templates (score ≥ 0.60)
 1. **Minimal Filtering**: Automatically reduces package count for "minimal" requests
 1. **Curated Defaults**: Use-case metadata fills kernel, disk, and base package gaps when examples lack coverage
 
@@ -763,7 +765,7 @@ os-image-composer ai "docker with video streaming" --output complex.yml
 
 - **Embedding Caching**: Cache embeddings to disk to avoid regeneration
 - **Incremental Indexing**: Only re-embed changed templates
-- **Similarity Threshold Tuning**: Optimize the 0.7 similarity threshold
+- **Similarity Threshold Tuning**: Optimize the 0.60 similarity threshold
 - **Interactive Mode**: Multi-turn conversations for template refinement
 - **Template Explanation**: "Why did you choose these packages?"
 - **Comparison Mode**: "Compare nginx vs apache for my use case"

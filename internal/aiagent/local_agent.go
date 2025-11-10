@@ -28,7 +28,11 @@ var (
 	}
 )
 
-const supportedImageTypePrompt = "raw, qcow2, vhd, vhdx, vmdk, or vdi"
+const (
+	supportedImageTypePrompt      = "raw, qcow2, vhd, vhdx, vmdk, or vdi"
+	templateContributionThreshold = 0.60
+	useCaseMatchThreshold         = 0.60
+)
 
 // ChatModel interface for different LLM providers
 type ChatModel interface {
@@ -220,7 +224,7 @@ func (agent *AIAgent) ProcessUserRequest(ctx context.Context, userInput string) 
 					fmt.Printf("   %d. %s (score: %.2f)\n", i+1, match.Name, match.Score)
 				}
 			} else {
-				fmt.Println("ℹ️  No curated use case matches above threshold; using template-only search.")
+				fmt.Printf("ℹ️  No curated use case matches above %.2f threshold; using template-only search.\n", useCaseMatchThreshold)
 			}
 		}
 	}
@@ -228,7 +232,7 @@ func (agent *AIAgent) ProcessUserRequest(ctx context.Context, userInput string) 
 	fmt.Println("🔎 Finding relevant template examples...")
 	useCaseFilter := make([]string, 0, len(useCaseMatches))
 	for _, match := range useCaseMatches {
-		if match.Score >= 0.2 {
+		if match.Score >= useCaseMatchThreshold {
 			useCaseFilter = append(useCaseFilter, match.Name)
 		}
 	}
@@ -425,13 +429,13 @@ func (agent *AIAgent) generateTemplateFromExamples(intent *TemplateIntent, examp
 	}
 
 	for _, result := range examples {
-		if result.Score >= 0.60 {
+		if result.Score >= templateContributionThreshold {
 			if len(result.Template.Packages) > 0 {
 				fmt.Printf("📘 Template '%s' contributing packages (%d, score %.2f): %v\n", result.Template.Name, len(result.Template.Packages), result.Score, result.Template.Packages)
 			}
 			packages = append(packages, result.Template.Packages...)
 		} else {
-			fmt.Printf("ℹ️  Skipping template '%s' (score %.2f below threshold).\n", result.Template.Name, result.Score)
+			fmt.Printf("ℹ️  Skipping template '%s' (score %.2f below %.2f threshold).\n", result.Template.Name, result.Score, templateContributionThreshold)
 		}
 	}
 
