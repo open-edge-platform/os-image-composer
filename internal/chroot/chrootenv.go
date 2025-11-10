@@ -534,6 +534,13 @@ func (chrootEnv *ChrootEnv) AptInstallPackage(packageName, installRoot string, r
 }
 
 func (chrootEnv *ChrootEnv) UpdateSystemPkgs(template *config.ImageTemplate) error {
+	// Update essential packages
+	essentialPkgList, err := chrootEnv.GetChrootEnvEssentialPackageList()
+	if err != nil {
+		return fmt.Errorf("failed to get essential package list: %w", err)
+	}
+	template.EssentialPkgList = essentialPkgList
+
 	// Update bootloader packages by bootloader type
 	bootloaderConfig := template.GetBootloaderConfig()
 	// To do: support bootloader package selection by bootloader type
