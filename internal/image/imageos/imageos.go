@@ -884,17 +884,6 @@ func getKernelVersion(installRoot string) (string, error) {
 func updateInitramfs(installRoot, kernelVersion string, template *config.ImageTemplate) error {
 	initrdPath := fmt.Sprintf("/boot/initramfs-%s.img", kernelVersion)
 
-	// Check if the initrdPath file exists in non-immutable case
-	// if !template.IsImmutabilityEnabled() {
-	// 	fullInitrdPath := filepath.Join(installRoot, initrdPath)
-	// 	if _, err := os.Stat(fullInitrdPath); err == nil {
-	// 		// initrd file already exists
-	// 		log.Debugf("Initramfs already exists, skipping update: %s", fullInitrdPath)
-	// 		return nil
-	// 	}
-	// }
-	log.Debugf("Yockgen EnableExtraModules: %s", template.SystemConfig.Kernel.EnableExtraModules)
-
 	// Build dracut command with all required options
 	var cmdParts []string
 	cmdParts = append(cmdParts, "dracut")
