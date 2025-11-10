@@ -76,6 +76,7 @@ type ImageTemplate struct {
 	// Explicitly excluded from YAML serialization/deserialization
 	PathList          []string `yaml:"-"`
 	BootloaderPkgList []string `yaml:"-"`
+	EssentialPkgList  []string `yaml:"-"`
 	KernelPkgList     []string `yaml:"-"`
 	FullPkgList       []string `yaml:"-"`
 }
@@ -308,6 +309,7 @@ func (t *ImageTemplate) GetBootloaderConfig() Bootloader {
 // GetPackages returns all packages from the system configuration
 func (t *ImageTemplate) GetPackages() []string {
 	var allPkgList []string
+	allPkgList = append(allPkgList, t.EssentialPkgList...)
 	allPkgList = append(allPkgList, t.KernelPkgList...)
 	allPkgList = append(allPkgList, t.SystemConfig.Packages...)
 	allPkgList = append(allPkgList, t.BootloaderPkgList...)
