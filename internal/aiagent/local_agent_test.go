@@ -1,6 +1,7 @@
 package aiagent
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -285,5 +286,160 @@ func TestBuildSystemPromptWithRAGListsUseCases(t *testing.T) {
 	}
 	if !strings.Contains(prompt, "Return ONLY valid JSON") {
 		t.Fatalf("expected JSON instructions in prompt")
+	}
+}
+
+type stubChatModel struct {
+	response        TemplateIntent
+	structuredCalls int
+	lastPrompt      string
+}
+
+func (s *stubChatModel) SendMessage(ctx context.Context, message string) (string, error) {
+	return "{}", nil
+}
+
+func (s *stubChatModel) SendStructuredMessage(ctx context.Context, message string, schema interface{}) error {
+	s.structuredCalls++
+	s.lastPrompt = message
+
+	if intent, ok := schema.(*TemplateIntent); ok {
+		*intent = s.response
+	}
+	return nil
+}
+
+func (s *stubChatModel) SetSystemPrompt(prompt string) {
+	s.lastPrompt = prompt
+}
+
+func (s *stubChatModel) ResetConversation() {}
+
+type staticEmbedding struct {
+	vector []float64
+}
+
+func (s *staticEmbedding) GenerateEmbedding(ctx context.Context, text string) ([]float64, error) {
+	return append([]float64(nil), s.vector...), nil
+}
+
+func (s *staticEmbedding) GenerateBatchEmbeddings(ctx context.Context, texts []string) ([][]float64, error) {
+	out := make([][]float64, len(texts))
+	for i := range texts {
+		out[i] = append([]float64(nil), s.vector...)
+	}
+	return out, nil
+}
+
+func TestProcessUserRequestGeneratesTemplate(t *testing.T) {
+	t.Parallel()
+
+	chat := &stubChatModel{
+		response: TemplateIntent{
+			UseCase:      "edge",
+			Requirements: []string{"security"},
+			Architecture: "x86_64",
+			Distribution: "azl3",
+			ImageType:    "raw",
+			Description:  "Edge image",
+			CustomPackages: []string{
+				"custom-agent",
+			},
+			PackageRepositories: []RepoIntent{{
+				Codename: "custom",
+				URL:      "https://repo.example",
+				PKey:     "https://repo.example/key",
+			}},
+		},
+	}
+
+	example := &TemplateExample{
+		Name:         "edge-template.yml",
+		UseCase:      "edge",
+		Description:  "Edge template",
+		Distribution: "azl3",
+		Architecture: "x86_64",
+		ImageType:    "raw",
+		Packages:     []string{"nginx", "openssl"},
+		HasDisk:      true,
+		KernelInfo:   "6.9",
+		Embedding:    []float64{1.0, 0.5, 0.25},
+	}
+
+	agent := &AIAgent{
+		chatModel: chat,
+		rag: &TemplateRAG{
+			templates: map[string]*TemplateExample{
+				example.Name: example,
+			},
+			templatesByUse: map[string][]*TemplateExample{
+				"edge": {example},
+			},
+			embeddingClient: &staticEmbedding{vector: []float64{1.0, 0.5, 0.25}},
+		},
+	}
+
+	tmpl, err := agent.ProcessUserRequest(context.Background(), "edge compute node")
+	if err != nil {
+		t.Fatalf("ProcessUserRequest returned error: %v", err)
+	}
+
+	if tmpl.Image.Name != "azl3-x86_64-edge" {
+		t.Fatalf("expected image name 'azl3-x86_64-edge', got %q", tmpl.Image.Name)
+	}
+	if tmpl.SystemConfig.Description != "Edge image" {
+		t.Fatalf("expected description to propagate, got %q", tmpl.SystemConfig.Description)
+	}
+	if !contains(tmpl.SystemConfig.Packages, "custom-agent") {
+		t.Fatalf("expected custom package to be included, got %v", tmpl.SystemConfig.Packages)
+	}
+	if len(tmpl.PackageRepositories) != 1 || tmpl.PackageRepositories[0].Codename != "custom" {
+		t.Fatalf("expected custom repository, got %v", tmpl.PackageRepositories)
+	}
+	if tmpl.SystemConfig.Immutability == nil || tmpl.SystemConfig.Immutability.Enabled {
+		t.Fatalf("expected immutability to be present but disabled")
+	}
+	if chat.structuredCalls != 1 {
+		t.Fatalf("expected a single structured prompt, got %d", chat.structuredCalls)
+	}
+}
+
+func TestBuildExamplesContextIncludesTemplateDetails(t *testing.T) {
+	t.Parallel()
+
+	agent := &AIAgent{}
+	contextStr := agent.buildExamplesContext([]*SearchResult{
+		{
+			Template: &TemplateExample{
+				Name:     "web-server.yml",
+				UseCase:  "web-server",
+				Packages: []string{"nginx"},
+			},
+			Score: 0.87,
+		},
+	})
+
+	if !strings.Contains(contextStr, "Example 1") {
+		t.Fatalf("expected context to label examples, got %q", contextStr)
+	}
+	if !strings.Contains(contextStr, "nginx") {
+		t.Fatalf("expected package listing in context, got %q", contextStr)
+	}
+}
+
+func TestMinAndMaxHelpers(t *testing.T) {
+	t.Parallel()
+
+	if min(2, 5) != 2 {
+		t.Fatalf("expected min(2,5) = 2")
+	}
+	if min(10, 3) != 3 {
+		t.Fatalf("expected min(10,3) = 3")
+	}
+	if max(2, 5) != 5 {
+		t.Fatalf("expected max(2,5) = 5")
+	}
+	if max(10, 3) != 10 {
+		t.Fatalf("expected max(10,3) = 10")
 	}
 }
