@@ -11,6 +11,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type aiAgent interface {
+	ProcessUserRequest(ctx context.Context, userInput string) (*aiagent.OSImageTemplate, error)
+}
+
+var newAIAgent = func(provider string, config interface{}, templatesDir string) (aiAgent, error) {
+	return aiagent.NewAIAgent(provider, config, templatesDir)
+}
+
 func createAICommand() *cobra.Command {
 	var output string
 
@@ -50,7 +58,7 @@ func runAIGeneration(userInput string, aiConfig config.AIConfig, outputPath stri
 
 	fmt.Printf("🤖 Generating template using %s", aiConfig.Provider)
 
-	var agent *aiagent.AIAgent
+	var agent aiAgent
 	var err error
 
 	switch aiConfig.Provider {
@@ -64,7 +72,7 @@ func runAIGeneration(userInput string, aiConfig config.AIConfig, outputPath stri
 			Timeout:        aiConfig.Ollama.Timeout,
 			EmbeddingModel: aiConfig.Ollama.EmbeddingModel,
 		}
-		agent, err = aiagent.NewAIAgent("ollama", ollamaConfig, aiConfig.TemplatesDir)
+		agent, err = newAIAgent("ollama", ollamaConfig, aiConfig.TemplatesDir)
 
 	case "openai":
 		fmt.Printf(" (%s)...\n", aiConfig.OpenAI.Model)
@@ -76,7 +84,7 @@ func runAIGeneration(userInput string, aiConfig config.AIConfig, outputPath stri
 			Timeout:        aiConfig.OpenAI.Timeout,
 			EmbeddingModel: aiConfig.OpenAI.EmbeddingModel,
 		}
-		agent, err = aiagent.NewAIAgent("openai", openaiConfig, aiConfig.TemplatesDir)
+		agent, err = newAIAgent("openai", openaiConfig, aiConfig.TemplatesDir)
 
 	default:
 		return fmt.Errorf("unsupported AI provider: %s", aiConfig.Provider)

@@ -9,6 +9,93 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/config/validate"
 )
 
+func TestApplyAIDefaultsPopulatesMissingFields(t *testing.T) {
+	defaults := DefaultGlobalConfig()
+	gc := &GlobalConfig{
+		AI: AIConfig{
+			Ollama: OllamaConfig{},
+			OpenAI: OpenAIConfig{},
+		},
+	}
+
+	gc.applyAIDefaults()
+
+	if gc.AI.Provider != defaults.AI.Provider {
+		t.Fatalf("expected provider default %q, got %q", defaults.AI.Provider, gc.AI.Provider)
+	}
+	if gc.AI.TemplatesDir != defaults.AI.TemplatesDir {
+		t.Fatalf("expected templates dir default %q, got %q", defaults.AI.TemplatesDir, gc.AI.TemplatesDir)
+	}
+	if gc.AI.Ollama.BaseURL != defaults.AI.Ollama.BaseURL {
+		t.Fatalf("expected Ollama base URL %q, got %q", defaults.AI.Ollama.BaseURL, gc.AI.Ollama.BaseURL)
+	}
+	if gc.AI.Ollama.Model != defaults.AI.Ollama.Model {
+		t.Fatalf("expected Ollama model %q, got %q", defaults.AI.Ollama.Model, gc.AI.Ollama.Model)
+	}
+	if gc.AI.Ollama.Temperature != defaults.AI.Ollama.Temperature {
+		t.Fatalf("expected Ollama temperature %v, got %v", defaults.AI.Ollama.Temperature, gc.AI.Ollama.Temperature)
+	}
+	if gc.AI.Ollama.MaxTokens != defaults.AI.Ollama.MaxTokens {
+		t.Fatalf("expected Ollama max tokens %d, got %d", defaults.AI.Ollama.MaxTokens, gc.AI.Ollama.MaxTokens)
+	}
+	if gc.AI.Ollama.Timeout != defaults.AI.Ollama.Timeout {
+		t.Fatalf("expected Ollama timeout %d, got %d", defaults.AI.Ollama.Timeout, gc.AI.Ollama.Timeout)
+	}
+	if gc.AI.Ollama.EmbeddingModel != defaults.AI.Ollama.EmbeddingModel {
+		t.Fatalf("expected Ollama embedding model %q, got %q", defaults.AI.Ollama.EmbeddingModel, gc.AI.Ollama.EmbeddingModel)
+	}
+	if gc.AI.OpenAI.Model != defaults.AI.OpenAI.Model {
+		t.Fatalf("expected OpenAI model %q, got %q", defaults.AI.OpenAI.Model, gc.AI.OpenAI.Model)
+	}
+	if gc.AI.OpenAI.Temperature != defaults.AI.OpenAI.Temperature {
+		t.Fatalf("expected OpenAI temperature %v, got %v", defaults.AI.OpenAI.Temperature, gc.AI.OpenAI.Temperature)
+	}
+	if gc.AI.OpenAI.MaxTokens != defaults.AI.OpenAI.MaxTokens {
+		t.Fatalf("expected OpenAI max tokens %d, got %d", defaults.AI.OpenAI.MaxTokens, gc.AI.OpenAI.MaxTokens)
+	}
+	if gc.AI.OpenAI.Timeout != defaults.AI.OpenAI.Timeout {
+		t.Fatalf("expected OpenAI timeout %d, got %d", defaults.AI.OpenAI.Timeout, gc.AI.OpenAI.Timeout)
+	}
+	if gc.AI.OpenAI.EmbeddingModel != defaults.AI.OpenAI.EmbeddingModel {
+		t.Fatalf("expected OpenAI embedding model %q, got %q", defaults.AI.OpenAI.EmbeddingModel, gc.AI.OpenAI.EmbeddingModel)
+	}
+}
+
+func TestApplyAIDefaultsPreservesCustomValues(t *testing.T) {
+	gc := DefaultGlobalConfig()
+	gc.AI.Provider = "openai"
+	gc.AI.TemplatesDir = "/tmp/templates"
+	gc.AI.Ollama.Temperature = 0.9
+	gc.AI.Ollama.MaxTokens = 500
+	gc.AI.Ollama.Timeout = 30
+	gc.AI.OpenAI.Model = "gpt-custom"
+	gc.AI.OpenAI.MaxTokens = 4096
+
+	gc.applyAIDefaults()
+
+	if gc.AI.Provider != "openai" {
+		t.Fatalf("expected provider to remain 'openai', got %q", gc.AI.Provider)
+	}
+	if gc.AI.TemplatesDir != "/tmp/templates" {
+		t.Fatalf("expected templates dir to remain '/tmp/templates', got %q", gc.AI.TemplatesDir)
+	}
+	if gc.AI.Ollama.Temperature != 0.9 {
+		t.Fatalf("expected custom Ollama temperature to persist, got %v", gc.AI.Ollama.Temperature)
+	}
+	if gc.AI.Ollama.MaxTokens != 500 {
+		t.Fatalf("expected custom Ollama max tokens to persist, got %d", gc.AI.Ollama.MaxTokens)
+	}
+	if gc.AI.Ollama.Timeout != 30 {
+		t.Fatalf("expected custom Ollama timeout to persist, got %d", gc.AI.Ollama.Timeout)
+	}
+	if gc.AI.OpenAI.Model != "gpt-custom" {
+		t.Fatalf("expected custom OpenAI model to persist, got %q", gc.AI.OpenAI.Model)
+	}
+	if gc.AI.OpenAI.MaxTokens != 4096 {
+		t.Fatalf("expected custom OpenAI max tokens to persist, got %d", gc.AI.OpenAI.MaxTokens)
+	}
+}
+
 func TestMergeStringSlices(t *testing.T) {
 	defaultSlice := []string{"a", "b", "c"}
 	userSlice := []string{"c", "d", "e"}
@@ -2257,7 +2344,9 @@ func TestLoadGlobalConfigWithEmptyPath(t *testing.T) {
 }
 
 func TestLoadGlobalConfigWithNonExistentFile(t *testing.T) {
-	config, err := LoadGlobalConfig("/nonexistent/file.yml")
+	missingFile := filepath.Join(t.TempDir(), "missing-config.yml")
+
+	config, err := LoadGlobalConfig(missingFile)
 	if err != nil {
 		t.Errorf("LoadGlobalConfig with non-existent file should return defaults: %v", err)
 	}
