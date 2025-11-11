@@ -1353,6 +1353,13 @@ func configUserStartupScript(installRoot string, user config.UserConfig) error {
 	// Escape user.Name and user.StartupScript for regex safety
 	escapedUserName := regexp.QuoteMeta(user.Name)
 	escapedStartupScript := regexp.QuoteMeta(user.StartupScript)
+	startupScriptHostPath := filepath.Join(installRoot, user.StartupScript)
+
+	// Verify that the startup script exists in the image
+	if _, err := os.Stat(startupScriptHostPath); os.IsNotExist(err) {
+		log.Errorf("Startup script %s does not exist in image for user %s", user.StartupScript, user.Name)
+		return fmt.Errorf("startup script %s does not exist in image for user %s", user.StartupScript, user.Name)
+	}
 
 	findPattern := fmt.Sprintf(`^(%s.*):[^:]*$`, escapedUserName)
 	replacePattern := fmt.Sprintf(`\1:%s`, escapedStartupScript)

@@ -4,6 +4,8 @@
 package progressview
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/gdamore/tcell"
@@ -144,13 +146,6 @@ func (pv *ProgressView) switchDetailLevel(moreDetail bool) {
 }
 
 func (pv *ProgressView) startInstallation() {
-	// Redirect the logger to the progress text
-	originalStderrWriter := logger.ReplaceStderrWriter(pv.logText)
-
-	defer func() {
-		logger.ReplaceStderrWriter(originalStderrWriter)
-	}()
-
 	progress := make(chan int)
 	status := make(chan string)
 
@@ -158,7 +153,7 @@ func (pv *ProgressView) startInstallation() {
 	wg.Add(2)
 
 	go pv.monitorProgress(progress, wg)
-	go pv.monitorStatus(status, wg)
+	go pv.monitorStatus(progress, status, wg)
 
 	pv.performInstallation(progress, status)
 
@@ -175,9 +170,29 @@ func (pv *ProgressView) monitorProgress(progress chan int, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func (pv *ProgressView) monitorStatus(status chan string, wg *sync.WaitGroup) {
+func (pv *ProgressView) monitorStatus(progress chan int, status chan string, wg *sync.WaitGroup) {
 	for statusUpdate := range status {
+		if strings.Contains(statusUpdate, "provider initialized") {
+			progress <- 10
+		} else if strings.Contains(statusUpdate, "merged user and default configurations") {
+			progress <- 20
+		} else if strings.Contains(statusUpdate, "Building image") {
+			progress <- 30
+		} else if strings.Contains(statusUpdate, "Creating partition") {
+			progress <- 40
+		} else if strings.Contains(statusUpdate, "Installing OS for image") {
+			progress <- 50
+		} else if strings.Contains(statusUpdate, "Image system configuration") {
+			progress <- 70
+		} else if strings.Contains(statusUpdate, "Installing bootloader") {
+			progress <- 80
+		} else if strings.Contains(statusUpdate, "Image installation post-processing") {
+			progress <- 90
+		} else if strings.Contains(statusUpdate, "OS installation completed") {
+			progress <- 100
+		}
 		pv.progressBar.SetStatus(statusUpdate)
+		fmt.Fprintf(pv.logText, "%s", statusUpdate)
 	}
 
 	wg.Done()

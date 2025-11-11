@@ -48,6 +48,9 @@ fi
 # Turn off echoing while the installer runs to stop sensitive data from rendering in the TTY session.
 stty -echo
 
+# Disable kernel messages on the current terminal
+dmesg -D
+
 live-installer --config $TEMPLATE_DUMP_YAML --repo $CACHE_REPO --attended
 installerExitCode=$?
 
@@ -60,6 +63,9 @@ done
 
 # Turn back on echoing input so the TTY session is usable for the user.
 stty echo
+
+# Enable kernel messages
+dmesg -E
 
 if [ $installerExitCode -eq 0 ]; then
     reboot

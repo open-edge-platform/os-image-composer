@@ -153,7 +153,8 @@ func (uv *UserView) OnShow() {
 func (uv *UserView) setupConfigUsers(template *config.ImageTemplate) (err error) {
 	users := template.GetUsers()
 	newUser := config.UserConfig{
-		Sudo: true,
+		Sudo:   true,
+		Groups: []string{"sudo"}, // "Sudo: true" configuration is not ready.
 	}
 	users = append(users, newUser)
 	template.SystemConfig.Users = users
