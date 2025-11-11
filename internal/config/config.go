@@ -595,7 +595,12 @@ func (prc *ProviderRepoConfig) ToRepoConfigData(arch string) (repoType, name, ur
 	repoType = prc.Type
 	name = prc.Name
 	component = prc.Component
-	buildPath = prc.BuildPath
+	// Replace "./builds" with temp_dir/builds
+	if strings.HasPrefix(prc.BuildPath, "./builds") {
+		buildPath = filepath.Join(TempDir(), strings.TrimPrefix(prc.BuildPath, "./"))
+	} else {
+		buildPath = prc.BuildPath
+	}
 	gpgCheck = prc.GPGCheck
 	repoGPGCheck = prc.RepoGPGCheck
 	enabled = prc.Enabled

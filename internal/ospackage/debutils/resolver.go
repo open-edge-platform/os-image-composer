@@ -25,7 +25,7 @@ func ParseRepositoryMetadata(baseURL string, pkggz string, releaseFile string, r
 	log := logger.Logger()
 
 	// Ensure pkgMetaDir exists, create if not
-	// pkgMetaDir := "./builds/elxr12"
+	// pkgMetaDir := filepath.Join(config.TempDir(), "builds", "elxr12")
 	pkgMetaDir := buildPath
 	if err := os.MkdirAll(pkgMetaDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create pkgMetaDir: %w", err)

@@ -2028,6 +2028,7 @@ func TestDefaultGlobalConfig(t *testing.T) {
 	if config.CacheDir != "./cache" {
 		t.Errorf("expected default cache dir './cache', got '%s'", config.CacheDir)
 	}
+	// Note: The actual cache directory used will be temp_dir/cache, not the CacheDir field value
 
 	if config.WorkDir != "./workspace" {
 		t.Errorf("expected default work dir './workspace', got '%s'", config.WorkDir)
@@ -3395,7 +3396,9 @@ func TestGetProviderNameAndDistroVersionUnknown(t *testing.T) {
 
 func TestSaveUpdatedConfigFileStub(t *testing.T) {
 	template := &ImageTemplate{}
-	if err := template.SaveUpdatedConfigFile("dummy"); err != nil {
+	// Use temp_dir/dummy instead of just "dummy"
+	dummyPath := filepath.Join(TempDir(), "dummy")
+	if err := template.SaveUpdatedConfigFile(dummyPath); err != nil {
 		t.Errorf("SaveUpdatedConfigFile() = %v, want nil", err)
 	}
 }

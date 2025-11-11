@@ -15,15 +15,16 @@ func configureTempGlobalCLI(t *testing.T) (restore func(), cacheDir, workDir str
 	t.Helper()
 
 	tmp := t.TempDir()
-	cacheDir = filepath.Join(tmp, "cache")
+	tempDir := filepath.Join(tmp, "tmp")
+	cacheDir = filepath.Join(tempDir, "cache") // Cache will be temp_dir/cache
 	workDir = filepath.Join(tmp, "workspace")
 
 	prev := *config.Global()
 	cfg := config.DefaultGlobalConfig()
-	cfg.CacheDir = cacheDir
+	cfg.CacheDir = "/old/cache" // This value is ignored
 	cfg.WorkDir = workDir
 	cfg.ConfigDir = filepath.Join(tmp, "config")
-	cfg.TempDir = filepath.Join(tmp, "tmp")
+	cfg.TempDir = tempDir
 	config.SetGlobal(cfg)
 
 	return func() {
