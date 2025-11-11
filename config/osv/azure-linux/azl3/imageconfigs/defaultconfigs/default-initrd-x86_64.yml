@@ -95,8 +95,6 @@ systemConfig:
 
   users:
     - name: root
-      passwordMaxAge: 99999
-      password: ""
 
   kernel:
     name: kernel

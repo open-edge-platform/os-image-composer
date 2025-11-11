@@ -134,6 +134,11 @@ func updateBootConfigTemplate(installRoot, rootDevID, bootUUID, bootPrefix, hash
 			log.Errorf("Failed to copy boot configuration file: %v", err)
 			return fmt.Errorf("failed to copy boot configuration file: %w", err)
 		}
+
+		if err := file.ReplacePlaceholdersInFile("{{.Hostname}}", template.GetImageName(), configFinalPath); err != nil {
+			log.Errorf("Failed to replace Hostname in boot configuration: %v", err)
+			return fmt.Errorf("failed to replace Hostname in boot configuration: %w", err)
+		}
 	case "systemd-boot":
 		configAssetPath = filepath.Join(configDir, "image", "efi", "bootParams.conf")
 		configFinalPath = filepath.Join(installRoot, "boot", "cmdline.conf")

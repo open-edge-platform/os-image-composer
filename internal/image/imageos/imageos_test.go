@@ -104,7 +104,10 @@ func (m *MockChrootEnv) MountChrootPath(hostFullPath, chrootPath, mountFlags str
 func (m *MockChrootEnv) UmountChrootPath(chrootPath string) error                       { return nil }
 func (m *MockChrootEnv) CopyFileFromHostToChroot(hostFilePath, chrootPath string) error { return nil }
 func (m *MockChrootEnv) CopyFileFromChrootToHost(hostFilePath, chrootPath string) error { return nil }
-func (m *MockChrootEnv) RefreshLocalCacheRepo(targetArch string) error                  { return nil }
+func (m *MockChrootEnv) UpdateChrootLocalRepoMetadata(chrootRepoDir string, targetArch string, sudo bool) error {
+	return nil
+}
+func (m *MockChrootEnv) RefreshLocalCacheRepo() error                                   { return nil }
 func (m *MockChrootEnv) InitChrootEnv(targetOs, targetDist, targetArch string) error    { return nil }
 func (m *MockChrootEnv) CleanupChrootEnv(targetOs, targetDist, targetArch string) error { return nil }
 func (m *MockChrootEnv) TdnfInstallPackage(packageName, installRoot string, repositoryIDList []string) error {
@@ -1555,6 +1558,11 @@ func TestUpdateInitramfsWithMock(t *testing.T) {
 	// Mock shell commands for initramfs operations
 	mockCommands := []shell.MockCommand{
 		{
+			Pattern: `sudo.*chroot.*dracut --force --no-hostonly --verbose --kver.*`,
+			Output:  "dracut: Generating /boot/initramfs-5.15.0-generic.img",
+			Error:   nil,
+		},
+		{
 			Pattern: `sudo.*chroot.*dracut --force --add systemd-veritysetup --no-hostonly --verbose --kver.*`,
 			Output:  "dracut: Generating /boot/initramfs-5.15.0-generic.img",
 			Error:   nil,
@@ -2284,6 +2292,7 @@ func TestAddImageAdditionalFiles(t *testing.T) {
 	mockCommands := []shell.MockCommand{
 		{Pattern: ".*cp.*", Output: "", Error: nil},
 		{Pattern: "/bin/cp.*", Output: "", Error: nil},
+		{Pattern: "mkdir", Output: "", Error: nil},
 	}
 	shell.Default = shell.NewMockExecutor(mockCommands)
 

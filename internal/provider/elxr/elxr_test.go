@@ -221,7 +221,10 @@ func (m *mockChrootEnv) MountChrootPath(hostFullPath, chrootPath, mountFlags str
 func (m *mockChrootEnv) UmountChrootPath(chrootPath string) error                       { return nil }
 func (m *mockChrootEnv) CopyFileFromHostToChroot(hostFilePath, chrootPath string) error { return nil }
 func (m *mockChrootEnv) CopyFileFromChrootToHost(hostFilePath, chrootPath string) error { return nil }
-func (m *mockChrootEnv) RefreshLocalCacheRepo(targetArch string) error                  { return nil }
+func (m *mockChrootEnv) UpdateChrootLocalRepoMetadata(chrootRepoDir string, targetArch string, sudo bool) error {
+	return nil
+}
+func (m *mockChrootEnv) RefreshLocalCacheRepo() error                                   { return nil }
 func (m *mockChrootEnv) InitChrootEnv(targetOs, targetDist, targetArch string) error    { return nil }
 func (m *mockChrootEnv) CleanupChrootEnv(targetOs, targetDist, targetArch string) error { return nil }
 func (m *mockChrootEnv) TdnfInstallPackage(packageName, installRoot string, repositoryIDList []string) error {

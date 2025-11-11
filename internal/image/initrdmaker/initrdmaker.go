@@ -119,7 +119,13 @@ func (initrdMaker *InitrdMaker) DownloadInitrdPkgs() error {
 		}
 	}
 
-	if err := initrdMaker.ChrootEnv.RefreshLocalCacheRepo(initrdMaker.template.Target.Arch); err != nil {
+	if err := initrdMaker.ChrootEnv.UpdateChrootLocalRepoMetadata(
+		chroot.ChrootRepoDir,
+		initrdMaker.template.Target.Arch, false); err != nil {
+		return fmt.Errorf("failed to update local cache repository metadata: %w", err)
+	}
+
+	if err := initrdMaker.ChrootEnv.RefreshLocalCacheRepo(); err != nil {
 		return fmt.Errorf("failed to refresh local cache repository: %w", err)
 	}
 	return nil

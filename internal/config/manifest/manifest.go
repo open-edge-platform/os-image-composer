@@ -12,6 +12,7 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/config/version"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/file"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/security"
 )
@@ -280,8 +281,7 @@ func CopySBOMToChroot(chrootPath string) error {
 	srcSBOM := filepath.Join(config.TempDir(), DefaultSPDXFile)
 
 	// Destination: SBOM inside the chroot filesystem
-	dstDir := filepath.Join(chrootPath, ImageSBOMPath)
-	dstSBOM := filepath.Join(dstDir, DefaultSPDXFile)
+	dstSBOM := filepath.Join(chrootPath, ImageSBOMPath, DefaultSPDXFile)
 
 	// Check if source SBOM exists
 	if _, err := os.Stat(srcSBOM); os.IsNotExist(err) {
@@ -289,24 +289,9 @@ func CopySBOMToChroot(chrootPath string) error {
 		return nil
 	}
 
-	// Create the SBOM directory inside the chroot with appropriate permissions
-	if err := os.MkdirAll(dstDir, 0755); err != nil {
-		log.Errorf("Failed to create SBOM directory in chroot: %v", err)
-		return fmt.Errorf("failed to create SBOM directory in chroot: %w", err)
-	}
-
-	// Read source SBOM with security checks
-	data, err := security.SafeReadFile(srcSBOM, security.RejectSymlinks)
-	if err != nil {
-		log.Errorf("Failed to read SBOM file: %v", err)
-		return fmt.Errorf("failed to read SBOM file: %w", err)
-	}
-
-	// Write to destination inside chroot with security checks
-	// Use 0644 permissions so the file is readable by all users
-	if err := security.SafeWriteFile(dstSBOM, data, 0644, security.RejectSymlinks); err != nil {
-		log.Errorf("Failed to write SBOM to chroot filesystem: %v", err)
-		return fmt.Errorf("failed to write SBOM to chroot filesystem: %w", err)
+	if err := file.CopyFile(srcSBOM, dstSBOM, "--preserve=mode", true); err != nil {
+		log.Errorf("Failed to copy SBOM into image filesystem: %v", err)
+		return fmt.Errorf("failed to copy SBOM into image filesystem: %w", err)
 	}
 
 	log.Infof("Successfully copied SBOM into image filesystem at: %s", dstSBOM)

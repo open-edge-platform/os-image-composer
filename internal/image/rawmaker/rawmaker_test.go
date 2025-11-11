@@ -84,7 +84,11 @@ func (m *mockChrootEnv) CopyFileFromChrootToHost(hostFilePath, chrootPath string
 	return nil
 }
 
-func (m *mockChrootEnv) RefreshLocalCacheRepo(arch string) error {
+func (m *mockChrootEnv) UpdateChrootLocalRepoMetadata(chrootRepoDir string, targetArch string, sudo bool) error {
+	return nil
+}
+
+func (m *mockChrootEnv) RefreshLocalCacheRepo() error {
 	if m.shouldFailRefresh {
 		return fmt.Errorf("mock refresh cache repo failure")
 	}

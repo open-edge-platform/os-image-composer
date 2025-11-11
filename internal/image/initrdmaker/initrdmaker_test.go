@@ -134,7 +134,11 @@ func (m *mockChrootEnv) CopyFileFromChrootToHost(hostFilePath, chrootPath string
 	return m.err
 }
 
-func (m *mockChrootEnv) RefreshLocalCacheRepo(arch string) error {
+func (m *mockChrootEnv) UpdateChrootLocalRepoMetadata(chrootRepoDir string, targetArch string, sudo bool) error {
+	return m.err
+}
+
+func (m *mockChrootEnv) RefreshLocalCacheRepo() error {
 	return m.err
 }
 

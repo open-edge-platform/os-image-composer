@@ -407,6 +407,11 @@ func mergeKernelConfig(defaultKernel, userKernel KernelConfig) KernelConfig {
 		merged.Packages = userKernel.Packages
 	}
 
+	// Add the EnableExtraModules field merge logic
+	if userKernel.EnableExtraModules != "" {
+		merged.EnableExtraModules = userKernel.EnableExtraModules
+	}
+
 	// Note: name and uki fields come from defaults and are preserved
 
 	return merged

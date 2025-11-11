@@ -39,7 +39,7 @@ type ChrootBuilderInterface interface {
 	GetChrootEnvConfig() (map[interface{}]interface{}, error)
 	GetChrootEnvPackageList() ([]string, error)
 	GetChrootEnvEssentialPackageList() ([]string, error)
-	UpdateLocalDebRepo(repoPath, targetArch string) error
+	UpdateLocalDebRepo(repoPath, targetArch string, sudo bool) error
 	BuildChrootEnv(targetOs string, targetDist string, targetArch string) error
 }
 
@@ -266,8 +266,8 @@ func (chrootBuilder *ChrootBuilder) downloadChrootEnvPackages() ([]string, []str
 	}
 }
 
-func (chrootBuilder *ChrootBuilder) UpdateLocalDebRepo(repoPath, targetArch string) error {
-	return chrootBuilder.DebInstaller.UpdateLocalDebRepo(repoPath, targetArch)
+func (chrootBuilder *ChrootBuilder) UpdateLocalDebRepo(repoPath, targetArch string, sudo bool) error {
+	return chrootBuilder.DebInstaller.UpdateLocalDebRepo(repoPath, targetArch, sudo)
 }
 
 func (chrootBuilder *ChrootBuilder) BuildChrootEnv(targetOs string, targetDist string, targetArch string) error {
@@ -293,7 +293,7 @@ func (chrootBuilder *ChrootBuilder) BuildChrootEnv(targetOs string, targetDist s
 			return fmt.Errorf("failed to install packages in chroot environment: %w", err)
 		}
 	} else if pkgType == "deb" {
-		if err = chrootBuilder.DebInstaller.UpdateLocalDebRepo(chrootPkgCacheDir, targetArch); err != nil {
+		if err = chrootBuilder.DebInstaller.UpdateLocalDebRepo(chrootPkgCacheDir, targetArch, false); err != nil {
 			return fmt.Errorf("failed to create debian local repository: %w", err)
 		}
 

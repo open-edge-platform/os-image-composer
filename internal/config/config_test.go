@@ -1415,7 +1415,7 @@ func TestSaveUpdatedConfigFile(t *testing.T) {
 	}
 
 	// Test the function (currently returns nil, but we test the interface)
-	err := SaveUpdatedConfigFile("/tmp/test.yml", template)
+	err := template.SaveUpdatedConfigFile("/tmp/test.yml")
 	if err != nil {
 		t.Errorf("SaveUpdatedConfigFile returned unexpected error: %v", err)
 	}
@@ -3395,7 +3395,7 @@ func TestGetProviderNameAndDistroVersionUnknown(t *testing.T) {
 
 func TestSaveUpdatedConfigFileStub(t *testing.T) {
 	template := &ImageTemplate{}
-	if err := SaveUpdatedConfigFile("dummy", template); err != nil {
+	if err := template.SaveUpdatedConfigFile("dummy"); err != nil {
 		t.Errorf("SaveUpdatedConfigFile() = %v, want nil", err)
 	}
 }

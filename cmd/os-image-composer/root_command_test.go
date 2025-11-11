@@ -21,6 +21,7 @@ func TestCreateRootCommand_Wiring(t *testing.T) {
 		"validate":           false,
 		"version":            false,
 		"config":             false,
+		"cache":              false,
 		"install-completion": false,
 	}
 	for _, c := range root.Commands() {

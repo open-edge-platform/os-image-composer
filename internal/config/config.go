@@ -33,6 +33,7 @@ type ArtifactInfo struct {
 
 type DiskConfig struct {
 	Name               string          `yaml:"name"`
+	Path               string          `yaml:"path"` // Path to the disk device (e.g., /dev/sda), used by live installer
 	Artifacts          []ArtifactInfo  `yaml:"artifacts"`
 	Size               string          `yaml:"size"`
 	PartitionTableType string          `yaml:"partitionTableType"`
@@ -119,6 +120,7 @@ type SystemConfig struct {
 	Name            string               `yaml:"name"`
 	Description     string               `yaml:"description"`
 	Initramfs       Initramfs            `yaml:"initramfs,omitempty"`
+	HostName        string               `yaml:"hostname,omitempty"`
 	Immutability    ImmutabilityConfig   `yaml:"immutability,omitempty"`
 	Users           []UserConfig         `yaml:"users,omitempty"`
 	Bootloader      Bootloader           `yaml:"bootloader"`
@@ -135,10 +137,11 @@ type AdditionalFileInfo struct {
 
 // KernelConfig holds the kernel configuration
 type KernelConfig struct {
-	Version  string   `yaml:"version"`
-	Cmdline  string   `yaml:"cmdline"`
-	Packages []string `yaml:"packages"`
-	UKI      bool     `yaml:"uki,omitempty"`
+	Version            string   `yaml:"version"`
+	Cmdline            string   `yaml:"cmdline"`
+	Packages           []string `yaml:"packages"`
+	UKI                bool     `yaml:"uki,omitempty"`
+	EnableExtraModules string   `yaml:"enableExtraModules"`
 }
 
 // PartitionInfo holds information about a partition in the disk layout
@@ -153,15 +156,6 @@ type PartitionInfo struct {
 	End          string   `yaml:"end"`          // End: end offset of the partition; can be a absolute size (e.g., "2GiB") or "0" for the end of the disk
 	MountPoint   string   `yaml:"mountPoint"`   // MountPoint: optional mount point for the partition (e.g., "/boot", "/rootfs")
 	MountOptions string   `yaml:"mountOptions"` // MountOptions: optional mount options for the partition (e.g., "defaults", "noatime")
-}
-
-// Disk Info holds information about the disk layout
-type Disk struct {
-	Name               string          `yaml:"name"`               // Name of the disk
-	Compression        string          `yaml:"compression"`        // Compression type (e.g., "gzip", "zstd", "none")
-	Size               uint64          `yaml:"size"`               // Size of the disk in bytes (4GB, 4GiB, 4096Mib also valid)
-	PartitionTableType string          `yaml:"partitionTableType"` // Type of partition table (e.g., "gpt", "mbr")
-	Partitions         []PartitionInfo `yaml:"partitions"`         // List of partitions to create in the disk image
 }
 
 var log = logger.Logger()
@@ -388,7 +382,32 @@ func (t *ImageTemplate) GetSystemConfigName() string {
 	return t.SystemConfig.Name
 }
 
-func SaveUpdatedConfigFile(path string, config *ImageTemplate) error {
+func (t *ImageTemplate) SaveUpdatedConfigFile(path string) error {
+	if path == "" {
+		return fmt.Errorf("output path is empty")
+	}
+
+	// Ensure destination directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		log.Errorf("Failed to create directory for config file %s: %v", dir, err)
+		return fmt.Errorf("failed to create directory for config file: %w", err)
+	}
+
+	// Marshal the template to YAML
+	data, err := yaml.Marshal(t)
+	if err != nil {
+		log.Errorf("Error marshaling image template to YAML: %v", err)
+		return fmt.Errorf("error marshaling template to YAML: %w", err)
+	}
+
+	// Write file safely with symlink protection
+	if err := security.SafeWriteFile(path, data, 0644, security.RejectSymlinks); err != nil {
+		log.Errorf("Failed to write image template to %s: %v", path, err)
+		return fmt.Errorf("failed to write image template: %w", err)
+	}
+
+	log.Infof("Saved image template to %s", path)
 	return nil
 }
 

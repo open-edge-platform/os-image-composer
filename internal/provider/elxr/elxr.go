@@ -11,6 +11,7 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/image/rawmaker"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/debutils"
 	"github.com/open-edge-platform/os-image-composer/internal/provider"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/display"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/system"
@@ -121,7 +122,22 @@ func (p *eLxr) buildRawImage(template *config.ImageTemplate) error {
 		return fmt.Errorf("failed to initialize raw maker: %w", err)
 	}
 
-	return rawMaker.BuildRawImage()
+	if err := rawMaker.BuildRawImage(); err != nil {
+		return err
+	}
+
+	// Display summary after build completes (loop device detached, files accessible)
+	// Construct the actual image build directory path (on host, not in chroot)
+	globalWorkDir, err := config.WorkDir()
+	if err != nil {
+		return fmt.Errorf("failed to get work directory: %w", err)
+	}
+	providerId := system.GetProviderId(template.Target.OS, template.Target.Dist, template.Target.Arch)
+	imageBuildDir := filepath.Join(globalWorkDir, providerId, "imagebuild", template.GetSystemConfigName())
+
+	displayImageArtifacts(imageBuildDir, "RAW")
+
+	return nil
 }
 
 func (p *eLxr) buildInitrdImage(template *config.ImageTemplate) error {
@@ -157,7 +173,22 @@ func (p *eLxr) buildIsoImage(template *config.ImageTemplate) error {
 		return fmt.Errorf("failed to initialize iso maker: %w", err)
 	}
 
-	return isoMaker.BuildIsoImage()
+	if err := isoMaker.BuildIsoImage(); err != nil {
+		return err
+	}
+
+	// Display summary after build completes
+	// Construct the actual image build directory path (on host, not in chroot)
+	globalWorkDir, err := config.WorkDir()
+	if err != nil {
+		return fmt.Errorf("failed to get work directory: %w", err)
+	}
+	providerId := system.GetProviderId(template.Target.OS, template.Target.Dist, template.Target.Arch)
+	imageBuildDir := filepath.Join(globalWorkDir, providerId, "imagebuild", template.GetSystemConfigName())
+
+	displayImageArtifacts(imageBuildDir, "ISO")
+
+	return nil
 }
 
 func (p *eLxr) PostProcess(template *config.ImageTemplate, err error) error {
@@ -264,4 +295,9 @@ func loadRepoConfig(repoUrl string, arch string) (debutils.RepoConfig, error) {
 	log.Infof("Loaded repo config for %s: %+v", OsName, rc)
 
 	return rc, nil
+}
+
+// displayImageArtifacts displays all image artifacts in the build directory
+func displayImageArtifacts(imageBuildDir, imageType string) {
+	display.PrintImageDirectorySummary(imageBuildDir, imageType)
 }

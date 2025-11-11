@@ -161,7 +161,9 @@ func (rawMaker *RawMaker) BuildRawImage() error {
 		return fmt.Errorf("failed to rename image file: %w", err)
 	}
 
-	// Image conversion
+	log.Infof("Raw image build completed successfully: %s", finalImagePath)
+
+	// Image conversion (may compress/remove original file)
 	if err := rawMaker.ImageConvert.ConvertImageFile(finalImagePath, rawMaker.template); err != nil {
 		rawMaker.cleanupImageFileOnError(finalImagePath)
 		return fmt.Errorf("failed to convert image file: %w", err)
@@ -173,6 +175,5 @@ func (rawMaker *RawMaker) BuildRawImage() error {
 		// Don't fail the build if SBOM copy fails, just log warning
 	}
 
-	log.Infof("Raw image build completed successfully: %s", finalImagePath)
 	return nil
 }

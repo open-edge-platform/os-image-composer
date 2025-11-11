@@ -27,8 +27,11 @@ systemConfig:
     - less
     - dbus
     - policykit-1
+    - dosfstools
     - curl
+    - mmdebstrap
     - wget
+    - cryptsetup
     - uefi-ext4
     - systemd-resolved
     - cloud-guest-utils
@@ -51,8 +54,6 @@ systemConfig:
 
   users:
     - name: root
-      passwordMaxAge: 99999
-      password: ""
 
   kernel:
     name: kernel

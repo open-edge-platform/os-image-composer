@@ -14,7 +14,7 @@ import (
 var log = logger.Logger()
 
 type DebInstallerInterface interface {
-	UpdateLocalDebRepo(cacheDir, arch string) error
+	UpdateLocalDebRepo(cacheDir, arch string, sudo bool) error
 	InstallDebPkg(configDir, chrootPath, cacheDir string, packages []string) error
 }
 
@@ -45,7 +45,7 @@ func (debInstaller *DebInstaller) cleanupOnError(chrootEnvPath, repoPath string,
 	}
 }
 
-func (debInstaller *DebInstaller) UpdateLocalDebRepo(repoPath, targetArch string) error {
+func (debInstaller *DebInstaller) UpdateLocalDebRepo(repoPath, targetArch string, sudo bool) error {
 	if repoPath == "" {
 		return fmt.Errorf("repository path cannot be empty")
 	}
@@ -62,19 +62,25 @@ func (debInstaller *DebInstaller) UpdateLocalDebRepo(repoPath, targetArch string
 	metaDataPath := filepath.Join(repoPath,
 		fmt.Sprintf("dists/stable/main/binary-%s", targetArch), "Packages.gz")
 	if _, err := os.Stat(metaDataPath); err == nil {
-		if _, err = shell.ExecCmd("rm -f "+metaDataPath, false, shell.HostPath, nil); err != nil {
+		if _, err = shell.ExecCmd("rm -f "+metaDataPath, sudo, shell.HostPath, nil); err != nil {
 			return fmt.Errorf("failed to remove existing Packages.gz: %w", err)
 		}
 	}
 	metaDataDir := filepath.Dir(metaDataPath)
 	if _, err := os.Stat(metaDataDir); os.IsNotExist(err) {
-		if _, err = shell.ExecCmd("mkdir -p "+metaDataDir, false, shell.HostPath, nil); err != nil {
+		if _, err = shell.ExecCmd("mkdir -p "+metaDataDir, sudo, shell.HostPath, nil); err != nil {
 			return fmt.Errorf("failed to create metadata directory %s: %w", metaDataDir, err)
 		}
 	}
 
-	cmd := fmt.Sprintf("cd %s && sudo dpkg-scanpackages . /dev/null | gzip -9c > %s", repoPath, metaDataPath)
-	if _, err := shell.ExecCmd(cmd, false, shell.HostPath, nil); err != nil {
+	// Escape any double quotes and dollar signs in the paths
+	safeRepoPath := strings.ReplaceAll(repoPath, `"`, `\"`)
+	safeRepoPath = strings.ReplaceAll(safeRepoPath, "$", `\$`)
+	safeMetaDataPath := strings.ReplaceAll(metaDataPath, `"`, `\"`)
+	safeMetaDataPath = strings.ReplaceAll(safeMetaDataPath, "$", `\$`)
+
+	cmd := fmt.Sprintf("bash -c \"cd %s && dpkg-scanpackages . /dev/null | gzip -9c > %s\"", safeRepoPath, safeMetaDataPath)
+	if _, err := shell.ExecCmd(cmd, sudo, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to create local debian cache repository: %w", err)
 	}
 

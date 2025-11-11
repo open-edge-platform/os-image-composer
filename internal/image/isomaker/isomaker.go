@@ -107,6 +107,8 @@ func (isoMaker *IsoMaker) BuildIsoImage() (err error) {
 		// Don't fail the build if SBOM copy fails, just log warning
 	}
 
+	log.Infof("ISO image build completed successfully: %s", isoFilePath)
+
 	return nil
 }
 
@@ -150,6 +152,91 @@ func (isoMaker *IsoMaker) getInitrdTemplate(template *config.ImageTemplate) (*co
 	return initrdTemplate, nil
 }
 
+func (isoMaker *IsoMaker) copyConfigFilesToIso(template *config.ImageTemplate, installRoot string) error {
+	// Copy general config files to ISO
+	generalConfigSrcDir, err := config.GetGeneralConfigDir()
+	if err != nil {
+		return fmt.Errorf("failed to get general config directory: %w", err)
+	}
+	generalConfigDestDir := filepath.Join(installRoot, "config", "general")
+	if err := file.CopyDir(generalConfigSrcDir, generalConfigDestDir, "--preserve=mode", true); err != nil {
+		log.Errorf("Failed to copy general config files to iso root: %v", err)
+		return fmt.Errorf("failed to copy general config files to iso root: %w", err)
+	}
+
+	// Copy OSV config files to ISO
+	osvConfigSrcDir := isoMaker.ChrootEnv.GetTargetOsConfigDir()
+	osvConfigDestDir := filepath.Join(installRoot, "config", "osv", template.Target.OS, template.Target.Dist)
+	if err := file.CopyDir(osvConfigSrcDir, osvConfigDestDir, "--preserve=mode", true); err != nil {
+		log.Errorf("Failed to copy OSV config files to iso root: %v", err)
+		return fmt.Errorf("failed to copy OSV config files to iso root: %w", err)
+	}
+
+	// Copy additional files to ISO and update path info
+	var PathUpdatedList []config.AdditionalFileInfo
+	additionalFiles := template.GetAdditionalFileInfo()
+	if len(additionalFiles) != 0 {
+		for _, fileInfo := range additionalFiles {
+			srcFile := fileInfo.Local
+			srcFileName := filepath.Base(srcFile)
+			newPath := fmt.Sprintf("../additionalfiles/%s", srcFileName)
+			dstFile := filepath.Join(osvConfigDestDir, "imageconfigs", "additionalfiles", srcFileName)
+			if err := file.CopyFile(srcFile, dstFile, "-p", true); err != nil {
+				log.Errorf("Failed to copy additional file %s to image: %v", srcFile, err)
+				return fmt.Errorf("failed to copy additional file %s to image: %w", srcFile, err)
+			}
+			newFileInfo := config.AdditionalFileInfo{
+				Local: newPath,
+				Final: fileInfo.Final,
+			}
+			PathUpdatedList = append(PathUpdatedList, newFileInfo)
+		}
+	}
+	template.SystemConfig.AdditionalFiles = PathUpdatedList
+
+	// Dump updated template to ISO
+	templateDumpFilePath := filepath.Join(isoMaker.ImageBuildDir, "template-dump.yaml")
+	if err := template.SaveUpdatedConfigFile(templateDumpFilePath); err != nil {
+		log.Errorf("Failed to dump updated template to file: %v", err)
+		return fmt.Errorf("failed to dump updated template to file: %w", err)
+	}
+	templateDestFilePath := filepath.Join(osvConfigDestDir, "imageconfigs", "defaultconfigs", "template-dump.yaml")
+	if err := file.CopyFile(templateDumpFilePath, templateDestFilePath, "--preserve=mode", true); err != nil {
+		log.Errorf("Failed to copy template dump file to iso root: %v", err)
+		return fmt.Errorf("failed to copy template dump file to iso root: %w", err)
+	}
+
+	return nil
+}
+
+func (isoMaker *IsoMaker) copyImagePkgsToIso(template *config.ImageTemplate, installRoot string) error {
+	pkgCacheSrcDir := isoMaker.ChrootEnv.GetChrootPkgCacheDir()
+	pkgCacheDestDir := filepath.Join(installRoot, "cache-repo")
+	for _, pkg := range template.FullPkgList {
+		pkgFileSrcPath := filepath.Join(pkgCacheSrcDir, pkg)
+		if _, err := os.Stat(pkgFileSrcPath); os.IsNotExist(err) {
+			log.Errorf("Package file does not exist in cache: %s", pkgFileSrcPath)
+			return fmt.Errorf("package file does not exist in cache: %s", pkgFileSrcPath)
+		}
+		pkgFileDestPath := filepath.Join(pkgCacheDestDir, pkg)
+		if err := file.CopyFile(pkgFileSrcPath, pkgFileDestPath, "--preserve=mode", true); err != nil {
+			log.Errorf("Failed to copy package file to iso cache-repo: %v", err)
+			return fmt.Errorf("failed to copy package file to iso cache-repo: %w", err)
+		}
+	}
+
+	pkgCacheChrootDir, err := isoMaker.ChrootEnv.GetChrootEnvPath(pkgCacheDestDir)
+	if err != nil {
+		return fmt.Errorf("failed to get chroot path for iso cache-repo: %w", err)
+	}
+
+	if err := isoMaker.ChrootEnv.UpdateChrootLocalRepoMetadata(pkgCacheChrootDir, template.Target.Arch, true); err != nil {
+		return fmt.Errorf("failed to update local cache repository metadata in iso: %w", err)
+	}
+
+	return nil
+}
+
 func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfsPath, initrdFilePath, isoFilePath string) error {
 	var err error
 
@@ -188,6 +275,18 @@ func (isoMaker *IsoMaker) createIso(template *config.ImageTemplate, initrdRootfs
 
 	if err := copyInitrdToIsoImagesPath(initrdFilePath, isoImagesPath); err != nil {
 		return fmt.Errorf("failed to copy initrd to iso image path: %w", err)
+	}
+
+	// Copy config files to ISO
+	log.Infof("Copying config files to ISO...")
+	if err := isoMaker.copyConfigFilesToIso(template, installRoot); err != nil {
+		return fmt.Errorf("failed to copy config files to ISO: %w", err)
+	}
+
+	// Copy image packages to ISO
+	log.Infof("Copying image packages to ISO...")
+	if err := isoMaker.copyImagePkgsToIso(template, installRoot); err != nil {
+		return fmt.Errorf("failed to copy image packages to ISO: %w", err)
 	}
 
 	// Create GRUB config for EFI boot

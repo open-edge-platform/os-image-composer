@@ -136,8 +136,8 @@ func BuildRepoConfigs(userRepoList []Repository, repoGroup, arch string) ([]Repo
 					RepoGPGCheck: true,
 					Enabled:      true,
 					PbGPGKey:     pkey,
-					BuildPath:    fmt.Sprintf("./builds/%s_%s_%s", id, arch, componentName),
-					Arch:         arch,
+					BuildPath:    fmt.Sprintf("./builds/%s_%s_%s", id, localArch, componentName),
+					Arch:         localArch,
 				}
 				userRepo = append(userRepo, repo)
 			}

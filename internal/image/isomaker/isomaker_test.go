@@ -104,7 +104,11 @@ func (m *mockChrootEnv) CopyFileFromChrootToHost(hostFilePath, chrootPath string
 	return nil
 }
 
-func (m *mockChrootEnv) RefreshLocalCacheRepo(arch string) error {
+func (m *mockChrootEnv) UpdateChrootLocalRepoMetadata(chrootRepoDir string, targetArch string, sudo bool) error {
+	return nil
+}
+
+func (m *mockChrootEnv) RefreshLocalCacheRepo() error {
 	if m.shouldFailRefresh {
 		return fmt.Errorf("mock refresh cache repo failure")
 	}
@@ -654,7 +658,7 @@ func TestIsoMaker_DownloadInitrdPkgs(t *testing.T) {
 				t.Errorf("Expected pkg type %s, got %s", tt.pkgType, chrootEnv.GetTargetOsPkgType())
 			}
 
-			err = chrootEnv.RefreshLocalCacheRepo(tt.template.Target.Arch)
+			err = chrootEnv.RefreshLocalCacheRepo()
 			if tt.expectError {
 				if err == nil {
 					t.Error("Expected error, but got none")

@@ -655,6 +655,18 @@ func (imageOs *ImageOs) postImageOsInstall(installRoot string, template *config.
 }
 
 func updateImageHostname(installRoot string, template *config.ImageTemplate) error {
+	hostname := template.SystemConfig.HostName
+	if hostname != "" {
+		log.Infof("Configuring Hostname...")
+		hostnameFilePath := filepath.Join(installRoot, "etc", "hostname")
+		if err := file.Write(hostname+"\n", hostnameFilePath); err != nil {
+			return fmt.Errorf("failed to write hostname to %s: %w", hostnameFilePath, err)
+		}
+		if _, err := shell.ExecCmd("chmod 0644 "+hostnameFilePath, true, shell.HostPath, nil); err != nil {
+			log.Errorf("Failed to set permissions for hostname file %s: %v", hostnameFilePath, err)
+			return fmt.Errorf("failed to set permissions for hostname file %s: %w", hostnameFilePath, err)
+		}
+	}
 	return nil
 }
 
@@ -876,101 +888,64 @@ func getKernelVersion(installRoot string) (string, error) {
 
 // Helper to update initramfs for the given kernel version
 func updateInitramfs(installRoot, kernelVersion string, template *config.ImageTemplate) error {
-	// Check if we're dealing with Ubuntu, which uses different naming convention
-	if template.Target.OS == "ubuntu" {
-		return updateInitramfsUbuntu(installRoot, kernelVersion, template)
-	}
-
 	// Other distributions use initramfs- prefix
 	initrdPath := fmt.Sprintf("/boot/initramfs-%s.img", kernelVersion)
 
-	// For immutable systems, use standard dracut - dm-verity will be handled by main systemd
+	// Check if we're dealing with Ubuntu, which uses different naming convention
+	if template.Target.OS == "ubuntu" {
+		initrdPath = fmt.Sprintf("/boot/initrd.img-%s", kernelVersion)
+	}
+
+	// Build dracut command with all required options
+	var cmdParts []string
+	cmdParts = append(cmdParts, "dracut")
+	cmdParts = append(cmdParts, "--force")
+	cmdParts = append(cmdParts, "--no-hostonly")
+	cmdParts = append(cmdParts, "--verbose")
+
+	// Add systemd-veritysetup module if immutability is enabled
 	if template.IsImmutabilityEnabled() {
-		cmd := fmt.Sprintf(
-			"dracut --force --add systemd-veritysetup --no-hostonly --verbose --kver %s %s",
-			kernelVersion,
-			initrdPath,
-		)
-		_, err := shell.ExecCmd(cmd, true, installRoot, nil)
-		if err != nil {
-			log.Errorf("Failed to update initramfs with veritysetup: %v", err)
-			err = fmt.Errorf("failed to update initramfs with veritysetup: %w", err)
-		}
-		return err
-	}
-	// Check if the initrdPath file exists; if not, create it
-	fullInitrdPath := filepath.Join(installRoot, initrdPath)
-	if _, err := os.Stat(fullInitrdPath); err == nil {
-		// initrd file already exists
-		log.Debugf("Initramfs already exists, skipping update: %s", fullInitrdPath)
-		return nil
-	}
-	cmd := fmt.Sprintf(
-		"dracut -f %s %s",
-		initrdPath,
-		kernelVersion,
-	)
-	_, err := shell.ExecCmd(cmd, true, installRoot, nil)
-	if err != nil {
-		log.Errorf("Failed to update initramfs: %v", err)
-		err = fmt.Errorf("failed to update initramfs: %w", err)
-	}
-	return err
-}
-
-// Helper to update initramfs for Ubuntu using dracut
-func updateInitramfsUbuntu(installRoot, kernelVersion string, template *config.ImageTemplate) error {
-	// Ubuntu uses the initrd.img-<version> naming convention for compatibility
-	initrdPath := fmt.Sprintf("/boot/initrd.img-%s", kernelVersion)
-
-	// Check if the initrdPath file exists; if not, create it
-	fullInitrdPath := filepath.Join(installRoot, initrdPath)
-	// List files in initrdPath directory for debugging
-	initrdDir := filepath.Dir(fullInitrdPath)
-	if files, err := file.GetFileList(initrdDir); err == nil {
-		log.Debugf("Ubuntu Files in %s: %v", initrdDir, files)
-	} else {
-		log.Debugf("Ubuntu Failed to list files in %s: %v", initrdDir, err)
-	}
-
-	// For dracut-based systems, always regenerate with dracut (don't check existing files)
-	immutabilityEnabled := template.IsImmutabilityEnabled()
-	log.Infof("DEBUG: IsImmutabilityEnabled() = %v", immutabilityEnabled)
-	if immutabilityEnabled {
-		log.Infof("Immutable system detected - will force regenerate initramfs with dracut")
-	} else {
-		if _, err := os.Stat(fullInitrdPath); err == nil {
-			// initrd file already exists for non-immutable systems
-			log.Debugf("Ubuntu initramfs already exists, skipping update: %s", fullInitrdPath)
-			return nil
+		cmdParts = append(cmdParts, "--add", "systemd-veritysetup")
+		if template.Target.OS == "ubuntu" {
+			cmdParts = append(cmdParts, "--add", "dm")
+			cmdParts = append(cmdParts, "--add", "crypt")
 		}
 	}
 
-	// For Ubuntu with immutable systems, use dracut with dm-verity support
-	var cmd string
-	if template.IsImmutabilityEnabled() {
-		log.Infof("Creating Ubuntu dracut initramfs with dm-verity support")
-		cmd = fmt.Sprintf(
-			"dracut --force --add dm --add crypt --add systemd --add systemd-veritysetup --no-hostonly --verbose --kver %s %s",
-			kernelVersion,
-			initrdPath,
-		)
-	} else {
-		log.Infof("Creating standard Ubuntu dracut initramfs")
-		cmd = fmt.Sprintf(
-			"dracut --force --add systemd --no-hostonly --verbose --kver %s %s",
-			kernelVersion,
-			initrdPath,
-		)
+	if template.Target.OS == "ubuntu" {
+		cmdParts = append(cmdParts, "--add", "systemd")
 	}
 
+	// Always add USB drivers
+	extraModules := strings.TrimSpace(template.SystemConfig.Kernel.EnableExtraModules)
+	if extraModules != "" {
+		cmdParts = append(cmdParts, fmt.Sprintf("--add-drivers '%s'", extraModules))
+	}
+
+	// Add kernel version and output path
+	cmdParts = append(cmdParts, "--kver", kernelVersion)
+	cmdParts = append(cmdParts, initrdPath)
+
+	// Execute single dracut command
+	cmd := strings.Join(cmdParts, " ")
 	_, err := shell.ExecCmd(cmd, true, installRoot, nil)
 	if err != nil {
-		log.Errorf("Failed to update Ubuntu dracut initramfs: %v", err)
-		err = fmt.Errorf("failed to update Ubuntu dracut initramfs: %w", err)
+		if template.IsImmutabilityEnabled() {
+			log.Errorf("Failed to update initramfs with veritysetup and USB drivers: %v", err)
+			return fmt.Errorf("failed to update initramfs with veritysetup and USB drivers: %w", err)
+		} else {
+			log.Errorf("Failed to update initramfs with USB drivers: %v", err)
+			return fmt.Errorf("failed to update initramfs with USB drivers: %w", err)
+		}
 	}
 
-	return err
+	if template.IsImmutabilityEnabled() {
+		log.Debugf("Initramfs updated successfully with veritysetup and USB drivers")
+	} else {
+		log.Debugf("Initramfs updated successfully with USB drivers")
+	}
+
+	return nil
 }
 
 // Helper to determine the ESP directory (assumes /boot/efi)
