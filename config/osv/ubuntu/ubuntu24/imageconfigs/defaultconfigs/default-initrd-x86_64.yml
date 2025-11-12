@@ -27,9 +27,13 @@ systemConfig:
     - less
     - dbus
     - policykit-1
-    - curl
-    - wget
+    - dosfstools
     - efibootmgr
+    - eject
+    - curl
+    - mmdebstrap
+    - wget
+    - cryptsetup
     - systemd-resolved
     - cloud-guest-utils
     - xterm
@@ -48,11 +52,14 @@ systemConfig:
       final: /usr/lib/systemd/system/getty@.service
     - local: ../additionalfiles/serial-getty@.service
       final: /usr/lib/systemd/system/serial-getty@.service
+    - local: ../../../../../general/isolinux/attendedinstaller
+      final: /root/attendedinstaller
+    - local: ../../../../../../build/live-installer
+      final: /usr/bin/live-installer
 
   users:
     - name: root
-      passwordMaxAge: 99999
-      password: ""
+      startupScript: "/root/attendedinstaller"
 
   kernel:
     name: kernel

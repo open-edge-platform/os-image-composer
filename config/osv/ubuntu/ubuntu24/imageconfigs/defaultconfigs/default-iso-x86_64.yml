@@ -38,11 +38,12 @@ systemConfig: # Required
 
   bootloader:
     bootType: efi # (efi or legacy)
-    provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
+    provider: grub # (grub for efi and legacy mode, or systemd-boot for efi mode)
 
   packages:
     - ubuntu-minimal
-    - systemd-boot
+    - grub2-common
+    - grub-efi-amd64-bin
     - dracut-core
     - systemd
     - cryptsetup-bin
