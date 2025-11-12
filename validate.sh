@@ -329,7 +329,7 @@ build_azl3_iso_image() {
   echo "Ensuring we're in the working directory before starting builds..."
   cd "$WORKING_DIR"
   echo "Current working directory: $(pwd)"
-  output=$( sudo -S ./build/os-image-composer build image-templates/azl3-x86_64-minimal-iso.yml 2>&1)
+  output=$( sudo -S ./build/os-image-composer build image-templates/azl3-x86_64-minimal-iso.yml)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
     echo "AZL3 iso Image build passed."
