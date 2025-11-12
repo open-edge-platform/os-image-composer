@@ -6,6 +6,11 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:             # Manual runs
+    inputs:
+      ref:
+        description: "Branch or SHA to test (e.g. feature/x or a1b2c3)"
+        required: false
 permissions:
   contents: read
 jobs:
