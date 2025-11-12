@@ -576,14 +576,14 @@ func updateInitrdConfig(installRoot string, template *config.ImageTemplate) erro
 	if err := updateImageHostname(installRoot, template); err != nil {
 		return fmt.Errorf("failed to update image hostname: %w", err)
 	}
+	if err := addImageAdditionalFiles(installRoot, template); err != nil {
+		return fmt.Errorf("failed to add additional files to image: %w", err)
+	}
 	if err := updateImageUsrGroup(installRoot, template); err != nil {
 		return fmt.Errorf("failed to update image user/group: %w", err)
 	}
 	if err := updateImageNetwork(installRoot, template); err != nil {
 		return fmt.Errorf("failed to update image network: %w", err)
-	}
-	if err := addImageAdditionalFiles(installRoot, template); err != nil {
-		return fmt.Errorf("failed to add additional files to image: %w", err)
 	}
 	if err := addImageIDFile(installRoot, template); err != nil {
 		return fmt.Errorf("failed to add image ID file: %w", err)
