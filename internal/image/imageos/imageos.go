@@ -896,6 +896,9 @@ func updateInitramfs(installRoot, kernelVersion string, template *config.ImageTe
 		cmdParts = append(cmdParts, "--add", "systemd-veritysetup")
 	}
 
+	//cmdParts = append(cmdParts, "--add", "cut")
+	cmdParts = append(cmdParts, "--install", "/usr/bin/cut") //harcoded!! yockgen - need to fix
+
 	// Always add USB drivers
 	extraModules := strings.TrimSpace(template.SystemConfig.Kernel.EnableExtraModules)
 	if extraModules != "" {

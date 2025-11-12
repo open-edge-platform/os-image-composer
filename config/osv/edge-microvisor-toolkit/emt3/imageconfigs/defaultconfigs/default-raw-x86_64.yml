@@ -71,6 +71,7 @@ systemConfig:
     - core-packages-base-image
     - initramfs
     - shadow-utils
+    - coreutils
 
     # ssh server
     - openssh-server
