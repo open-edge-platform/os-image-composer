@@ -1,0 +1,9 @@
+image:
+  name: minimal-os-image-ubuntu
+  version: "24.04"
+
+target:
+  os: ubuntu
+  dist: ubuntu24
+  arch: x86_64
+  imageType: img # Image type, valid value: [raw, iso, img].

@@ -73,6 +73,22 @@ build:
     # Get build date in UTC
     RUN BUILD_DATE=$(date -u '+%Y-%m-%d') && \
         echo "$BUILD_DATE" > /tmp/build_date
+
+    # Build with variables instead of cat substitution
+    RUN VERSION=$(cat /tmp/version) && \
+        COMMIT_SHA=$(cat /tmp/commit_sha) && \
+        BUILD_DATE=$(cat /tmp/build_date) && \
+        CGO_ENABLED=0 GOARCH=amd64 GOOS=linux \
+        go build -trimpath -buildmode=pie -o build/live-installer \
+            -ldflags "-s -w \
+                     -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.Version=$VERSION' \
+                     -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.Toolname=Image-Composer' \
+                     -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.Organization=Open Edge Platform' \
+                     -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.BuildDate=$BUILD_DATE' \
+                     -X 'github.com/open-edge-platform/os-image-composer/internal/config/version.CommitSHA=$COMMIT_SHA'" \
+            ./cmd/live-installer
+
+    SAVE ARTIFACT build/live-installer AS LOCAL ./build/live-installer
     
     # Build with variables instead of cat substitution
     RUN VERSION=$(cat /tmp/version) && \

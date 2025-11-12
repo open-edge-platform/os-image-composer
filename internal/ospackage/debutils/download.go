@@ -1,8 +1,10 @@
 package debutils
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -18,6 +20,15 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/utils/network"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/slice"
 )
+
+// Repository represents a Debian repository
+type Repository struct {
+	ID        string
+	Codename  string
+	URL       string
+	PKey      string
+	Component string
+}
 
 // repoConfig hold repo related info
 type RepoConfig struct {
@@ -42,6 +53,7 @@ type pkgChecksum struct {
 
 var (
 	RepoCfg      RepoConfig
+	RepoCfgs     []RepoConfig // Support for multiple repositories
 	PkgChecksum  []pkgChecksum
 	GzHref       string
 	Architecture string
@@ -63,49 +75,51 @@ func Packages() ([]ospackage.PackageInfo, error) {
 	return packages, nil
 }
 
-func UserPackages() ([]ospackage.PackageInfo, error) {
-
+// PackagesFromMultipleRepos returns packages from all configured repositories
+func PackagesFromMultipleRepos() ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
-	log.Infof("fetching packages from %s", "user package list")
 
-	repoList := make([]struct {
-		id        string
-		codename  string
-		url       string
-		pkey      string
-		component string
-	}, len(UserRepo))
-	for i, repo := range UserRepo {
-		repoList[i] = struct {
-			id        string
-			codename  string
-			url       string
-			pkey      string
-			component string
-		}{
-			id:        fmt.Sprintf("custrepo%d", i+1),
-			codename:  repo.Codename,
-			url:       repo.URL,
-			pkey:      repo.PKey,
-			component: repo.Component,
-		}
+	if len(RepoCfgs) == 0 {
+		log.Warnf("No multiple repositories configured, falling back to single repository")
+		return Packages()
 	}
 
+	var allPackages []ospackage.PackageInfo
+
+	for i, repoCfg := range RepoCfgs {
+		log.Infof("fetching packages from repository %d: %s (%s)", i+1, repoCfg.Name, repoCfg.PkgList)
+
+		packages, err := ParseRepositoryMetadata(repoCfg.PkgPrefix, repoCfg.PkgList, repoCfg.ReleaseFile, repoCfg.ReleaseSign, repoCfg.PbGPGKey, repoCfg.BuildPath, repoCfg.Arch)
+		if err != nil {
+			log.Warnf("Failed to parse repository %s: %v", repoCfg.Name, err)
+			continue // Skip this repository but continue with others
+		}
+
+		log.Infof("found %d packages in repository %s", len(packages), repoCfg.Name)
+		allPackages = append(allPackages, packages...)
+	}
+
+	log.Infof("found total of %d packages from %d repositories", len(allPackages), len(RepoCfgs))
+	return allPackages, nil
+}
+
+// BuildRepoConfigs converts Repository entries to RepoConfig format
+func BuildRepoConfigs(userRepoList []Repository, repoGroup, arch string) ([]RepoConfig, error) {
 	var userRepo []RepoConfig
-	for _, repoItem := range repoList {
-		id := repoItem.id
-		codename := repoItem.codename
-		baseURL := repoItem.url
-		pkey := repoItem.pkey
-		archs := Architecture + ",all"
+	for _, repoItem := range userRepoList {
+		id := repoItem.ID
+		codename := repoItem.Codename
+		baseURL := repoItem.URL
+		pkey := repoItem.PKey
+		archs := arch + ",all"
 		releaseNm := "Release"
-		component := repoItem.component
+		component := repoItem.Component
 		if strings.TrimSpace(component) == "" {
 			component = "main"
 		}
 		for _, componentName := range slice.SplitBySpace(component) {
-			for _, arch := range strings.Split(archs, ",") {
-				package_list_url, err := GetPackagesNames(baseURL, codename, arch, componentName)
+			for _, localArch := range strings.Split(archs, ",") {
+				package_list_url, err := GetPackagesNames(baseURL, codename, localArch, componentName)
 				if err != nil {
 					return nil, fmt.Errorf("getting package metadata name: %w", err)
 				}
@@ -122,12 +136,37 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 					RepoGPGCheck: true,
 					Enabled:      true,
 					PbGPGKey:     pkey,
-					BuildPath:    fmt.Sprintf("./builds/%s_%s_%s", id, arch, componentName),
-					Arch:         arch,
+					BuildPath:    filepath.Join(config.TempDir(), "builds", fmt.Sprintf("%s_%s_%s", id, localArch, componentName)),
+					Arch:         localArch,
 				}
 				userRepo = append(userRepo, repo)
 			}
 		}
+	}
+
+	return userRepo, nil
+}
+
+func UserPackages() ([]ospackage.PackageInfo, error) {
+
+	log := logger.Logger()
+	log.Infof("fetching packages from %s", "user package list")
+
+	repoList := make([]Repository, len(UserRepo))
+	repoGroup := "custrepo"
+	for i, repo := range UserRepo {
+		repoList[i] = Repository{
+			ID:        fmt.Sprintf("%s%d", repoGroup, i+1),
+			Codename:  repo.Codename,
+			URL:       repo.URL,
+			PKey:      repo.PKey,
+			Component: repo.Component,
+		}
+	}
+
+	userRepo, err := BuildRepoConfigs(repoList, repoGroup, Architecture)
+	if err != nil {
+		return nil, fmt.Errorf("building user repo configs failed: %w", err)
 	}
 
 	var allUserPackages []ospackage.PackageInfo
@@ -145,23 +184,60 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 
 // CheckFileExists sends a HEAD request to the given URL and
 // returns true if the file exists (status 200).
+// Optimized to handle timeouts and slow server responses.
 func checkFileExists(url string) (bool, error) {
-	client := network.NewSecureHTTPClient()
-	resp, err := client.Head(url)
-	if err != nil {
-		return false, err
-	}
-	defer resp.Body.Close()
+	// Create a context with timeout for the request
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	if resp.StatusCode == http.StatusOK {
+	client := network.NewSecureHTTPClient()
+
+	// Create request with context
+	req, err := http.NewRequestWithContext(ctx, "HEAD", url, nil)
+	if err != nil {
+		return false, fmt.Errorf("creating request for %s: %w", url, err)
+	}
+
+	// Set additional headers to encourage faster responses
+	req.Header.Set("User-Agent", "os-image-composer/1.0")
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Connection", "close") // Don't keep connection alive for HEAD requests
+
+	resp, err := client.Do(req)
+	if err != nil {
+		// Handle common network errors as "not found" to avoid failing the entire operation
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "eof") ||
+			strings.Contains(errStr, "timeout") ||
+			strings.Contains(errStr, "connection refused") ||
+			strings.Contains(errStr, "no such host") ||
+			strings.Contains(errStr, "context deadline exceeded") {
+			return false, nil // Treat network issues as "file not found"
+		}
+		return false, fmt.Errorf("network error checking %s: %w", url, err)
+	}
+	defer func() {
+		// Properly drain and close the response body to avoid connection leaks
+		if resp.Body != nil {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+		}
+	}()
+
+	switch {
+	case resp.StatusCode == http.StatusOK:
 		// File exists, all good
 		return true, nil
+	case resp.StatusCode >= 400 && resp.StatusCode < 500:
+		// Client errors (404, 403, etc.) - treat as file not found
+		return false, nil
+	case resp.StatusCode >= 500:
+		// Server errors - treat as temporary issue, file might exist
+		return false, fmt.Errorf("server error checking file at %s: status %s", url, resp.Status)
+	default:
+		// Unexpected status codes
+		return false, fmt.Errorf("unexpected response checking file at %s: status %s", url, resp.Status)
 	}
-	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-		return false, nil // Other client errors, treat as URL issue
-	}
-	// For server errors or anything else, treat as a network/server problem
-	return false, fmt.Errorf("error checking file at %s: status: %s", url, resp.Status)
 }
 
 // Validate verifies the downloaded files
@@ -321,8 +397,20 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 
 	log := logger.Logger()
 
-	// Fetch the entire base package list
-	all, err := Packages()
+	// Fetch the entire base package list from multiple repositories if configured
+	var all []ospackage.PackageInfo
+	var err error
+
+	if len(RepoCfgs) > 0 {
+		// Use multiple repositories
+		log.Infof("Using multiple repositories (%d configured)", len(RepoCfgs))
+		all, err = PackagesFromMultipleRepos()
+	} else {
+		// Fall back to single repository
+		log.Infof("Using single repository (legacy mode)")
+		all, err = Packages()
+	}
+
 	if err != nil {
 		return downloadPkgList, fmt.Errorf("getting packages: %w", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -178,7 +179,7 @@ func (imageOs *ImageOs) InstallImageOs(diskPathIdMap map[string]string) (version
 	}
 
 	log.Infof("Installing bootloader...")
-	if err = imageOs.imageBoot.InstallImageBoot(imageOs.installRoot, diskPathIdMap, imageOs.template); err != nil {
+	if err = imageOs.imageBoot.InstallImageBoot(imageOs.installRoot, diskPathIdMap, imageOs.template, pkgType); err != nil {
 		err = fmt.Errorf("failed to install image boot: %w", err)
 		return
 	}
@@ -882,6 +883,7 @@ func getKernelVersion(installRoot string) (string, error) {
 
 // Helper to update initramfs for the given kernel version
 func updateInitramfs(installRoot, kernelVersion string, template *config.ImageTemplate) error {
+	// Other distributions use initramfs- prefix
 	initrdPath := fmt.Sprintf("/boot/initramfs-%s.img", kernelVersion)
 
 	// Build dracut command with all required options
@@ -894,7 +896,11 @@ func updateInitramfs(installRoot, kernelVersion string, template *config.ImageTe
 	// Add systemd-veritysetup module if immutability is enabled
 	if template.IsImmutabilityEnabled() {
 		cmdParts = append(cmdParts, "--add", "systemd-veritysetup")
+		cmdParts = append(cmdParts, "--add", "dm")
+		cmdParts = append(cmdParts, "--add", "crypt")
 	}
+
+	cmdParts = append(cmdParts, "--add", "systemd")
 
 	// Always add USB drivers
 	extraModules := strings.TrimSpace(template.SystemConfig.Kernel.EnableExtraModules)
@@ -1259,6 +1265,12 @@ func createUser(installRoot string, template *config.ImageTemplate) error {
 			return fmt.Errorf("user verification failed for %s: %w", user.Name, err)
 		}
 
+		if user.StartupScript != "" {
+			if err := configUserStartupScript(installRoot, user); err != nil {
+				return fmt.Errorf("failed to configure startup script for user %s: %w", user.Name, err)
+			}
+		}
+
 		log.Infof("User %s created successfully", user.Name)
 	}
 
@@ -1338,4 +1350,29 @@ func hashPassword(password, hashAlgo, installRoot string) (string, error) {
 	log.Debugf("Password hashed successfully with algorithm %s", hashAlgo)
 
 	return hashedPassword, nil
+}
+
+func configUserStartupScript(installRoot string, user config.UserConfig) error {
+	log.Infof("Configuring user '%s' startup script to: %s", user.Name, user.StartupScript)
+
+	// Escape user.Name and user.StartupScript for regex safety
+	escapedUserName := regexp.QuoteMeta(user.Name)
+	escapedStartupScript := regexp.QuoteMeta(user.StartupScript)
+	startupScriptHostPath := filepath.Join(installRoot, user.StartupScript)
+
+	// Verify that the startup script exists in the image
+	if _, err := os.Stat(startupScriptHostPath); os.IsNotExist(err) {
+		log.Errorf("Startup script %s does not exist in image for user %s", user.StartupScript, user.Name)
+		return fmt.Errorf("startup script %s does not exist in image for user %s", user.StartupScript, user.Name)
+	}
+
+	findPattern := fmt.Sprintf(`^(%s.*):[^:]*$`, escapedUserName)
+	replacePattern := fmt.Sprintf(`\1:%s`, escapedStartupScript)
+	passwdFile := filepath.Join(installRoot, "etc", "passwd")
+
+	if err := file.ReplaceRegexInFile(findPattern, replacePattern, passwdFile); err != nil {
+		log.Errorf("Failed to update user %s startup command: %v", user.Name, err)
+		return fmt.Errorf("failed to update user %s startup command: %w", user.Name, err)
+	}
+	return nil
 }

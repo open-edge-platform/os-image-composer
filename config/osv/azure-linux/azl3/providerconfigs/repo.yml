@@ -10,4 +10,4 @@ gpgKey: "repodata/repomd.xml.key"  # Relative path from resolved repository URL
 # For RPM-based repositories, we use the baseURL pattern
 # The actual repository URL is constructed as: {baseURL}/{arch}/
 # Repodata is accessed at: {baseURL}/{arch}/repodata/repomd.xml
-buildPath: "./builds/azl3"
+buildPath: "./builds/azl3"  # Will be replaced with temp_dir/builds/azl3 at runtime

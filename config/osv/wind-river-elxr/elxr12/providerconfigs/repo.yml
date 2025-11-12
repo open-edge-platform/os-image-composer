@@ -9,4 +9,4 @@ gpgCheck: true
 repoGPGCheck: true
 enabled: true
 component: "main"  # Repository component/section identifier
-buildPath: "./builds/elxr12"
+buildPath: "./builds/elxr12"  # Will be replaced with temp_dir/builds/elxr12 at runtime

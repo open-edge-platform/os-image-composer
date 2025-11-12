@@ -257,13 +257,20 @@ func loadRepoConfig(repoUrl string, arch string) (debutils.RepoConfig, error) {
 	var rc debutils.RepoConfig
 
 	// Load provider repo config using the centralized config function
-	providerConfig, err := config.LoadProviderRepoConfig(OsName, "elxr12")
+	providerConfigs, err := config.LoadProviderRepoConfig(OsName, "elxr12")
 	if err != nil {
 		return rc, fmt.Errorf("failed to load provider repo config: %w", err)
 	}
 
+	// Use the first repository configuration for backward compatibility
+	if len(providerConfigs) == 0 {
+		return rc, fmt.Errorf("no repository configurations found")
+	}
+
+	providerConfig := providerConfigs[0]
+
 	// Convert ProviderRepoConfig to debutils.RepoConfig using the unified conversion method
-	repoType, name, url, gpgKey, component, buildPath, pkgPrefix, releaseFile, releaseSign, gpgCheck, repoGPGCheck, enabled := providerConfig.ToRepoConfigData(arch)
+	repoType, name, url, gpgKey, component, buildPath, pkgPrefix, releaseFile, releaseSign, _, gpgCheck, repoGPGCheck, enabled := providerConfig.ToRepoConfigData(arch)
 
 	// Verify this is a DEB repository
 	if repoType != "deb" {

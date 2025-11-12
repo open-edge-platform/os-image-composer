@@ -1,0 +1,9 @@
+# Canonical Ubuntu 24.04 LTS OS Configuration
+# This file defines architecture-specific build configurations for Canonical Ubuntu 24.04 LTS
+
+x86_64:
+  dist: ubuntu24                                    # Distribution identifier
+  arch: x86_64                                      # Target architecture
+  pkgType: deb                                      # Package management system
+  chrootenvConfigFile: chrootenvconfigs/chrootenv_x86_64.yml  # Path to chrootenv config
+  releaseVersion: "24.04"                           # Distribution release version

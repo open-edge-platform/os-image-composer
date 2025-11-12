@@ -526,7 +526,14 @@ func (chrootEnv *ChrootEnv) AptInstallPackage(packageName, installRoot string, r
 		}
 	}
 
-	if _, err := shell.ExecCmdWithStream(installCmd, true, installRoot, nil); err != nil {
+	// Set environment variables to ensure non-interactive installation
+	envVars := []string{
+		"DEBIAN_FRONTEND=noninteractive",
+		"DEBCONF_NONINTERACTIVE_SEEN=true",
+		"DEBCONF_NOWARNINGS=yes",
+	}
+
+	if _, err := shell.ExecCmdWithStream(installCmd, true, installRoot, envVars); err != nil {
 		return fmt.Errorf("failed to install package %s: %w", packageName, err)
 	}
 
@@ -534,6 +541,13 @@ func (chrootEnv *ChrootEnv) AptInstallPackage(packageName, installRoot string, r
 }
 
 func (chrootEnv *ChrootEnv) UpdateSystemPkgs(template *config.ImageTemplate) error {
+	// Update essential packages
+	essentialPkgList, err := chrootEnv.GetChrootEnvEssentialPackageList()
+	if err != nil {
+		return fmt.Errorf("failed to get essential package list: %w", err)
+	}
+	template.EssentialPkgList = essentialPkgList
+
 	// Update bootloader packages by bootloader type
 	bootloaderConfig := template.GetBootloaderConfig()
 	// To do: support bootloader package selection by bootloader type

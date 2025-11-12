@@ -27,7 +27,6 @@ func FetchPackages(urls []string, destDir string, workers int) error {
 	// create a single progress bar for total files
 	bar := progressbar.NewOptions(total,
 		progressbar.OptionEnableColorCodes(true),
-		progressbar.OptionShowDescriptionAtLineEnd(),
 		progressbar.OptionSetWidth(30),
 		progressbar.OptionShowCount(),
 		progressbar.OptionThrottle(200*time.Millisecond),

@@ -44,6 +44,14 @@ func ReplacePlaceholdersInFile(placeholder, value, filePath string) error {
 	return nil
 }
 
+func ReplaceRegexInFile(findPattern, replacePattern, filePath string) error {
+	sedCmd := fmt.Sprintf("sed -E -i 's|%s|%s|g' %s", findPattern, replacePattern, filePath)
+	if _, err := shell.ExecCmd(sedCmd, true, shell.HostPath, nil); err != nil {
+		return fmt.Errorf("failed to replace pattern %s with %s in file %s: %w", findPattern, replacePattern, filePath, err)
+	}
+	return nil
+}
+
 func GetFileList(dir string) ([]string, error) {
 	var fileList []string
 	output, err := shell.ExecCmd("ls "+dir, true, shell.HostPath, nil)

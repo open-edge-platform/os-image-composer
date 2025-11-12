@@ -554,6 +554,80 @@ build_azl3_immutable_raw_image() {
   fi
 }
 
+build_ubuntu24_raw_image() {
+  echo "Building Ubuntu 24 raw Image.(using os-image-composer binary)"
+  # Ensure we're in the working directory before starting builds
+  echo "Ensuring we're in the working directory before starting builds..."
+  cd "$WORKING_DIR"
+  echo "Current working directory: $(pwd)"
+  output=$( sudo -S ./os-image-composer build image-templates/ubuntu24-x86_64-minimal-raw.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+    echo "Ubuntu 24 raw Image build passed."
+    if [ "$RUN_QEMU_TESTS" = true ]; then
+      echo "Running QEMU boot test for Ubuntu 24 raw image..."
+      if run_qemu_boot_test "ubuntu24-x86_64-minimal"; then
+        echo "QEMU boot test PASSED for Ubuntu 24 raw image"
+      else
+        echo "QEMU boot test FAILED for Ubuntu 24 raw image"
+        exit 1
+      fi
+    fi
+  else
+    echo "Ubuntu 24 raw Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+build_ubuntu24_iso_image() {
+  echo "Building Ubuntu 24 iso Image.(using earthly built binary)"
+  # Ensure we're in the working directory before starting builds
+  echo "Ensuring we're in the working directory before starting builds..."
+  cd "$WORKING_DIR"
+  echo "Current working directory: $(pwd)"
+  output=$( sudo -S ./os-image-composer build image-templates/ubuntu24-x86_64-minimal-iso.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+    echo "Ubuntu 24 iso Image build passed."
+    if [ "$RUN_QEMU_TESTS" = true ]; then
+      echo "Running QEMU boot test for Ubuntu 24 ISO image..."
+      if run_qemu_boot_test_iso "ubuntu24-x86_64-minimal"; then
+        echo "QEMU boot test PASSED for Ubuntu 24 ISO image"
+      else
+        echo "QEMU boot test FAILED for Ubuntu 24 ISO image"
+        exit 1
+      fi
+    fi
+  else
+    echo "Ubuntu 24 iso Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
+build_ubuntu24_immutable_raw_image() {
+  echo "Building Ubuntu 24 immutable raw Image.(using os-image-composer binary)"
+  # Ensure we're in the working directory before starting builds
+  echo "Ensuring we're in the working directory before starting builds..."
+  cd "$WORKING_DIR"
+  echo "Current working directory: $(pwd)"
+  output=$( sudo -S ./build/os-image-composer build image-templates/ubuntu24-x86_64-edge-raw.yml 2>&1)
+  # Check for the success message in the output
+  if echo "$output" | grep -q "image build completed successfully"; then
+    echo "Ubuntu 24 immutable raw Image build passed."
+    if [ "$RUN_QEMU_TESTS" = true ]; then
+      echo "Running QEMU boot test for Ubuntu 24 immutable raw image..."
+      if run_qemu_boot_test "minimal-os-image-ubuntu24"; then
+        echo "QEMU boot test PASSED for Ubuntu 24 immutable raw image"
+      else
+        echo "QEMU boot test FAILED for Ubuntu 24 immutable raw image"
+        exit 1
+      fi
+    fi
+  else
+    echo "Ubuntu 24 immutable raw Image build failed."
+    exit 1 # Exit with error if build fails
+  fi
+}
+
 clean_build_dirs() {
   echo "Cleaning build directories: cache/ and tmp/"
   sudo rm -rf cache/ tmp/
@@ -615,6 +689,15 @@ build_emt3_immutable_raw_image
 
 clean_build_dirs
 build_azl3_immutable_raw_image
+
+clean_build_dirs
+build_ubuntu24_raw_image
+
+clean_build_dirs
+build_ubuntu24_iso_image
+
+clean_build_dirs
+build_ubuntu24_immutable_raw_image
 
 # # Check for the success message in the output
 # if echo "$output" | grep -q "image build completed successfully"; then

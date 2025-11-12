@@ -578,15 +578,19 @@ func TestElxrConfigurationStructure(t *testing.T) {
 	}
 
 	// Test that we can load provider config
-	providerConfig, err := config.LoadProviderRepoConfig(OsName, "elxr12")
+	providerConfigs, err := config.LoadProviderRepoConfig(OsName, "elxr12")
 	if err != nil {
 		t.Logf("Cannot load provider config in test environment: %v", err)
 	} else {
 		// If we can load it, verify it has required fields
-		if providerConfig.Name == "" {
-			t.Error("Provider config should have a name")
+		if len(providerConfigs) == 0 {
+			t.Error("Provider config should have at least one repository")
+		} else {
+			if providerConfigs[0].Name == "" {
+				t.Error("Provider config should have a name")
+			}
+			t.Logf("Loaded provider config: %s", providerConfigs[0].Name)
 		}
-		t.Logf("Loaded provider config: %s", providerConfig.Name)
 	}
 }
 

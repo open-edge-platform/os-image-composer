@@ -29,7 +29,7 @@
         "os": {
           "type": "string",
           "description": "Target operating system",
-          "enum": ["azure-linux", "edge-microvisor-toolkit", "wind-river-elxr"]
+          "enum": ["azure-linux", "edge-microvisor-toolkit", "wind-river-elxr", "ubuntu"]
         },
         "dist": {
           "type": "string",

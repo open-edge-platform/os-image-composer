@@ -710,7 +710,7 @@ func TestRepoConfig(t *testing.T) {
 		PbGPGKey:     "test-key",
 		ReleaseFile:  "http://example.com/Release",
 		ReleaseSign:  "http://example.com/Release.gpg",
-		BuildPath:    "./builds/main",
+		BuildPath:    filepath.Join(config.TempDir(), "builds", "main"),
 		Arch:         "amd64",
 	}
 

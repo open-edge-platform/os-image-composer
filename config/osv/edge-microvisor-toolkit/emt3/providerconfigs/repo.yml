@@ -8,4 +8,4 @@ repoGPGCheck: true  # Enabled with Intel GPG key
 enabled: true
 gpgKey: "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY"
 # Repository configuration URL (for reference): https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/edge-base.repo
-buildPath: "./builds/emt3"
+buildPath: "./builds/emt3"  # Will be replaced with temp_dir/builds/emt3 at runtime

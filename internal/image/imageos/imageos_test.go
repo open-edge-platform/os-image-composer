@@ -1555,20 +1555,17 @@ func TestUpdateInitramfsWithMock(t *testing.T) {
 	originalShell := shell.Default
 	defer func() { shell.Default = originalShell }()
 
-	// Mock shell commands for initramfs operations
+	// Mock shell commands for initramfs operations - use more precise patterns
 	mockCommands := []shell.MockCommand{
 		{
-			Pattern: `sudo.*chroot.*dracut --force --no-hostonly --verbose --kver.*`,
+			// Pattern to match the dracut command that will be executed
+			Pattern: `sudo.*chroot.*dracut --force --no-hostonly --verbose --add systemd --kver 5\.15\.0-generic /boot/initramfs-5\.15\.0-generic\.img`,
 			Output:  "dracut: Generating /boot/initramfs-5.15.0-generic.img",
 			Error:   nil,
 		},
 		{
-			Pattern: `sudo.*chroot.*dracut --force --add systemd-veritysetup --no-hostonly --verbose --kver.*`,
-			Output:  "dracut: Generating /boot/initramfs-5.15.0-generic.img",
-			Error:   nil,
-		},
-		{
-			Pattern: `sudo.*chroot.*dracut -f.*`,
+			// Fallback pattern for any dracut command
+			Pattern: `sudo.*chroot.*dracut.*`,
 			Output:  "dracut: Generating /boot/initramfs-5.15.0-generic.img",
 			Error:   nil,
 		},

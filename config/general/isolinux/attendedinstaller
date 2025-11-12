@@ -1,0 +1,74 @@
+#!/bin/bash
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+ISO_ROOT=/cdrom
+CONFIG_ROOT=$ISO_ROOT/config
+CACHE_REPO=$ISO_ROOT/cache-repo
+
+# Mounting the ISO root for the installer.
+mkdir -p $ISO_ROOT
+LABEL=OIC_CDROM
+
+function retry {
+    local retry=0
+    local limit=10
+    local sleep_seconds=15
+    while [ $retry -lt $limit ]
+    do
+        eval "$@" && break
+        echo "$@" Retrying...
+        ((retry++))
+        sleep $sleep_seconds
+    done
+}
+
+if grep -qs $ISO_ROOT /proc/mounts; then
+    echo ISO root already mounted
+else
+    echo Attempt to mount the ISO root
+   # It is possible that the partition isn't ready to be mounted when this script
+    # is first run. So use a retry loop. There is a race condition here where the
+    # partition could be mounted between the first grep and the mount. If this happens
+    # the mount will fail and the retry loop would retry the mount repeatedly. This
+    # is handled by the 'or' in the retry loop which will grep for the mount point and
+    # break out of the loop if it is found.
+    retry "{ mount -L $LABEL -o ro $ISO_ROOT 2>/dev/null || grep -qs $ISO_ROOT /proc/mounts ; }"
+fi
+
+TEMPLATE_DUMP_YAML=$(find "$CONFIG_ROOT" -type f -name "template-dump.yaml" | head -n 1)
+if [ -n "$TEMPLATE_DUMP_YAML" ]; then
+    echo "find template-dump.yaml at $TEMPLATE_DUMP_YAML"
+else
+    echo "template-dump.yaml not found in $CONFIG_ROOT"
+    /bin/bash
+    exit 1
+fi
+
+# Turn off echoing while the installer runs to stop sensitive data from rendering in the TTY session.
+stty -echo
+
+# Disable kernel messages on the current terminal
+dmesg -D
+
+live-installer --config $TEMPLATE_DUMP_YAML --repo $CACHE_REPO --attended
+installerExitCode=$?
+
+# Consume any buffered stdin to prevent it from being passed to any future programs,
+# as it may contain sensitive data
+while read -t 1 -n 10000
+do
+    echo ""
+done
+
+# Turn back on echoing input so the TTY session is usable for the user.
+stty echo
+
+# Enable kernel messages
+dmesg -E
+
+if [ $installerExitCode -eq 0 ]; then
+    reboot
+else
+    /bin/bash
+fi

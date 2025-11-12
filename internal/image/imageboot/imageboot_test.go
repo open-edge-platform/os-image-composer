@@ -40,7 +40,7 @@ func TestInstallImageBoot_MissingRootPartition(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	imageBoot := imageboot.NewImageBoot()
-	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template)
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
 
 	if err == nil {
 		t.Error("Expected error when root partition is missing")
@@ -78,7 +78,7 @@ func TestInstallImageBoot_EmptyDiskPathIdMap(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	imageBoot := imageboot.NewImageBoot()
-	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template)
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
 
 	if err == nil {
 		t.Error("Expected error with empty disk path ID map")
@@ -118,7 +118,7 @@ func TestInstallImageBoot_UUIDRetrievalFailure(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	imageBoot := imageboot.NewImageBoot()
-	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template)
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
 
 	if err == nil {
 		t.Error("Expected error when UUID retrieval fails")
@@ -155,11 +155,12 @@ func TestInstallImageBoot_PartUUIDRetrievalFailure(t *testing.T) {
 	mockExpectedOutput := []shell.MockCommand{
 		{Pattern: "blkid.*PARTUUID", Output: "", Error: fmt.Errorf("partition UUID not found")},
 		{Pattern: "blkid.*UUID", Output: "UUID=test-uuid\n", Error: nil},
+		{Pattern: "command -v grub2-mkconfig", Output: "/usr/sbin/grub2-mkconfig", Error: nil},
 	}
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	imageBoot := imageboot.NewImageBoot()
-	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template)
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
 
 	if err == nil {
 		t.Error("Expected error when partition UUID retrieval fails")
@@ -200,7 +201,7 @@ func TestInstallImageBoot_UnsupportedBootloaderProvider(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	imageBoot := imageboot.NewImageBoot()
-	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template)
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
 
 	if err == nil {
 		t.Error("Expected error for unsupported bootloader provider")
@@ -238,11 +239,12 @@ func TestInstallImageBoot_GrubLegacyMode(t *testing.T) {
 	mockExpectedOutput := []shell.MockCommand{
 		{Pattern: "blkid.*UUID", Output: "UUID=test-uuid\n", Error: nil},
 		{Pattern: "blkid.*PARTUUID", Output: "PARTUUID=test-partuuid\n", Error: nil},
+		{Pattern: "command -v grub2-mkconfig", Output: "/usr/sbin/grub2-mkconfig", Error: nil},
 	}
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	imageBoot := imageboot.NewImageBoot()
-	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template)
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
 
 	if err == nil {
 		t.Error("Expected error for legacy boot mode not implemented")
@@ -289,7 +291,7 @@ func TestInstallImageBoot_GrubEfiMode(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	imageBoot := imageboot.NewImageBoot()
-	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template)
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
 
 	// Should fail on file operations since we don't have actual config files
 	if err != nil && !strings.Contains(err.Error(), "failed to get general config directory") {
@@ -332,7 +334,7 @@ func TestInstallImageBoot_SystemdBootEfiMode(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	imageBoot := imageboot.NewImageBoot()
-	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template)
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
 
 	// Should fail on config directory access
 	if err != nil && !strings.Contains(err.Error(), "failed to get general config directory") {
@@ -372,7 +374,7 @@ func TestInstallImageBoot_SystemdBootLegacyMode(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	imageBoot := imageboot.NewImageBoot()
-	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template)
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
 
 	if err == nil {
 		t.Error("Expected error for systemd-boot in legacy mode")
@@ -418,7 +420,7 @@ func TestInstallImageBoot_SeparateBootPartition(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	imageBoot := imageboot.NewImageBoot()
-	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template)
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
 
 	// Should work with separate boot partition but fail on file operations
 	if err != nil && !strings.Contains(err.Error(), "failed to get general config directory") {
@@ -463,7 +465,7 @@ func TestInstallImageBoot_ImmutabilityEnabled(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	imageBoot := imageboot.NewImageBoot()
-	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template)
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
 
 	// Should work with immutability enabled but fail on config directory access
 	if err != nil && !strings.Contains(err.Error(), "failed to get general config directory") {
@@ -506,7 +508,7 @@ func TestInstallImageBoot_ImmutabilityMissingHashPartition(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	imageBoot := imageboot.NewImageBoot()
-	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template)
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
 
 	if err == nil {
 		t.Error("Expected error when hash partition is missing for immutability")
@@ -553,7 +555,7 @@ func TestInstallImageBoot_HashPartitionUUIDFailure(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	imageBoot := imageboot.NewImageBoot()
-	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template)
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
 
 	if err == nil {
 		t.Error("Expected error when hash partition UUID retrieval fails")
