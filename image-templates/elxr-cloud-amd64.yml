@@ -98,7 +98,7 @@ systemConfig:
   # Packages aggregated from rs build script and cloud manifest
   packages:
     # Packages sourced from "manifests/packages-cloud-minimal.yaml" which is 
-    # referenced in cloud.yml from the elxr-config repo (branch v1.0.x)
+    # referenced in cloud.yaml from the elxr-config repo (branch v1.0.x)
     - systemd-boot
     - uefi-ext4
     - linux-image-amd64
