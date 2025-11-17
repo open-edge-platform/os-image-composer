@@ -24,6 +24,9 @@ func TestCleanIntentTrimsValues(t *testing.T) {
 	if result.ImageType != "raw" {
 		t.Fatalf("expected image type to be 'raw', got %q", result.ImageType)
 	}
+	if result.ArtifactType != "raw" {
+		t.Fatalf("expected artifact type to default to 'raw', got %q", result.ArtifactType)
+	}
 }
 
 func TestGenerateDiskConfigForArm(t *testing.T) {
@@ -67,8 +70,25 @@ func TestGenerateDiskConfigForX86(t *testing.T) {
 	}
 }
 
-func TestGenerateDiskConfigUnsupportedTypeDefaultsToRaw(t *testing.T) {
-	intent := &TemplateIntent{UseCase: "cloud", Architecture: "x86_64", ImageType: "qcow2"}
+func TestGenerateDiskConfigUsesArtifactType(t *testing.T) {
+	intent := &TemplateIntent{UseCase: "cloud", Architecture: "x86_64", ImageType: "raw", ArtifactType: "qcow2"}
+
+	disk := generateDiskConfig(intent, "15GiB")
+
+	if len(disk.Artifacts) != 1 {
+		t.Fatalf("expected a single artifact, got %d", len(disk.Artifacts))
+	}
+	artifact := disk.Artifacts[0]
+	if artifact.Type != "qcow2" {
+		t.Fatalf("expected qcow2 artifact, got %q", artifact.Type)
+	}
+	if artifact.Compression != "" {
+		t.Fatalf("expected no compression for qcow2, got %q", artifact.Compression)
+	}
+}
+
+func TestGenerateDiskConfigUnsupportedArtifactDefaultsToRaw(t *testing.T) {
+	intent := &TemplateIntent{UseCase: "cloud", Architecture: "x86_64", ImageType: "img", ArtifactType: "unknown"}
 
 	disk := generateDiskConfig(intent, "15GiB")
 
@@ -325,7 +345,7 @@ func TestGenerateTemplateFromExamplesMinimalRequirement(t *testing.T) {
 	}
 }
 
-func TestGenerateTemplateFromExamplesUnsupportedTypeDefaultsToRaw(t *testing.T) {
+func TestGenerateTemplateFromExamplesSupportsQcow2Artifact(t *testing.T) {
 	cloudConfig := UseCaseConfig{
 		Name: "cloud",
 		Disk: UseCaseDisk{DefaultSize: "20GiB"},
@@ -374,11 +394,11 @@ func TestGenerateTemplateFromExamplesUnsupportedTypeDefaultsToRaw(t *testing.T) 
 	if tmpl.Disk.Size != "20GiB" {
 		t.Fatalf("expected disk size from curated config, got %q", tmpl.Disk.Size)
 	}
-	if len(tmpl.Disk.Artifacts) != 1 || tmpl.Disk.Artifacts[0].Type != "raw" {
-		t.Fatalf("expected fallback raw artifact, got %#v", tmpl.Disk.Artifacts)
+	if len(tmpl.Disk.Artifacts) != 1 || tmpl.Disk.Artifacts[0].Type != "qcow2" {
+		t.Fatalf("expected qcow2 artifact, got %#v", tmpl.Disk.Artifacts)
 	}
-	if tmpl.Disk.Artifacts[0].Compression != "gz" {
-		t.Fatalf("expected gzip compression for raw artifact, got %q", tmpl.Disk.Artifacts[0].Compression)
+	if tmpl.Disk.Artifacts[0].Compression != "" {
+		t.Fatalf("expected no compression for qcow2, got %q", tmpl.Disk.Artifacts[0].Compression)
 	}
 }
 

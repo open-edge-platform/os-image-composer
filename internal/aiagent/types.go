@@ -21,6 +21,7 @@ type TemplateIntent struct {
 	Architecture        string       `json:"architecture"`
 	Distribution        string       `json:"distribution"`
 	ImageType           string       `json:"image_type"`
+	ArtifactType        string       `json:"artifact_type"`
 	Description         string       `json:"description"`
 	CustomPackages      []string     `json:"custom_packages"`
 	PackageRepositories []RepoIntent `json:"package_repositories"`

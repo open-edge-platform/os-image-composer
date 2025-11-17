@@ -208,6 +208,7 @@ IMPORTANT: Return SINGLE values only, not lists!
 - architecture: "x86_64" (NOT "x86_64, aarch64")
 - distribution: "azl3" (NOT "azl3, emt3")
 - image_type: choose ONE of %s
+- artifact_type: choose ONE of %s
 
 Always respond with structured JSON:
 {
@@ -215,7 +216,8 @@ Always respond with structured JSON:
   "requirements": ["array of: security, performance, minimal"],
   "architecture": "single value: x86_64 or aarch64",
   "distribution": "single value: azl3, emt3, or elxr12",
-		"image_type": "single value: one of %s",
+	"image_type": "single value: one of %s",
+	"artifact_type": "single value: one of %s",
   "description": "brief description",
   "custom_packages": ["any additional packages user specifically requested"],
   "package_repositories": [
@@ -233,7 +235,7 @@ IMPORTANT: Extract repository information from user query!
 - Parse repository details carefully
 - Include all repositories mentioned by user
 
-Return ONLY valid JSON, no markdown formatting.`, supportedDiskArtifactTypePrompt, useCasesList, supportedTargetImageTypePrompt, supportedTargetImageTypePrompt)
+Return ONLY valid JSON, no markdown formatting.`, supportedDiskArtifactTypePrompt, useCasesList, supportedTargetImageTypePrompt, supportedDiskArtifactTypePrompt, supportedTargetImageTypePrompt, supportedDiskArtifactTypePrompt)
 }
 
 func (agent *AIAgent) ProcessUserRequest(ctx context.Context, userInput string) (*OSImageTemplate, error) {
@@ -344,6 +346,7 @@ Based on the curated hints, examples above, and the user's request, return ONLY 
   "architecture": "x86_64 or aarch64 (choose ONE)",
 	"distribution": "azl3, emt3, or elxr12 (choose ONE based on examples)",
 	"image_type": "raw, img, or iso (choose ONE)",
+	"artifact_type": "raw, qcow2, vhd, vhdx, vmdk, or vdi (choose ONE)",
   "description": "brief description",
   "custom_packages": ["any specific packages the user mentioned"],
   "package_repositories": [
@@ -546,7 +549,10 @@ func (agent *AIAgent) generateTemplateFromExamples(intent *TemplateIntent, examp
 		fmt.Printf("📦 Template requires custom repositories: %v\n", baseTemplate.Repositories)
 	}
 
-	createDisk := isDiskArtifactType(intent.ImageType)
+	createDisk := isDiskArtifactType(intent.ArtifactType)
+	if !createDisk {
+		createDisk = isDiskArtifactType(intent.ImageType)
+	}
 	if !createDisk && baseTemplate.HasDisk && intent.ImageType == "raw" {
 		createDisk = true
 	}
@@ -586,8 +592,12 @@ func generateDiskConfig(intent *TemplateIntent, size string) *DiskConfig {
 		archType = "linux-root-arm64"
 	}
 
-	diskType := intent.ImageType
-	if diskType == "" || !supportedTargetImageTypes[diskType] {
+	diskType := intent.ArtifactType
+	if diskType == "" {
+		diskType = intent.ImageType
+	}
+	diskType = strings.ToLower(diskType)
+	if diskType == "" || !diskArtifactTypes[diskType] {
 		diskType = "raw"
 	}
 
@@ -638,10 +648,46 @@ func mapDistToOS(dist string) string {
 }
 
 func cleanIntent(intent *TemplateIntent) *TemplateIntent {
-	intent.Architecture = strings.TrimSpace(strings.Split(intent.Architecture, ",")[0])
-	intent.Distribution = strings.TrimSpace(strings.Split(intent.Distribution, ",")[0])
-	intent.ImageType = normalizeImageType(intent.ImageType)
+	originalImageType := primaryValue(intent.ImageType)
+	intent.Architecture = primaryValue(intent.Architecture)
+	intent.Distribution = primaryValue(intent.Distribution)
+	intent.ImageType = normalizeTargetImageType(originalImageType)
+	intent.ArtifactType = normalizeArtifactType(intent.ArtifactType, originalImageType)
 	return intent
+}
+
+func primaryValue(value string) string {
+	if value == "" {
+		return ""
+	}
+	parts := strings.Split(value, ",")
+	return strings.TrimSpace(parts[0])
+}
+
+func normalizeTargetImageType(value string) string {
+	primary := strings.ToLower(strings.TrimSpace(value))
+	if primary == "" {
+		return "raw"
+	}
+	if supportedTargetImageTypes[primary] {
+		return primary
+	}
+	return "raw"
+}
+
+func normalizeArtifactType(value string, fallback string) string {
+	primary := primaryValue(value)
+	if primary == "" {
+		primary = primaryValue(fallback)
+	}
+	primary = strings.ToLower(strings.TrimSpace(primary))
+	if primary == "" {
+		return "raw"
+	}
+	if diskArtifactTypes[primary] {
+		return primary
+	}
+	return "raw"
 }
 
 func filterEssentialPackages(packages []string) []string {
@@ -667,21 +713,6 @@ func filterEssentialPackages(packages []string) []string {
 	}
 
 	return filtered
-}
-
-func normalizeImageType(value string) string {
-	primary := ""
-	if value != "" {
-		primary = strings.TrimSpace(strings.Split(value, ",")[0])
-	}
-	primary = strings.ToLower(primary)
-	if primary == "" {
-		return "raw"
-	}
-	if supportedTargetImageTypes[primary] {
-		return primary
-	}
-	return "raw"
 }
 
 func isDiskArtifactType(value string) bool {
