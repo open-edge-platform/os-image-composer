@@ -8,15 +8,10 @@ import (
 )
 
 var (
-	supportedImageTypes = map[string]bool{
-		"raw":   true,
-		"qcow2": true,
-		"vhd":   true,
-		"vhdx":  true,
-		"vmdk":  true,
-		"vdi":   true,
-		"iso":   true,
-		"img":   true,
+	supportedTargetImageTypes = map[string]bool{
+		"raw": true,
+		"img": true,
+		"iso": true,
 	}
 	diskArtifactTypes = map[string]bool{
 		"raw":   true,
@@ -29,7 +24,8 @@ var (
 )
 
 const (
-	supportedImageTypePrompt             = "raw, qcow2, vhd, vhdx, vmdk, or vdi"
+	supportedTargetImageTypePrompt       = "raw, img, or iso"
+	supportedDiskArtifactTypePrompt      = "raw, qcow2, vhd, vhdx, vmdk, or vdi"
 	defaultTemplateContributionThreshold = 0.60
 	defaultUseCaseMatchThreshold         = 0.60
 )
@@ -219,7 +215,7 @@ Always respond with structured JSON:
   "requirements": ["array of: security, performance, minimal"],
   "architecture": "single value: x86_64 or aarch64",
   "distribution": "single value: azl3, emt3, or elxr12",
-	"image_type": "single value: one of %s",
+		"image_type": "single value: one of %s",
   "description": "brief description",
   "custom_packages": ["any additional packages user specifically requested"],
   "package_repositories": [
@@ -237,7 +233,7 @@ IMPORTANT: Extract repository information from user query!
 - Parse repository details carefully
 - Include all repositories mentioned by user
 
-Return ONLY valid JSON, no markdown formatting.`, supportedImageTypePrompt, useCasesList, supportedImageTypePrompt, supportedImageTypePrompt)
+Return ONLY valid JSON, no markdown formatting.`, supportedDiskArtifactTypePrompt, useCasesList, supportedTargetImageTypePrompt, supportedTargetImageTypePrompt)
 }
 
 func (agent *AIAgent) ProcessUserRequest(ctx context.Context, userInput string) (*OSImageTemplate, error) {
@@ -347,7 +343,7 @@ Based on the curated hints, examples above, and the user's request, return ONLY 
   "requirements": ["array of: security, performance, minimal"],
   "architecture": "x86_64 or aarch64 (choose ONE)",
 	"distribution": "azl3, emt3, or elxr12 (choose ONE based on examples)",
-	"image_type": "raw, qcow2, vhd, vhdx, vmdk, or vdi (choose ONE)",
+	"image_type": "raw, img, or iso (choose ONE)",
   "description": "brief description",
   "custom_packages": ["any specific packages the user mentioned"],
   "package_repositories": [
@@ -591,7 +587,7 @@ func generateDiskConfig(intent *TemplateIntent, size string) *DiskConfig {
 	}
 
 	diskType := intent.ImageType
-	if diskType == "" || !supportedImageTypes[diskType] {
+	if diskType == "" || !supportedTargetImageTypes[diskType] {
 		diskType = "raw"
 	}
 
@@ -682,7 +678,7 @@ func normalizeImageType(value string) string {
 	if primary == "" {
 		return "raw"
 	}
-	if supportedImageTypes[primary] {
+	if supportedTargetImageTypes[primary] {
 		return primary
 	}
 	return "raw"
