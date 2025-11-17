@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/open-edge-platform/os-image-composer/internal/aiagent"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
@@ -21,6 +24,7 @@ var newAIAgent = func(provider string, config interface{}, templatesDir string, 
 
 func createAICommand() *cobra.Command {
 	var output string
+	var attachmentPaths []string
 
 	cmd := &cobra.Command{
 		Use:   "ai [prompt]",
@@ -44,22 +48,34 @@ Examples:
 				return fmt.Errorf("AI feature is disabled in configuration. Enable it in os-image-composer.yml")
 			}
 
-			return runAIGeneration(args[0], aiConfig, output)
+			return runAIGeneration(args[0], aiConfig, output, attachmentPaths)
 		},
 	}
 
 	cmd.Flags().StringVar(&output, "output", "", "Output file path (default: stdout)")
+	cmd.Flags().StringArrayVarP(&attachmentPaths, "file", "f", nil, "Path to a file to include as additional prompt context (repeatable)")
 
 	return cmd
 }
 
-func runAIGeneration(userInput string, aiConfig config.AIConfig, outputPath string) error {
+const maxAttachmentBytes = 64 * 1024
+
+func runAIGeneration(userInput string, aiConfig config.AIConfig, outputPath string, attachmentPaths []string) error {
 	ctx := context.Background()
 
 	fmt.Printf("🤖 Generating template using %s", aiConfig.Provider)
 
+	var (
+		attachmentContext string
+		attachmentCount   int
+		err               error
+	)
+
+	if attachmentContext, attachmentCount, err = buildAttachmentContext(attachmentPaths); err != nil {
+		return err
+	}
+
 	var agent aiAgent
-	var err error
 
 	options := &aiagent.AgentOptions{
 		TemplateContributionThreshold: aiConfig.TemplateContributionThreshold,
@@ -99,7 +115,13 @@ func runAIGeneration(userInput string, aiConfig config.AIConfig, outputPath stri
 		return fmt.Errorf("failed to create AI agent: %w", err)
 	}
 
-	template, err := agent.ProcessUserRequest(ctx, userInput)
+	prompt := userInput
+	if attachmentCount > 0 {
+		fmt.Printf("📎 Included %d attachment(s) in prompt context\n", attachmentCount)
+		prompt = strings.TrimSpace(userInput) + "\n\nATTACHMENT CONTEXT:\n" + attachmentContext
+	}
+
+	template, err := agent.ProcessUserRequest(ctx, prompt)
 	if err != nil {
 		return fmt.Errorf("failed to generate template: %w", err)
 	}
@@ -125,6 +147,58 @@ func runAIGeneration(userInput string, aiConfig config.AIConfig, outputPath stri
 	}
 
 	return nil
+}
+
+func buildAttachmentContext(paths []string) (string, int, error) {
+	if len(paths) == 0 {
+		return "", 0, nil
+	}
+
+	var sb strings.Builder
+	count := 0
+
+	for _, raw := range paths {
+		path := strings.TrimSpace(raw)
+		if path == "" {
+			continue
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return "", 0, fmt.Errorf("failed to read attachment %s: %w", path, err)
+		}
+
+		if bytes.IndexByte(data, 0) >= 0 {
+			fmt.Printf("⚠️  Skipping binary attachment: %s\n", path)
+			continue
+		}
+
+		if len(data) == 0 {
+			fmt.Printf("ℹ️  Attachment is empty, skipping: %s\n", path)
+			continue
+		}
+
+		content := data
+		if len(content) > maxAttachmentBytes {
+			fmt.Printf("⚠️  Truncating attachment %s to %d bytes\n", path, maxAttachmentBytes)
+			content = content[:maxAttachmentBytes]
+		}
+
+		sb.WriteString("\n--- Attachment: ")
+		sb.WriteString(filepath.Base(path))
+		sb.WriteString(" ---\n")
+		sb.Write(content)
+		if len(content) == 0 || content[len(content)-1] != '\n' {
+			sb.WriteByte('\n')
+		}
+		count++
+	}
+
+	if count == 0 {
+		return "", 0, nil
+	}
+
+	return sb.String(), count, nil
 }
 
 func displayTemplateSummary(template *aiagent.OSImageTemplate) {

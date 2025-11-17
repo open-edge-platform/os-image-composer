@@ -1094,6 +1094,13 @@ The `ai` command generates OS image templates from natural language descriptions
 - Default: Print to stdout
 - Example: `--output my-template.yml`
 
+**`--file`, `-f`** (string, repeatable)
+
+- Attach additional text files to the prompt
+- Each file contributes up to 64 KB; binary or empty files are ignored
+- Useful for passing existing templates, requirement lists, or logs
+- Example: `--file requirements.txt --file packages.yml`
+
 **`--provider`** (string)
 
 - Override AI provider from configuration
@@ -1183,6 +1190,12 @@ os-image-composer ai "optimized openvino inference system" \
   --model gpt-4o \
   --temperature 0.3 \
   --output openvino.yml
+```
+
+**Include attachments for additional context:**
+
+```bash
+os-image-composer ai "create webserver image with attached package list added to it"   --file package-list1.txt --file package-list2.txt  --output refreshed.yml
 ```
 
 ### Environment Variables
@@ -1322,6 +1335,7 @@ os-image-composer ai "test" --model llama3.1:70b
 - [Ollama Documentation](https://ollama.ai/docs)
 - [OpenAI API Reference](https://platform.openai.com/docs/api-reference)
 - [OpenAI Embeddings Guide](https://platform.openai.com/docs/guides/embeddings)
+
 - [RAG Best Practices](https://www.pinecone.io/learn/retrieval-augmented-generation/)
 - [Nomic Embed Text (Ollama)](https://ollama.com/library/nomic-embed-text)
 - [LLM Best Practices](https://platform.openai.com/docs/guides/prompt-engineering)

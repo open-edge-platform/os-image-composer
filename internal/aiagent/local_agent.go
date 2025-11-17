@@ -494,10 +494,6 @@ func (agent *AIAgent) generateTemplateFromExamples(intent *TemplateIntent, examp
 
 	packages = uniqueStrings(packages)
 
-	if contains(intent.Requirements, "minimal") && len(packages) > 20 {
-		packages = filterEssentialPackages(packages)
-	}
-
 	kernelVersion := baseTemplate.KernelInfo
 	kernelCmdline := "console=ttyS0,115200 console=tty0 loglevel=7"
 	if agent.useCases != nil {
@@ -688,31 +684,6 @@ func normalizeArtifactType(value string, fallback string) string {
 		return primary
 	}
 	return "raw"
-}
-
-func filterEssentialPackages(packages []string) []string {
-	// Keep only essential system packages for minimal installs
-	essential := []string{
-		"systemd", "kernel", "bash", "coreutils", "util-linux",
-		"filesystem", "glibc", "openssl", "busybox",
-	}
-
-	filtered := make([]string, 0)
-	for _, pkg := range packages {
-		for _, ess := range essential {
-			if strings.Contains(strings.ToLower(pkg), ess) {
-				filtered = append(filtered, pkg)
-				break
-			}
-		}
-	}
-
-	// Ensure we have at least some packages
-	if len(filtered) == 0 {
-		filtered = packages[:min(15, len(packages))]
-	}
-
-	return filtered
 }
 
 func isDiskArtifactType(value string) bool {

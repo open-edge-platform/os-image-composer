@@ -104,35 +104,6 @@ func TestGenerateDiskConfigUnsupportedArtifactDefaultsToRaw(t *testing.T) {
 	}
 }
 
-func TestFilterEssentialPackagesKeepsMatches(t *testing.T) {
-	packages := []string{"systemd-udev", "my-kernel-mod", "htop"}
-
-	filtered := filterEssentialPackages(packages)
-
-	if len(filtered) != 2 {
-		t.Fatalf("expected 2 essential packages, got %d", len(filtered))
-	}
-	if filtered[0] != "systemd-udev" || filtered[1] != "my-kernel-mod" {
-		t.Fatalf("unexpected filtered packages: %#v", filtered)
-	}
-}
-
-func TestFilterEssentialPackagesFallback(t *testing.T) {
-	packages := make([]string, 20)
-	for i := range packages {
-		packages[i] = "pkg" + string(rune('a'+i))
-	}
-
-	filtered := filterEssentialPackages(packages)
-
-	if len(filtered) != 15 {
-		t.Fatalf("expected fallback to first 15 packages, got %d", len(filtered))
-	}
-	if filtered[0] != "pkga" || filtered[14] != "pkgo" {
-		t.Fatalf("unexpected fallback slice: %#v", filtered[:2])
-	}
-}
-
 func TestExtractJSONStripsCodeFence(t *testing.T) {
 	response := "```json\n{\"key\":\"value\"}\n```"
 
@@ -325,8 +296,8 @@ func TestGenerateTemplateFromExamplesMinimalRequirement(t *testing.T) {
 		t.Fatalf("generateTemplateFromExamples returned error: %v", err)
 	}
 
-	if len(tmpl.SystemConfig.Packages) >= len(heavyPackages) {
-		t.Fatalf("expected package list to be reduced for minimal requirement")
+	if len(tmpl.SystemConfig.Packages) < len(heavyPackages) {
+		t.Fatalf("expected minimal requirement to keep full package set, got %d packages", len(tmpl.SystemConfig.Packages))
 	}
 	var hasSystemd, hasKernel bool
 	for _, pkg := range tmpl.SystemConfig.Packages {

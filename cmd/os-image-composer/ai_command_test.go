@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -28,7 +29,6 @@ func (s *stubAgent) ProcessUserRequest(ctx context.Context, userInput string) (*
 }
 
 func TestRunAIGeneration_OllamaSuccess(t *testing.T) {
-	t.Parallel()
 
 	originalFactory := newAIAgent
 	defer func() { newAIAgent = originalFactory }()
@@ -80,7 +80,7 @@ func TestRunAIGeneration_OllamaSuccess(t *testing.T) {
 
 	outputPath := filepath.Join(t.TempDir(), "template.yml")
 
-	err := runAIGeneration("create something", cfg, outputPath)
+	err := runAIGeneration("create something", cfg, outputPath, nil)
 	if err != nil {
 		t.Fatalf("runAIGeneration returned error: %v", err)
 	}
@@ -135,8 +135,78 @@ func TestRunAIGeneration_OllamaSuccess(t *testing.T) {
 	}
 }
 
+func TestRunAIGenerationIncludesAttachments(t *testing.T) {
+
+	originalFactory := newAIAgent
+	defer func() { newAIAgent = originalFactory }()
+
+	stub := &stubAgent{
+		template: &aiagent.OSImageTemplate{
+			Image:  aiagent.ImageConfig{Name: "example", Version: "1.0.0"},
+			Target: aiagent.TargetConfig{OS: "azure-linux", Dist: "azl3", Arch: "x86_64", ImageType: "raw"},
+			SystemConfig: aiagent.SystemConfig{
+				Name:     "example",
+				Packages: []string{"pkg"},
+			},
+		},
+	}
+
+	newAIAgent = func(provider string, cfg interface{}, templatesDir string, options *aiagent.AgentOptions) (aiAgent, error) {
+		return stub, nil
+	}
+
+	attachmentPath := filepath.Join(t.TempDir(), "notes.txt")
+	if err := os.WriteFile(attachmentPath, []byte("details go here\nline two"), 0644); err != nil {
+		t.Fatalf("failed to write attachment: %v", err)
+	}
+
+	cfg := config.AIConfig{Provider: "ollama"}
+
+	if err := runAIGeneration("base prompt", cfg, "", []string{attachmentPath}); err != nil {
+		t.Fatalf("runAIGeneration returned error: %v", err)
+	}
+
+	if !strings.Contains(stub.input, "base prompt") {
+		t.Fatalf("expected prompt to contain original input, got %q", stub.input)
+	}
+	if !strings.Contains(stub.input, "ATTACHMENT CONTEXT:") {
+		t.Fatalf("expected prompt to include attachment marker, got %q", stub.input)
+	}
+	if !strings.Contains(stub.input, "notes.txt") {
+		t.Fatalf("expected prompt to include attachment name, got %q", stub.input)
+	}
+	if !strings.Contains(stub.input, "details go here") {
+		t.Fatalf("expected prompt to include attachment content, got %q", stub.input)
+	}
+}
+
+func TestRunAIGenerationAttachmentReadError(t *testing.T) {
+
+	originalFactory := newAIAgent
+	defer func() { newAIAgent = originalFactory }()
+
+	called := false
+	newAIAgent = func(provider string, cfg interface{}, templatesDir string, options *aiagent.AgentOptions) (aiAgent, error) {
+		called = true
+		return nil, fmt.Errorf("should not be called")
+	}
+
+	cfg := config.AIConfig{Provider: "ollama"}
+	missingPath := filepath.Join(t.TempDir(), "missing.txt")
+
+	err := runAIGeneration("prompt", cfg, "", []string{missingPath})
+	if err == nil {
+		t.Fatalf("expected error when attachment missing")
+	}
+	if !strings.Contains(err.Error(), "failed to read attachment") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if called {
+		t.Fatalf("expected agent factory not to be invoked when attachment fails")
+	}
+}
+
 func TestRunAIGeneration_ProcessError(t *testing.T) {
-	t.Parallel()
 
 	originalFactory := newAIAgent
 	defer func() { newAIAgent = originalFactory }()
@@ -149,7 +219,7 @@ func TestRunAIGeneration_ProcessError(t *testing.T) {
 
 	cfg := config.AIConfig{Provider: "ollama"}
 
-	err := runAIGeneration("fail please", cfg, "")
+	err := runAIGeneration("fail please", cfg, "", nil)
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
@@ -160,11 +230,10 @@ func TestRunAIGeneration_ProcessError(t *testing.T) {
 }
 
 func TestRunAIGenerationUnsupportedProvider(t *testing.T) {
-	t.Parallel()
 
 	cfg := config.AIConfig{Provider: "something-else"}
 
-	err := runAIGeneration("anything", cfg, "")
+	err := runAIGeneration("anything", cfg, "", nil)
 	if err == nil {
 		t.Fatalf("expected error for unsupported provider")
 	}
