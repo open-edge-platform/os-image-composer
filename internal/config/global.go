@@ -17,11 +17,13 @@ import (
 
 // AIConfig contains AI/LLM configuration
 type AIConfig struct {
-	Enabled      bool         `yaml:"enabled" json:"enabled"`             // Enable/disable AI features
-	Provider     string       `yaml:"provider" json:"provider"`           // LLM provider: "ollama", "openai", etc.
-	TemplatesDir string       `yaml:"templates_dir" json:"templates_dir"` // Directory containing template examples for RAG
-	Ollama       OllamaConfig `yaml:"ollama" json:"ollama"`               // Ollama-specific configuration
-	OpenAI       OpenAIConfig `yaml:"openai" json:"openai"`               // OpenAI specific configuration
+	Enabled                       bool         `yaml:"enabled" json:"enabled"`             // Enable/disable AI features
+	Provider                      string       `yaml:"provider" json:"provider"`           // LLM provider: "ollama", "openai", etc.
+	TemplatesDir                  string       `yaml:"templates_dir" json:"templates_dir"` // Directory containing template examples for RAG
+	UseCaseMatchThreshold         float64      `yaml:"use_case_match_threshold" json:"use_case_match_threshold"`
+	TemplateContributionThreshold float64      `yaml:"template_contribution_threshold" json:"template_contribution_threshold"`
+	Ollama                        OllamaConfig `yaml:"ollama" json:"ollama"` // Ollama-specific configuration
+	OpenAI                        OpenAIConfig `yaml:"openai" json:"openai"` // OpenAI specific configuration
 }
 
 // OllamaConfig contains Ollama LLM settings
@@ -108,9 +110,11 @@ func DefaultGlobalConfig() *GlobalConfig {
 		},
 
 		AI: AIConfig{
-			Enabled:      false,
-			Provider:     "ollama",
-			TemplatesDir: "./image-templates",
+			Enabled:                       false,
+			Provider:                      "ollama",
+			TemplatesDir:                  "./image-templates",
+			UseCaseMatchThreshold:         0.60,
+			TemplateContributionThreshold: 0.60,
 			Ollama: OllamaConfig{
 				BaseURL:        "http://localhost:11434",
 				Model:          "llama3.1:8b",
@@ -239,6 +243,14 @@ func (gc *GlobalConfig) applyAIDefaults() {
 		gc.AI.TemplatesDir = defaults.TemplatesDir
 	}
 
+	if gc.AI.UseCaseMatchThreshold <= 0 || gc.AI.UseCaseMatchThreshold > 1 {
+		gc.AI.UseCaseMatchThreshold = defaults.UseCaseMatchThreshold
+	}
+
+	if gc.AI.TemplateContributionThreshold <= 0 || gc.AI.TemplateContributionThreshold > 1 {
+		gc.AI.TemplateContributionThreshold = defaults.TemplateContributionThreshold
+	}
+
 	// Normalize Ollama configuration
 	if gc.AI.Ollama.BaseURL == "" {
 		gc.AI.Ollama.BaseURL = defaults.Ollama.BaseURL
@@ -280,6 +292,13 @@ func (gc *GlobalConfig) applyAIDefaults() {
 // Validate checks the configuration for consistency and applies constraints
 // Note: This should NOT set defaults - that's done in DefaultGlobalConfig()
 func (gc *GlobalConfig) Validate() error {
+	if gc.AI.UseCaseMatchThreshold < 0 || gc.AI.UseCaseMatchThreshold > 1 {
+		return fmt.Errorf("ai.use_case_match_threshold must be between 0 and 1, got %.2f", gc.AI.UseCaseMatchThreshold)
+	}
+
+	if gc.AI.TemplateContributionThreshold < 0 || gc.AI.TemplateContributionThreshold > 1 {
+		return fmt.Errorf("ai.template_contribution_threshold must be between 0 and 1, got %.2f", gc.AI.TemplateContributionThreshold)
+	}
 	// Validate workers range
 	if gc.Workers <= 0 {
 		log.Errorf("Workers must be greater than 0, got %d", gc.Workers)

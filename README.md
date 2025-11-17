@@ -95,7 +95,31 @@ temp_dir: ""                             # Temporary directory (empty = system d
 # Logging configuration
 logging:
   level: "info"                          # Log level: debug, info, warn, error (default: info)
+
+# AI-assisted template generation (optional)
+ai:
+  enabled: false                          # Enable the `os-image-composer ai` command
+  provider: ollama                        # or "openai"
+  templates_dir: "./image-templates"      # Source catalog for Retrieval-Augmented Generation (RAG)
+  use_case_match_threshold: 0.60          # Minimum similarity for curated use case filtering (0-1)
+  template_contribution_threshold: 0.60   # Minimum similarity for template package merging (0-1)
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "llama3.1:8b"
+    embedding_model: "nomic-embed-text"
+    temperature: 0.7
+    max_tokens: 2000
+    timeout: 120
+  openai:
+    api_key: "<OPENAI_API_KEY>"
+    model: "gpt-4o-mini"
+    embedding_model: "text-embedding-3-small"
+    temperature: 0.7
+    max_tokens: 2000
+    timeout: 120
 ```
+
+  `use_case_match_threshold` controls when curated use-case guidance narrows the template search space; values closer to `1.0` demand a stronger semantic match before filtering. `template_contribution_threshold` determines whether a retrieved template contributes its package list—templates below the cutoff still provide structural defaults (OS, disk layout), but their packages are ignored.
 
 ### Configuration Management Commands
 

@@ -29,9 +29,9 @@ var (
 )
 
 const (
-	supportedImageTypePrompt      = "raw, qcow2, vhd, vhdx, vmdk, or vdi"
-	templateContributionThreshold = 0.60
-	useCaseMatchThreshold         = 0.60
+	supportedImageTypePrompt             = "raw, qcow2, vhd, vhdx, vmdk, or vdi"
+	defaultTemplateContributionThreshold = 0.60
+	defaultUseCaseMatchThreshold         = 0.60
 )
 
 // ChatModel interface for different LLM providers
@@ -42,15 +42,36 @@ type ChatModel interface {
 	ResetConversation()
 }
 
+type AgentOptions struct {
+	TemplateContributionThreshold float64
+	UseCaseMatchThreshold         float64
+}
+
+func DefaultAgentOptions() AgentOptions {
+	return AgentOptions{
+		TemplateContributionThreshold: defaultTemplateContributionThreshold,
+		UseCaseMatchThreshold:         defaultUseCaseMatchThreshold,
+	}
+}
+
+func normalizeThreshold(value, fallback float64) float64 {
+	if value <= 0 || value > 1 {
+		return fallback
+	}
+	return value
+}
+
 type AIAgent struct {
-	chatModel  ChatModel
-	rag        *TemplateRAG
-	useCaseRAG *UseCaseRAG
-	useCases   *UseCasesConfig
+	chatModel                     ChatModel
+	rag                           *TemplateRAG
+	useCaseRAG                    *UseCaseRAG
+	useCases                      *UseCasesConfig
+	templateContributionThreshold float64
+	useCaseMatchThreshold         float64
 }
 
 // NewAIAgent creates an agent with the appropriate provider and RAG system
-func NewAIAgent(provider string, config interface{}, templatesDir string) (*AIAgent, error) {
+func NewAIAgent(provider string, config interface{}, templatesDir string, options *AgentOptions) (*AIAgent, error) {
 	var chatModel ChatModel
 	var embeddingClient EmbeddingGenerator
 	ctx := context.Background()
@@ -124,12 +145,28 @@ func NewAIAgent(provider string, config interface{}, templatesDir string) (*AIAg
 	systemPrompt := buildSystemPromptWithRAG(rag, useCaseRAG)
 	chatModel.SetSystemPrompt(systemPrompt)
 
+	sanitizedOptions := DefaultAgentOptions()
+	if options != nil {
+		sanitizedOptions.TemplateContributionThreshold = normalizeThreshold(options.TemplateContributionThreshold, sanitizedOptions.TemplateContributionThreshold)
+		sanitizedOptions.UseCaseMatchThreshold = normalizeThreshold(options.UseCaseMatchThreshold, sanitizedOptions.UseCaseMatchThreshold)
+	}
+
 	return &AIAgent{
-		chatModel:  chatModel,
-		rag:        rag,
-		useCaseRAG: useCaseRAG,
-		useCases:   useCases,
+		chatModel:                     chatModel,
+		rag:                           rag,
+		useCaseRAG:                    useCaseRAG,
+		useCases:                      useCases,
+		templateContributionThreshold: sanitizedOptions.TemplateContributionThreshold,
+		useCaseMatchThreshold:         sanitizedOptions.UseCaseMatchThreshold,
 	}, nil
+}
+
+func (agent *AIAgent) templateContributionCutoff() float64 {
+	return normalizeThreshold(agent.templateContributionThreshold, defaultTemplateContributionThreshold)
+}
+
+func (agent *AIAgent) useCaseMatchCutoff() float64 {
+	return normalizeThreshold(agent.useCaseMatchThreshold, defaultUseCaseMatchThreshold)
 }
 
 func buildSystemPromptWithRAG(rag *TemplateRAG, useCaseRAG *UseCaseRAG) string {
@@ -205,6 +242,7 @@ Return ONLY valid JSON, no markdown formatting.`, supportedImageTypePrompt, useC
 
 func (agent *AIAgent) ProcessUserRequest(ctx context.Context, userInput string) (*OSImageTemplate, error) {
 	var useCaseMatches []*UseCaseMatch
+	useCaseThreshold := agent.useCaseMatchCutoff()
 
 	if agent.useCaseRAG != nil {
 		fmt.Println("🧭 Matching curated use cases...")
@@ -224,7 +262,7 @@ func (agent *AIAgent) ProcessUserRequest(ctx context.Context, userInput string) 
 					fmt.Printf("   %d. %s (score: %.2f)\n", i+1, match.Name, match.Score)
 				}
 			} else {
-				fmt.Printf("ℹ️  No curated use case matches above %.2f threshold; using template-only search.\n", useCaseMatchThreshold)
+				fmt.Printf("ℹ️  No curated use case matches above %.2f threshold; using template-only search.\n", useCaseThreshold)
 			}
 		}
 	}
@@ -232,7 +270,7 @@ func (agent *AIAgent) ProcessUserRequest(ctx context.Context, userInput string) 
 	fmt.Println("🔎 Finding relevant template examples...")
 	useCaseFilter := make([]string, 0, len(useCaseMatches))
 	for _, match := range useCaseMatches {
-		if match.Score >= useCaseMatchThreshold {
+		if match.Score >= useCaseThreshold {
 			useCaseFilter = append(useCaseFilter, match.Name)
 		}
 	}
@@ -409,6 +447,16 @@ func (agent *AIAgent) generateTemplateFromExamples(intent *TemplateIntent, examp
 	}
 
 	baseTemplate := examples[0].Template
+	if baseTemplate != nil {
+		fmt.Printf("🏁 Base template: %s (score %.2f)\n", baseTemplate.Name, examples[0].Score)
+		if baseTemplate.FilePath != "" {
+			fmt.Printf("   Source: %s\n", baseTemplate.FilePath)
+		}
+		threshold := agent.templateContributionCutoff()
+		if examples[0].Score < threshold {
+			fmt.Printf("   ℹ️  Score %.2f is below contribution threshold %.2f; using template for structure only.\n", examples[0].Score, threshold)
+		}
+	}
 
 	var curatedConfig *UseCaseConfig
 	if primaryUseCase != nil && primaryUseCase.Config != nil {
@@ -428,14 +476,15 @@ func (agent *AIAgent) generateTemplateFromExamples(intent *TemplateIntent, examp
 		}
 	}
 
+	templateThreshold := agent.templateContributionCutoff()
 	for _, result := range examples {
-		if result.Score >= templateContributionThreshold {
+		if result.Score >= templateThreshold {
 			if len(result.Template.Packages) > 0 {
 				fmt.Printf("📘 Template '%s' contributing packages (%d, score %.2f): %v\n", result.Template.Name, len(result.Template.Packages), result.Score, result.Template.Packages)
 			}
 			packages = append(packages, result.Template.Packages...)
 		} else {
-			fmt.Printf("ℹ️  Skipping template '%s' (score %.2f below %.2f threshold).\n", result.Template.Name, result.Score, templateContributionThreshold)
+			fmt.Printf("ℹ️  Skipping template '%s' (score %.2f below %.2f threshold).\n", result.Template.Name, result.Score, templateThreshold)
 		}
 	}
 

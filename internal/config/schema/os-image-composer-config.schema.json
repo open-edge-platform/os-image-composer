@@ -88,6 +88,20 @@
 					"description": "Directory containing template examples for retrieval",
 					"default": "./image-templates"
 				},
+				"use_case_match_threshold": {
+					"type": "number",
+					"description": "Minimum cosine similarity required for curated use case matches",
+					"minimum": 0.0,
+					"maximum": 1.0,
+					"default": 0.6
+				},
+				"template_contribution_threshold": {
+					"type": "number",
+					"description": "Minimum cosine similarity required for a template to contribute packages",
+					"minimum": 0.0,
+					"maximum": 1.0,
+					"default": 0.6
+				},
 				"ollama": {
 					"type": "object",
 					"description": "Ollama-specific configuration",

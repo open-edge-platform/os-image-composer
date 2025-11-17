@@ -47,10 +47,12 @@ func TestRunAIGeneration_OllamaSuccess(t *testing.T) {
 	var capturedProvider string
 	var capturedDir string
 	var capturedConfig aiagent.OllamaConfig
+	var capturedOptions *aiagent.AgentOptions
 
-	newAIAgent = func(provider string, cfg interface{}, templatesDir string) (aiAgent, error) {
+	newAIAgent = func(provider string, cfg interface{}, templatesDir string, options *aiagent.AgentOptions) (aiAgent, error) {
 		capturedProvider = provider
 		capturedDir = templatesDir
+		capturedOptions = options
 
 		ollamaCfg, ok := cfg.(aiagent.OllamaConfig)
 		if !ok {
@@ -61,9 +63,11 @@ func TestRunAIGeneration_OllamaSuccess(t *testing.T) {
 	}
 
 	cfg := config.AIConfig{
-		Enabled:      true,
-		Provider:     "ollama",
-		TemplatesDir: "./custom-templates",
+		Enabled:                       true,
+		Provider:                      "ollama",
+		TemplatesDir:                  "./custom-templates",
+		TemplateContributionThreshold: 0.7,
+		UseCaseMatchThreshold:         0.8,
 		Ollama: config.OllamaConfig{
 			BaseURL:        "http://localhost:1234",
 			Model:          "test-model",
@@ -91,6 +95,16 @@ func TestRunAIGeneration_OllamaSuccess(t *testing.T) {
 
 	if capturedDir != cfg.TemplatesDir {
 		t.Fatalf("expected templates dir %q, got %q", cfg.TemplatesDir, capturedDir)
+	}
+
+	if capturedOptions == nil {
+		t.Fatalf("expected options to be passed to agent factory")
+	}
+	if capturedOptions.TemplateContributionThreshold != cfg.TemplateContributionThreshold {
+		t.Fatalf("expected template contribution threshold %.2f, got %.2f", cfg.TemplateContributionThreshold, capturedOptions.TemplateContributionThreshold)
+	}
+	if capturedOptions.UseCaseMatchThreshold != cfg.UseCaseMatchThreshold {
+		t.Fatalf("expected use case match threshold %.2f, got %.2f", cfg.UseCaseMatchThreshold, capturedOptions.UseCaseMatchThreshold)
 	}
 
 	if capturedConfig.BaseURL != cfg.Ollama.BaseURL {
@@ -129,7 +143,7 @@ func TestRunAIGeneration_ProcessError(t *testing.T) {
 
 	stub := &stubAgent{err: io.EOF}
 
-	newAIAgent = func(provider string, cfg interface{}, templatesDir string) (aiAgent, error) {
+	newAIAgent = func(provider string, cfg interface{}, templatesDir string, options *aiagent.AgentOptions) (aiAgent, error) {
 		return stub, nil
 	}
 

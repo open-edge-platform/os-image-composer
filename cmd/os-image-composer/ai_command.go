@@ -15,8 +15,8 @@ type aiAgent interface {
 	ProcessUserRequest(ctx context.Context, userInput string) (*aiagent.OSImageTemplate, error)
 }
 
-var newAIAgent = func(provider string, config interface{}, templatesDir string) (aiAgent, error) {
-	return aiagent.NewAIAgent(provider, config, templatesDir)
+var newAIAgent = func(provider string, config interface{}, templatesDir string, options *aiagent.AgentOptions) (aiAgent, error) {
+	return aiagent.NewAIAgent(provider, config, templatesDir, options)
 }
 
 func createAICommand() *cobra.Command {
@@ -61,6 +61,11 @@ func runAIGeneration(userInput string, aiConfig config.AIConfig, outputPath stri
 	var agent aiAgent
 	var err error
 
+	options := &aiagent.AgentOptions{
+		TemplateContributionThreshold: aiConfig.TemplateContributionThreshold,
+		UseCaseMatchThreshold:         aiConfig.UseCaseMatchThreshold,
+	}
+
 	switch aiConfig.Provider {
 	case "ollama":
 		fmt.Printf(" (%s)...\n", aiConfig.Ollama.Model)
@@ -72,7 +77,7 @@ func runAIGeneration(userInput string, aiConfig config.AIConfig, outputPath stri
 			Timeout:        aiConfig.Ollama.Timeout,
 			EmbeddingModel: aiConfig.Ollama.EmbeddingModel,
 		}
-		agent, err = newAIAgent("ollama", ollamaConfig, aiConfig.TemplatesDir)
+		agent, err = newAIAgent("ollama", ollamaConfig, aiConfig.TemplatesDir, options)
 
 	case "openai":
 		fmt.Printf(" (%s)...\n", aiConfig.OpenAI.Model)
@@ -84,7 +89,7 @@ func runAIGeneration(userInput string, aiConfig config.AIConfig, outputPath stri
 			Timeout:        aiConfig.OpenAI.Timeout,
 			EmbeddingModel: aiConfig.OpenAI.EmbeddingModel,
 		}
-		agent, err = newAIAgent("openai", openaiConfig, aiConfig.TemplatesDir)
+		agent, err = newAIAgent("openai", openaiConfig, aiConfig.TemplatesDir, options)
 
 	default:
 		return fmt.Errorf("unsupported AI provider: %s", aiConfig.Provider)
