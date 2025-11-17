@@ -89,17 +89,18 @@ OS Image Composer users must manually create YAML templates with specific packag
 
 ## Decision Outcome
 
-**Chosen option**: Retrieval-Augmented Generation (RAG) with Multi-Provider Architecture
+**Chosen option**: Retrieval-Augmented Generation (RAG) with Multi-Provider Architecture, augmented by a curated use-case metadata layer for consistent defaults
 
 ### Core Components
 
 1. **Template Indexing**: Automatically discover and parse all `.yml` templates in `image-templates/` directory
+1. **Use-Case Metadata Indexing**: Load curated definitions from `use-cases.yml`, generate embeddings, and provide semantic hints (packages, kernel, disk) per use case
 1. **Embedding Generation**: Convert templates to semantic vectors using:
    - **Ollama**: `nomic-embed-text` (768 dimensions, local, free)
    - **OpenAI**: `text-embedding-3-small` (1536 dimensions, cloud, paid)
-1. **Semantic Search**: Find top-K most relevant templates for user query using cosine similarity
+1. **Dual-Stage Semantic Search**: First match curated use cases, then find top-K templates constrained by the best matches with automatic fallbacks
 1. **Context-Aware Generation**: LLM generates new template based on retrieved examples
-1. **Intelligent Merging**: Combine packages and configurations from multiple relevant examples
+1. **Intelligent Merging**: Combine curated packages with configurations from multiple relevant examples
 
 ### Supported AI Providers
 
@@ -112,7 +113,7 @@ OS Image Composer users must manually create YAML templates with specific packag
 1. **Grounded in Reality**: Templates based on real working configurations, not synthetic
 1. **Reduces Hallucination**: AI sees actual package lists, kernel configs, disk layouts
 1. **Automatic Learning**: Adding new templates automatically expands AI capabilities
-1. **No Manual Curation**: No need to maintain separate use-case definition files
+1. **Curated Defaults**: Lightweight metadata file drives kernel/disk defaults and package seeds
 1. **User Freedom**: Choose AI provider based on cost, privacy, quality needs
 1. **Future-Proof**: Easy to add new providers and embedding models
 1. **Corporate Friendly**: Supports air-gapped environments (Ollama) and enterprise AI services (OpenAI)
@@ -132,16 +133,18 @@ graph TB
     AIProvider -->|provider=ollama| OllamaAgent[Ollama Agent]
     AIProvider -->|provider=openai| OpenAIAgent[OpenAI Agent]
     
-    OllamaAgent --> RAG[RAG System]
-    OpenAIAgent --> RAG
-    
-    RAG --> EmbeddingClient[Embedding Generator]
+  OllamaAgent --> RAG[RAG System]
+  OpenAIAgent --> RAG
+
+  RAG --> EmbeddingClient[Embedding Generator]
     EmbeddingClient -->|ollama| OllamaEmbed[nomic-embed-text]
     EmbeddingClient -->|openai| OpenAIEmbed[text-embedding-3-small]
     
-    RAG --> TemplateIndex[(Template Index<br/>Embeddings + Metadata)]
-    
-    RAG --> Retrieval[Semantic Search]
+  RAG --> UseCaseIndex[(Use-Case Index<br/>Embeddings + Metadata)]
+  RAG --> TemplateIndex[(Template Index<br/>Embeddings + Metadata)]
+
+  UseCaseIndex --> UseCaseMatches[Curated Use-Case Matches]
+  UseCaseMatches --> Retrieval[Semantic Search]
     Retrieval --> TopK[Top-K Templates]
     
     TopK --> LLM[Chat Model]
@@ -227,7 +230,8 @@ sequenceDiagram
     participant User
     participant CLI
     participant AIAgent
-    participant RAG
+  participant UseCaseRAG
+  participant RAG
     participant EmbedAPI as Embedding API
     participant TemplateDB as Template Index
     participant ChatAPI as Chat API
@@ -242,9 +246,12 @@ sequenceDiagram
     Note over User,Generator: Generation Phase (Per Request)
     User->>CLI: ai "docker host"
     CLI->>AIAgent: Initialize with provider config
-    AIAgent->>RAG: ProcessUserRequest("docker host")
-    
-    RAG->>EmbedAPI: Generate query embedding
+  AIAgent->>UseCaseRAG: FindRelevantUseCases("docker host")
+  UseCaseRAG->>UseCaseRAG: Semantic search (curated metadata)
+  UseCaseRAG-->>AIAgent: Top curated use cases
+  AIAgent->>RAG: ProcessUserRequest("docker host", matches)
+
+  RAG->>EmbedAPI: Generate query embedding
     EmbedAPI-->>RAG: Query vector
     
     RAG->>TemplateDB: Semantic search (cosine similarity)
@@ -274,8 +281,12 @@ The RAG system generates templates through intelligent retrieval and merging of 
 
 User Request: "docker host with monitoring"
 
-**Step 1 - Semantic Search:**
-Query Embedding: [0.23, -0.45, 0.67, ...]
+**Step 0 - Curated Use-Case Matching:**
+- Use-case RAG embeds request and finds closest curated definitions
+- Top match: `edge` (score 0.92) with default packages `[systemd, docker, containerd]`
+
+**Step 1 - Template Semantic Search (Use-Case Aware):**
+Query Embedding: [0.23, -0.45, 0.67, ...] filtered to `edge`
 
 Template Matches:
 
@@ -300,9 +311,12 @@ LLM sees examples and generates:
 
 **Step 3 - Intelligent Merging:**
 
-- Base: elxr12-x86_64-edge-raw.yml (best match) + Packages from high-similarity templates (score > 0.7) + User's custom packages: prometheus, grafana = Final template with 45 packages
-- Disk Config: Learned from examples (8GiB, GPT, EFI+rootfs)
-- Kernel: From example (6.12, console config)
+- Base: elxr12-x86_64-edge-raw.yml (best match); even if its similarity is below the contribution cutoff it still seeds structure (distribution, disk layout, kernel hints)
+- Curated packages from `use-cases.yml`: `[systemd, docker, containerd]`
+- Packages from templates whose similarity clears `template_contribution_threshold` (default 0.60)
+- User custom packages: prometheus, grafana
+- Disk Config: Curated default (12GiB) unless examples provide richer guidance
+- Kernel: Curated default (6.12 + console config) when examples omit details
 
 ---
 
@@ -313,8 +327,9 @@ LLM sees examples and generates:
 1. **Multi-Template Merging**: Intelligently combines best parts of multiple examples
 1. **Contextual Awareness**: Sees full template structure (disk, kernel, repos)
 1. **Custom Package Support**: Can add user-requested packages to base template
-1. **Quality Filtering**: Only uses high-similarity templates (score > 0.7)
+1. **Quality Filtering**: Operator-configurable thresholds gate curated use cases and template contributions
 1. **Minimal Filtering**: Automatically reduces package count for "minimal" requests
+1. **Curated Defaults**: Use-case metadata fills kernel, disk, and base package gaps when examples lack coverage
 
 ---
 
@@ -337,6 +352,9 @@ ai:
   
   # Template directory for RAG indexing
   templates_dir: ./image-templates  # Directory containing .yml examples
+  # Similarity thresholds (0-1 range). Defaults to 0.60 when omitted.
+  use_case_match_threshold: 0.60      # Require this score before filtering to curated use cases
+  template_contribution_threshold: 0.60  # Require this score before merging template packages
   
   ollama:
     base_url: http://localhost:11434
@@ -354,6 +372,8 @@ ai:
     max_tokens: 2000
     timeout: 120
 ```
+
+When thresholds are not specified, both default to `0.60`. `use_case_match_threshold` must be met before curated use-case guidance limits the candidate templates; otherwise the agent searches the full catalog. `template_contribution_threshold` controls package merging—templates below the cutoff still provide structural defaults (distribution, disk layout, kernel hints) but their package lists are ignored, and the CLI logs that behavior explicitly.
 
 ### 1. Template Directory Structure
 
@@ -387,7 +407,36 @@ Each template is parsed to extract:
 1. Store templates + embeddings in memory index
 1. Ready for semantic search
 
-**No manual curation needed** - just add `.yml` files and they're automatically available!
+**Template library remains automatic** - add `.yml` files and they are immediately indexed; curated metadata augments results without manual template edits.
+
+### 2. Use-Case Metadata
+
+**File**: `use-cases.yml`
+
+- Curated defaults per use case: keywords, descriptions, essential/optional/security/performance package lists
+- Kernel defaults: version + cmdline suggestions
+- Disk sizing guidance: default size per use case
+- Requirements-aware package expansion (security, performance, minimal)
+- Indexed with the same embedding provider for semantic matching
+
+**Example**:
+
+```yaml
+use_cases:
+  edge:
+    description: "Edge compute node with hardened networking"
+    keywords: ["edge", "factory", "sensor"]
+    essential_packages: ["systemd", "docker", "containerd"]
+    security_packages: ["selinux-policy", "auditd"]
+    performance_packages: ["irqbalance"]
+    kernel:
+      default_version: "6.12"
+      cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    disk:
+      default_size: "12GiB"
+```
+
+When the curated file is missing or a query scores poorly, the agent gracefully falls back to template-only retrieval with the previous behavior.
 
 ---
 
@@ -437,6 +486,8 @@ ai:
   enabled: true
   provider: ollama
   templates_dir: ./image-templates  # RAG template source
+  use_case_match_threshold: 0.60
+  template_contribution_threshold: 0.60
   
   ollama:
     base_url: http://localhost:11434
@@ -477,6 +528,8 @@ ai:
   enabled: true
   provider: openai
   templates_dir: ./image-templates  # RAG template source
+  use_case_match_threshold: 0.60
+  template_contribution_threshold: 0.60
   
   openai:
     api_key: "sk-..."                       # <OPENAI_API_KEY>
@@ -960,7 +1013,7 @@ os-image-composer ai "your request here" --output template.yml
 - **Flexibility**: Choose provider based on cost, privacy, quality needs
 - **Extensibility**: Easy to add new providers and embedding models
 - **No Breaking Changes**: Existing functionality unaffected
-- **No Manual Curation**: No need to maintain separate use-case definition files
+- **Curated Defaults**: A single `use-cases.yml` file provides maintainable defaults without touching individual templates
 - **Privacy Options**: Full local processing (Ollama) or cloud (OpenAI)
 - **Multi-Template Intelligence**: Merges best parts of multiple examples
 
