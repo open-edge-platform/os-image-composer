@@ -91,6 +91,11 @@ systemConfig:
   description: AMD64 minimal cloud VM configuration equivalent to rs-build workflow
   # Default hostname written via additionalFiles below
   hostname: localhost
+  #adding user as default user login 
+  users:
+    - name: user 
+      password: "user"  
+      groups: ["sudo"]
   # Bootloader settings; systemd-boot required by ELXR cloud profiles
   bootloader:
     bootType: efi
@@ -136,6 +141,6 @@ systemConfig:
   kernel:
     version: "6.1"
     # Matches installer.bootloader kernel_args from cloud.yaml
-    cmdline: "root=LABEL=ROOT console=tty0 console=ttyS0,115200"
+    cmdline: "console=tty0 console=ttyS0,115200"
     # Ensures br_netfilter module is included for networking tweaks
     enableExtraModules: br_netfilter
