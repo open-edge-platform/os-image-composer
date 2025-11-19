@@ -90,31 +90,59 @@ run_qemu_boot_test() {
     # Check available disk space before extraction
     AVAILABLE_SPACE=$(df . | tail -1 | awk '{print $4}')
     COMPRESSED_SIZE=$(stat -c%s "$COMPRESSED_IMAGE" 2>/dev/null || echo "0")
-    # Estimate uncompressed size (typically 3-4x larger for these images)
-    ESTIMATED_SIZE=$((COMPRESSED_SIZE * 4 / 1024))
+    # Estimate uncompressed size (typically 4-6x larger for these images, being conservative)
+    ESTIMATED_SIZE=$((COMPRESSED_SIZE * 6 / 1024))
+    
+    echo "Disk space check: Available=${AVAILABLE_SPACE}KB, Estimated needed=${ESTIMATED_SIZE}KB"
+    
+    # Always try aggressive cleanup first to ensure maximum space
+    echo "Performing aggressive cleanup before extraction..."
+    sudo rm -f *.raw 2>/dev/null || true
+    sudo rm -f /tmp/*.raw 2>/dev/null || true
+    sudo rm -rf ../../../cache/ 2>/dev/null || true
+    sudo rm -rf ../../../tmp/*/imagebuild/*/*.raw 2>/dev/null || true
+    
+    # Force filesystem sync and check space again
+    sync
+    AVAILABLE_SPACE=$(df . | tail -1 | awk '{print $4}')
+    echo "Available space after cleanup: ${AVAILABLE_SPACE}KB"
     
     if [ "$AVAILABLE_SPACE" -lt "$ESTIMATED_SIZE" ]; then
-      echo "Warning: Insufficient disk space. Available: ${AVAILABLE_SPACE}KB, Estimated needed: ${ESTIMATED_SIZE}KB"
-      echo "Attempting to clean up space before extraction..."
-      # Clean up any existing raw files in the current directory
-      sudo rm -f *.raw 2>/dev/null || true
-      # Clean up other build artifacts
-      sudo rm -rf ../../../cache/ 2>/dev/null || true
-      # Try to use /tmp if available space is still insufficient
-      AVAILABLE_SPACE=$(df . | tail -1 | awk '{print $4}')
-      if [ "$AVAILABLE_SPACE" -lt "$ESTIMATED_SIZE" ]; then
-        echo "Still insufficient space, attempting extraction to /tmp..."
+      echo "Warning: Still insufficient disk space after cleanup"
+      echo "Attempting extraction to /tmp with streaming..."
+      
+      # Check /tmp space
+      TMP_AVAILABLE=$(df /tmp | tail -1 | awk '{print $4}')
+      echo "/tmp available space: ${TMP_AVAILABLE}KB"
+      
+      if [ "$TMP_AVAILABLE" -gt "$ESTIMATED_SIZE" ]; then
         TMP_RAW="/tmp/$RAW_IMAGE"
-        gunzip -c "$COMPRESSED_IMAGE" > "$TMP_RAW"
-        if [ -f "$TMP_RAW" ]; then
-          echo "Moving extracted image from /tmp to current directory..."
-          mv "$TMP_RAW" "$RAW_IMAGE"
+        echo "Extracting to /tmp first..."
+        if gunzip -c "$COMPRESSED_IMAGE" > "$TMP_RAW"; then
+          echo "Successfully extracted to /tmp, moving to final location..."
+          if mv "$TMP_RAW" "$RAW_IMAGE"; then
+            echo "Successfully moved extracted image to current directory"
+          else
+            echo "Failed to move from /tmp, will try to use /tmp location directly"
+            ln -sf "$TMP_RAW" "$RAW_IMAGE" 2>/dev/null || cp "$TMP_RAW" "$RAW_IMAGE"
+          fi
+        else
+          echo "Failed to extract to /tmp"
+          rm -f "$TMP_RAW" 2>/dev/null || true
+          return 1
         fi
       else
-        gunzip -c "$COMPRESSED_IMAGE" > "$RAW_IMAGE"
+        echo "ERROR: Insufficient space in both current directory and /tmp"
+        echo "Current: ${AVAILABLE_SPACE}KB, /tmp: ${TMP_AVAILABLE}KB, Needed: ${ESTIMATED_SIZE}KB"
+        return 1
       fi
     else
-      gunzip -c "$COMPRESSED_IMAGE" > "$RAW_IMAGE"
+      echo "Sufficient space available, extracting directly..."
+      if ! gunzip -c "$COMPRESSED_IMAGE" > "$RAW_IMAGE"; then
+        echo "Direct extraction failed, cleaning up partial file..."
+        rm -f "$RAW_IMAGE" 2>/dev/null || true
+        return 1
+      fi
     fi
     
     if [ ! -f "$RAW_IMAGE" ]; then
@@ -407,6 +435,12 @@ build_elxr12_raw_image() {
   echo "Ensuring we're in the working directory before starting builds..."
   cd "$WORKING_DIR"
   echo "Current working directory: $(pwd)"
+  
+  # Check disk space before building (require at least 12GB for ELXR12 images)
+  if ! check_disk_space 12; then
+    echo "Insufficient disk space for ELXR12 raw image build"
+    exit 1
+  fi
   output=$( sudo -S ./os-image-composer build image-templates/elxr12-x86_64-minimal-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -633,8 +667,13 @@ clean_build_dirs() {
   sudo rm -rf cache/ tmp/
   # Also clean up any extracted raw files in current directory
   cleanup_image_files extracted
+  # Clean up any temporary files in /tmp
+  sudo rm -f /tmp/*.raw /tmp/*.iso 2>/dev/null || true
+  # Clean up QEMU log files
+  sudo rm -f qemu_serial*.log 2>/dev/null || true
   # Force garbage collection and sync filesystem
   sync
+  echo "Available disk space after cleanup: $(df . | tail -1 | awk '{print $4}')KB"
 }
 
 check_disk_space() {
