@@ -85,6 +85,7 @@ func PackagesFromMultipleRepos() ([]ospackage.PackageInfo, error) {
 	}
 
 	var allPackages []ospackage.PackageInfo
+	var failedRepos []string
 
 	for i, repoCfg := range RepoCfgs {
 		log.Infof("fetching packages from repository %d: %s (%s)", i+1, repoCfg.Name, repoCfg.PkgList)
@@ -92,11 +93,17 @@ func PackagesFromMultipleRepos() ([]ospackage.PackageInfo, error) {
 		packages, err := ParseRepositoryMetadata(repoCfg.PkgPrefix, repoCfg.PkgList, repoCfg.ReleaseFile, repoCfg.ReleaseSign, repoCfg.PbGPGKey, repoCfg.BuildPath, repoCfg.Arch)
 		if err != nil {
 			log.Warnf("Failed to parse repository %s: %v", repoCfg.Name, err)
+			failedRepos = append(failedRepos, repoCfg.Name)
 			continue // Skip this repository but continue with others
 		}
 
 		log.Infof("found %d packages in repository %s", len(packages), repoCfg.Name)
 		allPackages = append(allPackages, packages...)
+	}
+
+	// If all repositories failed, return an error
+	if len(failedRepos) == len(RepoCfgs) {
+		return nil, fmt.Errorf("all %d repositories failed to parse", len(RepoCfgs))
 	}
 
 	log.Infof("found total of %d packages from %d repositories", len(allPackages), len(RepoCfgs))
@@ -158,21 +165,26 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", "user package list")
 
-	repoList := make([]Repository, len(UserRepo))
+	var repoList []Repository
 	repoGroup := "custrepo"
 	for i, repo := range UserRepo {
 		// if baseURL is a placeholder, dont process it
-		if repo.URL == "<URL>" {
+		if repo.URL == "<URL>" || repo.URL == "" {
 			continue
 		}
 		baseURL := strings.TrimPrefix(strings.TrimPrefix(repo.URL, "http://"), "https://")
-		repoList[i] = Repository{
+		repoList = append(repoList, Repository{
 			ID:        fmt.Sprintf("%s%d", repoGroup+"-"+baseURL, i+1),
 			Codename:  repo.Codename,
 			URL:       repo.URL,
 			PKey:      repo.PKey,
 			Component: repo.Component,
-		}
+		})
+	}
+
+	// If no valid repositories were found (all were placeholders), return empty package list
+	if len(repoList) == 0 {
+		return []ospackage.PackageInfo{}, nil
 	}
 
 	userRepo, err := BuildRepoConfigs(repoList, Architecture)

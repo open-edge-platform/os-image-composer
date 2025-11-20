@@ -255,6 +255,7 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 		}
 	}
 	neededSet := make(map[string]struct{})
+	resolvedDeps := make(map[string]ospackage.PackageInfo) // Track resolved dependencies for conflict detection
 	queue := make([]ospackage.PackageInfo, 0, len(requested))
 	for _, pi := range requested {
 		if pi.Version != "" {
@@ -286,18 +287,47 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 		for _, dep := range cur.Requires {
 
 			depName := CleanDependencyName(dep)
-			if depName == "" || neededSet[depName] != struct{}{} {
+			if depName == "" {
 				continue
 			}
-			if _, seen := neededSet[depName]; seen {
-				// Check if the new package can use the existing package. If it cannot, then error out; otherwise, continue.
-				// get the package from current queue based on name
-				existing := findAllCandidates(depName, queue)
-				if len(existing) > 0 {
-					// check if the existing package can satisfy the version requirement
-					_, err := resolveMultiCandidates(cur, existing)
-					if err != nil {
-						// get require version
+			if resolvedPkg, seen := resolvedDeps[depName]; seen {
+				// Dependency already resolved - check for version conflicts
+
+				// Extract version constraints for this dependency from current package
+				versionConstraints, hasVersionConstraint := extractVersionRequirement(cur.RequiresVer, depName)
+
+				if hasVersionConstraint {
+					// Check if the already-resolved package satisfies the version constraints
+					constraintsSatisfied := true
+					for _, constraint := range versionConstraints {
+						cmp, err := CompareDebianVersions(resolvedPkg.Version, constraint.Ver)
+						if err != nil {
+							constraintsSatisfied = false
+							break
+						}
+
+						versionMatches := false
+						switch constraint.Op {
+						case "=":
+							versionMatches = (cmp == 0)
+						case "<<", "<":
+							versionMatches = (cmp < 0)
+						case "<=":
+							versionMatches = (cmp <= 0)
+						case ">>", ">":
+							versionMatches = (cmp > 0)
+						case ">=":
+							versionMatches = (cmp >= 0)
+						}
+
+						if !versionMatches {
+							constraintsSatisfied = false
+							break
+						}
+					}
+
+					if !constraintsSatisfied {
+						// get require version string for error message
 						var requiredVer string
 						for _, req := range cur.RequiresVer {
 							if strings.Contains(req, depName) {
@@ -305,7 +335,7 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 								break
 							}
 						}
-						return nil, fmt.Errorf("conflicting package dependencies: %s_%s requires %s, but %s_%s is to be installed", cur.Name, cur.Version, requiredVer, existing[0].Name, existing[0].Version)
+						return nil, fmt.Errorf("conflicting package dependencies: %s_%s requires %s, but %s_%s is already installed", cur.Name, cur.Version, requiredVer, resolvedPkg.Name, resolvedPkg.Version)
 					}
 				}
 				continue
@@ -322,6 +352,7 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 					continue
 				}
 				queue = append(queue, chosenCandidate)
+				resolvedDeps[depName] = chosenCandidate // Track resolved dependency
 				AddParentChildPair(cur, chosenCandidate, &parentChildPairs)
 				continue
 			} else {
@@ -358,9 +389,9 @@ func getFullUrl(filePath string, baseUrl string) (string, error) {
 	return fullURL, nil
 }
 
-// compareDebianVersions compares two Debian version strings.
+// CompareDebianVersions compares two Debian version strings.
 // Returns -1 if a < b, 0 if a == b, 1 if a > b.
-func compareDebianVersions(a, b string) (int, error) {
+func CompareDebianVersions(a, b string) (int, error) {
 	// Empty-version handling: empty < any non-empty
 	if a == "" && b == "" {
 		return 0, nil
@@ -627,7 +658,7 @@ func compareVersions(v1, v2 string) int {
 	}
 	ver1 := extractVersion(v1)
 	ver2 := extractVersion(v2)
-	cmp, _ := compareDebianVersions(ver1, ver2)
+	cmp, _ := CompareDebianVersions(ver1, ver2)
 	return cmp
 }
 
@@ -846,7 +877,7 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 			// Check if all version constraints are satisfied
 			allConstraintsSatisfied := true
 			for _, constraint := range versionConstraints {
-				cmp, err := compareDebianVersions(candidate.Version, constraint.Ver)
+				cmp, err := CompareDebianVersions(candidate.Version, constraint.Ver)
 				if err != nil {
 					allConstraintsSatisfied = false
 					break
