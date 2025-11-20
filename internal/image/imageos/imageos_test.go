@@ -2674,3 +2674,336 @@ func TestBuildUKI(t *testing.T) {
 
 	t.Log("buildUKI test completed")
 }
+
+// TestCollectUserGroups tests the collectUserGroups function
+func TestCollectUserGroups(t *testing.T) {
+	testCases := []struct {
+		name     string
+		user     config.UserConfig
+		template *config.ImageTemplate
+		expected []string
+	}{
+		{
+			name: "user with custom groups and sudo for azure-linux",
+			user: config.UserConfig{
+				Name:   "testuser",
+				Groups: []string{"docker", "audio"},
+				Sudo:   true,
+			},
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "azure-linux",
+				},
+			},
+			expected: []string{"docker", "audio", "wheel", "sudo"},
+		},
+		{
+			name: "user with custom groups and sudo for edge-microvisor-toolkit",
+			user: config.UserConfig{
+				Name:   "testuser",
+				Groups: []string{"docker"},
+				Sudo:   true,
+			},
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "edge-microvisor-toolkit",
+				},
+			},
+			expected: []string{"docker", "wheel", "sudo"},
+		},
+		{
+			name: "user with custom groups and sudo for other OS",
+			user: config.UserConfig{
+				Name:   "testuser",
+				Groups: []string{"docker"},
+				Sudo:   true,
+			},
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "debian",
+				},
+			},
+			expected: []string{"docker", "sudo"},
+		},
+		{
+			name: "user with custom groups only",
+			user: config.UserConfig{
+				Name:   "testuser",
+				Groups: []string{"docker", "audio", "video"},
+				Sudo:   false,
+			},
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "debian",
+				},
+			},
+			expected: []string{"docker", "audio", "video"},
+		},
+		{
+			name: "user with sudo only for azure-linux",
+			user: config.UserConfig{
+				Name:   "testuser",
+				Groups: []string{},
+				Sudo:   true,
+			},
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "azure-linux",
+				},
+			},
+			expected: []string{"wheel", "sudo"},
+		},
+		{
+			name: "user with empty and template placeholder groups",
+			user: config.UserConfig{
+				Name:   "testuser",
+				Groups: []string{"docker", "", "<PLACEHOLDER>", "audio", "  ", "<ANOTHER>"},
+				Sudo:   false,
+			},
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "debian",
+				},
+			},
+			expected: []string{"docker", "audio"},
+		},
+		{
+			name: "user with duplicate groups",
+			user: config.UserConfig{
+				Name:   "testuser",
+				Groups: []string{"docker", "audio", "docker", "video"},
+				Sudo:   false,
+			},
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "debian",
+				},
+			},
+			expected: []string{"docker", "audio", "video"},
+		},
+		{
+			name: "user with duplicate groups and sudo",
+			user: config.UserConfig{
+				Name:   "testuser",
+				Groups: []string{"sudo", "docker"},
+				Sudo:   true,
+			},
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "debian",
+				},
+			},
+			expected: []string{"sudo", "docker"},
+		},
+		{
+			name: "user with no groups and no sudo",
+			user: config.UserConfig{
+				Name:   "testuser",
+				Groups: []string{},
+				Sudo:   false,
+			},
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "debian",
+				},
+			},
+			expected: []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := collectUserGroups(tc.user, tc.template)
+
+			if len(result) != len(tc.expected) {
+				t.Errorf("Expected %d groups, got %d: %v", len(tc.expected), len(result), result)
+				return
+			}
+
+			for i, expected := range tc.expected {
+				if result[i] != expected {
+					t.Errorf("Group mismatch at position %d: expected %s, got %s", i, expected, result[i])
+				}
+			}
+		})
+	}
+}
+
+// TestDefaultSudoGroups tests the defaultSudoGroups function
+func TestDefaultSudoGroups(t *testing.T) {
+	testCases := []struct {
+		name     string
+		template *config.ImageTemplate
+		expected []string
+	}{
+		{
+			name: "azure-linux",
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "azure-linux",
+				},
+			},
+			expected: []string{"wheel", "sudo"},
+		},
+		{
+			name: "edge-microvisor-toolkit",
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "edge-microvisor-toolkit",
+				},
+			},
+			expected: []string{"wheel", "sudo"},
+		},
+		{
+			name: "debian",
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "debian",
+				},
+			},
+			expected: []string{"sudo"},
+		},
+		{
+			name: "ubuntu",
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "ubuntu",
+				},
+			},
+			expected: []string{"sudo"},
+		},
+		{
+			name: "empty OS",
+			template: &config.ImageTemplate{
+				Target: config.TargetInfo{
+					OS: "",
+				},
+			},
+			expected: []string{"sudo"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := defaultSudoGroups(tc.template)
+
+			if len(result) != len(tc.expected) {
+				t.Errorf("Expected %d groups, got %d: %v", len(tc.expected), len(result), result)
+				return
+			}
+
+			for i, expected := range tc.expected {
+				if result[i] != expected {
+					t.Errorf("Group mismatch at position %d: expected %s, got %s", i, expected, result[i])
+				}
+			}
+		})
+	}
+}
+
+// TestEnsureGroupExists tests the ensureGroupExists function
+func TestEnsureGroupExists(t *testing.T) {
+	// Set up mock executor
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	testCases := []struct {
+		name          string
+		groupName     string
+		mockCommands  []shell.MockCommand
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:      "group already exists",
+			groupName: "docker",
+			mockCommands: []shell.MockCommand{
+				{
+					Pattern: `sudo.*chroot.*getent group docker`,
+					Output:  "docker:x:999:",
+					Error:   nil,
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:      "group does not exist - create successfully",
+			groupName: "newgroup",
+			mockCommands: []shell.MockCommand{
+				{
+					Pattern: `sudo.*chroot.*getent group newgroup`,
+					Output:  "",
+					Error:   fmt.Errorf("group not found"),
+				},
+				{
+					Pattern: `sudo.*chroot.*groupadd newgroup`,
+					Output:  "",
+					Error:   nil,
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:      "group creation fails with already exists message",
+			groupName: "existinggroup",
+			mockCommands: []shell.MockCommand{
+				{
+					Pattern: `sudo.*chroot.*getent group existinggroup`,
+					Output:  "",
+					Error:   fmt.Errorf("group not found"),
+				},
+				{
+					Pattern: `sudo.*chroot.*groupadd existinggroup`,
+					Output:  "groupadd: group 'existinggroup' already exists",
+					Error:   fmt.Errorf("exit status 9"),
+				},
+			},
+			expectError: false, // Should return nil because output contains "already exists"
+		},
+		{
+			name:      "group creation fails with other error",
+			groupName: "failgroup",
+			mockCommands: []shell.MockCommand{
+				{
+					Pattern: `sudo.*chroot.*getent group failgroup`,
+					Output:  "",
+					Error:   fmt.Errorf("group not found"),
+				},
+				{
+					Pattern: `sudo.*chroot.*groupadd failgroup`,
+					Output:  "groupadd: permission denied",
+					Error:   fmt.Errorf("exit status 1"),
+				},
+			},
+			expectError:   true,
+			errorContains: "groupadd failed",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			shell.Default = shell.NewMockExecutor(tc.mockCommands)
+
+			// Create temp directory for install root
+			tempDir, err := os.MkdirTemp("", "ensure_group_test_*")
+			if err != nil {
+				t.Fatalf("Failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			err = ensureGroupExists(tempDir, tc.groupName)
+
+			if tc.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				} else if tc.errorContains != "" && !strings.Contains(err.Error(), tc.errorContains) {
+					t.Errorf("Expected error to contain '%s', got: %v", tc.errorContains, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
