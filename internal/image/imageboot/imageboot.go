@@ -204,7 +204,7 @@ func updateBootConfigTemplate(installRoot, rootDevID, bootUUID, bootPrefix, hash
 			return fmt.Errorf("failed to replace RootPartition in boot configuration: %w", err)
 		}
 
-		log.Debug("yockgen edge-microvisor-toolkit")
+		log.Debug("edge-microvisor-toolkit")
 	}
 
 	if template.IsImmutabilityEnabled() {

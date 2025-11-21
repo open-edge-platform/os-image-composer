@@ -1120,15 +1120,7 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 		return fmt.Errorf("failed to read cmdline file: %w", err)
 	}
 
-	// bootUUID, err := getBootUUID(installRoot)
-	// if err != nil {
-	// 	log.Errorf("Failed to get boot UUID: %v", err)
-	// 	// Handle error or use fallback
-	// 	return fmt.Errorf("failed to get boot UUID: %w", err)
-	// }
-
 	cmdlineStr := string(data)
-	// cmdlineStr = cmdlineStr + " boot_uuid1=" + bootUUID
 	if template.IsImmutabilityEnabled() {
 		partData := extractRootHashPH(cmdlineStr)
 		err := prepareVeritySetup(partData, installRoot)
@@ -1433,25 +1425,6 @@ func hashPassword(password, hashAlgo, installRoot string) (string, error) {
 	return hashedPassword, nil
 }
 
-// Helper function to hash password using specified algorithm
-func getBootUUID(installRoot string) (string, error) {
-	cmdUUID := "blkid -s UUID -o value $(findmnt -n -o SOURCE /boot)"
-	bootUUID, err := shell.ExecCmd(cmdUUID, true, installRoot, nil)
-	if err != nil {
-		log.Errorf("Failed to get boot UUID: %v", err)
-		return "", fmt.Errorf("failed to get boot UUID: %w", err)
-	}
-	// Clean up the output (remove newlines/whitespace)
-	bootUUID = strings.TrimSpace(bootUUID)
-
-	//yockgen
-	cmdUUID = "blkid"
-	bOutput, err := shell.ExecCmd(cmdUUID, true, installRoot, nil)
-	log.Debugf("yockgen blkid=%s", bOutput)
-
-	bootUUID = "dummyvalue"
-	return bootUUID, nil
-  
 func configUserStartupScript(installRoot string, user config.UserConfig) error {
 	log.Infof("Configuring user '%s' startup script to: %s", user.Name, user.StartupScript)
 
