@@ -18,8 +18,9 @@ import (
 
 // VersionConstraint represents a version operator and version pair
 type VersionConstraint struct {
-	Op  string
-	Ver string
+	Op          string
+	Ver         string
+	Alternative string // Alternative package name for constraints like "logsave | e2fsprogs (<< 1.45.3-1~)"
 }
 
 func GenerateDot(pkgs []ospackage.PackageInfo, file string) error {
@@ -293,49 +294,76 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 			if resolvedPkg, seen := resolvedDeps[depName]; seen {
 				// Dependency already resolved - check for version conflicts
 
+				// Check if this is a direct dependency without constraints
+				isDirect := hasDirectDependency(cur.Requires, depName)
+
 				// Extract version constraints for this dependency from current package
 				versionConstraints, hasVersionConstraint := extractVersionRequirement(cur.RequiresVer, depName)
 
+				// If it's a direct dependency, ignore version constraints from alternatives
+				if isDirect && hasVersionConstraint {
+					// Filter out constraints that come from alternatives (keep only direct constraints)
+					var directConstraints []VersionConstraint
+					for _, constraint := range versionConstraints {
+						// If constraint has alternatives, it's from an alternative requirement
+						if constraint.Alternative == "" {
+							directConstraints = append(directConstraints, constraint)
+						}
+					}
+					versionConstraints = directConstraints
+					hasVersionConstraint = len(directConstraints) > 0
+				}
+
 				if hasVersionConstraint {
+					var requiredVer string
+					var requiredDep string
 					// Check if the already-resolved package satisfies the version constraints
 					constraintsSatisfied := true
 					for _, constraint := range versionConstraints {
-						cmp, err := CompareDebianVersions(resolvedPkg.Version, constraint.Ver)
-						if err != nil {
-							constraintsSatisfied = false
-							break
+						// Check if main package satisfies constraint
+						mainSatisfied := false
+						if constraint.Op != "" && constraint.Ver != "" {
+							cmp, err := CompareDebianVersions(resolvedPkg.Version, constraint.Ver)
+							if err == nil {
+								switch constraint.Op {
+								case "=":
+									mainSatisfied = (cmp == 0)
+								case "<<", "<":
+									mainSatisfied = (cmp < 0)
+								case "<=":
+									mainSatisfied = (cmp <= 0)
+								case ">>", ">":
+									mainSatisfied = (cmp > 0)
+								case ">=":
+									mainSatisfied = (cmp >= 0)
+								}
+							}
 						}
 
-						versionMatches := false
-						switch constraint.Op {
-						case "=":
-							versionMatches = (cmp == 0)
-						case "<<", "<":
-							versionMatches = (cmp < 0)
-						case "<=":
-							versionMatches = (cmp <= 0)
-						case ">>", ">":
-							versionMatches = (cmp > 0)
-						case ">=":
-							versionMatches = (cmp >= 0)
+						// If main package doesn't satisfy and we have alternatives, check them
+						alternativeSatisfied := false
+						if !mainSatisfied && constraint.Alternative != "" {
+							alternatives := strings.Split(constraint.Alternative, "|")
+							for _, altName := range alternatives {
+								altName = strings.TrimSpace(altName)
+								if _, altSeen := resolvedDeps[altName]; altSeen {
+									// Alternative package is resolved, check if it satisfies (no version constraint for alternatives)
+									alternativeSatisfied = true
+									break
+								}
+							}
 						}
 
-						if !versionMatches {
+						if !mainSatisfied && !alternativeSatisfied {
 							constraintsSatisfied = false
+							requiredVer = constraint.Ver
+							requiredDep = depName
 							break
 						}
 					}
 
 					if !constraintsSatisfied {
-						// get require version string for error message
-						var requiredVer string
-						for _, req := range cur.RequiresVer {
-							if strings.Contains(req, depName) {
-								requiredVer = req
-								break
-							}
-						}
-						return nil, fmt.Errorf("conflicting package dependencies: %s_%s requires %s, but %s_%s is already installed", cur.Name, cur.Version, requiredVer, resolvedPkg.Name, resolvedPkg.Version)
+						return nil, fmt.Errorf("conflicting package dependencies: %s_%s requires %s_%s, but %s_%s is already installed", cur.Name, cur.Version, requiredDep, requiredVer, resolvedPkg.Name, resolvedPkg.Version)
 					}
 				}
 				continue
@@ -356,9 +384,37 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 				AddParentChildPair(cur, chosenCandidate, &parentChildPairs)
 				continue
 			} else {
-				log.Warnf("no candidates found for dependency %q of package %q", depName, cur.Name)
-				gotMissingPkg = true
-				AddParentMissingChildPair(cur, depName+"(missing)", &parentChildPairs)
+				// No candidates for primary dependency, check for alternatives
+				versionConstraints, _ := extractVersionRequirement(cur.RequiresVer, depName)
+				alternativeResolved := false
+				for _, constraint := range versionConstraints {
+					if constraint.Alternative != "" {
+						alternatives := strings.Split(constraint.Alternative, "|")
+						for _, altName := range alternatives {
+							altName = strings.TrimSpace(altName)
+							altCandidates := findAllCandidates(altName, all)
+							if len(altCandidates) >= 1 {
+								chosenCandidate, err := resolveMultiCandidates(cur, altCandidates)
+								if err == nil {
+									queue = append(queue, chosenCandidate)
+									resolvedDeps[altName] = chosenCandidate // Track resolved alternative dependency
+									AddParentChildPair(cur, chosenCandidate, &parentChildPairs)
+									alternativeResolved = true
+									break
+								}
+							}
+						}
+						if alternativeResolved {
+							break
+						}
+					}
+				}
+
+				if !alternativeResolved {
+					log.Warnf("no candidates found for dependency %q of package %q", depName, cur.Name)
+					gotMissingPkg = true
+					AddParentMissingChildPair(cur, depName+"(missing)", &parentChildPairs)
+				}
 				continue
 			}
 		}
@@ -764,6 +820,17 @@ func extractRepoBase(rawURL string) (string, error) {
 	return base, nil
 }
 
+// hasDirectDependency checks if a dependency appears as a direct requirement (not in alternatives)
+func hasDirectDependency(requires []string, depName string) bool {
+	for _, req := range requires {
+		cleanReq := CleanDependencyName(req)
+		if cleanReq == depName {
+			return true
+		}
+	}
+	return false
+}
+
 func extractVersionRequirement(reqVers []string, depName string) ([]VersionConstraint, bool) {
 	var constraints []VersionConstraint
 	found := false
@@ -773,7 +840,7 @@ func extractVersionRequirement(reqVers []string, depName string) ([]VersionConst
 
 		// Handle alternatives (|) - check if our depName is in any of the alternatives
 		alternatives := strings.Split(reqVer, "|")
-		for _, alt := range alternatives {
+		for i, alt := range alternatives {
 			alt = strings.TrimSpace(alt)
 
 			// Check if this alternative starts with the dependency name we're looking for
@@ -797,13 +864,36 @@ func extractVersionRequirement(reqVers []string, depName string) ([]VersionConst
 					// Split into operator and version
 					parts := strings.Fields(constraintPart)
 					if len(parts) == 2 {
+						// Collect alternative package names (all alternatives except the current one)
+						var altNames []string
+						for j, altPkg := range alternatives {
+							if j != i {
+								altNames = append(altNames, strings.TrimSpace(CleanDependencyName(altPkg)))
+							}
+						}
 						constraint := VersionConstraint{
-							Op:  parts[0],
-							Ver: parts[1],
+							Op:          parts[0],
+							Ver:         parts[1],
+							Alternative: strings.Join(altNames, "|"),
 						}
 						constraints = append(constraints, constraint)
 						found = true
 					}
+				}
+			} else {
+				// No version constraint, but we have alternatives
+				if len(alternatives) > 1 {
+					// Collect alternative package names (all alternatives except the current one)
+					var altNames []string
+					for j, altPkg := range alternatives {
+						if j != i {
+							altNames = append(altNames, strings.TrimSpace(CleanDependencyName(altPkg)))
+						}
+					}
+					constraint := VersionConstraint{
+						Alternative: strings.Join(altNames, "|"),
+					}
+					constraints = append(constraints, constraint)
 				}
 			}
 
@@ -860,7 +950,22 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 	var versionConstraints []VersionConstraint
 	hasVersionConstraint := false
 	if len(candidates) > 0 {
-		versionConstraints, hasVersionConstraint = extractVersionRequirement(parentPkg.RequiresVer, candidates[0].Name)
+		depName := candidates[0].Name
+		isDirect := hasDirectDependency(parentPkg.Requires, depName)
+
+		versionConstraints, hasVersionConstraint = extractVersionRequirement(parentPkg.RequiresVer, depName)
+
+		// If it's a direct dependency, ignore version constraints from alternatives
+		if isDirect && hasVersionConstraint {
+			var directConstraints []VersionConstraint
+			for _, constraint := range versionConstraints {
+				if constraint.Alternative == "" {
+					directConstraints = append(directConstraints, constraint)
+				}
+			}
+			versionConstraints = directConstraints
+			hasVersionConstraint = len(directConstraints) > 0
+		}
 	}
 
 	if hasVersionConstraint {
@@ -877,27 +982,35 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 			// Check if all version constraints are satisfied
 			allConstraintsSatisfied := true
 			for _, constraint := range versionConstraints {
-				cmp, err := CompareDebianVersions(candidate.Version, constraint.Ver)
-				if err != nil {
-					allConstraintsSatisfied = false
-					break
+				// Check if main package (candidate) satisfies constraint
+				mainSatisfied := false
+				if constraint.Op != "" && constraint.Ver != "" {
+					cmp, err := CompareDebianVersions(candidate.Version, constraint.Ver)
+					if err == nil {
+						switch constraint.Op {
+						case "=":
+							mainSatisfied = (cmp == 0)
+						case "<<", "<":
+							mainSatisfied = (cmp < 0)
+						case "<=":
+							mainSatisfied = (cmp <= 0)
+						case ">>", ">":
+							mainSatisfied = (cmp > 0)
+						case ">=":
+							mainSatisfied = (cmp >= 0)
+						}
+					}
+				} else {
+					// No version constraint, satisfied by default
+					mainSatisfied = true
 				}
 
-				versionMatches := false
-				switch constraint.Op {
-				case "=":
-					versionMatches = (cmp == 0)
-				case "<<", "<":
-					versionMatches = (cmp < 0)
-				case "<=":
-					versionMatches = (cmp <= 0)
-				case ">>", ">":
-					versionMatches = (cmp > 0)
-				case ">=":
-					versionMatches = (cmp >= 0)
-				}
+				// If main package doesn't satisfy and we have alternatives, check if this is acceptable
+				// In candidate selection, we should NOT mark alternatives as satisfied automatically
+				// since we're evaluating the specific candidate for the main package
+				alternativeSatisfied := false
 
-				if !versionMatches {
+				if !mainSatisfied && !alternativeSatisfied {
 					allConstraintsSatisfied = false
 					break
 				}
