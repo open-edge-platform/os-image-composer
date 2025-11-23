@@ -290,7 +290,8 @@ func TestConvertImageFile_UnsupportedImageType(t *testing.T) {
 
 func TestConvertImageFile_FileNotExists(t *testing.T) {
 	imageConvert := imageconvert.NewImageConvert()
-	filePath := "/nonexistent/test-image.raw"
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test-image.raw")
 
 	template := &config.ImageTemplate{
 		Image: config.ImageInfo{

@@ -3,6 +3,7 @@ package chroot_test
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -271,6 +272,103 @@ func TestChrootEnv_GetChrootEnvEssentialPackageList_ErrorPropagation(t *testing.
 
 			if err.Error() != expectedErr.Error() {
 				t.Errorf("Expected error '%v', got '%v'", expectedErr, err)
+			}
+		})
+	}
+}
+
+func TestChrootEnv_GetChrootEnvHostPath(t *testing.T) {
+	root := t.TempDir()
+	chrootEnv := &chroot.ChrootEnv{ChrootEnvRoot: root}
+
+	t.Run("valid path", func(t *testing.T) {
+		got, err := chrootEnv.GetChrootEnvHostPath("var/lib")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := filepath.Join(root, "var/lib")
+		if got != expected {
+			t.Fatalf("expected %s, got %s", expected, got)
+		}
+	})
+
+	t.Run("reject parent traversal", func(t *testing.T) {
+		if _, err := chrootEnv.GetChrootEnvHostPath("../etc/passwd"); err == nil {
+			t.Fatal("expected error for path containing '..'")
+		}
+	})
+
+	t.Run("missing root", func(t *testing.T) {
+		emptyEnv := &chroot.ChrootEnv{}
+		if _, err := emptyEnv.GetChrootEnvHostPath("/etc"); err == nil {
+			t.Fatal("expected error when chroot root is empty")
+		}
+	})
+}
+
+func TestChrootEnv_GetChrootEnvPath(t *testing.T) {
+	root := t.TempDir()
+	chrootEnv := &chroot.ChrootEnv{ChrootEnvRoot: root}
+	insidePath := filepath.Join(root, "etc", "hosts")
+	if err := os.MkdirAll(filepath.Dir(insidePath), 0o755); err != nil {
+		t.Fatalf("failed to create nested path: %v", err)
+	}
+	if err := os.WriteFile(insidePath, []byte("test"), 0o644); err != nil {
+		t.Fatalf("failed to create hosts file: %v", err)
+	}
+
+	t.Run("subpath is converted", func(t *testing.T) {
+		got, err := chrootEnv.GetChrootEnvPath(insidePath)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != "/etc/hosts" {
+			t.Fatalf("expected /etc/hosts, got %s", got)
+		}
+	})
+
+	t.Run("root path maps to slash", func(t *testing.T) {
+		got, err := chrootEnv.GetChrootEnvPath(root)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != "/" {
+			t.Fatalf("expected /, got %s", got)
+		}
+	})
+
+	t.Run("outside path rejected", func(t *testing.T) {
+		if _, err := chrootEnv.GetChrootEnvPath(filepath.Join(t.TempDir(), "etc")); err == nil {
+			t.Fatal("expected error for path outside chroot root")
+		}
+	})
+
+	t.Run("missing root", func(t *testing.T) {
+		emptyEnv := &chroot.ChrootEnv{}
+		if _, err := emptyEnv.GetChrootEnvPath(insidePath); err == nil {
+			t.Fatal("expected error when chroot root is unset")
+		}
+	})
+}
+
+func TestCleanDebName(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"replaces_first_underscore", "pkg_name_1.0_amd64", "pkg=name_1.0"},
+		{"drops_known_arch", "tool_2.0_arm64", "tool=2.0"},
+		{"keeps_unknown_arch", "pkg_2.0_custom", "pkg=2.0_custom"},
+		{"no_arch", "kernel-headers", "kernel-headers"},
+		{"all_arch", "pkg_1.0_all", "pkg=1.0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := chroot.CleanDebName(tt.input)
+			if got != tt.expected {
+				t.Fatalf("CleanDebName(%s) = %s, want %s", tt.input, got, tt.expected)
 			}
 		})
 	}
