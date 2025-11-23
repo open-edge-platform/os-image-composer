@@ -10,7 +10,7 @@ set -euo pipefail
 # - Exits with code 1 if ANY tests fail OR overall coverage is below threshold
 # - Generates coverage reports for all directories where tests ran successfully
 
-COV_THRESHOLD=55.3
+COV_THRESHOLD=55.5
 PRINT_TS=${1:-""}
 FAIL_ON_NO_TESTS=${2:-false}  # Set to true if directories without tests should fail the build
 DEBUG=${3:-false}  # Set to true for verbose debugging
