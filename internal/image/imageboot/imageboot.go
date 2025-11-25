@@ -292,7 +292,22 @@ func updateBootConfigTemplate(installRoot, rootDevID, bootUUID, bootPrefix, hash
 	}
 
 	kernelConfig := template.GetKernel()
-	if err := file.ReplacePlaceholdersInFile("{{.ExtraCommandLine}}", kernelConfig.Cmdline, configFinalPath); err != nil {
+	// Special cases for some security module like EMF required hardcoded root partition as additional cmdline arg
+	// Remove the "root" parameter and its value from the cmdline as it's has been handled previously
+	trimRootArgfromCmdLine := kernelConfig.Cmdline
+	if trimRootArgfromCmdLine != "" {
+		fields := strings.Fields(trimRootArgfromCmdLine)
+		var filteredFields []string
+		for _, field := range fields {
+			// Skip fields that start with "root="
+			if !strings.HasPrefix(field, "root=") {
+				filteredFields = append(filteredFields, field)
+			}
+		}
+		trimRootArgfromCmdLine = strings.Join(filteredFields, " ")
+	}
+
+	if err := file.ReplacePlaceholdersInFile("{{.ExtraCommandLine}}", trimRootArgfromCmdLine, configFinalPath); err != nil {
 		log.Errorf("Failed to replace ExtraCommandLine in boot configuration: %v", err)
 		return fmt.Errorf("failed to replace ExtraCommandLine in boot configuration: %w", err)
 	}
