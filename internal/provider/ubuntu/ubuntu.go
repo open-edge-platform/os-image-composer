@@ -233,7 +233,13 @@ func (p *ubuntu) downloadImagePkgs(template *config.ImageTemplate) error {
 		log.Infof("Repository %d: %s (%s)", i+1, cfg.Name, cfg.PkgList)
 	}
 
-	template.FullPkgList, err = debutils.DownloadPackages(pkgList, pkgCacheDir, "")
+	globalWorkDir, err := config.WorkDir()
+	if err != nil {
+		return fmt.Errorf("failed to get global work directory: %w", err)
+	}
+	imageBuildDir := filepath.Join(globalWorkDir, providerId, "imagebuild", template.GetSystemConfigName())
+
+	template.FullPkgList, err = debutils.DownloadPackages(pkgList, pkgCacheDir, imageBuildDir, config.Global().DotFile, "chrootpkgs.dot")
 	return err
 }
 

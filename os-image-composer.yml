@@ -29,7 +29,7 @@ temp_dir: "./tmp"
 # Used for: GPG verification files, decompressed metadata, parsing operations
 # Files here are deleted within seconds/minutes of creation
 
-dot_file: ""
+dot_file: "./dep-graph.dot"
 # Path to generate the dependency graph dot file (default: empty)
 # If empty, the file is generated in the package cache directory as chrootpkgs.dot
 # Useful for visualizing package dependencies

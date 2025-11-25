@@ -415,7 +415,7 @@ func WriteArrayToFile(arr []string, title string) (string, error) {
 	return filename, nil
 }
 
-func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]string, error) {
+func DownloadPackages(pkgList []string, destDir, imageDir, dotFile, defaultDotName string) ([]string, error) {
 	var downloadPkgList []string
 
 	log := logger.Logger()
@@ -472,14 +472,19 @@ func DownloadPackages(pkgList []string, destDir string, dotFile string) ([]strin
 	}
 	log.Infof("sorted %d packages for installation", len(sorted_pkgs))
 
-	// If dotFile is not specified, use default path in destDir
-	if dotFile == "" {
-		dotFile = filepath.Join(destDir, "chrootpkgs.dot")
+	// Generate the default dependency graph (full resolved list)
+	if imageDir != "" && defaultDotName != "" {
+		defaultDotPath := filepath.Join(imageDir, defaultDotName)
+		if err := GenerateDot(needed, defaultDotPath); err != nil {
+			log.Debugf("generating default dot file: %w", err)
+		}
 	}
 
-	// Generate the dependency graph
-	if err := GenerateDot(needed, dotFile); err != nil {
-		log.Debugf("generating dot file: %w", err)
+	// Generate custom dependency graph if requested (requested packages only)
+	if dotFile != "" {
+		if err := GenerateDot(req, dotFile); err != nil {
+			log.Debugf("generating custom dot file: %w", err)
+		}
 	}
 
 	// Extract URLs

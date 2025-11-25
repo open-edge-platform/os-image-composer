@@ -107,13 +107,15 @@ func (initrdMaker *InitrdMaker) DownloadInitrdPkgs() error {
 
 	pkgList := initrdMaker.template.GetPackages()
 	pkgType := initrdMaker.ChrootEnv.GetTargetOsPkgType()
+	dotFilePath := config.Global().DotFile
+
 	if pkgType == "deb" {
-		_, err := debutils.DownloadPackages(pkgList, initrdMaker.ChrootEnv.GetChrootPkgCacheDir(), "")
+		_, err := debutils.DownloadPackages(pkgList, initrdMaker.ChrootEnv.GetChrootPkgCacheDir(), initrdMaker.ImageBuildDir, dotFilePath, "initrdpkgs.dot")
 		if err != nil {
 			return fmt.Errorf("failed to download initrd packages: %w", err)
 		}
 	} else if pkgType == "rpm" {
-		_, err := rpmutils.DownloadPackages(pkgList, initrdMaker.ChrootEnv.GetChrootPkgCacheDir(), "")
+		_, err := rpmutils.DownloadPackages(pkgList, initrdMaker.ChrootEnv.GetChrootPkgCacheDir(), initrdMaker.ImageBuildDir, dotFilePath, "initrdpkgs.dot")
 		if err != nil {
 			return fmt.Errorf("failed to download initrd packages: %w", err)
 		}

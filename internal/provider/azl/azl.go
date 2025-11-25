@@ -252,7 +252,14 @@ func (p *AzureLinux) downloadImagePkgs(template *config.ImageTemplate) error {
 	rpmutils.GzHref = p.gzHref
 	rpmutils.Dist = template.Target.Dist
 	rpmutils.UserRepo = template.GetPackageRepositories()
-	template.FullPkgList, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, config.Global().DotFile)
+
+	globalWorkDir, err := config.WorkDir()
+	if err != nil {
+		return fmt.Errorf("failed to get global work directory: %w", err)
+	}
+	imageBuildDir := filepath.Join(globalWorkDir, providerId, "imagebuild", template.GetSystemConfigName())
+
+	template.FullPkgList, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, imageBuildDir, config.Global().DotFile, "chrootpkgs.dot")
 	return err
 }
 

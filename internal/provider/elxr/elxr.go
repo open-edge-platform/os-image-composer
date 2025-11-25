@@ -244,12 +244,18 @@ func (p *eLxr) downloadImagePkgs(template *config.ImageTemplate) error {
 	if err != nil {
 		return fmt.Errorf("failed to get global cache dir: %w", err)
 	}
+	globalWorkDir, err := config.WorkDir()
+	if err != nil {
+		return fmt.Errorf("failed to get global work directory: %w", err)
+	}
+	imageBuildDir := filepath.Join(globalWorkDir, providerId, "imagebuild", template.GetSystemConfigName())
+
 	pkgCacheDir := filepath.Join(globalCache, "pkgCache", providerId)
 	debutils.RepoCfg = p.repoCfg
 	debutils.GzHref = p.gzHref
 	debutils.Architecture = p.repoCfg.Arch
 	debutils.UserRepo = template.GetPackageRepositories()
-	template.FullPkgList, err = debutils.DownloadPackages(pkgList, pkgCacheDir, config.Global().DotFile)
+	template.FullPkgList, err = debutils.DownloadPackages(pkgList, pkgCacheDir, imageBuildDir, config.Global().DotFile, "chrootpkgs.dot")
 	return err
 }
 

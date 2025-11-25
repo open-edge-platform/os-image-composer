@@ -369,7 +369,7 @@ func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospack
 	return needed, nil
 }
 
-func DownloadPackages(pkgList []string, destDir, dotFile string) ([]string, error) {
+func DownloadPackages(pkgList []string, destDir, imageDir, dotFile, defaultDotName string) ([]string, error) {
 	var downloadPkgList []string
 
 	log := logger.Logger()
@@ -417,14 +417,19 @@ func DownloadPackages(pkgList []string, destDir, dotFile string) ([]string, erro
 	}
 	log.Infof("Sorted %d packages for installation", len(sorted_pkgs))
 
-	// If dotFile is not specified, use default path in destDir
-	if dotFile == "" {
-		dotFile = filepath.Join(destDir, "chrootpkgs.dot")
+	// Generate the default dependency graph (full resolved list)
+	if imageDir != "" && defaultDotName != "" {
+		defaultDotPath := filepath.Join(imageDir, defaultDotName)
+		if err := GenerateDot(sorted_pkgs, defaultDotPath); err != nil {
+			log.Errorf("generating default dot file: %v", err)
+		}
 	}
 
-	// Generate the dependency graph
-	if err := GenerateDot(sorted_pkgs, dotFile); err != nil {
-		log.Errorf("generating dot file: %v", err)
+	// Generate custom dependency graph if requested (requested packages only)
+	if dotFile != "" {
+		if err := GenerateDot(req, dotFile); err != nil {
+			log.Errorf("generating custom dot file: %v", err)
+		}
 	}
 
 	// Extract URLs

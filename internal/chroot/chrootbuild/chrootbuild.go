@@ -248,18 +248,15 @@ func (chrootBuilder *ChrootBuilder) downloadChrootEnvPackages() ([]string, []str
 	}
 
 	dotFilePath := config.Global().DotFile
-	if dotFilePath == "" {
-		dotFilePath = filepath.Join(chrootBuilder.ChrootPkgCacheDir, "chrootpkgs.dot")
-	}
 
 	if pkgType == "rpm" {
-		allPkgsList, err = rpmutils.DownloadPackages(pkgsList, chrootBuilder.ChrootPkgCacheDir, dotFilePath)
+		allPkgsList, err = rpmutils.DownloadPackages(pkgsList, chrootBuilder.ChrootPkgCacheDir, chrootBuilder.ChrootBuildDir, dotFilePath, "chrootpkgs.dot")
 		if err != nil {
 			return pkgsList, allPkgsList, fmt.Errorf("failed to download chroot environment packages: %w", err)
 		}
 		return pkgsList, allPkgsList, nil
 	} else if pkgType == "deb" {
-		allPkgsList, err = debutils.DownloadPackages(pkgsList, chrootBuilder.ChrootPkgCacheDir, dotFilePath)
+		allPkgsList, err = debutils.DownloadPackages(pkgsList, chrootBuilder.ChrootPkgCacheDir, chrootBuilder.ChrootBuildDir, dotFilePath, "chrootpkgs.dot")
 		if err != nil {
 			return pkgsList, allPkgsList, fmt.Errorf("failed to download chroot environment packages: %w", err)
 		}

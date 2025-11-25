@@ -264,7 +264,7 @@ func TestDownloadPackagesBasic(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setup()
 
-			downloadList, err := debutils.DownloadPackages(tt.pkgList, tempDir, "")
+			downloadList, err := debutils.DownloadPackages(tt.pkgList, tempDir, "", "", "")
 
 			if tt.expectError {
 				if err == nil {
