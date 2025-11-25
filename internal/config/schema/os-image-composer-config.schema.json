@@ -44,6 +44,12 @@
 			"minLength": 0,
 			"maxLength": 255
 		},
+		"dot_file": {
+			"type": "string",
+			"description": "Path to generate the dependency graph dot file",
+			"minLength": 0,
+			"maxLength": 4096
+		},
 		"logging": {
 			"type": "object",
 			"description": "Logging configuration",

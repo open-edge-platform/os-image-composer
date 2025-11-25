@@ -477,6 +477,7 @@ logging:
 | `work_dir` | string | Working directory for builds. Default: "./workspace" |
 | `config_dir` | string | Directory for configuration files. Default: "./config" |
 | `temp_dir` | string | Temporary directory. Default: system temp directory |
+| `dot_file` | string | Path to generate the dependency graph dot file. |
 | `logging.level` | string | Log level (debug/info/warn/error). Default: "info" |
 
 ### Image Template File

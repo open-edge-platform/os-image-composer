@@ -24,6 +24,7 @@ type GlobalConfig struct {
 	CacheDir  string `yaml:"cache_dir" json:"cache_dir"`   // Package cache directory where downloaded RPMs/DEBs are stored (default: ./cache)
 	WorkDir   string `yaml:"work_dir" json:"work_dir"`     // Working directory for build operations and image assembly (default: ./workspace)
 	TempDir   string `yaml:"temp_dir" json:"temp_dir"`     // Temporary directory for short-lived files like GPG keys and metadata parsing (empty = system default)
+	DotFile   string `yaml:"dot_file" json:"dot_file"`     // Path to generate the dependency graph dot file
 
 	// Logging configuration
 	Logging LoggingConfig `yaml:"logging" json:"logging"` // Logging behavior settings

@@ -24,7 +24,61 @@ type VersionConstraint struct {
 }
 
 func GenerateDot(pkgs []ospackage.PackageInfo, file string) error {
-	return nil
+	// Ensure directory exists
+	dir := filepath.Dir(file)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("creating directory for dot file: %w", err)
+	}
+
+	f, err := os.Create(file)
+	if err != nil {
+		return fmt.Errorf("creating dot file: %w", err)
+	}
+	defer f.Close()
+
+	w := bufio.NewWriter(f)
+	if _, err := w.WriteString("digraph dependencies {\n"); err != nil {
+		return err
+	}
+	if _, err := w.WriteString("  rankdir=LR;\n"); err != nil {
+		return err
+	}
+	if _, err := w.WriteString("  node [shape=box];\n"); err != nil {
+		return err
+	}
+
+	// Create a map for quick lookup of packages in the list
+	pkgMap := make(map[string]bool)
+	for _, pkg := range pkgs {
+		pkgMap[pkg.Name] = true
+	}
+
+	for _, pkg := range pkgs {
+		// Write node
+		if _, err := w.WriteString(fmt.Sprintf("  \"%s\";\n", pkg.Name)); err != nil {
+			return err
+		}
+
+		// Write edges
+		for _, req := range pkg.Requires {
+			depName := CleanDependencyName(req)
+			if depName == "" {
+				continue
+			}
+			// Only draw edge if dependency is also in the package list
+			if pkgMap[depName] {
+				if _, err := w.WriteString(fmt.Sprintf("  \"%s\" -> \"%s\";\n", pkg.Name, depName)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	if _, err := w.WriteString("}\n"); err != nil {
+		return err
+	}
+
+	return w.Flush()
 }
 
 // ParseRepositoryMetadata parses the Packages.gz file from gzHref.

@@ -67,6 +67,11 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 		currentConfig.WorkDir = workDir
 		config.SetGlobal(currentConfig)
 	}
+	if cmd.Flags().Changed("dotfile") {
+		currentConfig := config.Global()
+		currentConfig.DotFile = dotFile
+		config.SetGlobal(currentConfig)
+	}
 
 	var buildErr error
 	log := logger.Logger()

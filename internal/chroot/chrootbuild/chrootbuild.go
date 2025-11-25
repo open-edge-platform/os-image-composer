@@ -247,7 +247,10 @@ func (chrootBuilder *ChrootBuilder) downloadChrootEnvPackages() ([]string, []str
 		}
 	}
 
-	dotFilePath := filepath.Join(chrootBuilder.ChrootPkgCacheDir, "chrootpkgs.dot")
+	dotFilePath := config.Global().DotFile
+	if dotFilePath == "" {
+		dotFilePath = filepath.Join(chrootBuilder.ChrootPkgCacheDir, "chrootpkgs.dot")
+	}
 
 	if pkgType == "rpm" {
 		allPkgsList, err = rpmutils.DownloadPackages(pkgsList, chrootBuilder.ChrootPkgCacheDir, dotFilePath)

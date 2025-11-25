@@ -12,12 +12,12 @@ config_dir: "./config"
 # Directory containing configuration files for different target OSs (default: ./config)
 # Should contain subdirectories for general and each target OS config files.
 
-cache_dir: "./cache/os-image-composer"
+cache_dir: "./cache"
 # Package cache directory where downloaded RPMs/DEBs are stored (default: ./cache)
 # This directory persists between builds for package reuse
 # Should have sufficient space (typically 1-5GB depending on image size)
 
-work_dir: "./tmp/os-image-composer"
+work_dir: "./workspace"
 # Working directory for build operations and image assembly (default: ./workspace)
 # Contains temporary build artifacts, extracted packages, and final images
 # Cleaned up after successful builds
@@ -28,6 +28,11 @@ temp_dir: "./tmp"
 # Empty value uses system default (/tmp on Linux, %TEMP% on Windows)
 # Used for: GPG verification files, decompressed metadata, parsing operations
 # Files here are deleted within seconds/minutes of creation
+
+dot_file: ""
+# Path to generate the dependency graph dot file (default: empty)
+# If empty, the file is generated in the package cache directory as chrootpkgs.dot
+# Useful for visualizing package dependencies
 
 # Logging configuration
 logging:

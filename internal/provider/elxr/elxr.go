@@ -249,7 +249,7 @@ func (p *eLxr) downloadImagePkgs(template *config.ImageTemplate) error {
 	debutils.GzHref = p.gzHref
 	debutils.Architecture = p.repoCfg.Arch
 	debutils.UserRepo = template.GetPackageRepositories()
-	template.FullPkgList, err = debutils.DownloadPackages(pkgList, pkgCacheDir, "")
+	template.FullPkgList, err = debutils.DownloadPackages(pkgList, pkgCacheDir, config.Global().DotFile)
 	return err
 }
 

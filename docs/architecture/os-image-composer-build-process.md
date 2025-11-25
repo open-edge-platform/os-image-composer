@@ -269,6 +269,7 @@ workers: 16                                       # Number of concurrent package
 cache_dir: /var/cache/os-image-composer          # Package cache location
 work_dir: /var/tmp/os-image-composer             # Working directory for builds
 temp_dir: /tmp                                    # Temporary files location
+dot_file: /tmp/deps.dot                           # Path to generate the dependency graph dot file
 
 # Logging configuration
 logging:

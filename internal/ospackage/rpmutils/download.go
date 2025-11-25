@@ -417,11 +417,14 @@ func DownloadPackages(pkgList []string, destDir, dotFile string) ([]string, erro
 	}
 	log.Infof("Sorted %d packages for installation", len(sorted_pkgs))
 
-	// If a dot file is specified, generate the dependency graph
-	if dotFile != "" {
-		if err := GenerateDot(sorted_pkgs, dotFile); err != nil {
-			log.Errorf("generating dot file: %v", err)
-		}
+	// If dotFile is not specified, use default path in destDir
+	if dotFile == "" {
+		dotFile = filepath.Join(destDir, "chrootpkgs.dot")
+	}
+
+	// Generate the dependency graph
+	if err := GenerateDot(sorted_pkgs, dotFile); err != nil {
+		log.Errorf("generating dot file: %v", err)
 	}
 
 	// Extract URLs

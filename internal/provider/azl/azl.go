@@ -252,7 +252,7 @@ func (p *AzureLinux) downloadImagePkgs(template *config.ImageTemplate) error {
 	rpmutils.GzHref = p.gzHref
 	rpmutils.Dist = template.Target.Dist
 	rpmutils.UserRepo = template.GetPackageRepositories()
-	template.FullPkgList, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, "")
+	template.FullPkgList, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, config.Global().DotFile)
 	return err
 }
 
