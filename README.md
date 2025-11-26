@@ -333,7 +333,7 @@ Flags:
 - `--cache-dir, -d`: Package cache directory (overrides the configuration file)
 - `--work-dir`: Working directory for builds (overrides the configuration file)
 - `--verbose, -v`: Enable verbose output
-- `--dotfile, -f`: Generate dependency graph as a dot file
+- `--dotfile, -f`: Generate a dependency graph for the merged template as a dot file (nodes are color-coded: essentials in pale yellow, template packages in green, kernel in blue, bootloader in orange)
 - `--config`: Path to the configuration file
 - `--log-level`: Log level (debug, info, warn, and error)
 - `--log-file`: Override the log file path defined in the configuration

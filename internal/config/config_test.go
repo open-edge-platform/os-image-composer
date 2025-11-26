@@ -3262,6 +3262,38 @@ func TestGetPackagesAndKernel(t *testing.T) {
 	}
 }
 
+func TestGetPackageSourceMap(t *testing.T) {
+	template := &ImageTemplate{
+		EssentialPkgList:  []string{"coreutils", "bash"},
+		KernelPkgList:     []string{"linux-image"},
+		BootloaderPkgList: []string{"grub2"},
+		SystemConfig: SystemConfig{
+			Packages: []string{"vim", "bash", " "},
+		},
+	}
+
+	sources := template.GetPackageSourceMap()
+
+	if got := sources["coreutils"]; got != PackageSourceEssential {
+		t.Fatalf("coreutils source = %s, want essential", got)
+	}
+	if got := sources["linux-image"]; got != PackageSourceKernel {
+		t.Fatalf("linux-image source = %s, want kernel", got)
+	}
+	if got := sources["grub2"]; got != PackageSourceBootloader {
+		t.Fatalf("grub2 source = %s, want bootloader", got)
+	}
+	if got := sources["vim"]; got != PackageSourceSystem {
+		t.Fatalf("vim source = %s, want system", got)
+	}
+	if got := sources["bash"]; got != PackageSourceSystem {
+		t.Fatalf("bash source = %s, want system override", got)
+	}
+	if _, exists := sources[""]; exists {
+		t.Fatalf("unexpected empty key in package source map")
+	}
+}
+
 func TestGetSystemConfigName(t *testing.T) {
 	sys := SystemConfig{Name: "sys"}
 	template := &ImageTemplate{SystemConfig: sys}

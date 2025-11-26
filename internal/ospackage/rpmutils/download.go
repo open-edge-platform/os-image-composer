@@ -15,6 +15,7 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/config/manifest"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage/dotfilter"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/pkgfetcher"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/pkgsorter"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
@@ -369,7 +370,7 @@ func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospack
 	return needed, nil
 }
 
-func DownloadPackages(pkgList []string, destDir, dotFile string) ([]string, error) {
+func DownloadPackages(pkgList []string, destDir, dotFile string, pkgSources map[string]config.PackageSource, systemRootsOnly bool) ([]string, error) {
 	var downloadPkgList []string
 
 	log := logger.Logger()
@@ -419,7 +420,11 @@ func DownloadPackages(pkgList []string, destDir, dotFile string) ([]string, erro
 
 	// If a dot file is specified, generate the dependency graph
 	if dotFile != "" {
-		if err := GenerateDot(sorted_pkgs, dotFile); err != nil {
+		graphPkgs := sorted_pkgs
+		if systemRootsOnly {
+			graphPkgs = dotfilter.FilterPackagesForDot(sorted_pkgs, pkgSources, true)
+		}
+		if err := GenerateDot(graphPkgs, dotFile, pkgSources); err != nil {
 			log.Errorf("generating dot file: %v", err)
 		}
 	}
