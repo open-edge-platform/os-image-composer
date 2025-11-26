@@ -1019,7 +1019,7 @@ func TestDownloadPackages(t *testing.T) {
 				t.Fatalf("Failed to setup test: %v", err)
 			}
 
-			downloadList, err := DownloadPackages(tt.pkgList, tempDir, "")
+			downloadList, err := DownloadPackages(tt.pkgList, tempDir, "", nil, false)
 
 			if tt.expectError {
 				if err == nil {
