@@ -599,6 +599,13 @@ build_ubuntu24_raw_image() {
   echo "Ensuring we're in the working directory before starting builds..."
   cd "$WORKING_DIR"
   echo "Current working directory: $(pwd)"
+
+  # Check disk space before building (require at least 12GB for Ubuntu 24 images)
+  if ! check_disk_space 12; then
+    echo "Insufficient disk space for Ubuntu 24 raw image build"
+    exit 1
+  fi
+
   output=$( sudo -S ./os-image-composer build image-templates/ubuntu24-x86_64-minimal-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -611,6 +618,8 @@ build_ubuntu24_raw_image() {
         echo "QEMU boot test FAILED for Ubuntu 24 raw image"
         exit 1
       fi
+      # Clean up after QEMU test to free space
+      cleanup_image_files raw
     fi
   else
     echo "Ubuntu 24 raw Image build failed."
@@ -648,18 +657,27 @@ build_ubuntu24_immutable_raw_image() {
   echo "Ensuring we're in the working directory before starting builds..."
   cd "$WORKING_DIR"
   echo "Current working directory: $(pwd)"
+
+  # Check disk space before building (require at least 15GB for immutable images)
+  if ! check_disk_space 15; then
+    echo "Insufficient disk space for Ubuntu 24 immutable raw image build"
+    exit 1
+  fi
+
   output=$( sudo -S ./build/os-image-composer build image-templates/ubuntu24-x86_64-edge-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
     echo "Ubuntu 24 immutable raw Image build passed."
     if [ "$RUN_QEMU_TESTS" = true ]; then
       echo "Running QEMU boot test for Ubuntu 24 immutable raw image..."
-      if run_qemu_boot_test "minimal-os-image-ubuntu-24.04"; then
+      if run_qemu_boot_test "edge-os-image-ubuntu-24.04"; then
         echo "QEMU boot test PASSED for Ubuntu 24 immutable raw image"
       else
         echo "QEMU boot test FAILED for Ubuntu 24 immutable raw image"
         exit 1
       fi
+      # Clean up after QEMU test to free space
+      cleanup_image_files raw
     fi
   else
     echo "Ubuntu 24 immutable raw Image build failed."
