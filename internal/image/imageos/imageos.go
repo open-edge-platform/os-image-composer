@@ -533,6 +533,22 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 		// Force to use the local cache repository
 		var repoSrcList []string = []string{"/etc/apt/sources.list.d/local.list"}
 		var efiVariableAccessPkg = []string{"systemd-boot", "dracut-core"}
+		var initramfsBinaries = []string{"/usr/bin/dracut", "/usr/sbin/mkinitramfs", "/usr/sbin/update-initramfs"}
+		var backupPaths = make(map[string]string)
+		var initramfsBinariesReplaced = false
+
+		defer func() {
+			// Restore original initramfs binaries after package installation
+			for originalPath, backupPath := range backupPaths {
+				if _, err := os.Stat(backupPath); err == nil {
+					if err := file.CopyFile(backupPath, originalPath, "", false); err == nil {
+						shell.ExecCmd("rm -f "+backupPath, true, shell.HostPath, nil)
+						log.Debugf("Restored original binary: %s", originalPath)
+					}
+				}
+			}
+		}()
+
 		for i, pkg := range imagePkgOrderedList {
 			log.Infof("Installing package %d/%d: %s", i+1, imagePkgNum, pkg)
 			if slice.Contains(efiVariableAccessPkg, pkg) {
@@ -565,6 +581,26 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 			} else {
 				if err := imageOs.chrootEnv.AptInstallPackage(pkg, installRoot, repoSrcList); err != nil {
 					return fmt.Errorf("failed to install package %s: %w", pkg, err)
+				}
+			}
+
+			// Check if initramfs binaries need to be replaced (only once after they are installed)
+			if !initramfsBinariesReplaced {
+				for _, binary := range initramfsBinaries {
+					binaryPath := filepath.Join(installRoot, binary)
+					if _, err := os.Stat(binaryPath); err == nil {
+						backupPath := binaryPath + ".backup"
+						if err := file.CopyFile(binaryPath, backupPath, "", false); err == nil {
+							backupPaths[binaryPath] = backupPath
+							// Replace with dummy script that does nothing
+							dummyContent := "#!/bin/sh\necho \"Initramfs generation temporarily disabled during package installation\"\nexit 0\n"
+							if err := file.Write(dummyContent, binaryPath); err == nil {
+								shell.ExecCmd("chmod +x "+binaryPath, true, shell.HostPath, nil)
+								log.Debugf("Temporarily replaced %s with dummy binary", binary)
+								initramfsBinariesReplaced = true
+							}
+						}
+					}
 				}
 			}
 		}
