@@ -1,4 +1,4 @@
-package imageconvert_test
+package imageconvert
 
 import (
 	"fmt"
@@ -8,19 +8,18 @@ import (
 	"testing"
 
 	"github.com/open-edge-platform/os-image-composer/internal/config"
-	"github.com/open-edge-platform/os-image-composer/internal/image/imageconvert"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
 )
 
 func TestNewImageConvert(t *testing.T) {
-	imageConvert := imageconvert.NewImageConvert()
+	imageConvert := NewImageConvert()
 	if imageConvert == nil {
 		t.Fatal("NewImageConvert should return a non-nil instance")
 	}
 }
 
 func TestConvertImageFile_NoArtifacts(t *testing.T) {
-	imageConvert := imageconvert.NewImageConvert()
+	imageConvert := NewImageConvert()
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "test-image.raw")
 
@@ -45,7 +44,7 @@ func TestConvertImageFile_NoArtifacts(t *testing.T) {
 }
 
 func TestConvertImageFile_EmptyArtifacts(t *testing.T) {
-	imageConvert := imageconvert.NewImageConvert()
+	imageConvert := NewImageConvert()
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "test-image.raw")
 
@@ -70,7 +69,7 @@ func TestConvertImageFile_EmptyArtifacts(t *testing.T) {
 }
 
 func TestConvertImageFile_RawArtifactOnly(t *testing.T) {
-	imageConvert := imageconvert.NewImageConvert()
+	imageConvert := NewImageConvert()
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "test-image.raw")
 
@@ -102,7 +101,7 @@ func TestConvertImageFile_RawArtifactOnly(t *testing.T) {
 }
 
 func TestConvertImageFile_RawArtifactWithCompression(t *testing.T) {
-	imageConvert := imageconvert.NewImageConvert()
+	imageConvert := NewImageConvert()
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "test-image.raw")
 
@@ -117,7 +116,7 @@ func TestConvertImageFile_RawArtifactWithCompression(t *testing.T) {
 		},
 		Disk: config.DiskConfig{
 			Artifacts: []config.ArtifactInfo{
-				{Type: "raw", Compression: "gzip"},
+				{Type: "raw", Compression: "gz"},
 			},
 		},
 	}
@@ -141,7 +140,7 @@ func TestConvertImageFile_RawArtifactWithCompression(t *testing.T) {
 }
 
 func TestConvertImageFile_NonRawArtifact(t *testing.T) {
-	imageConvert := imageconvert.NewImageConvert()
+	imageConvert := NewImageConvert()
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "test-image.raw")
 
@@ -180,7 +179,7 @@ func TestConvertImageFile_NonRawArtifact(t *testing.T) {
 }
 
 func TestConvertImageFile_ConversionFailure(t *testing.T) {
-	imageConvert := imageconvert.NewImageConvert()
+	imageConvert := NewImageConvert()
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "test-image.raw")
 
@@ -217,7 +216,7 @@ func TestConvertImageFile_ConversionFailure(t *testing.T) {
 }
 
 func TestConvertImageFile_MultipleArtifacts(t *testing.T) {
-	imageConvert := imageconvert.NewImageConvert()
+	imageConvert := NewImageConvert()
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "test-image.raw")
 
@@ -259,7 +258,7 @@ func TestConvertImageFile_MultipleArtifacts(t *testing.T) {
 }
 
 func TestConvertImageFile_UnsupportedImageType(t *testing.T) {
-	imageConvert := imageconvert.NewImageConvert()
+	imageConvert := NewImageConvert()
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "test-image.raw")
 
@@ -289,8 +288,9 @@ func TestConvertImageFile_UnsupportedImageType(t *testing.T) {
 }
 
 func TestConvertImageFile_FileNotExists(t *testing.T) {
-	imageConvert := imageconvert.NewImageConvert()
-	filePath := "/nonexistent/test-image.raw"
+	imageConvert := NewImageConvert()
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test-image.raw")
 
 	template := &config.ImageTemplate{
 		Image: config.ImageInfo{
@@ -313,7 +313,7 @@ func TestConvertImageFile_FileNotExists(t *testing.T) {
 }
 
 func TestConvertImageFile_CompressionFailure(t *testing.T) {
-	imageConvert := imageconvert.NewImageConvert()
+	imageConvert := NewImageConvert()
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "test-image.raw")
 
@@ -328,7 +328,7 @@ func TestConvertImageFile_CompressionFailure(t *testing.T) {
 		},
 		Disk: config.DiskConfig{
 			Artifacts: []config.ArtifactInfo{
-				{Type: "qcow2", Compression: "gzip"},
+				{Type: "qcow2", Compression: "gz"},
 			},
 		},
 	}
@@ -362,7 +362,7 @@ func TestConvertImageFile_SupportedImageTypes(t *testing.T) {
 		{"vdi", "qemu-img convert -O vdi"},
 	}
 
-	imageConvert := imageconvert.NewImageConvert()
+	imageConvert := NewImageConvert()
 	tempDir := t.TempDir()
 
 	for _, tt := range supportedTypes {
@@ -401,7 +401,7 @@ func TestConvertImageFile_SupportedImageTypes(t *testing.T) {
 }
 
 func TestConvertImageFile_OutputFilePath(t *testing.T) {
-	imageConvert := imageconvert.NewImageConvert()
+	imageConvert := NewImageConvert()
 	tempDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "test-image.raw")
 
@@ -439,7 +439,7 @@ func TestConvertImageFile_OutputFilePath(t *testing.T) {
 }
 
 func TestConvertImageFile_ParameterValidation(t *testing.T) {
-	imageConvert := imageconvert.NewImageConvert()
+	imageConvert := NewImageConvert()
 
 	tests := []struct {
 		name     string
@@ -471,6 +471,241 @@ func TestConvertImageFile_ParameterValidation(t *testing.T) {
 			// The function should handle these cases gracefully
 			// Either return an error or handle the case without panic
 			t.Logf("Result for %s: %v", tt.name, err)
+		})
+	}
+}
+
+func TestConvertImageFile_CompressRemoveFailure(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("Skipping permission test as root")
+	}
+	imageConvert := NewImageConvert()
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test-image.raw")
+
+	// Create test file
+	if err := os.WriteFile(filePath, []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	template := &config.ImageTemplate{
+		Image: config.ImageInfo{
+			Name: "test-image",
+		},
+		Disk: config.DiskConfig{
+			Artifacts: []config.ArtifactInfo{
+				{Type: "raw", Compression: "gz"},
+			},
+		},
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "gzip", Output: "compression output", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
+
+	// Make directory read-only to prevent file removal
+	if err := os.Chmod(tempDir, 0555); err != nil {
+		t.Fatalf("Failed to chmod temp dir: %v", err)
+	}
+	defer func() {
+		if err := os.Chmod(tempDir, 0755); err != nil {
+			t.Logf("failed to reset temp dir permissions: %v", err)
+		}
+	}()
+
+	// This should succeed even if removal fails (it logs a warning)
+	err := imageConvert.ConvertImageFile(filePath, template)
+	if err != nil {
+		t.Errorf("Expected no error even if remove fails, got: %v", err)
+	}
+}
+func TestConvertImageFile(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	// Create a temporary file for testing
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.img")
+	if err := os.WriteFile(testFile, []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	tests := []struct {
+		name         string
+		filePath     string
+		imageType    string
+		mockCommands []shell.MockCommand
+		expectError  bool
+		errorMsg     string
+	}{
+		{
+			name:      "vhd_conversion",
+			filePath:  testFile,
+			imageType: "vhd",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "qemu-img convert -O vpc", Output: "", Error: nil},
+			},
+			expectError: false,
+		},
+		{
+			name:      "vhdx_conversion",
+			filePath:  testFile,
+			imageType: "vhdx",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "qemu-img convert -O vhdx", Output: "", Error: nil},
+			},
+			expectError: false,
+		},
+		{
+			name:      "qcow2_conversion",
+			filePath:  testFile,
+			imageType: "qcow2",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "qemu-img convert -O qcow2", Output: "", Error: nil},
+			},
+			expectError: false,
+		},
+		{
+			name:      "vmdk_conversion",
+			filePath:  testFile,
+			imageType: "vmdk",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "qemu-img convert -O vmdk", Output: "", Error: nil},
+			},
+			expectError: false,
+		},
+		{
+			name:      "vdi_conversion",
+			filePath:  testFile,
+			imageType: "vdi",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "qemu-img convert -O vdi", Output: "", Error: nil},
+			},
+			expectError: false,
+		},
+		{
+			name:         "unsupported_type",
+			filePath:     testFile,
+			imageType:    "unsupported",
+			mockCommands: []shell.MockCommand{},
+			expectError:  true,
+			errorMsg:     "unsupported image type",
+		},
+		{
+			name:      "conversion_failure",
+			filePath:  testFile,
+			imageType: "vhd",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "qemu-img convert -O vpc", Output: "", Error: fmt.Errorf("conversion failed")},
+			},
+			expectError: true,
+			errorMsg:    "failed to convert image file",
+		},
+		{
+			name:         "file_not_exist",
+			filePath:     filepath.Join(tempDir, "nonexistent.img"),
+			imageType:    "vhd",
+			mockCommands: []shell.MockCommand{},
+			expectError:  true,
+			errorMsg:     "image file does not exist",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shell.Default = shell.NewMockExecutor(tt.mockCommands)
+
+			_, err := convertImageFile(tt.filePath, tt.imageType)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error, but got none")
+				} else if tt.errorMsg != "" && err.Error() != "" && !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Expected error containing '%s', but got: %v", tt.errorMsg, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, but got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestCompressImageFile(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	// Create a temporary file for testing
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.img")
+	if err := os.WriteFile(testFile, []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	tests := []struct {
+		name            string
+		filePath        string
+		compressionType string
+		mockCommands    []shell.MockCommand
+		expectError     bool
+		errorMsg        string
+	}{
+		{
+			name:            "gz_compression",
+			filePath:        testFile,
+			compressionType: "gz",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "gzip -c", Output: "", Error: nil},
+			},
+			expectError: false,
+		},
+		{
+			name:            "xz_compression",
+			filePath:        testFile,
+			compressionType: "xz",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "xz -z -c", Output: "", Error: nil},
+			},
+			expectError: false,
+		},
+		{
+			name:            "compression_failure",
+			filePath:        testFile,
+			compressionType: "gz",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "gzip -c", Output: "", Error: fmt.Errorf("compression failed")},
+			},
+			expectError: true,
+			errorMsg:    "failed to compress file",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Re-create file for each test as it might be removed
+			if err := os.WriteFile(tt.filePath, []byte("test data"), 0644); err != nil {
+				t.Fatalf("Failed to create test file: %v", err)
+			}
+
+			shell.Default = shell.NewMockExecutor(tt.mockCommands)
+
+			err := compressImageFile(tt.filePath, tt.compressionType)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error, but got none")
+				} else if tt.errorMsg != "" && err.Error() != "" && !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Expected error containing '%s', but got: %v", tt.errorMsg, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, but got: %v", err)
+				}
+			}
 		})
 	}
 }

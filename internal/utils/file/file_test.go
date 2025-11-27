@@ -3,14 +3,195 @@ package file_test
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/file"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
 )
+
+type noSudoExecutor struct{}
+
+func (noSudoExecutor) run(cmdStr string, envVal []string, input string) (string, error) {
+	cmd := exec.Command("bash", "-c", cmdStr)
+	cmd.Env = append(os.Environ(), envVal...)
+	if input != "" {
+		cmd.Stdin = strings.NewReader(input)
+	}
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
+
+func (e noSudoExecutor) ExecCmd(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	return e.run(cmdStr, envVal, "")
+}
+
+func (e noSudoExecutor) ExecCmdSilent(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	return e.run(cmdStr, envVal, "")
+}
+
+func (e noSudoExecutor) ExecCmdWithStream(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	return e.run(cmdStr, envVal, "")
+}
+
+func (e noSudoExecutor) ExecCmdWithInput(inputStr string, cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	return e.run(cmdStr, envVal, inputStr)
+}
+
+func TestMain(m *testing.M) {
+	original := shell.Default
+	shell.Default = noSudoExecutor{}
+	defer func() {
+		shell.Default = original
+	}()
+	code := m.Run()
+	shell.Default = original
+	os.Exit(code)
+}
+
+func TestIsSubPath(t *testing.T) {
+	base := t.TempDir()
+	sub := filepath.Join(base, "child")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatalf("failed to create sub dir: %v", err)
+	}
+	outside := filepath.Join(base, "..", "external")
+
+	tests := []struct {
+		name   string
+		target string
+		want   bool
+	}{
+		{"subdir", sub, true},
+		{"same dir", base, true},
+		{"outside", outside, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := file.IsSubPath(base, tt.target)
+			if err != nil {
+				t.Fatalf("IsSubPath returned error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("IsSubPath(%s) = %v, want %v", tt.target, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReplacePlaceholdersInFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "placeholder.txt")
+	content := "Hello PLACEHOLDER!"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	if err := file.ReplacePlaceholdersInFile("PLACEHOLDER", "World", path); err != nil {
+		t.Fatalf("ReplacePlaceholdersInFile failed: %v", err)
+	}
+
+	updated, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read updated file: %v", err)
+	}
+	if string(updated) != "Hello World!" {
+		t.Fatalf("expected placeholder replacement, got %s", string(updated))
+	}
+}
+
+func TestReplaceRegexInFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "regex.txt")
+	if err := os.WriteFile(path, []byte("v1.2.3"), 0o644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	if err := file.ReplaceRegexInFile(`v([0-9.]+)`, "version \\1", path); err != nil {
+		t.Fatalf("ReplaceRegexInFile failed: %v", err)
+	}
+
+	updated, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read updated file: %v", err)
+	}
+	if string(updated) != "version 1.2.3" {
+		t.Fatalf("expected regex replacement, got %s", string(updated))
+	}
+}
+
+func TestGetFileList(t *testing.T) {
+	dir := t.TempDir()
+	files := []string{"alpha.txt", "beta.log"}
+	for _, name := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("data"), 0o644); err != nil {
+			t.Fatalf("failed to create %s: %v", name, err)
+		}
+	}
+
+	list, err := file.GetFileList(dir)
+	if err != nil {
+		t.Fatalf("GetFileList failed: %v", err)
+	}
+	if len(list) < len(files) {
+		t.Fatalf("expected at least %d entries, got %v", len(files), list)
+	}
+	sort.Strings(list)
+	for _, name := range files {
+		found := false
+		for _, entry := range list {
+			if entry == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected file %s to appear in listing %v", name, list)
+		}
+	}
+}
+
+func TestRead(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "read.txt")
+	if err := os.WriteFile(path, []byte("content"), 0o644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	data, err := file.Read(path)
+	if err != nil {
+		t.Fatalf("Read failed: %v", err)
+	}
+	if strings.TrimSpace(data) != "content" {
+		t.Fatalf("expected cat output to contain 'content', got %q", data)
+	}
+}
+
+func TestWrite(t *testing.T) {
+	origCfg := config.Global()
+	savedCfg := *origCfg
+	savedCfg.TempDir = t.TempDir()
+	config.SetGlobal(&savedCfg)
+	t.Cleanup(func() {
+		config.SetGlobal(origCfg)
+	})
+
+	path := filepath.Join(t.TempDir(), "write.txt")
+	if err := file.Write("written data", path); err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read written file: %v", err)
+	}
+	if string(contents) != "written data" {
+		t.Fatalf("expected 'written data', got %s", string(contents))
+	}
+}
 
 func TestReadFromJSON_FileNotExist(t *testing.T) {
 	_, err := file.ReadFromJSON("not_exist.json")

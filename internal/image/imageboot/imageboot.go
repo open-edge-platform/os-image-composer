@@ -3,6 +3,7 @@ package imageboot
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imagedisc"
@@ -197,16 +198,6 @@ func updateBootConfigTemplate(installRoot, rootDevID, bootUUID, bootPrefix, hash
 		return fmt.Errorf("failed to replace BootPrefix in boot configuration: %w", err)
 	}
 
-	if template.Target.OS == "edge-microvisor-toolkit" {
-
-		if err := file.ReplacePlaceholdersInFile("{{.RootPartition}}", "/dev/mapper/rootfs_verity", configFinalPath); err != nil {
-			log.Errorf("Failed to replace RootPartition in boot configuration: %v", err)
-			return fmt.Errorf("failed to replace RootPartition in boot configuration: %w", err)
-		}
-
-		log.Debug("edge-microvisor-toolkit")
-	}
-
 	if template.IsImmutabilityEnabled() {
 		// For dm-verity, use /dev/mapper/root as the root device
 		// The initramfs script will create this device using the systemd.verity_* parameters
@@ -228,7 +219,28 @@ func updateBootConfigTemplate(installRoot, rootDevID, bootUUID, bootPrefix, hash
 			return fmt.Errorf("failed to replace dm verity roothash in boot configuration: %w", err)
 		}
 	} else {
-		if err := file.ReplacePlaceholdersInFile("{{.RootPartition}}", rootDevID, configFinalPath); err != nil {
+
+		rootPartition := rootDevID
+
+		// Special case for some security module like EMF required hardcoded root partition
+		cmdline := template.GetKernel().Cmdline
+		cmdlineMap := make(map[string]string)
+		if cmdline != "" {
+			// Parse cmdline into key-value pairs
+			fields := strings.Fields(cmdline)
+			for _, field := range fields {
+				parts := strings.SplitN(field, "=", 2)
+				if len(parts) == 2 {
+					cmdlineMap[parts[0]] = parts[1]
+				}
+			}
+			// Check if "root" key exists and assign to rootPartition
+			if rootVal, exists := cmdlineMap["root"]; exists {
+				rootPartition = rootVal
+			}
+		}
+
+		if err := file.ReplacePlaceholdersInFile("{{.RootPartition}}", rootPartition, configFinalPath); err != nil {
 			log.Errorf("Failed to replace RootPartition in boot configuration: %v", err)
 			return fmt.Errorf("failed to replace RootPartition in boot configuration: %w", err)
 		}
@@ -240,6 +252,7 @@ func updateBootConfigTemplate(installRoot, rootDevID, bootUUID, bootPrefix, hash
 			log.Errorf("Failed to replace dm verity roothash in boot configuration: %v", err)
 			return fmt.Errorf("failed to replace dm verity roothash in boot configuration: %w", err)
 		}
+
 	}
 
 	// For now, we do not support LUKS encryption, so we replace the LuksUUID placeholder with an empty string.
@@ -279,7 +292,22 @@ func updateBootConfigTemplate(installRoot, rootDevID, bootUUID, bootPrefix, hash
 	}
 
 	kernelConfig := template.GetKernel()
-	if err := file.ReplacePlaceholdersInFile("{{.ExtraCommandLine}}", kernelConfig.Cmdline, configFinalPath); err != nil {
+	// Special cases for some security module like EMF required hardcoded root partition as additional cmdline arg
+	// Remove the "root" parameter and its value from the cmdline as it's has been handled previously
+	trimRootArgfromCmdLine := kernelConfig.Cmdline
+	if trimRootArgfromCmdLine != "" {
+		fields := strings.Fields(trimRootArgfromCmdLine)
+		var filteredFields []string
+		for _, field := range fields {
+			// Skip fields that start with "root="
+			if !strings.HasPrefix(field, "root=") {
+				filteredFields = append(filteredFields, field)
+			}
+		}
+		trimRootArgfromCmdLine = strings.Join(filteredFields, " ")
+	}
+
+	if err := file.ReplacePlaceholdersInFile("{{.ExtraCommandLine}}", trimRootArgfromCmdLine, configFinalPath); err != nil {
 		log.Errorf("Failed to replace ExtraCommandLine in boot configuration: %v", err)
 		return fmt.Errorf("failed to replace ExtraCommandLine in boot configuration: %w", err)
 	}

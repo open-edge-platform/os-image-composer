@@ -1,4 +1,4 @@
-package imagedisc_test
+package imagedisc
 
 import (
 	"fmt"
@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/open-edge-platform/os-image-composer/internal/config"
-	"github.com/open-edge-platform/os-image-composer/internal/image/imagedisc"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
 )
 
@@ -29,7 +28,7 @@ func TestIsDigit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := imagedisc.IsDigit(tt.input)
+			result := IsDigit(tt.input)
 			if result != tt.expected {
 				t.Errorf("IsDigit(%s) = %v, expected %v", tt.input, result, tt.expected)
 			}
@@ -59,7 +58,7 @@ func TestVerifyFileSize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := imagedisc.VerifyFileSize(tt.input)
+			result, err := VerifyFileSize(tt.input)
 
 			if tt.expectError {
 				if err == nil {
@@ -100,7 +99,7 @@ func TestTranslateSizeStrToBytes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := imagedisc.TranslateSizeStrToBytes(tt.input)
+			result, err := TranslateSizeStrToBytes(tt.input)
 
 			if tt.expectError {
 				if err == nil {
@@ -173,7 +172,7 @@ func TestCreateRawFile(t *testing.T) {
 			tempDir := t.TempDir()
 			testFilePath := filepath.Join(tempDir, "disk.img")
 
-			err := imagedisc.CreateRawFile(testFilePath, tt.fileSize, false)
+			err := CreateRawFile(testFilePath, tt.fileSize, false)
 
 			if tt.expectError {
 				if err == nil {
@@ -207,7 +206,7 @@ func TestGetDiskNameFromDiskPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := imagedisc.GetDiskNameFromDiskPath(tt.diskPath)
+			result, err := GetDiskNameFromDiskPath(tt.diskPath)
 
 			if tt.expectError {
 				if err == nil {
@@ -260,7 +259,7 @@ func TestDiskGetHwSectorSize(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shell.Default = shell.NewMockExecutor(tt.mockCommands)
 
-			result, err := imagedisc.DiskGetHwSectorSize(tt.diskName)
+			result, err := DiskGetHwSectorSize(tt.diskName)
 
 			if tt.expectError {
 				if err == nil {
@@ -313,7 +312,7 @@ func TestDiskGetPhysicalBlockSize(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shell.Default = shell.NewMockExecutor(tt.mockCommands)
 
-			result, err := imagedisc.DiskGetPhysicalBlockSize(tt.diskName)
+			result, err := DiskGetPhysicalBlockSize(tt.diskName)
 
 			if tt.expectError {
 				if err == nil {
@@ -383,7 +382,7 @@ func TestDiskGetDevInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shell.Default = shell.NewMockExecutor(tt.mockCommands)
 
-			result, err := imagedisc.DiskGetDevInfo(tt.diskPath)
+			result, err := DiskGetDevInfo(tt.diskPath)
 
 			if tt.expectError {
 				if err == nil {
@@ -446,7 +445,7 @@ func TestDiskGetPartitionsInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shell.Default = shell.NewMockExecutor(tt.mockCommands)
 
-			result, err := imagedisc.DiskGetPartitionsInfo(tt.diskPath)
+			result, err := DiskGetPartitionsInfo(tt.diskPath)
 
 			if tt.expectError {
 				if err == nil {
@@ -480,7 +479,7 @@ func TestPartitionTypeStrToGUID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := imagedisc.PartitionTypeStrToGUID(tt.partitionType)
+			result, err := PartitionTypeStrToGUID(tt.partitionType)
 
 			if tt.expectError {
 				if err == nil {
@@ -513,7 +512,7 @@ func TestPartitionGUIDToTypeStr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := imagedisc.PartitionGUIDToTypeStr(tt.partitionGUID)
+			result, err := PartitionGUIDToTypeStr(tt.partitionGUID)
 
 			if tt.expectError {
 				if err == nil {
@@ -575,7 +574,7 @@ func TestIsDiskPartitionExist(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shell.Default = shell.NewMockExecutor(tt.mockCommands)
 
-			result, err := imagedisc.IsDiskPartitionExist(tt.diskPath)
+			result, err := IsDiskPartitionExist(tt.diskPath)
 
 			if tt.expectError {
 				if err == nil {
@@ -638,7 +637,7 @@ func TestWipePartitions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shell.Default = shell.NewMockExecutor(tt.mockCommands)
 
-			err := imagedisc.WipePartitions(tt.diskPath)
+			err := WipePartitions(tt.diskPath)
 
 			if tt.expectError {
 				if err == nil {
@@ -690,7 +689,7 @@ func TestGetUUID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shell.Default = shell.NewMockExecutor(tt.mockCommands)
 
-			result, err := imagedisc.GetUUID(tt.partPath)
+			result, err := GetUUID(tt.partPath)
 
 			if tt.expectError {
 				if err == nil {
@@ -743,7 +742,7 @@ func TestGetPartUUID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shell.Default = shell.NewMockExecutor(tt.mockCommands)
 
-			result, err := imagedisc.GetPartUUID(tt.partPath)
+			result, err := GetPartUUID(tt.partPath)
 
 			if tt.expectError {
 				if err == nil {
@@ -854,7 +853,7 @@ func TestDiskPartitionsCreate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shell.Default = shell.NewMockExecutor(tt.mockCommands)
 
-			result, err := imagedisc.DiskPartitionsCreate(tt.diskPath, tt.partitionsList, tt.partitionTableType)
+			result, err := DiskPartitionsCreate(tt.diskPath, tt.partitionsList, tt.partitionTableType)
 
 			if tt.expectError {
 				if err == nil {
@@ -909,7 +908,7 @@ func TestGetPartitionLabel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shell.Default = shell.NewMockExecutor(tt.mockCommands)
 
-			result, err := imagedisc.GetPartitionLabel(tt.diskPartDev)
+			result, err := GetPartitionLabel(tt.diskPartDev)
 
 			if tt.expectError {
 				if err == nil {
@@ -922,6 +921,351 @@ func TestGetPartitionLabel(t *testing.T) {
 				if result != tt.expected {
 					t.Errorf("Expected %s, but got %s", tt.expected, result)
 				}
+			}
+		})
+	}
+}
+
+func TestTranslateBytesToSizeStr(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    uint64
+		expected string
+	}{
+		{"bytes", 500, "500B"},
+		{"kib", 1024, "1.02KB"},
+		{"mib", 1048576, "1.05MB"},
+		{"gib", 1073741824, "1.07GB"},
+		{"mixed_mib", 1572864, "1.57MB"},
+		{"zero", 0, "0B"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := TranslateBytesToSizeStr(tt.input)
+			if result != tt.expected {
+				t.Errorf("Expected %s, but got %s", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestCheckDiskIOStats(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	tests := []struct {
+		name         string
+		diskPath     string
+		mockCommands []shell.MockCommand
+		expected     bool
+		expectError  bool
+	}{
+		{
+			name:     "io_busy",
+			diskPath: "/dev/sda",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "cat /proc/diskstats", Output: "   8       0 sda 100 0 200 50 0 0 0 0 1 100 100\n", Error: nil},
+			},
+			expected:    true,
+			expectError: false,
+		},
+		{
+			name:     "io_idle",
+			diskPath: "/dev/sda",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "cat /proc/diskstats", Output: "   8       0 sda 100 0 200 50 0 0 0 0 0 100 100\n", Error: nil},
+			},
+			expected:    false,
+			expectError: false,
+		},
+		{
+			name:     "command_failure",
+			diskPath: "/dev/sda",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "cat /proc/diskstats", Output: "", Error: fmt.Errorf("cat failed")},
+			},
+			expected:    false,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shell.Default = shell.NewMockExecutor(tt.mockCommands)
+
+			result, err := CheckDiskIOStats(tt.diskPath)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error, but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, but got: %v", err)
+				}
+				if result != tt.expected {
+					t.Errorf("Expected %v, but got %v", tt.expected, result)
+				}
+			}
+		})
+	}
+}
+
+func TestTranslateSectorToBytes(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	tests := []struct {
+		name         string
+		diskName     string
+		sectorOffset int
+		mockCommands []shell.MockCommand
+		expected     int
+		expectError  bool
+	}{
+		{
+			name:         "valid_translation",
+			diskName:     "sda",
+			sectorOffset: 100,
+			mockCommands: []shell.MockCommand{
+				{Pattern: "cat /sys/block/sda/queue/hw_sector_size", Output: "512\n", Error: nil},
+			},
+			expected:    51200,
+			expectError: false,
+		},
+		{
+			name:         "command_failure",
+			diskName:     "sda",
+			sectorOffset: 100,
+			mockCommands: []shell.MockCommand{
+				{Pattern: "cat /sys/block/sda/queue/hw_sector_size", Output: "", Error: fmt.Errorf("failed")},
+			},
+			expected:    0,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shell.Default = shell.NewMockExecutor(tt.mockCommands)
+
+			result, err := TranslateSectorToBytes(tt.diskName, tt.sectorOffset)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error, but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, but got: %v", err)
+				}
+				if result != tt.expected {
+					t.Errorf("Expected %d, but got %d", tt.expected, result)
+				}
+			}
+		})
+	}
+}
+
+func TestGetAlignedSectorOffset(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	tests := []struct {
+		name         string
+		diskName     string
+		sectorOffset int
+		mockCommands []shell.MockCommand
+		expected     int
+		expectError  bool
+	}{
+		{
+			name:         "aligned",
+			diskName:     "sda",
+			sectorOffset: 8,
+			mockCommands: []shell.MockCommand{
+				{Pattern: "cat /sys/block/sda/queue/hw_sector_size", Output: "512\n", Error: nil},
+				{Pattern: "cat /sys/block/sda/queue/physical_block_size", Output: "4096\n", Error: nil},
+			},
+			expected:    8,
+			expectError: false,
+		},
+		{
+			name:         "unaligned",
+			diskName:     "sda",
+			sectorOffset: 1,
+			mockCommands: []shell.MockCommand{
+				{Pattern: "cat /sys/block/sda/queue/hw_sector_size", Output: "512\n", Error: nil},
+				{Pattern: "cat /sys/block/sda/queue/physical_block_size", Output: "4096\n", Error: nil},
+			},
+			expected:    8,
+			expectError: false,
+		},
+		{
+			name:         "same_size",
+			diskName:     "sda",
+			sectorOffset: 10,
+			mockCommands: []shell.MockCommand{
+				{Pattern: "cat /sys/block/sda/queue/hw_sector_size", Output: "512\n", Error: nil},
+				{Pattern: "cat /sys/block/sda/queue/physical_block_size", Output: "512\n", Error: nil},
+			},
+			expected:    10,
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shell.Default = shell.NewMockExecutor(tt.mockCommands)
+
+			result, err := GetAlignedSectorOffset(tt.diskName, tt.sectorOffset)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error, but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, but got: %v", err)
+				}
+				if result != tt.expected {
+					t.Errorf("Expected %d, but got %d", tt.expected, result)
+				}
+			}
+		})
+	}
+}
+
+func TestSystemBlockDevices(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	tests := []struct {
+		name         string
+		mockCommands []shell.MockCommand
+		expectedLen  int
+		expectError  bool
+	}{
+		{
+			name: "found_devices",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "lsblk", Output: `{"blockdevices":[{"name":"sda","size":10737418240,"model":"Virtual Disk"}]}`, Error: nil},
+			},
+			expectedLen: 1,
+			expectError: false,
+		},
+		{
+			name: "no_devices",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "lsblk", Output: `{"blockdevices":[]}`, Error: nil},
+			},
+			expectedLen: 0,
+			expectError: true,
+		},
+		{
+			name: "command_failure",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "lsblk", Output: "", Error: fmt.Errorf("lsblk failed")},
+			},
+			expectedLen: 0,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shell.Default = shell.NewMockExecutor(tt.mockCommands)
+
+			result, err := SystemBlockDevices()
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error, but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, but got: %v", err)
+				}
+				if len(result) != tt.expectedLen {
+					t.Errorf("Expected %d devices, but got %d", tt.expectedLen, len(result))
+				}
+			}
+		})
+	}
+}
+
+func TestBootPartitionConfig(t *testing.T) {
+	tests := []struct {
+		name               string
+		bootType           string
+		partitionTableType string
+		expectedMount      string
+		expectError        bool
+	}{
+		{"efi", EFIPartitionType, "", "/boot/efi", false},
+		{"legacy_gpt", LegacyPartitionType, PartitionTableTypeGpt, "", false},
+		{"legacy_mbr", LegacyPartitionType, PartitionTableTypeMbr, "", false},
+		{"unknown_boot", "unknown", "", "", true},
+		{"unknown_table", LegacyPartitionType, "unknown", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mountPoint, _, _, err := BootPartitionConfig(tt.bootType, tt.partitionTableType)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error, but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error, but got: %v", err)
+				}
+				if mountPoint != tt.expectedMount {
+					t.Errorf("Expected mount point %s, but got %s", tt.expectedMount, mountPoint)
+				}
+			}
+		})
+	}
+}
+
+func TestGetSectorOffsetFromSize(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	// Mock commands for DiskGetHwSectorSize and DiskGetPhysicalBlockSize
+	mockCommands := []shell.MockCommand{
+		{Pattern: "cat /sys/block/sda/queue/hw_sector_size", Output: "512", Error: nil},
+		{Pattern: "cat /sys/block/sda/queue/physical_block_size", Output: "512", Error: nil},
+		{Pattern: "cat /sys/block/sdb/queue/hw_sector_size", Output: "512", Error: nil},
+		{Pattern: "cat /sys/block/sdb/queue/physical_block_size", Output: "4096", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	tests := []struct {
+		diskName string
+		sizeStr  string
+		expected uint64
+		wantErr  bool
+	}{
+		{"sda", "1MiB", 2048, false}, // 1048576 / 512 = 2048
+		{"sda", "1KiB", 2, false},    // 1024 / 512 = 2
+		{"sdb", "1MiB", 2048, false}, // 1048576 / 512 = 2048 (aligned to 4096)
+		{"sdb", "4KiB", 8, false},    // 4096 / 512 = 8
+		{"sdb", "5KiB", 16, false},   // 5120 -> aligned to 8192 -> 8192 / 512 = 16
+		{"sda", "invalid", 0, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s-%s", tt.diskName, tt.sizeStr), func(t *testing.T) {
+			got, err := getSectorOffsetFromSize(tt.diskName, tt.sizeStr)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getSectorOffsetFromSize() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.expected {
+				t.Errorf("getSectorOffsetFromSize() = %v, want %v", got, tt.expected)
 			}
 		})
 	}

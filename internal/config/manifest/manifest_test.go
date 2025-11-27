@@ -397,3 +397,41 @@ func TestImageSBOMPathConstant(t *testing.T) {
 		t.Errorf("Expected ImageSBOMPath to be %q, got %q", expectedPath, ImageSBOMPath)
 	}
 }
+func TestCopySBOMToImageBuildDir(t *testing.T) {
+	// Setup temp dirs
+	tempDir := t.TempDir()
+	buildDir := t.TempDir()
+
+	// Save original global config
+	originalGlobal := config.Global()
+	defer config.SetGlobal(originalGlobal)
+
+	// Set new global config with temp dir
+	newGlobal := config.DefaultGlobalConfig()
+	newGlobal.TempDir = tempDir
+	config.SetGlobal(newGlobal)
+
+	// Create dummy SBOM in temp dir
+	sbomPath := filepath.Join(tempDir, DefaultSPDXFile)
+	if err := os.WriteFile(sbomPath, []byte("{}"), 0644); err != nil {
+		t.Fatalf("Failed to create dummy SBOM: %v", err)
+	}
+
+	// Test success case
+	if err := CopySBOMToImageBuildDir(buildDir); err != nil {
+		t.Fatalf("CopySBOMToImageBuildDir failed: %v", err)
+	}
+
+	// Verify file exists in build dir
+	dstPath := filepath.Join(buildDir, DefaultSPDXFile)
+	if _, err := os.Stat(dstPath); os.IsNotExist(err) {
+		t.Errorf("SBOM not copied to build dir")
+	}
+
+	// Test missing source SBOM
+	os.Remove(sbomPath)
+	if err := CopySBOMToImageBuildDir(buildDir); err != nil {
+		t.Fatalf("CopySBOMToImageBuildDir failed with missing source: %v", err)
+	}
+	// Should just log warning and return nil
+}

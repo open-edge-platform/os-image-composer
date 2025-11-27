@@ -1058,6 +1058,18 @@ func TestIsoMaker_BuildIsoImage_Integration(t *testing.T) {
 				t.Fatalf("Failed to initialize IsoMaker: %v", err)
 			}
 
+			// Manually create installRoot and necessary files since mocks won't do it
+			installRoot := isoMaker.ImageOs.GetInstallRoot()
+			if err := os.MkdirAll(filepath.Join(installRoot, "boot", "grub"), 0755); err != nil {
+				t.Fatalf("Failed to create installRoot/boot/grub: %v", err)
+			}
+			// Create dummy grub.cfg in installRoot/boot/grub to simulate the first CopyFile in createGrubCfg
+			// This is needed because the second CopyFile (to EFI/BOOT) checks for existence of source file
+			if err := os.WriteFile(filepath.Join(installRoot, "boot", "grub", "grub.cfg"), []byte("dummy grub config"), 0644); err != nil {
+				t.Fatalf("Failed to create dummy grub.cfg: %v", err)
+			}
+
+			// Run BuildIsoImage
 			err = isoMaker.BuildIsoImage()
 
 			if tt.expectError {
@@ -1072,5 +1084,235 @@ func TestIsoMaker_BuildIsoImage_Integration(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Mock implementations for InitrdMaker and ImageOs
+
+type MockInitrdMaker struct {
+	initCalled         bool
+	downloadCalled     bool
+	buildCalled        bool
+	cleanCalled        bool
+	initrdVersion      string
+	initrdFilePath     string
+	initrdRootfsPath   string
+	shouldFailInit     bool
+	shouldFailDownload bool
+	shouldFailBuild    bool
+	shouldFailClean    bool
+}
+
+func (m *MockInitrdMaker) Init() error {
+	m.initCalled = true
+	if m.shouldFailInit {
+		return fmt.Errorf("mock init failure")
+	}
+	return nil
+}
+
+func (m *MockInitrdMaker) DownloadInitrdPkgs() error {
+	m.downloadCalled = true
+	if m.shouldFailDownload {
+		return fmt.Errorf("mock download failure")
+	}
+	return nil
+}
+
+func (m *MockInitrdMaker) BuildInitrdImage() error {
+	m.buildCalled = true
+	if m.shouldFailBuild {
+		return fmt.Errorf("mock build failure")
+	}
+	return nil
+}
+
+func (m *MockInitrdMaker) GetInitrdVersion() string {
+	return m.initrdVersion
+}
+
+func (m *MockInitrdMaker) GetInitrdFilePath() string {
+	return m.initrdFilePath
+}
+
+func (m *MockInitrdMaker) GetInitrdRootfsPath() string {
+	return m.initrdRootfsPath
+}
+
+func (m *MockInitrdMaker) CleanInitrdRootfs() error {
+	m.cleanCalled = true
+	if m.shouldFailClean {
+		return fmt.Errorf("mock clean failure")
+	}
+	return nil
+}
+
+type MockImageOs struct {
+	installRoot string
+}
+
+func (m *MockImageOs) GetInstallRoot() string {
+	return m.installRoot
+}
+
+func (m *MockImageOs) InstallInitrd() (string, string, error) {
+	return "", "", nil
+}
+
+func (m *MockImageOs) InstallImageOs(diskPathIdMap map[string]string) (string, error) {
+	return "", nil
+}
+
+func TestIsoMaker_BuildIsoImage_Success(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	// Setup temporary directories
+	tempDir := t.TempDir()
+	installRoot := filepath.Join(tempDir, "installroot")
+	initrdRootfsPath := filepath.Join(tempDir, "initrdrootfs")
+	initrdFilePath := filepath.Join(tempDir, "initrd.img")
+	imageBuildDir := filepath.Join(tempDir, "imagebuild")
+
+	// Create necessary directories
+	dirs := []string{installRoot, initrdRootfsPath, imageBuildDir}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("Failed to create directory %s: %v", dir, err)
+		}
+	}
+
+	// Ensure chroot image build dir exists for NewIsoMaker
+	chrootImageBuildDir := filepath.Join(tempDir, "workspace", "imagebuild")
+	if err := os.MkdirAll(chrootImageBuildDir, 0755); err != nil {
+		t.Fatalf("Failed to create chroot image build dir: %v", err)
+	}
+
+	// Create dummy files needed by createIso
+	// 1. Kernel in initrdRootfsPath/boot/vmlinuz-x.y.z
+	if err := os.MkdirAll(filepath.Join(initrdRootfsPath, "boot"), 0755); err != nil {
+		t.Fatalf("Failed to create boot dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(initrdRootfsPath, "boot", "vmlinuz-5.15.0"), []byte("kernel"), 0644); err != nil {
+		t.Fatalf("Failed to create dummy kernel: %v", err)
+	}
+
+	// 2. Initrd file
+	if err := os.WriteFile(initrdFilePath, []byte("initrd"), 0644); err != nil {
+		t.Fatalf("Failed to create dummy initrd file: %v", err)
+	}
+
+	// 3. grub.cfg in general config dir
+	generalConfigDir := filepath.Join(tempDir, "general")
+	if err := os.MkdirAll(filepath.Join(generalConfigDir, "isolinux"), 0755); err != nil {
+		t.Fatalf("Failed to create isolinux dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(generalConfigDir, "isolinux", "grub.cfg"), []byte("grub config {{.ImageName}}"), 0644); err != nil {
+		t.Fatalf("Failed to create dummy grub.cfg: %v", err)
+	}
+	// 4. load.cfg in general config dir
+	if err := os.WriteFile(filepath.Join(generalConfigDir, "isolinux", "load.cfg"), []byte("load config"), 0644); err != nil {
+		t.Fatalf("Failed to create dummy load.cfg: %v", err)
+	}
+
+	// 5. GRUB modules in initrdRootfsPath/usr/lib/grub/x86_64-efi
+	grubLibDir := filepath.Join(initrdRootfsPath, "usr", "lib", "grub", "x86_64-efi")
+	if err := os.MkdirAll(grubLibDir, 0755); err != nil {
+		t.Fatalf("Failed to create grub lib dir: %v", err)
+	}
+
+	// 6. OSV config files
+	osvConfigDir := filepath.Join(tempDir, "config")
+	if err := os.MkdirAll(osvConfigDir, 0755); err != nil {
+		t.Fatalf("Failed to create osv config dir: %v", err)
+	}
+
+	// 7. Create dummy grub.cfg in installRoot/boot/grub to simulate the first CopyFile in createGrubCfg
+	if err := os.MkdirAll(filepath.Join(installRoot, "boot", "grub"), 0755); err != nil {
+		t.Fatalf("Failed to create installRoot/boot/grub: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(installRoot, "boot", "grub", "grub.cfg"), []byte("dummy grub config"), 0644); err != nil {
+		t.Fatalf("Failed to create dummy grub.cfg in installRoot: %v", err)
+	}
+
+	// Mock config.GetGeneralConfigDir
+	originalGlobal := config.Global()
+	defer config.SetGlobal(originalGlobal)
+
+	newGlobal := config.DefaultGlobalConfig()
+	newGlobal.ConfigDir = tempDir
+	config.SetGlobal(newGlobal)
+
+	// Mock shell commands
+	mockCommands := []shell.MockCommand{
+		{Pattern: "mkdir", Output: "", Error: nil},
+		{Pattern: "ls /boot | grep vmlinuz", Output: "vmlinuz-5.15.0", Error: nil},
+		{Pattern: "cp", Output: "", Error: nil},
+		{Pattern: "rm", Output: "", Error: nil},
+		{Pattern: "mformat", Output: "", Error: nil},
+		{Pattern: "grub-mkimage", Output: "", Error: nil},
+		{Pattern: "mcopy", Output: "", Error: nil},
+		{Pattern: "xorriso", Output: "", Error: nil},
+		{Pattern: "sed", Output: "", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	// Setup IsoMaker
+	template := &config.ImageTemplate{
+		Image: config.ImageInfo{
+			Name: "test-image",
+		},
+		Target: config.TargetInfo{
+			OS:   "ubuntu",
+			Dist: "jammy",
+			Arch: "x86_64",
+		},
+		SystemConfig: config.SystemConfig{
+			Name: "test-system",
+		},
+	}
+
+	chrootEnv := &mockChrootEnv{
+		pkgType:           "deb",
+		chrootEnvRoot:     tempDir,
+		chrootPkgCacheDir: filepath.Join(tempDir, "cache"),
+	}
+
+	mockInitrdMaker := &MockInitrdMaker{
+		initrdVersion:    "1.0.0",
+		initrdFilePath:   initrdFilePath,
+		initrdRootfsPath: initrdRootfsPath,
+	}
+
+	mockImageOs := &MockImageOs{
+		installRoot: installRoot,
+	}
+
+	isoMaker, err := isomaker.NewIsoMaker(chrootEnv, template)
+	if err != nil {
+		t.Fatalf("Failed to create IsoMaker: %v", err)
+	}
+	isoMaker.InitrdMaker = mockInitrdMaker
+	isoMaker.ImageOs = mockImageOs
+	isoMaker.ImageBuildDir = imageBuildDir
+
+	// Run BuildIsoImage
+	err = isoMaker.BuildIsoImage()
+	if err != nil {
+		t.Errorf("BuildIsoImage failed: %v", err)
+	}
+
+	// Verify InitrdMaker methods were called
+	if !mockInitrdMaker.initCalled {
+		t.Error("InitrdMaker.Init was not called")
+	}
+	if !mockInitrdMaker.downloadCalled {
+		t.Error("InitrdMaker.DownloadInitrdPkgs was not called")
+	}
+	if !mockInitrdMaker.buildCalled {
+		t.Error("InitrdMaker.BuildInitrdImage was not called")
+	}
+	if !mockInitrdMaker.cleanCalled {
+		t.Error("InitrdMaker.CleanInitrdRootfs was not called")
 	}
 }

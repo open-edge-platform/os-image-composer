@@ -132,3 +132,49 @@ func TestContainsStringMapKey(t *testing.T) {
 		t.Errorf("ContainsStringMapKey should return false for non-existing key")
 	}
 }
+
+func TestContainsSubstring(t *testing.T) {
+	_slice := []string{"apple", "banana", "cherry"}
+	if slice.ContainsSubstring(_slice, "nan") != "banana" {
+		t.Errorf("ContainsSubstring should return 'banana' for substring 'nan'")
+	}
+	if slice.ContainsSubstring(_slice, "z") != "" {
+		t.Errorf("ContainsSubstring should return empty string for non-existing substring")
+	}
+}
+
+func TestContainsPrefix(t *testing.T) {
+	_slice := []string{"apple", "banana", "cherry"}
+	if slice.ContainsPrefix(_slice, "ban") != "banana" {
+		t.Errorf("ContainsPrefix should return 'banana' for prefix 'ban'")
+	}
+	if slice.ContainsPrefix(_slice, "z") != "" {
+		t.Errorf("ContainsPrefix should return empty string for non-existing prefix")
+	}
+}
+
+func TestRemoveStringFromSlice(t *testing.T) {
+	_slice := []string{"a", "b", "c"}
+	result := slice.RemoveStringFromSlice(_slice, "b")
+	if len(result) != 2 || result[0] != "a" || result[1] != "c" {
+		t.Errorf("RemoveStringFromSlice failed to remove element")
+	}
+	result = slice.RemoveStringFromSlice(_slice, "z")
+	if len(result) != 3 {
+		t.Errorf("RemoveStringFromSlice should not change slice if element not found")
+	}
+}
+
+func TestSplitBySpace(t *testing.T) {
+	s := " a  b c "
+	result := slice.SplitBySpace(s)
+	expected := []string{"a", "b", "c"}
+	if len(result) != len(expected) {
+		t.Fatalf("Expected length %d, got %d", len(expected), len(result))
+	}
+	for i, v := range expected {
+		if result[i] != v {
+			t.Errorf("Expected %s, got %s", v, result[i])
+		}
+	}
+}

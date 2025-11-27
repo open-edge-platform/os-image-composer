@@ -115,14 +115,16 @@ func (isoMaker *IsoMaker) BuildIsoImage() (err error) {
 }
 
 func (isoMaker *IsoMaker) buildInitrd(template *config.ImageTemplate) error {
-	initrdTemplate, err := isoMaker.getInitrdTemplate(template)
-	if err != nil {
-		return fmt.Errorf("failed to get initrd template: %w", err)
-	}
+	if isoMaker.InitrdMaker == nil {
+		initrdTemplate, err := isoMaker.getInitrdTemplate(template)
+		if err != nil {
+			return fmt.Errorf("failed to get initrd template: %w", err)
+		}
 
-	isoMaker.InitrdMaker, err = initrdmaker.NewInitrdMaker(isoMaker.ChrootEnv, initrdTemplate)
-	if err != nil {
-		return fmt.Errorf("failed to create initrd maker: %w", err)
+		isoMaker.InitrdMaker, err = initrdmaker.NewInitrdMaker(isoMaker.ChrootEnv, initrdTemplate)
+		if err != nil {
+			return fmt.Errorf("failed to create initrd maker: %w", err)
+		}
 	}
 
 	if err := isoMaker.InitrdMaker.Init(); err != nil {

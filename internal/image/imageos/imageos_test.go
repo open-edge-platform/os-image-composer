@@ -3007,3 +3007,197 @@ func TestEnsureGroupExists(t *testing.T) {
 		})
 	}
 }
+func TestRemoveVerityTmp(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "umount .*/tmp", Output: "", Error: nil},
+		{Pattern: "rm -rf .*/tmp", Output: "", Error: nil},
+		{Pattern: "umount .*/boot/efi/tmp", Output: "", Error: nil},
+		{Pattern: "rm -rf .*/boot/efi/tmp", Output: "", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	installRoot := "/tmp/test-install-root"
+	removeVerityTmp(installRoot)
+}
+
+func TestVerifyUserCreated(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "grep .*testuser.* /etc/passwd", Output: "testuser:x:1000:1000::/home/testuser:/bin/bash", Error: nil},
+		{Pattern: "grep .*testuser.* /etc/shadow", Output: "testuser:$6$xyz:12345:0:99999:7:::", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	installRoot := "/tmp/test-install-root"
+	err := verifyUserCreated(installRoot, "testuser")
+	if err != nil {
+		t.Errorf("verifyUserCreated failed: %v", err)
+	}
+}
+
+func TestVerifyUserCreated_UserNotFound(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "grep .*testuser.* /etc/passwd", Output: "", Error: fmt.Errorf("exit status 1")},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	installRoot := "/tmp/test-install-root"
+	err := verifyUserCreated(installRoot, "testuser")
+	if err == nil {
+		t.Errorf("verifyUserCreated should have failed")
+	}
+}
+
+func TestSetUserPassword_Plaintext(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "passwd testuser", Output: "", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	installRoot := "/tmp/test-install-root"
+	user := config.UserConfig{
+		Name:     "testuser",
+		Password: "password",
+	}
+	err := setUserPassword(installRoot, user)
+	if err != nil {
+		t.Errorf("setUserPassword failed: %v", err)
+	}
+}
+
+func TestSetUserPassword_Hashed(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "usermod -p .* testuser", Output: "", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	installRoot := "/tmp/test-install-root"
+	user := config.UserConfig{
+		Name:     "testuser",
+		Password: "$6$xyz",
+		HashAlgo: "sha512",
+	}
+	err := setUserPassword(installRoot, user)
+	if err != nil {
+		t.Errorf("setUserPassword failed: %v", err)
+	}
+}
+
+func TestSetUserPassword_HashAlgo(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "openssl passwd -6 'password'", Output: "$6$generatedhash", Error: nil},
+		{Pattern: "usermod -p .* testuser", Output: "", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	installRoot := "/tmp/test-install-root"
+	user := config.UserConfig{
+		Name:     "testuser",
+		Password: "password",
+		HashAlgo: "sha512",
+	}
+	err := setUserPassword(installRoot, user)
+	if err != nil {
+		t.Errorf("setUserPassword failed: %v", err)
+	}
+}
+
+func TestHashPassword(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "openssl passwd -6 'password'", Output: "$6$hash", Error: nil},
+		{Pattern: "openssl passwd -5 'password'", Output: "$5$hash", Error: nil},
+		{Pattern: "openssl passwd -1 'password'", Output: "$1$hash", Error: nil},
+		{Pattern: "python3 -c .*", Output: "$2b$hash", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	installRoot := "/tmp/test-install-root"
+
+	algos := []string{"sha512", "sha256", "md5", "bcrypt"}
+	for _, algo := range algos {
+		hash, err := hashPassword("password", algo, installRoot)
+		if err != nil {
+			t.Errorf("hashPassword failed for %s: %v", algo, err)
+		}
+		if hash == "" {
+			t.Errorf("hashPassword returned empty string for %s", algo)
+		}
+	}
+
+	_, err := hashPassword("password", "unknown", installRoot)
+	if err == nil {
+		t.Errorf("hashPassword should have failed for unknown algorithm")
+	}
+}
+
+func TestConfigUserStartupScript(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	// Create a temporary directory for testing
+	testDir := t.TempDir()
+	installRoot := testDir
+
+	// Create dummy startup script
+	scriptPath := filepath.Join(installRoot, "usr/local/bin/startup.sh")
+	if err := os.MkdirAll(filepath.Dir(scriptPath), 0755); err != nil {
+		t.Fatalf("Failed to create script directory: %v", err)
+	}
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/bash\necho hello"), 0755); err != nil {
+		t.Fatalf("Failed to create startup script: %v", err)
+	}
+
+	// Create dummy passwd file
+	passwdPath := filepath.Join(installRoot, "etc/passwd")
+	if err := os.MkdirAll(filepath.Dir(passwdPath), 0755); err != nil {
+		t.Fatalf("Failed to create etc directory: %v", err)
+	}
+	passwdContent := "root:x:0:0:root:/root:/bin/bash\ntestuser:x:1000:1000::/home/testuser:/bin/bash\n"
+	if err := os.WriteFile(passwdPath, []byte(passwdContent), 0644); err != nil {
+		t.Fatalf("Failed to create passwd file: %v", err)
+	}
+
+	// Mock the sed command used by file.ReplaceRegexInFile
+	// The command is: sed -E -i 's|^(testuser.*):[^:]*$|\1:/usr/local/bin/startup\.sh|g' /tmp/.../etc/passwd
+	// We can just mock "sed .*"
+	mockCommands := []shell.MockCommand{
+		{Pattern: "sed .*", Output: "", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	user := config.UserConfig{
+		Name:          "testuser",
+		StartupScript: "/usr/local/bin/startup.sh",
+	}
+
+	err := configUserStartupScript(installRoot, user)
+	if err != nil {
+		t.Errorf("configUserStartupScript failed: %v", err)
+	}
+
+	// Since we mocked sed, the file won't actually be changed.
+	// But we verified that the function runs without error and calls the mock.
+	// If we want to verify the file change, we would need to implement the sed logic in the mock,
+	// or use a real sed if available and not requiring sudo.
+	// But file.ReplaceRegexInFile forces sudo.
+}

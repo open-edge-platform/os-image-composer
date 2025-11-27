@@ -619,6 +619,138 @@ func TestNewChrootBuilder(t *testing.T) {
 	}
 }
 
+func TestValidateChrootenvYAML_InvalidYAML(t *testing.T) {
+	invalidYAML := []byte("invalid: [unclosed")
+	err := chrootbuild.ValidateChrootenvYAML(invalidYAML)
+	if err == nil || !strings.Contains(err.Error(), "invalid YAML format") {
+		t.Errorf("Expected invalid YAML format error, got: %v", err)
+	}
+}
+
+func TestValidateChrootenvYAML_InvalidSchema(t *testing.T) {
+	// Missing required 'packages' field
+	badYAML := []byte("essential:\n  - pkg1\n")
+	err := chrootbuild.ValidateChrootenvYAML(badYAML)
+	if err == nil || !strings.Contains(err.Error(), "missing properties: 'packages'") {
+		t.Errorf("Expected missing properties error, got: %v", err)
+	}
+}
+
+func TestValidateChrootenvJSON_InvalidSchema(t *testing.T) {
+	badJSON := []byte(`{"essential": ["pkg1"]}`)
+	err := chrootbuild.ValidateChrootenvJSON(badJSON)
+	if err == nil || !strings.Contains(err.Error(), "missing properties: 'packages'") {
+		t.Errorf("Expected missing properties error, got: %v", err)
+	}
+}
+
+func TestValidateOsConfigYAML_InvalidYAML(t *testing.T) {
+	invalidYAML := []byte("invalid: [unclosed")
+	err := chrootbuild.ValidateOsConfigYAML(invalidYAML)
+	if err == nil || !strings.Contains(err.Error(), "invalid YAML format") {
+		t.Errorf("Expected invalid YAML format error, got: %v", err)
+	}
+}
+
+func TestValidateOsConfigJSON_InvalidSchema(t *testing.T) {
+	badJSON := []byte(`{"foo": "bar"}`)
+	err := chrootbuild.ValidateOsConfigJSON(badJSON)
+	if err == nil {
+		t.Errorf("Expected schema validation error, got: %v", err)
+	}
+}
+
+func TestChrootBuilder_GetChrootEnvConfig_InvalidYAML(t *testing.T) {
+	tempDir := t.TempDir()
+	path := filepath.Join(tempDir, "chrootenv.yml")
+	if err := os.WriteFile(path, []byte("invalid: [unclosed"), 0644); err != nil {
+		t.Fatalf("Failed to write invalid YAML file: %v", err)
+	}
+	chrootBuilder := &chrootbuild.ChrootBuilder{
+		TargetOsConfigDir: tempDir,
+		TargetOsConfig: map[string]interface{}{
+			"chrootenvConfigFile": "chrootenv.yml",
+		},
+	}
+	_, err := chrootBuilder.GetChrootEnvConfig()
+	if err == nil || !strings.Contains(err.Error(), "invalid YAML format") {
+		t.Errorf("Expected invalid YAML format error, got: %v", err)
+	}
+}
+
+func TestChrootBuilder_GetChrootEnvEssentialPackageList_InvalidType(t *testing.T) {
+	tempDir := t.TempDir()
+	path := filepath.Join(tempDir, "chrootenv.yml")
+	if err := os.WriteFile(path, []byte("essential: notalist\npackages:\n  - pkg1\n"), 0644); err != nil {
+		t.Fatalf("Failed to write invalid YAML file: %v", err)
+	}
+	chrootBuilder := &chrootbuild.ChrootBuilder{
+		TargetOsConfigDir: tempDir,
+		TargetOsConfig: map[string]interface{}{
+			"chrootenvConfigFile": "chrootenv.yml",
+		},
+	}
+	_, err := chrootBuilder.GetChrootEnvEssentialPackageList()
+	if err == nil || !strings.Contains(err.Error(), "expected array, but got string") {
+		t.Errorf("Expected essential packages field type error, got: %v", err)
+	}
+}
+
+func TestChrootBuilder_GetChrootEnvPackageList_InvalidType(t *testing.T) {
+	tempDir := t.TempDir()
+	path := filepath.Join(tempDir, "chrootenv.yml")
+	if err := os.WriteFile(path, []byte("packages: notalist\n"), 0644); err != nil {
+		t.Fatalf("Failed to write invalid YAML file: %v", err)
+	}
+	chrootBuilder := &chrootbuild.ChrootBuilder{
+		TargetOsConfigDir: tempDir,
+		TargetOsConfig: map[string]interface{}{
+			"chrootenvConfigFile": "chrootenv.yml",
+		},
+	}
+	_, err := chrootBuilder.GetChrootEnvPackageList()
+	if err == nil || !strings.Contains(err.Error(), "expected array, but got string") {
+		t.Errorf("Expected packages field type error, got: %v", err)
+	}
+}
+
+func TestNewChrootBuilder_MissingConfigFile(t *testing.T) {
+	builder, err := chrootbuild.NewChrootBuilder("os", "dist", "arch")
+	if err == nil || !strings.Contains(err.Error(), "target OS config directory does not exist") {
+		t.Errorf("Expected missing config file error, got: %v", err)
+	}
+	if builder != nil {
+		t.Error("Expected builder to be nil on error")
+	}
+}
+
+func TestChrootBuilder_BuildChrootEnv_UnsupportedPkgType(t *testing.T) {
+	tempDir := t.TempDir()
+	chrootBuildDir := filepath.Join(tempDir, "chrootbuild")
+	if err := os.MkdirAll(chrootBuildDir, 0700); err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+	chrootBuilder := &chrootbuild.ChrootBuilder{
+		TargetOsConfigDir: tempDir,
+		TargetOsConfig: map[string]interface{}{
+			"pkgType":             "unsupported",
+			"chrootenvConfigFile": "chrootenv.yml",
+		},
+		ChrootBuildDir:    chrootBuildDir,
+		ChrootPkgCacheDir: filepath.Join(tempDir, "pkgcache"),
+		RpmInstaller:      &mockRpmInstaller{},
+		DebInstaller:      &mockDebInstaller{},
+	}
+	// Write valid chrootenv.yml
+	if err := os.WriteFile(filepath.Join(tempDir, "chrootenv.yml"), []byte("packages:\n  - pkg1\n"), 0644); err != nil {
+		t.Fatalf("Failed to write chrootenv.yml: %v", err)
+	}
+	err := chrootBuilder.BuildChrootEnv("os", "dist", "arch")
+	if err == nil || !strings.Contains(err.Error(), "unsupported package type") {
+		t.Errorf("Expected unsupported package type error, got: %v", err)
+	}
+}
+
 // Helper functions for setting up test configurations
 func setupValidChrootConfig(tempDir string) error {
 	chrootEnvConfigPath := filepath.Join(tempDir, "chrootenv.yml")

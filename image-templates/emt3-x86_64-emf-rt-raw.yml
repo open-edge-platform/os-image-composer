@@ -1,5 +1,5 @@
 image:
-  name: emt3-x86_64-minimal
+  name: emt3-x86_64-minimal-emf-rt
   version: "1.0.0"
 
 target:
@@ -68,6 +68,6 @@ systemConfig:
   # Kernel Configuration
   kernel:
     version: "6.12"
-    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7 sysctl.vm.overcommit_memory=1 sysctl.kernel.panic=10 sysctl.kernel.panic_on_oops=1 sysctl.fs.inotify.max_user_instances=8192 rd.parallel=1 rd.shell=0 rd.timeout=200 rd.emergency=reboot i915.force_probe=*"
+    cmdline: "root=/dev/mapper/rootfs_verity console=ttyS0,115200 console=tty0 loglevel=7 sysctl.vm.overcommit_memory=1 sysctl.kernel.panic=10 sysctl.kernel.panic_on_oops=1 sysctl.fs.inotify.max_user_instances=8192 rd.parallel=1 rd.shell=0 rd.timeout=200 rd.emergency=reboot i915.force_probe=*"
     packages:
       - kernel-rt-drivers-gpu

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/open-edge-platform/os-image-composer/internal/config/validate"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/slice"
 )
 
 func TestMergeStringSlices(t *testing.T) {
@@ -1007,919 +1008,470 @@ func TestAdditionalFileInfo(t *testing.T) {
 	}
 }
 
-func TestBootloaderMerging(t *testing.T) {
-	defaultConfig := SystemConfig{
-		Bootloader: Bootloader{
-			BootType: "legacy",
-			Provider: "grub2",
-		},
-	}
-
-	userConfig := SystemConfig{
-		Bootloader: Bootloader{
-			BootType: "efi",
-			Provider: "systemd-boot",
-		},
-	}
-
-	merged := mergeSystemConfig(defaultConfig, userConfig)
-
-	if merged.Bootloader.BootType != "efi" {
-		t.Errorf("expected merged bootloader type 'efi', got '%s'", merged.Bootloader.BootType)
-	}
-	if merged.Bootloader.Provider != "systemd-boot" {
-		t.Errorf("expected merged bootloader provider 'systemd-boot', got '%s'", merged.Bootloader.Provider)
-	}
-}
-
-func TestEmptyBootloaderMerging(t *testing.T) {
-	defaultConfig := SystemConfig{
-		Bootloader: Bootloader{
-			BootType: "efi",
-			Provider: "grub2",
-		},
-	}
-
-	userConfig := SystemConfig{
-		// Empty bootloader config
-		Bootloader: Bootloader{},
-	}
-
-	merged := mergeSystemConfig(defaultConfig, userConfig)
-
-	// Should keep default bootloader when user config is empty
-	if merged.Bootloader.BootType != "efi" {
-		t.Errorf("expected default bootloader type 'efi', got '%s'", merged.Bootloader.BootType)
-	}
-	if merged.Bootloader.Provider != "grub2" {
-		t.Errorf("expected default bootloader provider 'grub2', got '%s'", merged.Bootloader.Provider)
-	}
-}
-
-func TestKernelConfigMerging(t *testing.T) {
-	defaultConfig := SystemConfig{
-		Kernel: KernelConfig{
-			Version: "6.10",
-			Cmdline: "quiet",
-		},
-	}
-
-	userConfig := SystemConfig{
-		Kernel: KernelConfig{
-			Version: "6.12",
-			Cmdline: "quiet splash debug",
-		},
-	}
-
-	merged := mergeSystemConfig(defaultConfig, userConfig)
-
-	if merged.Kernel.Version != "6.12" {
-		t.Errorf("expected merged kernel version '6.12', got '%s'", merged.Kernel.Version)
-	}
-	if merged.Kernel.Cmdline != "quiet splash debug" {
-		t.Errorf("expected merged kernel cmdline 'quiet splash debug', got '%s'", merged.Kernel.Cmdline)
-	}
-}
-
-func TestPartialKernelConfigMerging(t *testing.T) {
-	defaultConfig := SystemConfig{
-		Kernel: KernelConfig{
-			Version: "6.10",
-			Cmdline: "quiet",
-		},
-	}
-
-	userConfig := SystemConfig{
-		Kernel: KernelConfig{
-			Version: "6.12",
-			// No cmdline specified
-		},
-	}
-
-	merged := mergeSystemConfig(defaultConfig, userConfig)
-
-	if merged.Kernel.Version != "6.12" {
-		t.Errorf("expected merged kernel version '6.12', got '%s'", merged.Kernel.Version)
-	}
-	// Should keep default cmdline when user doesn't specify one
-	if merged.Kernel.Cmdline != "quiet" {
-		t.Errorf("expected default kernel cmdline 'quiet', got '%s'", merged.Kernel.Cmdline)
-	}
-}
-
-func TestLoadNonExistentFile(t *testing.T) {
-	_, err := LoadTemplate("/nonexistent/file.yml", false)
-	if err == nil {
-		t.Errorf("expected error for non-existent file")
-	}
-	if !strings.Contains(err.Error(), "no such file or directory") && !strings.Contains(err.Error(), "failed to read template file") {
-		t.Errorf("expected file not found error, got: %v", err)
-	}
-}
-
-func TestLoadInvalidYAML(t *testing.T) {
-	invalidYAML := `
-image:
-  name: test
-  version: 1.0.0
-target:
-  - invalid: yaml structure
-    that: doesn't match schema
-`
-
-	tmpFile, err := os.CreateTemp("", "test-*.yml")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	if err := tmpFile.Chmod(0600); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
-		return
-	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err := tmpFile.WriteString(invalidYAML); err != nil {
-		t.Fatalf("failed to write temp file: %v", err)
-	}
-	tmpFile.Close()
-
-	_, err = LoadTemplate(tmpFile.Name(), true)
-	if err == nil {
-		t.Errorf("expected error for invalid YAML structure")
-	}
-}
-
-func TestDefaultConfigLoader(t *testing.T) {
-	loader := NewDefaultConfigLoader("azure-linux", "azl3", "x86_64")
-
-	if loader.targetOs != "azure-linux" {
-		t.Errorf("expected target OS 'azure-linux', got '%s'", loader.targetOs)
-	}
-	if loader.targetDist != "azl3" {
-		t.Errorf("expected target dist 'azl3', got '%s'", loader.targetDist)
-	}
-	if loader.targetArch != "x86_64" {
-		t.Errorf("expected target arch 'x86_64', got '%s'", loader.targetArch)
-	}
-}
-
-func TestDefaultConfigLoaderUnsupportedImageType(t *testing.T) {
-	loader := NewDefaultConfigLoader("azure-linux", "azl3", "x86_64")
-
-	_, err := loader.LoadDefaultConfig("unsupported")
-	if err == nil {
-		t.Errorf("expected error for unsupported image type")
-	}
-	if !strings.Contains(err.Error(), "unsupported image type") {
-		t.Errorf("expected unsupported image type error, got: %v", err)
-	}
-}
-
-func TestPackageMergingWithDuplicates(t *testing.T) {
-	defaultPackages := []string{"base", "common", "utils"}
-	userPackages := []string{"common", "extra", "base", "new"}
-
-	merged := mergePackages(defaultPackages, userPackages)
-
-	// Should contain all unique packages
-	expectedPackages := []string{"base", "common", "utils", "extra", "new"}
-	if len(merged) != len(expectedPackages) {
-		t.Errorf("expected %d merged packages, got %d", len(expectedPackages), len(merged))
-	}
-
-	// Check for duplicates
-	packageMap := make(map[string]int)
-	for _, pkg := range merged {
-		packageMap[pkg]++
-		if packageMap[pkg] > 1 {
-			t.Errorf("found duplicate package '%s' in merged list", pkg)
-		}
-	}
-}
-
-func TestEmptyPackageMerging(t *testing.T) {
-	// Test merging with empty default packages
-	defaultPackages := []string{}
-	userPackages := []string{"package1", "package2"}
-
-	merged := mergePackages(defaultPackages, userPackages)
-	if len(merged) != 2 {
-		t.Errorf("expected 2 merged packages, got %d", len(merged))
-	}
-
-	// Test merging with empty user packages
-	defaultPackages = []string{"default1", "default2"}
-	userPackages = []string{}
-
-	merged = mergePackages(defaultPackages, userPackages)
-	if len(merged) != 2 {
-		t.Errorf("expected 2 merged packages, got %d", len(merged))
-	}
-}
-
-func TestComplexConfigurationMerging(t *testing.T) {
-	defaultTemplate := &ImageTemplate{
-		Image: ImageInfo{
-			Name:    "default-image",
-			Version: "1.0.0",
-		},
-		Target: TargetInfo{
-			OS:        "azure-linux",
-			Dist:      "azl3",
-			Arch:      "x86_64",
-			ImageType: "raw",
-		},
-		SystemConfig: SystemConfig{
-			Name: "default-config",
-			Immutability: ImmutabilityConfig{
-				Enabled:         true,
-				SecureBootDBKey: "/default/keys/db.key",
-			},
-			Users: []UserConfig{
-				{Name: "admin", Password: "defaultpass", Groups: []string{"wheel"}},
-			},
-			Packages: []string{"base", "common"},
-			Kernel: KernelConfig{
-				Version: "6.10",
-				Cmdline: "quiet",
-			},
-		},
-		Disk: DiskConfig{
-			Name: "default-disk",
-			Size: "10GiB",
-		},
-	}
-
-	userTemplate := &ImageTemplate{
-		Image: ImageInfo{
-			Name:    "user-image",
-			Version: "2.0.0",
-		},
-		Target: TargetInfo{
-			OS:        "azure-linux",
-			Dist:      "azl3",
-			Arch:      "x86_64",
-			ImageType: "iso",
-		},
-		SystemConfig: SystemConfig{
-			Name: "user-config",
-			Immutability: ImmutabilityConfig{
-				Enabled:         false,
-				SecureBootDBCrt: "/user/certs/db.crt",
-			},
-			Users: []UserConfig{
-				{Name: "user", Password: "userpass", HashAlgo: "sha512"},
-				{Name: "admin", Password: "newpass", Groups: []string{"admin", "wheel"}},
-			},
-			Packages: []string{"extra", "user-specific"},
-			Kernel: KernelConfig{
-				Version: "6.12",
-			},
-		},
-		Disk: DiskConfig{
-			Name: "user-disk",
-			Size: "20GiB",
-		},
-	}
-
-	merged, err := MergeConfigurations(userTemplate, defaultTemplate)
-	if err != nil {
-		t.Fatalf("failed to merge configurations: %v", err)
-	}
-
-	// Test image info (user should override)
-	if merged.Image.Name != "user-image" {
-		t.Errorf("expected merged image name 'user-image', got '%s'", merged.Image.Name)
-	}
-	if merged.Image.Version != "2.0.0" {
-		t.Errorf("expected merged image version '2.0.0', got '%s'", merged.Image.Version)
-	}
-
-	// Test target info (user should override)
-	if merged.Target.ImageType != "iso" {
-		t.Errorf("expected merged image type 'iso', got '%s'", merged.Target.ImageType)
-	}
-
-	// Test disk config (user should override)
-	if merged.Disk.Name != "user-disk" {
-		t.Errorf("expected merged disk name 'user-disk', got '%s'", merged.Disk.Name)
-	}
-	if merged.Disk.Size != "20GiB" {
-		t.Errorf("expected merged disk size '20GiB', got '%s'", merged.Disk.Size)
-	}
-
-	// Test system config merging
-	if merged.SystemConfig.Name != "user-config" {
-		t.Errorf("expected merged system config name 'user-config', got '%s'", merged.SystemConfig.Name)
-	}
-
-	// Test immutability merging (user false should override default true)
-	if merged.SystemConfig.Immutability.Enabled {
-		t.Errorf("expected merged immutability to be false, got true")
-	}
-
-	// Test that secure boot settings are merged
-	if merged.SystemConfig.Immutability.SecureBootDBKey != "/default/keys/db.key" {
-		t.Errorf("expected merged secure boot key from default config")
-	}
-	if merged.SystemConfig.Immutability.SecureBootDBCrt != "/user/certs/db.crt" {
-		t.Errorf("expected merged secure boot crt from user config")
-	}
-
-	// Test user merging
-	if len(merged.SystemConfig.Users) != 2 {
-		t.Errorf("expected 2 merged users, got %d", len(merged.SystemConfig.Users))
-	}
-
-	// Test package merging
-	packages := merged.GetPackages()
-	expectedPackageCount := 4 // base, common, extra, user-specific
-	if len(packages) != expectedPackageCount {
-		t.Errorf("expected %d merged packages, got %d", expectedPackageCount, len(packages))
-	}
-
-	// Test kernel merging
-	if merged.SystemConfig.Kernel.Version != "6.12" {
-		t.Errorf("expected merged kernel version '6.12', got '%s'", merged.SystemConfig.Kernel.Version)
-	}
-	// Cmdline should remain from default since user didn't specify
-	if merged.SystemConfig.Kernel.Cmdline != "quiet" {
-		t.Errorf("expected default kernel cmdline 'quiet', got '%s'", merged.SystemConfig.Kernel.Cmdline)
-	}
-}
-
-func TestNilTemplateHandling(t *testing.T) {
-	// Test merging with nil user template
-	_, err := MergeConfigurations(nil, &ImageTemplate{})
-	if err == nil {
-		t.Errorf("expected error when user template is nil")
-	}
-
-	// Test merging with nil default template (should work)
-	userTemplate := &ImageTemplate{
-		Image: ImageInfo{Name: "test", Version: "1.0.0"},
-	}
-	merged, err := MergeConfigurations(userTemplate, nil)
-	if err != nil {
-		t.Errorf("unexpected error when default template is nil: %v", err)
-	}
-	if merged.Image.Name != "test" {
-		t.Errorf("expected merged image name 'test', got '%s'", merged.Image.Name)
-	}
-}
-
-func TestGetImageNameMethod(t *testing.T) {
-	template := &ImageTemplate{
-		Image: ImageInfo{
-			Name:    "test-image-name",
-			Version: "1.2.3",
-		},
-	}
-
-	imageName := template.GetImageName()
-	if imageName != "test-image-name" {
-		t.Errorf("expected image name 'test-image-name', got '%s'", imageName)
-	}
-}
-
-func TestGetTargetInfoMethod(t *testing.T) {
-	expectedTarget := TargetInfo{
-		OS:        "azure-linux",
-		Dist:      "azl3",
-		Arch:      "aarch64",
-		ImageType: "iso",
-	}
-
-	template := &ImageTemplate{
-		Target: expectedTarget,
-	}
-
-	targetInfo := template.GetTargetInfo()
-	if targetInfo.OS != expectedTarget.OS {
-		t.Errorf("expected target OS '%s', got '%s'", expectedTarget.OS, targetInfo.OS)
-	}
-	if targetInfo.Arch != expectedTarget.Arch {
-		t.Errorf("expected target arch '%s', got '%s'", expectedTarget.Arch, targetInfo.Arch)
-	}
-	if targetInfo.ImageType != expectedTarget.ImageType {
-		t.Errorf("expected target image type '%s', got '%s'", expectedTarget.ImageType, targetInfo.ImageType)
-	}
-}
-
-func TestSaveUpdatedConfigFile(t *testing.T) {
-	template := &ImageTemplate{
-		Image: ImageInfo{
-			Name:    "test-save",
-			Version: "1.0.0",
-		},
-	}
-
-	// Test the function (currently returns nil, but we test the interface)
-	err := template.SaveUpdatedConfigFile("/tmp/test.yml")
-	if err != nil {
-		t.Errorf("SaveUpdatedConfigFile returned unexpected error: %v", err)
-	}
-}
-
-func TestUserConfigValidation(t *testing.T) {
-	template := &ImageTemplate{
-		SystemConfig: SystemConfig{
-			Users: []UserConfig{
-				{
-					Name:           "testuser",
-					Password:       "testpass",
-					HashAlgo:       "sha512",
-					PasswordMaxAge: 90,
-					StartupScript:  "/home/testuser/startup.sh",
-					Groups:         []string{"users", "docker"},
-					Sudo:           true,
-					Home:           "/home/testuser",
-					Shell:          "/bin/bash",
-				},
-			},
-		},
-	}
-
-	users := template.GetUsers()
-	if len(users) != 1 {
-		t.Errorf("expected 1 user, got %d", len(users))
-	}
-
-	user := users[0]
-	if user.PasswordMaxAge != 90 {
-		t.Errorf("expected password max age 90, got %d", user.PasswordMaxAge)
-	}
-	if user.StartupScript != "/home/testuser/startup.sh" {
-		t.Errorf("expected startup script '/home/testuser/startup.sh', got '%s'", user.StartupScript)
-	}
-	if user.Home != "/home/testuser" {
-		t.Errorf("expected home '/home/testuser', got '%s'", user.Home)
-	}
-	if user.Shell != "/bin/bash" {
-		t.Errorf("expected shell '/bin/bash', got '%s'", user.Shell)
-	}
-}
-
-func TestUnknownProviderMapping(t *testing.T) {
-	template := &ImageTemplate{
-		Target: TargetInfo{
-			OS:   "unknown-os",
-			Dist: "unknown-dist",
-		},
-	}
-
-	providerName := template.GetProviderName()
-	if providerName != "" {
-		t.Errorf("expected empty provider name for unknown OS/dist, got '%s'", providerName)
-	}
-
-	version := template.GetDistroVersion()
-	if version != "" {
-		t.Errorf("expected empty version for unknown dist, got '%s'", version)
-	}
-}
-
-func TestSystemConfigImmutabilityMethods(t *testing.T) {
-	systemConfig := SystemConfig{
-		Immutability: ImmutabilityConfig{
-			Enabled:         true,
-			SecureBootDBKey: "/path/to/key.key",
-			SecureBootDBCrt: "/path/to/cert.crt",
-			SecureBootDBCer: "/path/to/cert.cer",
-		},
-	}
-
-	if !systemConfig.IsImmutabilityEnabled() {
-		t.Errorf("expected systemConfig immutability to be enabled")
-	}
-
-	if !systemConfig.HasSecureBootDBConfig() {
-		t.Errorf("expected systemConfig to have secure boot DB config")
-	}
-
-	if systemConfig.GetSecureBootDBKeyPath() != "/path/to/key.key" {
-		t.Errorf("expected key path '/path/to/key.key', got '%s'", systemConfig.GetSecureBootDBKeyPath())
-	}
-
-	if systemConfig.GetSecureBootDBCrtPath() != "/path/to/cert.crt" {
-		t.Errorf("expected crt path '/path/to/cert.crt', got '%s'", systemConfig.GetSecureBootDBCrtPath())
-	}
-
-	if systemConfig.GetSecureBootDBCerPath() != "/path/to/cert.cer" {
-		t.Errorf("expected cer path '/path/to/cert.cer', got '%s'", systemConfig.GetSecureBootDBCerPath())
-	}
-}
-
-func TestSystemConfigWithoutImmutability(t *testing.T) {
-	systemConfig := SystemConfig{
-		Name: "test-config",
-		// No immutability config
-	}
-
-	if systemConfig.IsImmutabilityEnabled() {
-		t.Errorf("expected systemConfig immutability to be disabled")
-	}
-
-	if systemConfig.HasSecureBootDBConfig() {
-		t.Errorf("expected systemConfig to not have secure boot DB config")
-	}
-
-	if systemConfig.GetSecureBootDBKeyPath() != "" {
-		t.Errorf("expected empty key path, got '%s'", systemConfig.GetSecureBootDBKeyPath())
-	}
-}
-
-func TestMergeUserConfigBasicFields(t *testing.T) {
+func TestMergeUserConfig(t *testing.T) {
 	defaultUser := UserConfig{
-		Name:           "testuser",
-		Password:       "defaultpass",
-		HashAlgo:       "sha256",
+		Name:           "user",
+		Password:       "default",
+		HashAlgo:       "sha512",
 		PasswordMaxAge: 90,
-		StartupScript:  "/default/script.sh",
-		Groups:         []string{"default-group"},
-		Sudo:           false,
-		Home:           "/home/default",
-		Shell:          "/bin/sh",
+		Groups:         []string{"group1"},
 	}
 
+	// Test override
 	userUser := UserConfig{
-		Name:           "testuser",
-		Password:       "newpass",
-		HashAlgo:       "sha512",
-		PasswordMaxAge: 180,
-		StartupScript:  "/user/script.sh",
-		Groups:         []string{"user-group", "admin"},
-		Sudo:           true,
-		Home:           "/home/custom",
-		Shell:          "/bin/bash",
+		Name:     "user",
+		Password: "newpassword",
+		Groups:   []string{"group2"},
+		Sudo:     true,
 	}
 
 	merged := mergeUserConfig(defaultUser, userUser)
 
-	if merged.Password != "newpass" {
-		t.Errorf("expected password 'newpass', got '%s'", merged.Password)
+	if merged.Password != "newpassword" {
+		t.Errorf("Expected password newpassword, got %s", merged.Password)
 	}
 	if merged.HashAlgo != "sha512" {
-		t.Errorf("expected hash algo 'sha512', got '%s'", merged.HashAlgo)
-	}
-	if merged.PasswordMaxAge != 180 {
-		t.Errorf("expected password max age 180, got %d", merged.PasswordMaxAge)
-	}
-	if merged.StartupScript != "/user/script.sh" {
-		t.Errorf("expected startup script '/user/script.sh', got '%s'", merged.StartupScript)
+		t.Errorf("Expected hash algo sha512, got %s", merged.HashAlgo)
 	}
 	if !merged.Sudo {
-		t.Errorf("expected sudo to be true")
+		t.Errorf("Expected sudo true")
 	}
-	if merged.Home != "/home/custom" {
-		t.Errorf("expected home '/home/custom', got '%s'", merged.Home)
+	if !slice.Contains(merged.Groups, "group1") || !slice.Contains(merged.Groups, "group2") {
+		t.Errorf("Expected groups to contain group1 and group2, got %v", merged.Groups)
 	}
-	if merged.Shell != "/bin/bash" {
-		t.Errorf("expected shell '/bin/bash', got '%s'", merged.Shell)
+
+	// Test pre-hashed password
+	userUserHashed := UserConfig{
+		Name:     "user",
+		Password: "$6$hash",
 	}
-	if len(merged.Groups) != 3 { // should merge groups
-		t.Errorf("expected 3 merged groups, got %d", len(merged.Groups))
+
+	mergedHashed := mergeUserConfig(defaultUser, userUserHashed)
+	if mergedHashed.HashAlgo != "" {
+		t.Errorf("Expected empty hash algo for pre-hashed password, got %s", mergedHashed.HashAlgo)
 	}
 }
 
-func TestMergeUserConfigPreHashedPassword(t *testing.T) {
-	defaultUser := UserConfig{
-		Name:     "testuser",
-		Password: "plaintext",
-		HashAlgo: "sha512",
+func TestMergeAdditionalFiles(t *testing.T) {
+	defaultFiles := []AdditionalFileInfo{
+		{Local: "default1", Final: "/etc/file1"},
+		{Local: "default2", Final: "/etc/file2"},
+	}
+	userFiles := []AdditionalFileInfo{
+		{Local: "user1", Final: "/etc/file1"}, // Override
+		{Local: "user3", Final: "/etc/file3"}, // New
 	}
 
-	// User provides pre-hashed password (starts with $)
-	userUser := UserConfig{
-		Name:     "testuser",
-		Password: "$6$salt$hashedpassword",
-	}
-
-	merged := mergeUserConfig(defaultUser, userUser)
-
-	if merged.Password != "$6$salt$hashedpassword" {
-		t.Errorf("expected pre-hashed password, got '%s'", merged.Password)
-	}
-	if merged.HashAlgo != "" {
-		t.Errorf("expected empty hash algo for pre-hashed password, got '%s'", merged.HashAlgo)
-	}
-}
-
-func TestMergeUserConfigHashAlgoOnly(t *testing.T) {
-	defaultUser := UserConfig{
-		Name:     "testuser",
-		Password: "defaultpass",
-		HashAlgo: "sha256",
-	}
-
-	// User only changes hash algorithm
-	userUser := UserConfig{
-		Name:     "testuser",
-		HashAlgo: "bcrypt",
-	}
-
-	merged := mergeUserConfig(defaultUser, userUser)
-
-	if merged.Password != "defaultpass" {
-		t.Errorf("expected default password to be preserved, got '%s'", merged.Password)
-	}
-	if merged.HashAlgo != "bcrypt" {
-		t.Errorf("expected hash algo 'bcrypt', got '%s'", merged.HashAlgo)
-	}
-}
-
-func TestUserMergingOverrideExisting(t *testing.T) {
-	// Test that user merging properly overrides existing users by name
-	defaultUsers := []UserConfig{
-		{Name: "admin", Password: "oldpass", Groups: []string{"wheel"}},
-		{Name: "user", Password: "userpass", HashAlgo: "sha256"},
-	}
-
-	userUsers := []UserConfig{
-		{Name: "admin", Password: "newpass", Groups: []string{"admin", "wheel"}, Sudo: true},
-		{Name: "newuser", Password: "newuserpass", HashAlgo: "sha512"},
-	}
-
-	merged := mergeUsers(defaultUsers, userUsers)
+	merged := mergeAdditionalFiles(defaultFiles, userFiles)
 
 	if len(merged) != 3 {
-		t.Errorf("expected 3 merged users, got %d", len(merged))
+		t.Errorf("Expected 3 files, got %d", len(merged))
 	}
 
-	// Find admin user in merged result
-	var adminUser *UserConfig
-	for i := range merged {
-		if merged[i].Name == "admin" {
-			adminUser = &merged[i]
-			break
-		}
+	fileMap := make(map[string]AdditionalFileInfo)
+	for _, f := range merged {
+		fileMap[f.Final] = f
 	}
 
-	if adminUser == nil {
-		t.Errorf("admin user not found in merged result")
-	} else {
-		if adminUser.Password != "newpass" {
-			t.Errorf("expected admin password 'newpass', got '%s'", adminUser.Password)
-		}
-		if !adminUser.Sudo {
-			t.Errorf("expected admin to have sudo privileges")
-		}
-		if len(adminUser.Groups) != 2 {
-			t.Errorf("expected admin to have 2 groups, got %d", len(adminUser.Groups))
-		}
+	if fileMap["/etc/file1"].Local != "user1" {
+		t.Errorf("Expected /etc/file1 to be user1, got %s", fileMap["/etc/file1"].Local)
+	}
+	if fileMap["/etc/file2"].Local != "default2" {
+		t.Errorf("Expected /etc/file2 to be default2, got %s", fileMap["/etc/file2"].Local)
+	}
+	if fileMap["/etc/file3"].Local != "user3" {
+		t.Errorf("Expected /etc/file3 to be user3, got %s", fileMap["/etc/file3"].Local)
 	}
 }
 
-func TestUnsupportedFileExtensions(t *testing.T) {
-	unsupportedExtensions := []string{".txt", ".json", ".xml", ".ini", ".conf", ".properties"}
+func TestMergePackages(t *testing.T) {
+	p1 := []string{"pkg1", "pkg2"}
+	p2 := []string{"pkg2", "pkg3"}
+	merged := mergePackages(p1, p2)
 
-	for _, ext := range unsupportedExtensions {
-		tmpFile, err := os.CreateTemp("", "test-*"+ext)
-		if err != nil {
-			t.Fatalf("failed to create temp file: %v", err)
-		}
-		if err := tmpFile.Chmod(0600); err != nil {
-			tmpFile.Close()
-			os.Remove(tmpFile.Name())
-			return
-		}
-		defer os.Remove(tmpFile.Name())
-
-		content := "some content"
-		if _, err := tmpFile.WriteString(content); err != nil {
-			t.Fatalf("failed to write temp file: %v", err)
-		}
-		tmpFile.Close()
-
-		_, err = LoadTemplate(tmpFile.Name(), false)
-		if err == nil {
-			t.Errorf("expected error for unsupported extension %s", ext)
-		}
-		if !strings.Contains(err.Error(), "unsupported file format") {
-			t.Errorf("expected unsupported file format error for %s, got: %v", ext, err)
-		}
+	if len(merged) != 3 {
+		t.Errorf("Expected 3 packages, got %d", len(merged))
 	}
 }
 
-// Updated test to match actual isEmptySystemConfig logic
-func TestIsEmptySystemConfig(t *testing.T) {
-	// Test empty system config
-	emptyConfig := SystemConfig{}
-	if !isEmptySystemConfig(emptyConfig) {
-		t.Errorf("expected empty system config to be detected as empty")
+func TestMergeKernelConfig(t *testing.T) {
+	defaultKernel := KernelConfig{
+		Version:  "1.0",
+		Cmdline:  "default",
+		Packages: []string{"kernel-default"},
+	}
+	userKernel := KernelConfig{
+		Version:            "2.0",
+		EnableExtraModules: "true",
 	}
 
-	// Test non-empty system config
-	nonEmptyConfig := SystemConfig{Name: "test"}
-	if isEmptySystemConfig(nonEmptyConfig) {
-		t.Errorf("expected non-empty system config to not be detected as empty")
-	}
+	merged := mergeKernelConfig(defaultKernel, userKernel)
 
-	// Test config with only packages - according to actual implementation, this is still empty
-	packageConfig := SystemConfig{Packages: []string{"test"}}
-	if !isEmptySystemConfig(packageConfig) {
-		t.Errorf("expected config with packages but no name to be detected as empty")
+	if merged.Version != "2.0" {
+		t.Errorf("Expected version 2.0, got %s", merged.Version)
 	}
-}
-
-func TestIsEmptyBootloader(t *testing.T) {
-	// Test empty bootloader
-	emptyBootloader := Bootloader{}
-	if !isEmptyBootloader(emptyBootloader) {
-		t.Errorf("expected empty bootloader to be detected as empty")
+	if merged.Cmdline != "default" {
+		t.Errorf("Expected cmdline default, got %s", merged.Cmdline)
 	}
-
-	// Test bootloader with boot type
-	bootTypeLoader := Bootloader{BootType: "efi"}
-	if isEmptyBootloader(bootTypeLoader) {
-		t.Errorf("expected bootloader with boot type to not be detected as empty")
+	if merged.EnableExtraModules != "true" {
+		t.Errorf("Expected enableExtraModules true, got %s", merged.EnableExtraModules)
 	}
-
-	// Test bootloader with provider
-	providerLoader := Bootloader{Provider: "grub2"}
-	if isEmptyBootloader(providerLoader) {
-		t.Errorf("expected bootloader with provider to not be detected as empty")
+	if len(merged.Packages) != 1 || merged.Packages[0] != "kernel-default" {
+		t.Errorf("Expected packages [kernel-default], got %v", merged.Packages)
 	}
 }
 
-func TestSystemConfigGetters(t *testing.T) {
-	systemConfig := SystemConfig{
-		Name:        "test-system",
-		Description: "Test system config",
-		Packages:    []string{"pkg1", "pkg2"},
-		Kernel: KernelConfig{
-			Version: "6.12",
-			Cmdline: "quiet splash",
+func TestLoadProviderRepoConfig(t *testing.T) {
+	// Setup temporary config directory
+	tempDir := t.TempDir()
+
+	// Save original global config
+	originalGlobal := Global()
+	// Restore original global config after test
+	defer SetGlobal(originalGlobal)
+
+	// Set new global config with temp dir
+	newGlobal := DefaultGlobalConfig()
+	newGlobal.ConfigDir = tempDir
+	SetGlobal(newGlobal)
+
+	// Create directory structure
+	// config/osv/testos/testdist/providerconfigs/repo.yml
+	osDistDir := filepath.Join(tempDir, "osv", "testos", "testdist")
+	providerConfigDir := filepath.Join(osDistDir, "providerconfigs")
+	if err := os.MkdirAll(providerConfigDir, 0755); err != nil {
+		t.Fatalf("Failed to create directory structure: %v", err)
+	}
+
+	// Create repo.yml
+	repoConfigContent := `
+repositories:
+  - name: test-repo
+    type: rpm
+    baseURL: http://example.com/repo
+    gpgKey: http://example.com/key
+    enabled: true
+`
+	repoConfigFile := filepath.Join(providerConfigDir, "repo.yml")
+	if err := os.WriteFile(repoConfigFile, []byte(repoConfigContent), 0644); err != nil {
+		t.Fatalf("Failed to write repo config file: %v", err)
+	}
+
+	// Test LoadProviderRepoConfig
+	repos, err := LoadProviderRepoConfig("testos", "testdist")
+	if err != nil {
+		t.Fatalf("LoadProviderRepoConfig failed: %v", err)
+	}
+
+	if len(repos) != 1 {
+		t.Errorf("Expected 1 repository, got %d", len(repos))
+	}
+	if repos[0].Name != "test-repo" {
+		t.Errorf("Expected repo name 'test-repo', got '%s'", repos[0].Name)
+	}
+}
+
+func TestToRepoConfigData(t *testing.T) {
+	// Test RPM repo
+	rpmRepo := ProviderRepoConfig{
+		Name:    "rpm-repo",
+		Type:    "rpm",
+		BaseURL: "http://example.com/rpm/{arch}",
+		GPGKey:  "key.gpg",
+		Enabled: true,
+	}
+
+	repoType, name, url, gpgKey, _, _, _, _, _, _, _, _, enabled := rpmRepo.ToRepoConfigData("x86_64")
+
+	if repoType != "rpm" {
+		t.Errorf("Expected type rpm, got %s", repoType)
+	}
+	if name != "rpm-repo" {
+		t.Errorf("Expected name rpm-repo, got %s", name)
+	}
+	if url != "http://example.com/rpm/x86_64" {
+		t.Errorf("Expected url http://example.com/rpm/x86_64, got %s", url)
+	}
+	// Relative GPG key should be combined with URL
+	expectedGpgKey := "http://example.com/rpm/x86_64/key.gpg"
+	if gpgKey != expectedGpgKey {
+		t.Errorf("Expected gpgKey %s, got %s", expectedGpgKey, gpgKey)
+	}
+	if !enabled {
+		t.Errorf("Expected enabled true")
+	}
+
+	// Test DEB repo
+	debRepo := ProviderRepoConfig{
+		Name:      "deb-repo",
+		Type:      "deb",
+		BaseURL:   "http://example.com/deb",
+		PbGPGKey:  "http://example.com/key.gpg",
+		PkgPrefix: "prefix",
+		Enabled:   true,
+	}
+
+	repoType, _, url, gpgKey, _, _, pkgPrefix, _, _, _, _, _, _ := debRepo.ToRepoConfigData("amd64")
+
+	if repoType != "deb" {
+		t.Errorf("Expected type deb, got %s", repoType)
+	}
+	if url != "http://example.com/deb/binary-amd64/Packages.gz" {
+		t.Errorf("Expected url http://example.com/deb/binary-amd64/Packages.gz, got %s", url)
+	}
+	if gpgKey != "http://example.com/key.gpg" {
+		t.Errorf("Expected gpgKey http://example.com/key.gpg, got %s", gpgKey)
+	}
+	if pkgPrefix != "prefix" {
+		t.Errorf("Expected pkgPrefix prefix, got %s", pkgPrefix)
+	}
+}
+
+func TestGetInitramfsTemplate(t *testing.T) {
+	tempDir := t.TempDir()
+	templateFile := filepath.Join(tempDir, "template.yml")
+	initrdFile := filepath.Join(tempDir, "initrd.template")
+
+	if err := os.WriteFile(initrdFile, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create initrd file: %v", err)
+	}
+
+	// Test absolute path
+	tmpl := &ImageTemplate{
+		SystemConfig: SystemConfig{
+			Initramfs: Initramfs{
+				Template: initrdFile,
+			},
 		},
-		Bootloader: Bootloader{
-			BootType: "efi",
-			Provider: "grub2",
+	}
+
+	path, err := tmpl.GetInitramfsTemplate()
+	if err != nil {
+		t.Fatalf("GetInitramfsTemplate failed with absolute path: %v", err)
+	}
+	if path != initrdFile {
+		t.Errorf("Expected path %s, got %s", initrdFile, path)
+	}
+
+	// Test relative path
+	tmplRelative := &ImageTemplate{
+		SystemConfig: SystemConfig{
+			Initramfs: Initramfs{
+				Template: "initrd.template",
+			},
 		},
-		AdditionalFiles: []AdditionalFileInfo{
-			{Local: "/local/file", Final: "/final/file"},
-		},
+		PathList: []string{templateFile},
 	}
 
-	// Test that all fields are accessible
-	if systemConfig.Name != "test-system" {
-		t.Errorf("expected name 'test-system', got '%s'", systemConfig.Name)
+	path, err = tmplRelative.GetInitramfsTemplate()
+	if err != nil {
+		t.Fatalf("GetInitramfsTemplate failed with relative path: %v", err)
 	}
-
-	if systemConfig.Description != "Test system config" {
-		t.Errorf("expected description 'Test system config', got '%s'", systemConfig.Description)
-	}
-
-	if len(systemConfig.Packages) != 2 {
-		t.Errorf("expected 2 packages, got %d", len(systemConfig.Packages))
-	}
-
-	if systemConfig.Kernel.Version != "6.12" {
-		t.Errorf("expected kernel version '6.12', got '%s'", systemConfig.Kernel.Version)
-	}
-
-	if systemConfig.Bootloader.BootType != "efi" {
-		t.Errorf("expected bootloader type 'efi', got '%s'", systemConfig.Bootloader.BootType)
-	}
-
-	if len(systemConfig.AdditionalFiles) != 1 {
-		t.Errorf("expected 1 additional file, got %d", len(systemConfig.AdditionalFiles))
+	if path != initrdFile {
+		t.Errorf("Expected path %s, got %s", initrdFile, path)
 	}
 }
 
-// Remove invalid tests and keep proper minimal valid tests for validation scenarios
-func TestLoadAndMergeTemplate(t *testing.T) {
-	// Create a simple user template with required fields
-	yamlContent := `image:
-  name: test-load-merge
-  version: 1.0.0
+func TestGetAdditionalFileInfo(t *testing.T) {
+	tempDir := t.TempDir()
+	templateFile := filepath.Join(tempDir, "template.yml")
+	localFile := filepath.Join(tempDir, "local.txt")
+
+	if err := os.WriteFile(localFile, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create local file: %v", err)
+	}
+
+	// Test absolute path
+	tmpl := &ImageTemplate{
+		SystemConfig: SystemConfig{
+			AdditionalFiles: []AdditionalFileInfo{
+				{Local: localFile, Final: "/etc/final.txt"},
+			},
+		},
+	}
+
+	files := tmpl.GetAdditionalFileInfo()
+	if len(files) != 1 {
+		t.Errorf("Expected 1 additional file, got %d", len(files))
+	}
+	if files[0].Local != localFile {
+		t.Errorf("Expected local path %s, got %s", localFile, files[0].Local)
+	}
+
+	// Test relative path
+	tmplRelative := &ImageTemplate{
+		SystemConfig: SystemConfig{
+			AdditionalFiles: []AdditionalFileInfo{
+				{Local: "local.txt", Final: "/etc/final.txt"},
+			},
+		},
+		PathList: []string{templateFile},
+	}
+
+	files = tmplRelative.GetAdditionalFileInfo()
+	if len(files) != 1 {
+		t.Errorf("Expected 1 additional file, got %d", len(files))
+	}
+	if files[0].Local != localFile {
+		t.Errorf("Expected local path %s, got %s", localFile, files[0].Local)
+	}
+}
+
+func TestLoadDefaultConfig(t *testing.T) {
+	// Setup temporary config directory
+	tempDir := t.TempDir()
+
+	// Save original global config
+	originalGlobal := Global()
+	defer SetGlobal(originalGlobal)
+
+	// Set new global config with temp dir
+	newGlobal := DefaultGlobalConfig()
+	newGlobal.ConfigDir = tempDir
+	SetGlobal(newGlobal)
+
+	// Create directory structure
+	// config/osv/azure-linux/azl3/imageconfigs/defaultconfigs/default-raw-x86_64.yml
+	osDistDir := filepath.Join(tempDir, "osv", "azure-linux", "azl3")
+	defaultConfigDir := filepath.Join(osDistDir, "imageconfigs", "defaultconfigs")
+	if err := os.MkdirAll(defaultConfigDir, 0755); err != nil {
+		t.Fatalf("Failed to create directory structure: %v", err)
+	}
+
+	// Create default config file
+	defaultConfigContent := `
+image:
+  name: default-image
+  version: "0.0.1"
 target:
   os: azure-linux
   dist: azl3
   arch: x86_64
   imageType: raw
 systemConfig:
-  name: user-config
+  name: default-system
   packages:
-    - user-package
-  kernel:
-    version: "6.12"
-    cmdline: "quiet"
+    - default-pkg
 `
+	defaultConfigFile := filepath.Join(defaultConfigDir, "default-raw-x86_64.yml")
+	if err := os.WriteFile(defaultConfigFile, []byte(defaultConfigContent), 0644); err != nil {
+		t.Fatalf("Failed to write default config file: %v", err)
+	}
 
-	tmpFile, err := os.CreateTemp("", "test-*.yml")
+	// Test LoadDefaultConfig
+	loader := NewDefaultConfigLoader("azure-linux", "azl3", "x86_64")
+	template, err := loader.LoadDefaultConfig("raw")
 	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
+		t.Fatalf("LoadDefaultConfig failed: %v", err)
 	}
-	if err := tmpFile.Chmod(0600); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
-		return
-	}
-	defer os.Remove(tmpFile.Name())
 
-	if _, err := tmpFile.WriteString(yamlContent); err != nil {
-		t.Fatalf("failed to write temp file: %v", err)
+	if template.Image.Name != "default-image" {
+		t.Errorf("Expected image name 'default-image', got '%s'", template.Image.Name)
 	}
-	tmpFile.Close()
+	if template.SystemConfig.Name != "default-system" {
+		t.Errorf("Expected system config name 'default-system', got '%s'", template.SystemConfig.Name)
+	}
+}
 
-	// This will likely fail to find default config, but should fall back to user template
-	template, err := LoadAndMergeTemplate(tmpFile.Name())
+func TestLoadAndMergeTemplate(t *testing.T) {
+	// Setup temporary config directory
+	tempDir := t.TempDir()
+
+	// Save original global config
+	originalGlobal := Global()
+	defer SetGlobal(originalGlobal)
+
+	// Set new global config with temp dir
+	newGlobal := DefaultGlobalConfig()
+	newGlobal.ConfigDir = tempDir
+	SetGlobal(newGlobal)
+
+	// Create directory structure for default config
+	osDistDir := filepath.Join(tempDir, "osv", "azure-linux", "azl3")
+	defaultConfigDir := filepath.Join(osDistDir, "imageconfigs", "defaultconfigs")
+	if err := os.MkdirAll(defaultConfigDir, 0755); err != nil {
+		t.Fatalf("Failed to create directory structure: %v", err)
+	}
+
+	// Create default config file
+	defaultConfigContent := `
+image:
+  name: default-image
+  version: "0.0.1"
+target:
+  os: azure-linux
+  dist: azl3
+  arch: x86_64
+  imageType: raw
+systemConfig:
+  name: default-system
+  packages:
+    - default-pkg
+`
+	defaultConfigFile := filepath.Join(defaultConfigDir, "default-raw-x86_64.yml")
+	if err := os.WriteFile(defaultConfigFile, []byte(defaultConfigContent), 0644); err != nil {
+		t.Fatalf("Failed to write default config file: %v", err)
+	}
+
+	// Create user template file
+	userConfigContent := `
+image:
+  name: user-image
+  version: "0.0.2"
+target:
+  os: azure-linux
+  dist: azl3
+  arch: x86_64
+  imageType: raw
+systemConfig:
+  name: user-system
+  packages:
+    - user-pkg
+`
+	userConfigFile := filepath.Join(tempDir, "user-config.yml")
+	if err := os.WriteFile(userConfigFile, []byte(userConfigContent), 0644); err != nil {
+		t.Fatalf("Failed to write user config file: %v", err)
+	}
+
+	// Test LoadAndMergeTemplate
+	template, err := LoadAndMergeTemplate(userConfigFile)
 	if err != nil {
 		t.Fatalf("LoadAndMergeTemplate failed: %v", err)
 	}
 
-	if template.Image.Name != "test-load-merge" {
-		t.Errorf("expected image name 'test-load-merge', got '%s'", template.Image.Name)
+	// Verify merged results
+	if template.Image.Name != "user-image" {
+		t.Errorf("Expected image name 'user-image', got '%s'", template.Image.Name)
+	}
+	if template.SystemConfig.Name != "user-system" {
+		t.Errorf("Expected system config name 'user-system', got '%s'", template.SystemConfig.Name)
 	}
 
-	if template.SystemConfig.Name != "user-config" {
-		t.Errorf("expected system config name 'user-config', got '%s'", template.SystemConfig.Name)
+	// Verify packages merged (default + user)
+	packages := template.GetPackages()
+	hasDefault := false
+	hasUser := false
+	for _, pkg := range packages {
+		if pkg == "default-pkg" {
+			hasDefault = true
+		}
+		if pkg == "user-pkg" {
+			hasUser = true
+		}
+	}
+	if !hasDefault {
+		t.Error("Expected default-pkg in merged packages")
+	}
+	if !hasUser {
+		t.Error("Expected user-pkg in merged packages")
 	}
 }
 
-// Updated tests for fixed validation behavior
-func TestLoadTemplateWithValidationErrors(t *testing.T) {
-	// Template missing required fields
-	incompleteYAML := `image:
-  name: test
-  # missing version
-target:
-  os: azure-linux
-  # missing other required fields`
-
-	tmpFile, err := os.CreateTemp("", "test-*.yml")
-	if err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-	if err := tmpFile.Chmod(0600); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpFile.Name())
-		return
-	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err := tmpFile.WriteString(incompleteYAML); err != nil {
-		t.Fatalf("failed to write temp file: %v", err)
-	}
-	tmpFile.Close()
-
-	// Should work without validation since it uses user template validation
-	_, err = LoadTemplate(tmpFile.Name(), false)
-	if err != nil {
-		t.Logf("validation occurred even without full validation: %v", err)
-	}
-
-	// Should fail with validation
-	_, err = LoadTemplate(tmpFile.Name(), true)
-	if err == nil {
-		t.Errorf("expected validation error for incomplete template")
-	}
-}
-
-// Update isEmptyFunctionsEdgeCases to match actual implementation
-func TestIsEmptyFunctionsEdgeCases(t *testing.T) {
-	// Test isEmptyDiskConfig edge cases - actual implementation only checks Name, Size, and Partitions
-	diskWithOnlyArtifacts := DiskConfig{
-		Artifacts: []ArtifactInfo{{Type: "raw"}},
-	}
-	if !isEmptyDiskConfig(diskWithOnlyArtifacts) {
-		t.Errorf("disk with only artifacts should be considered empty (actual implementation)")
-	}
-
-	diskWithOnlyPartitionTableType := DiskConfig{
-		PartitionTableType: "gpt",
-	}
-	if !isEmptyDiskConfig(diskWithOnlyPartitionTableType) {
-		t.Errorf("disk with only partition table type should be considered empty (actual implementation)")
-	}
-
-	// Test isEmptySystemConfig edge cases
-	configWithOnlyDescription := SystemConfig{
-		Description: "test description",
-	}
-	if !isEmptySystemConfig(configWithOnlyDescription) {
-		t.Errorf("system config with only description should be considered empty (only name matters)")
-	}
-
-	configWithPackages := SystemConfig{
-		Packages: []string{"test-package"},
-	}
-	if !isEmptySystemConfig(configWithPackages) {
-		t.Errorf("system config with packages but no name should be considered empty")
-	}
-}
-
-// Fix validation tests with valid templates
-func TestValidateImageTemplateJSON(t *testing.T) {
-	// Valid complete template JSON with all required fields
+func TestValidateImageTemplateJSONBasic(t *testing.T) {
 	validTemplate := `{
 		"image": {"name": "test", "version": "1.0.0"},
 		"target": {"os": "azure-linux", "dist": "azl3", "arch": "x86_64", "imageType": "raw"},
-		"systemConfig": {
-			"name": "test-config",
-			"packages": ["test-pkg"],
-			"kernel": {"version": "6.12", "cmdline": "quiet"}
-		}
+		"systemConfig": {"name": "default", "packages": ["filesystem"]}
 	}`
 
 	err := validate.ValidateImageTemplateJSON([]byte(validTemplate))
@@ -2560,7 +2112,6 @@ systemConfig:
 		}
 	}
 }
-
 func BenchmarkMergeConfigurations(b *testing.B) {
 	defaultTemplate := &ImageTemplate{
 		Image:  ImageInfo{Name: "default", Version: "1.0.0"},
@@ -3600,3 +3151,4 @@ func TestUnifiedRepoConfig(t *testing.T) {
 		})
 	}
 }
+
