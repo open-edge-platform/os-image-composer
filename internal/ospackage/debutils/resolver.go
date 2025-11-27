@@ -73,7 +73,7 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string, pkgSources map[strin
 		if pkg.Name == "" {
 			continue
 		}
-		source := config.PackageSource("")
+		source := config.PackageSourceUnknown
 		if pkgSources != nil {
 			if val, ok := pkgSources[pkg.Name]; ok {
 				source = val

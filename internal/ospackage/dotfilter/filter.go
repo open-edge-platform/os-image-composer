@@ -24,7 +24,7 @@ func FilterPackagesForDot(pkgs []ospackage.PackageInfo, pkgSources map[string]co
 		pkgByName[pkg.Name] = pkg
 	}
 
-	queue := make([]string, 0)
+	queue := make([]string, 0, len(pkgSources))
 	visited := make(map[string]struct{})
 
 	for name, source := range pkgSources {

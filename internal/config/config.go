@@ -94,6 +94,7 @@ type ImageTemplate struct {
 type PackageSource string
 
 const (
+	PackageSourceUnknown    PackageSource = "unknown"
 	PackageSourceEssential  PackageSource = "essential"
 	PackageSourceKernel     PackageSource = "kernel"
 	PackageSourceSystem     PackageSource = "system"
@@ -337,6 +338,7 @@ func (t *ImageTemplate) GetPackages() []string {
 }
 
 var packageSourcePriority = map[PackageSource]int{
+	PackageSourceUnknown:    0,
 	PackageSourceEssential:  10,
 	PackageSourceKernel:     20,
 	PackageSourceBootloader: 20,
