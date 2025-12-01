@@ -69,6 +69,10 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 	}
 
 	var buildErr error
+        if verbose {
+		// if verbose enabled set the log level to debug which is the most verbose setting in the logger
+		logger.SetLogLevel("debug")
+	}
 	log := logger.Logger()
 
 	// Check if template file is provided as first positional argument
