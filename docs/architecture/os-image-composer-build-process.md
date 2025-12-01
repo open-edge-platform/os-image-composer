@@ -359,6 +359,9 @@ sudo -E os-image-composer build --verbose my-template.yml
 
 # Generate dependency graph visualization
 sudo -E os-image-composer build --dotfile deps.dot my-template.yml
+
+# Generate a graph that only shows SystemConfig roots
+sudo -E os-image-composer build --dotfile system.dot --system-packages-only my-template.yml
 ```
 
 ## Common Build Patterns

@@ -1,6 +1,7 @@
 package rpmutils
 
 import (
+	"bufio"
 	"compress/gzip"
 	"encoding/xml"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/klauspost/compress/zstd"
+	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/network"
@@ -35,7 +37,27 @@ func extractBaseRequirement(req string) string {
 	return strings.TrimSuffix(base, "()(64bit)")
 }
 
-func GenerateDot(pkgs []ospackage.PackageInfo, file string) error {
+type dotStyle struct {
+	fillColor   string
+	borderColor string
+	legendLabel string
+}
+
+var packageSourceStyles = map[config.PackageSource]dotStyle{
+	config.PackageSourceEssential:  {fillColor: "#fff4d6", borderColor: "#f5c518", legendLabel: "EssentialPkgList"},
+	config.PackageSourceSystem:     {fillColor: "#d4efdf", borderColor: "#27ae60", legendLabel: "SystemConfig.Packages"},
+	config.PackageSourceKernel:     {fillColor: "#d6eaf8", borderColor: "#1f618d", legendLabel: "Kernel"},
+	config.PackageSourceBootloader: {fillColor: "#fdebd0", borderColor: "#d35400", legendLabel: "Bootloader"},
+}
+
+var legendOrder = []config.PackageSource{
+	config.PackageSourceEssential,
+	config.PackageSourceSystem,
+	config.PackageSourceKernel,
+	config.PackageSourceBootloader,
+}
+
+func GenerateDot(pkgs []ospackage.PackageInfo, file string, pkgSources map[string]config.PackageSource) error {
 	log := logger.Logger()
 	log.Infof("Generating DOT file %s", file)
 
@@ -45,18 +67,100 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string) error {
 	}
 	defer outFile.Close()
 
-	fmt.Fprintln(outFile, "digraph G {")
-	fmt.Fprintln(outFile, "  rankdir=LR;")
+	writer := bufio.NewWriter(outFile)
+	defer writer.Flush()
+
+	if _, err := fmt.Fprintln(writer, "digraph G {"); err != nil {
+		return fmt.Errorf("writing DOT header: %w", err)
+	}
+	if _, err := fmt.Fprintln(writer, "  rankdir=LR;"); err != nil {
+		return fmt.Errorf("writing DOT attributes: %w", err)
+	}
+	if _, err := fmt.Fprintln(writer, "  node [shape=box, style=filled, fillcolor=\"#ffffff\", color=\"#666666\"];"); err != nil {
+		return fmt.Errorf("writing DOT node defaults: %w", err)
+	}
+
+	legendUsed := make(map[config.PackageSource]bool)
+
 	for _, pkg := range pkgs {
-		// Quote the node ID and label
-		fmt.Fprintf(outFile, "\t\"%s\" [label=\"%s\"];\n", pkg.Name, pkg.Name)
+		if pkg.Name == "" {
+			continue
+		}
+		source := config.PackageSourceUnknown
+		if pkgSources != nil {
+			if val, ok := pkgSources[pkg.Name]; ok {
+				source = val
+			}
+		}
+		attr := fmt.Sprintf("label=\"%s\"", pkg.Name)
+		if style, ok := packageSourceStyles[source]; ok {
+			legendUsed[source] = true
+			attr += fmt.Sprintf(", fillcolor=\"%s\", color=\"%s\"", style.fillColor, style.borderColor)
+		}
+		if _, err := fmt.Fprintf(writer, "  \"%s\" [%s];\n", pkg.Name, attr); err != nil {
+			return fmt.Errorf("writing DOT node for %s: %w", pkg.Name, err)
+		}
 		for _, dep := range pkg.Requires {
-			// Quote both source and target
-			fmt.Fprintf(outFile, "\t\"%s\" -> \"%s\";\n", pkg.Name, dep)
+			if dep == "" {
+				continue
+			}
+			if _, err := fmt.Fprintf(writer, "  \"%s\" -> \"%s\";\n", pkg.Name, dep); err != nil {
+				return fmt.Errorf("writing DOT edge %s->%s: %w", pkg.Name, dep, err)
+			}
 		}
 	}
 
-	fmt.Fprintln(outFile, "}")
+	if len(legendUsed) > 0 {
+		if err := writeLegend(writer, legendUsed); err != nil {
+			return err
+		}
+	}
+
+	if _, err := fmt.Fprintln(writer, "}"); err != nil {
+		return fmt.Errorf("writing DOT footer: %w", err)
+	}
+
+	return nil
+}
+
+func writeLegend(writer *bufio.Writer, legendUsed map[config.PackageSource]bool) error {
+	if _, err := fmt.Fprintln(writer, "  subgraph cluster_legend {"); err != nil {
+		return fmt.Errorf("writing legend header: %w", err)
+	}
+	if _, err := fmt.Fprintln(writer, "    label=\"Legend\";"); err != nil {
+		return fmt.Errorf("writing legend label: %w", err)
+	}
+	if _, err := fmt.Fprintln(writer, "    style=\"dashed\";"); err != nil {
+		return fmt.Errorf("writing legend style: %w", err)
+	}
+	if _, err := fmt.Fprintln(writer, "    color=\"#bbbbbb\";"); err != nil {
+		return fmt.Errorf("writing legend color: %w", err)
+	}
+
+	var previous string
+	for _, source := range legendOrder {
+		if !legendUsed[source] {
+			continue
+		}
+		style, ok := packageSourceStyles[source]
+		if !ok {
+			continue
+		}
+		nodeName := fmt.Sprintf("legend_%s", source)
+		if _, err := fmt.Fprintf(writer, "    %s [label=\"%s\", style=\"filled\", fillcolor=\"%s\", color=\"%s\"];\n", nodeName, style.legendLabel, style.fillColor, style.borderColor); err != nil {
+			return fmt.Errorf("writing legend node for %s: %w", source, err)
+		}
+		if previous != "" {
+			if _, err := fmt.Fprintf(writer, "    %s -> %s [style=invis];\n", previous, nodeName); err != nil {
+				return fmt.Errorf("writing legend spacing edge: %w", err)
+			}
+		}
+		previous = nodeName
+	}
+
+	if _, err := fmt.Fprintln(writer, "  }"); err != nil {
+		return fmt.Errorf("writing legend footer: %w", err)
+	}
 	return nil
 }
 

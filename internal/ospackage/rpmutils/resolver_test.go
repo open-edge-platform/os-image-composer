@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/resolvertest"
 )
@@ -103,6 +104,7 @@ func TestGenerateDot(t *testing.T) {
 		name        string
 		packages    []ospackage.PackageInfo
 		filename    string
+		pkgSources  map[string]config.PackageSource
 		expectError bool
 	}{
 		{
@@ -156,11 +158,24 @@ func TestGenerateDot(t *testing.T) {
 			filename:    filepath.Join(tmpDir, "special_chars.dot"),
 			expectError: false,
 		},
+		{
+			name: "with package source colors",
+			packages: []ospackage.PackageInfo{
+				{Name: "kernel", Requires: []string{}},
+				{Name: "boot", Requires: []string{}},
+			},
+			filename: filepath.Join(tmpDir, "sources.dot"),
+			pkgSources: map[string]config.PackageSource{
+				"kernel": config.PackageSourceKernel,
+				"boot":   config.PackageSourceBootloader,
+			},
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := GenerateDot(tt.packages, tt.filename)
+			err := GenerateDot(tt.packages, tt.filename, tt.pkgSources)
 
 			if tt.expectError {
 				if err == nil {
@@ -194,9 +209,9 @@ func TestGenerateDot(t *testing.T) {
 
 			// Check that all packages are represented
 			for _, pkg := range tt.packages {
-				expectedNode := fmt.Sprintf("\"%s\" [label=\"%s\"];", pkg.Name, pkg.Name)
-				if !strings.Contains(contentStr, expectedNode) {
-					t.Errorf("DOT file should contain node definition: %s", expectedNode)
+				nodePrefix := fmt.Sprintf("\"%s\" [label=\"%s\"", pkg.Name, pkg.Name)
+				if !strings.Contains(contentStr, nodePrefix) {
+					t.Errorf("DOT file should contain node definition for %s", pkg.Name)
 				}
 
 				// Check dependencies
@@ -205,6 +220,17 @@ func TestGenerateDot(t *testing.T) {
 					if !strings.Contains(contentStr, expectedEdge) {
 						t.Errorf("DOT file should contain edge: %s", expectedEdge)
 					}
+				}
+			}
+			if tt.pkgSources != nil {
+				if !strings.Contains(contentStr, "legend_kernel") {
+					t.Errorf("legend for kernel packages not found")
+				}
+				if !strings.Contains(contentStr, "\"kernel\" [label=\"kernel\", fillcolor=\"#d6eaf8\", color=\"#1f618d\"];") {
+					t.Errorf("expected kernel node styling")
+				}
+				if !strings.Contains(contentStr, "\"boot\" [label=\"boot\", fillcolor=\"#fdebd0\", color=\"#d35400\"];") {
+					t.Errorf("expected bootloader node styling")
 				}
 			}
 		})

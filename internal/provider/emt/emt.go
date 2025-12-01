@@ -242,6 +242,7 @@ func (p *Emt) downloadImagePkgs(template *config.ImageTemplate) error {
 		return fmt.Errorf("failed to update system packages: %w", err)
 	}
 	pkgList := template.GetPackages()
+	pkgSources := template.GetPackageSourceMap()
 	providerId := p.Name(template.Target.Dist, template.Target.Arch)
 	globalCache, err := config.CacheDir()
 	if err != nil {
@@ -252,7 +253,7 @@ func (p *Emt) downloadImagePkgs(template *config.ImageTemplate) error {
 	rpmutils.GzHref = p.zstHref
 	rpmutils.Dist = template.Target.Dist
 	rpmutils.UserRepo = template.GetPackageRepositories()
-	template.FullPkgList, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, "")
+	template.FullPkgList, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, template.DotFilePath, pkgSources, template.DotSystemOnly)
 	return err
 }
 
