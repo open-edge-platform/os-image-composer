@@ -55,6 +55,10 @@ func initConfig() {
 	if logFilePath != "" {
 		globalConfig.Logging.File = logFilePath
 	}
+	globalConfig = config.Global()
+	globalConfig.Logging.Level = logLevel
+	config.SetGlobal(globalConfig)
+	logger.SetLogLevel(logLevel)
 
 	// Set global config singleton
 	config.SetGlobal(globalConfig)

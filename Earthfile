@@ -53,18 +53,23 @@ golang-base:
     COPY cmd/ ./cmd
     COPY internal/ ./internal
     COPY image-templates/ ./image-templates
+    COPY scripts/ ./scripts
+    RUN chmod +x ./scripts/*.sh || true
 
 version-info:
     FROM +golang-base
     ARG VERSION="__auto__"
+    ARG version="__auto__"
     # Copy .git directory to inspect tags for versioning metadata
     COPY .git .git
-    RUN if [ -n "$VERSION" ] && [ "$VERSION" != "__auto__" ]; then \
-            echo "$VERSION" > /tmp/version.txt; \
-        else \
-            VERSION=$(git tag --sort=-creatordate | head -n1 2>/dev/null || echo "dev"); \
-            echo "$VERSION" > /tmp/version.txt; \
-        fi
+    RUN --no-cache RAW_VERSION="$VERSION" && \
+        if [ -n "$version" ] && [ "$version" != "__auto__" ]; then \
+            RAW_VERSION="$version"; \
+        fi && \
+        if [ -z "$RAW_VERSION" ] || [ "$RAW_VERSION" = "__auto__" ]; then \
+            RAW_VERSION=$(git tag --sort=-creatordate | head -n1 2>/dev/null || echo "dev"); \
+        fi && \
+        ./scripts/sanitize-version.sh "$RAW_VERSION" > /tmp/version.txt
     SAVE ARTIFACT /tmp/version.txt
 
 all:
@@ -77,9 +82,12 @@ clean-dist:
 
 build:
     FROM +golang-base
+    ARG VERSION="__auto__"
+    ARG version="__auto__"
     
     # Copy git metadata for commit stamping
     COPY .git .git
+    BUILD +version-info --VERSION=$VERSION --version=$version
     # Reuse canonical version metadata emitted by +version-info
     COPY +version-info/version.txt /tmp/version.txt
     
@@ -179,10 +187,12 @@ deb:
     FROM debian:bookworm-slim
     ARG ARCH=amd64
     ARG VERSION="__auto__"
+    ARG version="__auto__"
 
     BUILD +clean-dist
 
     WORKDIR /pkg
+    BUILD +version-info --VERSION=$VERSION --version=$version
     COPY +version-info/version.txt /tmp/version.txt
     RUN cp /tmp/version.txt /tmp/pkg_version
     

@@ -44,6 +44,7 @@ cleanup_image_files() {
     "raw")
       echo "Cleaning up raw image files from build directories..."
       sudo rm -rf ./tmp/*/imagebuild/*/*.raw 2>/dev/null || true
+      sudo rm -rf ./workspace/*/imagebuild/*/*.raw 2>/dev/null || true
       ;;
     "extracted")
       echo "Cleaning up extracted image files in current directory..."
@@ -52,6 +53,7 @@ cleanup_image_files() {
     "all"|*)
       echo "Cleaning up all temporary image files..."
       sudo rm -rf ./tmp/*/imagebuild/*/*.raw 2>/dev/null || true
+      sudo rm -rf ./workspace/*/imagebuild/*/*.raw 2>/dev/null || true
       rm -f *.raw 2>/dev/null || true
       ;;
   esac
@@ -76,9 +78,10 @@ run_qemu_boot_test() {
     echo "Found compressed image at: $FOUND_PATH"
     IMAGE_DIR=$(dirname "$FOUND_PATH")
     
-    # Fix permissions for the tmp directory recursively to allow access
-    echo "Setting permissions recursively for ./tmp directory"
-    sudo chmod -R 777 ./tmp
+    # Fix permissions for the image directory recursively to allow access
+    IMAGE_ROOT_DIR=$(echo "$IMAGE_DIR" | cut -d'/' -f2)  # Get the root directory (workspace or tmp)
+    echo "Setting permissions recursively for ./$IMAGE_ROOT_DIR directory"
+    sudo chmod -R 777 "./$IMAGE_ROOT_DIR"
     
     cd "$IMAGE_DIR"
     
@@ -101,6 +104,7 @@ run_qemu_boot_test() {
     sudo rm -f /tmp/*.raw 2>/dev/null || true
     sudo rm -rf ../../../cache/ 2>/dev/null || true
     sudo rm -rf ../../../tmp/*/imagebuild/*/*.raw 2>/dev/null || true
+    sudo rm -rf ../../../workspace/*/imagebuild/*/*.raw 2>/dev/null || true
     
     # Force filesystem sync and check space again
     sync
@@ -240,9 +244,10 @@ run_qemu_boot_test_iso() {
     echo "Found ISO image at: $FOUND_PATH"
     IMAGE_DIR=$(dirname "$FOUND_PATH")
     
-    # Fix permissions for the tmp directory recursively to allow access
-    echo "Setting permissions recursively for ./tmp directory"
-    sudo chmod -R 777 ./tmp
+    # Fix permissions for the image directory recursively to allow access
+    IMAGE_ROOT_DIR=$(echo "$IMAGE_DIR" | cut -d'/' -f2)  # Get the root directory (workspace or tmp)
+    echo "Setting permissions recursively for ./$IMAGE_ROOT_DIR directory"
+    sudo chmod -R 777 "./$IMAGE_ROOT_DIR"
     
     cd "$IMAGE_DIR"
     
@@ -594,6 +599,13 @@ build_ubuntu24_raw_image() {
   echo "Ensuring we're in the working directory before starting builds..."
   cd "$WORKING_DIR"
   echo "Current working directory: $(pwd)"
+
+  # Check disk space before building (require at least 12GB for Ubuntu 24 images)
+  if ! check_disk_space 12; then
+    echo "Insufficient disk space for Ubuntu 24 raw image build"
+    exit 1
+  fi
+
   output=$( sudo -S ./os-image-composer build image-templates/ubuntu24-x86_64-minimal-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
@@ -606,6 +618,8 @@ build_ubuntu24_raw_image() {
         echo "QEMU boot test FAILED for Ubuntu 24 raw image"
         exit 1
       fi
+      # Clean up after QEMU test to free space
+      cleanup_image_files raw
     fi
   else
     echo "Ubuntu 24 raw Image build failed."
@@ -643,18 +657,27 @@ build_ubuntu24_immutable_raw_image() {
   echo "Ensuring we're in the working directory before starting builds..."
   cd "$WORKING_DIR"
   echo "Current working directory: $(pwd)"
+
+  # Check disk space before building (require at least 15GB for immutable images)
+  if ! check_disk_space 15; then
+    echo "Insufficient disk space for Ubuntu 24 immutable raw image build"
+    exit 1
+  fi
+
   output=$( sudo -S ./build/os-image-composer build image-templates/ubuntu24-x86_64-edge-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
     echo "Ubuntu 24 immutable raw Image build passed."
     if [ "$RUN_QEMU_TESTS" = true ]; then
       echo "Running QEMU boot test for Ubuntu 24 immutable raw image..."
-      if run_qemu_boot_test "minimal-os-image-ubuntu-24.04"; then
+      if run_qemu_boot_test "edge-os-image-ubuntu-24.04"; then
         echo "QEMU boot test PASSED for Ubuntu 24 immutable raw image"
       else
         echo "QEMU boot test FAILED for Ubuntu 24 immutable raw image"
         exit 1
       fi
+      # Clean up after QEMU test to free space
+      cleanup_image_files raw
     fi
   else
     echo "Ubuntu 24 immutable raw Image build failed."
