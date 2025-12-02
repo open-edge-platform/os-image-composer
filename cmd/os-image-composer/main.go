@@ -15,6 +15,7 @@ var (
 	configFile       string = "" // Path to config file
 	logLevel         string = "" // Empty means use config file value
 	logFilePath      string = "" // Optional log file override
+	verbose          bool   = false
 	actualConfigFile string = "" // Actual config file path found during init
 	loggerCleanup    func()
 )
@@ -97,6 +98,8 @@ The tool supports building custom images for:
 		"Log level (debug, info, warn, error)")
 	rootCmd.PersistentFlags().StringVar(&logFilePath, "log-file", "",
 		"Log file path to tee logs (overrides configuration file)")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false,
+		"Enable verbose logging (equivalent to --log-level=debug)")
 
 	// Add all subcommands
 	rootCmd.AddCommand(createBuildCommand())
@@ -151,11 +154,16 @@ func resolveRequestedLogLevel(cmd *cobra.Command) string {
 	if cmd == nil {
 		return ""
 	}
-	flag := cmd.Flags().Lookup("verbose")
+	flagSet := cmd.Flags()
+	flag := flagSet.Lookup("verbose")
+	if flag == nil {
+		flagSet = cmd.InheritedFlags()
+		flag = flagSet.Lookup("verbose")
+	}
 	if flag == nil || !flag.Changed {
 		return ""
 	}
-	isVerbose, err := cmd.Flags().GetBool("verbose")
+	isVerbose, err := flagSet.GetBool("verbose")
 	if err != nil || !isVerbose {
 		return ""
 	}

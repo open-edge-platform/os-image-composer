@@ -64,3 +64,38 @@ func TestAttachLoggingHooksAddsHookToSubcommand(t *testing.T) {
 		t.Fatal("expected logging hook on build command")
 	}
 }
+
+func TestRootCommandHasPersistentVerboseFlag(t *testing.T) {
+	root := createRootCommand()
+	flag := root.PersistentFlags().Lookup("verbose")
+	if flag == nil {
+		t.Fatal("expected verbose flag on root command")
+	}
+	if flag.Shorthand != "v" {
+		t.Fatalf("expected verbose shorthand -v, got %q", flag.Shorthand)
+	}
+}
+
+func TestResolveRequestedLogLevelUsesInheritedVerboseFlag(t *testing.T) {
+	prev := logLevel
+	logLevel = ""
+	t.Cleanup(func() {
+		logLevel = prev
+	})
+
+	root := createRootCommand()
+	cmd, _, err := root.Find([]string{"validate"})
+	if err != nil {
+		t.Fatalf("find validate command: %v", err)
+	}
+	if cmd == nil {
+		t.Fatal("validate command not found")
+	}
+	if err := root.PersistentFlags().Set("verbose", "true"); err != nil {
+		t.Fatalf("set persistent verbose: %v", err)
+	}
+
+	if got := resolveRequestedLogLevel(cmd); got != "debug" {
+		t.Fatalf("expected inherited verbose flag to set debug level, got %q", got)
+	}
+}
