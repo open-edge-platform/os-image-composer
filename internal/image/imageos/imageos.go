@@ -549,6 +549,7 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 			}
 		}()
 
+		startTime := time.Now()
 		for i, pkg := range imagePkgOrderedList {
 			log.Infof("Installing package %d/%d: %s", i+1, imagePkgNum, pkg)
 			if slice.Contains(efiVariableAccessPkg, pkg) {
@@ -604,6 +605,84 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 				}
 			}
 		}
+		endTime := time.Now()
+		log.Infof("yockgen: Time taken to install deb packages: %.2f seconds", endTime.Sub(startTime).Seconds())
+
+		if err := imageOs.deInitDebLocalRepoWithinInstallRoot(installRoot); err != nil {
+			return fmt.Errorf("failed to de-initialize local repository within install root: %w", err)
+		}
+	} else {
+		return fmt.Errorf("unsupported package type: %s", pkgType)
+	}
+	return nil
+}
+
+func (imageOs *ImageOs) installImagePkgs02(installRoot string, template *config.ImageTemplate) error {
+	pkgType := imageOs.chrootEnv.GetTargetOsPkgType()
+	if pkgType == "rpm" {
+		if err := imageOs.initImageRpmDb(installRoot, template); err != nil {
+			return fmt.Errorf("failed to initialize RPM database: %w", err)
+		}
+		imagePkgOrderedList := getRpmPkgInstallList(template)
+		imagePkgNum := len(imagePkgOrderedList)
+		// Force to use the local cache repository
+		var repositoryIDList []string = []string{"cache-repo"}
+		for i, pkg := range imagePkgOrderedList {
+			log.Infof("Installing package %d/%d: %s", i+1, imagePkgNum, pkg)
+			if err := imageOs.chrootEnv.TdnfInstallPackage(pkg, installRoot, repositoryIDList); err != nil {
+				return fmt.Errorf("failed to install package %s: %w", pkg, err)
+			}
+		}
+	} else if pkgType == "deb" {
+		imagePkgOrderedList := getDebPkgInstallList(template)
+		// Prepare local cache repository
+		if err := imageOs.initDebLocalRepoWithinInstallRoot(installRoot); err != nil {
+			return fmt.Errorf("failed to initialize local repository within install root: %w", err)
+		}
+		imagePkgNum := len(imagePkgOrderedList)
+		// Force to use the local cache repository
+		var repoSrcList []string = []string{"/etc/apt/sources.list.d/local.list"}
+		var efiVariableAccessPkg = []string{"systemd-boot", "dracut-core"}
+		startTime := time.Now()
+		for i, pkg := range imagePkgOrderedList {
+			log.Infof("Installing package %d/%d: %s", i+1, imagePkgNum, pkg)
+			if slice.Contains(efiVariableAccessPkg, pkg) {
+				// systemd-boot and dracut-core are special cases,
+				// 'Failed to write 'LoaderSystemToken' EFI variable: No such file or directory' error is expected.
+				installCmd := fmt.Sprintf("apt-get install -y %s", pkg)
+
+				if len(repoSrcList) > 0 {
+					for _, repoSrc := range repoSrcList {
+						installCmd += fmt.Sprintf(" -o Dir::Etc::sourcelist=%s", repoSrc)
+					}
+				}
+
+				// Set environment variables to ensure non-interactive installation
+				envVars := []string{
+					"DEBIAN_FRONTEND=noninteractive",
+					"DEBCONF_NONINTERACTIVE_SEEN=true",
+					"DEBCONF_NOWARNINGS=yes",
+				}
+
+				output, err := shell.ExecCmdWithStream(installCmd, true, installRoot, envVars)
+				if err != nil {
+					if strings.Contains(output, "Failed to write 'LoaderSystemToken' EFI variable") {
+						log.Debugf("Expected error: The EFI variable shouldn't be accessed in chroot.")
+					} else {
+						log.Errorf("Failed to install package %s: %v", pkg, err)
+						return fmt.Errorf("failed to install package %s: %w", pkg, err)
+					}
+				}
+			} else {
+				if err := imageOs.chrootEnv.AptInstallPackage(pkg, installRoot, repoSrcList); err != nil {
+					return fmt.Errorf("failed to install package %s: %w", pkg, err)
+				}
+			}
+		}
+
+		endTime := time.Now()
+		log.Infof("yockgen: Time taken to install deb packages: %.2f seconds", endTime.Sub(startTime).Seconds())
+
 		if err := imageOs.deInitDebLocalRepoWithinInstallRoot(installRoot); err != nil {
 			return fmt.Errorf("failed to de-initialize local repository within install root: %w", err)
 		}

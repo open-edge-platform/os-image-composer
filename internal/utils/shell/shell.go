@@ -122,6 +122,7 @@ var commandMap = map[string][]string{
 	"sbsign":             {"/usr/bin/sbsign"},
 	"systemctl":          {"/usr/bin/systemctl"},
 	"test":               {"/bin/test"},
+	"dpkg-divert":        {"/usr/bin/dpkg-divert"},
 	// Add more mappings as needed
 }
 
