@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+
 // resetValidateFlags resets validate command flags to their default values
 func resetValidateFlags() {
 	validateMerged = false

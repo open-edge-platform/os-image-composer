@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+
 // resetBuildFlags resets all build command flags to their default values
 func resetBuildFlags() {
 	workers = -1
