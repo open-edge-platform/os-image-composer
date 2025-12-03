@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 // Command-line flags that can override config file settings
 var (
 	configFile       string = "" // Path to config file
