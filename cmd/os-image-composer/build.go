@@ -19,7 +19,6 @@ var (
 	workers  int    = -1 // -1 means use config file value
 	cacheDir string = "" // Empty means use config file value
 	workDir  string = "" // Empty means use config file value
-//REMOVE ME	//verbose  bool   = false
 	dotFile  string = "" // Generate a dot file for the dependency graph
 )
 
@@ -42,7 +41,6 @@ The template file must be in YAML format following the image template schema.`,
 		"Package cache directory")
 	buildCmd.Flags().StringVar(&workDir, "work-dir", "",
 		"Working directory for builds")
-// REMOVE ME	buildCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	buildCmd.Flags().StringVarP(&dotFile, "dotfile", "f", "", "Generate a dot file for the dependency graph")
 
 	return buildCmd
@@ -70,13 +68,6 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 
 	var buildErr error
 	log := logger.Logger()
-/*
-REMOVE ME
-	if verbose {
-		// if verbose enabled set the log level to debug which is the most verbose setting in the logger
-		logger.SetLogLevel("debug")
-	}
-*/
 
 	// Check if template file is provided as first positional argument
 	if len(args) < 1 {
