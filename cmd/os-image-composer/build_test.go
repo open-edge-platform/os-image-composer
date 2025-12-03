@@ -1,7 +1,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -20,12 +20,12 @@ func resetBuildFlags() {
 	workers = -1
 	cacheDir = ""
 	workDir = ""
-	verbose = false
 	dotFile = ""
 }
 
 // createTestTemplate creates a minimal valid template file for testing
-func createTestTemplate(t *testing.T, os, dist, arch string) string {
+// Note: Currently unused but kept for future integration tests
+func createTestTemplate(t *testing.T, os, dist, arch string) string { //nolint:unused
 	t.Helper()
 	tmpDir := t.TempDir()
 	templatePath := filepath.Join(tmpDir, "test-template.yml")
@@ -63,7 +63,7 @@ func createTestTemplate(t *testing.T, os, dist, arch string) string {
 		"    - username: \"testuser\"\n" +
 		"      password: \"$6$rounds=656000$YQKMBktZ7E1ykLxP$\"\n"
 
-	if err := ioutil.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
 		t.Fatalf("failed to create test template: %v", err)
 	}
 
@@ -192,7 +192,7 @@ func TestExecuteBuild_InvalidTemplateFile(t *testing.T) {
 	t.Run("EmptyTemplate", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		emptyTemplate := filepath.Join(tmpDir, "empty.yml")
-		if err := ioutil.WriteFile(emptyTemplate, []byte(""), 0644); err != nil {
+		if err := os.WriteFile(emptyTemplate, []byte(""), 0644); err != nil {
 			t.Fatalf("failed to create empty template: %v", err)
 		}
 
@@ -210,7 +210,7 @@ this is not valid yaml: [[[
 	indentation: wrong
 		more: problems
 `
-		if err := ioutil.WriteFile(invalidTemplate, []byte(invalidContent), 0644); err != nil {
+		if err := os.WriteFile(invalidTemplate, []byte(invalidContent), 0644); err != nil {
 			t.Fatalf("failed to create invalid template: %v", err)
 		}
 
@@ -546,7 +546,9 @@ func TestBuildCommand_FlagParsing(t *testing.T) {
 			name: "WorkersFlag",
 			args: []string{"--workers", "8", "template.yml"},
 			validate: func(t *testing.T) {
-				cmd.ParseFlags([]string{"--workers", "8"})
+				if err := cmd.ParseFlags([]string{"--workers", "8"}); err != nil {
+					t.Fatalf("failed to parse flags: %v", err)
+				}
 				if workers != -1 {
 					// Flag value is set when the flag is parsed
 					val, _ := cmd.Flags().GetInt("workers")
@@ -560,7 +562,9 @@ func TestBuildCommand_FlagParsing(t *testing.T) {
 			name: "DotFileFlag",
 			args: []string{"--dotfile", "deps.dot", "template.yml"},
 			validate: func(t *testing.T) {
-				cmd.ParseFlags([]string{"--dotfile", "deps.dot"})
+				if err := cmd.ParseFlags([]string{"--dotfile", "deps.dot"}); err != nil {
+					t.Fatalf("failed to parse flags: %v", err)
+				}
 				val, _ := cmd.Flags().GetString("dotfile")
 				if val != "deps.dot" {
 					t.Errorf("expected dotfile='deps.dot', got %q", val)
