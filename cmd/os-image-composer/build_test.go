@@ -63,7 +63,7 @@ func createTestTemplate(t *testing.T, os, dist, arch string) string { //nolint:u
 		"    - username: \"testuser\"\n" +
 		"      password: \"$6$rounds=656000$YQKMBktZ7E1ykLxP$\"\n"
 
-	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
 		t.Fatalf("failed to create test template: %v", err)
 	}
 
@@ -192,7 +192,7 @@ func TestExecuteBuild_InvalidTemplateFile(t *testing.T) {
 	t.Run("EmptyTemplate", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		emptyTemplate := filepath.Join(tmpDir, "empty.yml")
-		if err := os.WriteFile(emptyTemplate, []byte(""), 0644); err != nil {
+		if err := os.WriteFile(emptyTemplate, []byte(""), 0o644); err != nil {
 			t.Fatalf("failed to create empty template: %v", err)
 		}
 
@@ -210,7 +210,7 @@ this is not valid yaml: [[[
 	indentation: wrong
 		more: problems
 `
-		if err := os.WriteFile(invalidTemplate, []byte(invalidContent), 0644); err != nil {
+		if err := os.WriteFile(invalidTemplate, []byte(invalidContent), 0o644); err != nil {
 			t.Fatalf("failed to create invalid template: %v", err)
 		}
 
