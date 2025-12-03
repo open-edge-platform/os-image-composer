@@ -25,7 +25,7 @@ func resetBuildFlags() {
 
 // createTestTemplate creates a minimal valid template file for testing
 // Note: Currently unused but kept for future integration tests
-func createTestTemplate(t *testing.T, os, dist, arch string) string { //nolint:unused
+func createTestTemplate(t *testing.T, osName, dist, arch string) string { //nolint:unused
 	t.Helper()
 	tmpDir := t.TempDir()
 	templatePath := filepath.Join(tmpDir, "test-template.yml")
@@ -35,7 +35,7 @@ func createTestTemplate(t *testing.T, os, dist, arch string) string { //nolint:u
 		"  version: \"1.0.0\"\n" +
 		"\n" +
 		"target:\n" +
-		"  os: \"" + os + "\"\n" +
+		"  os: \"" + osName + "\"\n" +
 		"  dist: \"" + dist + "\"\n" +
 		"  arch: \"" + arch + "\"\n" +
 		"  imageType: \"raw\"\n" +
