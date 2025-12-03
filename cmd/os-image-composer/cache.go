@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/open-edge-platform/os-image-composer/internal/cache"
-	"github.com/open-edge-platform/os-image-composer/internal/config"
-	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -38,24 +36,6 @@ func createCacheCleanCommand() *cobra.Command {
 By default, the command removes cached packages. Use flags to target workspace
 caches or to restrict cleanup to a specific provider.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Handle log level override (workaround for PersistentPreRun not being called)
-			if logLevel != "" {
-				globalConfig := config.Global()
-				globalConfig.Logging.Level = logLevel
-				config.SetGlobal(globalConfig)
-				logger.SetLogLevel(logLevel)
-			}
-
-			// Log configuration info after log level is finalized
-			log := logger.Logger()
-			if actualConfigFile != "" {
-				log.Infof("Using configuration from: %s", actualConfigFile)
-			}
-			cacheDir, _ := config.CacheDir()
-			workDir, _ := config.WorkDir()
-			log.Debugf("Config: workers=%d, cache_dir=%s, work_dir=%s, temp_dir=%s",
-				config.Workers(), cacheDir, workDir, config.TempDir())
-
 			packagesFlag := cmd.Flags().Changed("packages")
 			workspaceFlag := cmd.Flags().Changed("workspace")
 

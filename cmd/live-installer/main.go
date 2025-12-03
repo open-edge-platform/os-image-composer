@@ -33,14 +33,6 @@ func main() {
 	rootCmd := createRootCommand()
 	security.AttachRecursive(rootCmd, security.DefaultLimits())
 
-	// Handle log level override after flag parsing
-	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		if logLevel != "" {
-			// Update both the local config and the global singleton
-			logger.SetLogLevel(logLevel)
-		}
-	}
-
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -62,6 +54,12 @@ The tool supports install custom os images according to the OSI image template y
 - Update system configuration according to the image template
 
 Use 'live-installer --help' to see available params.`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if logLevel != "" {
+				logger.SetLogLevel(logLevel)
+			}
+			return nil
+		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if !attendedInstaller {
 				logger.SetLogLevel("debug")
