@@ -14,6 +14,7 @@ import (
 var (
 	configFile       string = "" // Path to config file
 	logLevel         string = "" // Empty means use config file value
+	verbose          bool = false 
 	logFilePath      string = "" // Optional log file override
 	actualConfigFile string = "" // Actual config file path found during init
 	loggerCleanup    func()
@@ -58,7 +59,6 @@ func initConfig() {
 	globalConfig = config.Global()
 	globalConfig.Logging.Level = logLevel
 	config.SetGlobal(globalConfig)
-	logger.SetLogLevel(logLevel)
 
 	// Set global config singleton
 	config.SetGlobal(globalConfig)
@@ -88,28 +88,8 @@ The tool supports building custom images for:
 - EMT (Edge Microvisor Toolkit)
 - Azure Linux
 - Wind River eLxr
-
-Use 'os-image-composer --help' to see available commands.
-Use 'os-image-composer <command> --help' for more information about a command.`,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// Handle log level override after flag parsing
-			if logLevel != "" {
-				globalConfig := config.Global()
-				globalConfig.Logging.Level = logLevel
-				config.SetGlobal(globalConfig)
-				logger.SetLogLevel(logLevel)
-			}
-
-			// Log configuration info after log level is finalized
-			log := logger.Logger()
-			if actualConfigFile != "" {
-				log.Infof("Using configuration from: %s", actualConfigFile)
-			}
-			cacheDir, _ := config.CacheDir()
-			workDir, _ := config.WorkDir()
-			log.Debugf("Config: workers=%d, cache_dir=%s, work_dir=%s, temp_dir=%s",
-				config.Workers(), cacheDir, workDir, config.TempDir())
-		},
+	Use 'os-image-composer --help' to see available commands.
+	Use 'os-image-composer <command> --help' for more information about a command.`,
 	}
 
 	// Add global flags
@@ -117,6 +97,7 @@ Use 'os-image-composer <command> --help' for more information about a command.`,
 		"Path to configuration file")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "",
 		"Log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	rootCmd.PersistentFlags().StringVar(&logFilePath, "log-file", "",
 		"Log file path to tee logs (overrides configuration file)")
 
@@ -128,5 +109,70 @@ Use 'os-image-composer <command> --help' for more information about a command.`,
 	rootCmd.AddCommand(createCacheCommand())
 	rootCmd.AddCommand(createInstallCompletionCommand())
 
+	attachLoggingHooks(rootCmd)
+
 	return rootCmd
+}
+
+func attachLoggingHooks(cmd *cobra.Command) {
+	wrapWithLogging(cmd)
+	for _, child := range cmd.Commands() {
+		attachLoggingHooks(child)
+	}
+}
+
+func wrapWithLogging(cmd *cobra.Command) {
+	prev := cmd.PersistentPreRunE
+	cmd.PersistentPreRunE = func(c *cobra.Command, args []string) error {
+		applyLogOverrides(c)
+	
+		logConfigurationDetails()
+		if prev != nil {
+			return prev(c, args)
+		}
+		return nil
+	}
+}
+
+func applyLogOverrides(cmd *cobra.Command) {
+	requested := resolveRequestedLogLevel(cmd)
+	if requested == "" {
+		return
+	}
+
+	globalConfig := config.Global()
+	if globalConfig.Logging.Level != requested {
+	globalConfig.Logging.Level = requested
+	config.SetGlobal(globalConfig)
+	}
+	logger.SetLogLevel(requested)
+}
+
+func resolveRequestedLogLevel(cmd *cobra.Command) string {
+	if logLevel != "" {
+		return logLevel
+	}
+	if cmd == nil {
+		return ""
+	}
+	flag := cmd.Flags().Lookup("verbose")
+	if flag == nil || !flag.Changed {
+		return ""
+	}
+	isVerbose, err := cmd.Flags().GetBool("verbose")
+	if err != nil || !isVerbose {
+	return ""
+	}
+	return "debug"
+}
+
+func logConfigurationDetails() {
+	log := logger.Logger()
+	if actualConfigFile != "" {
+		log.Infof("Using configuration from: %s", actualConfigFile)
+	}
+	cacheDir, _ := config.CacheDir()
+	workDir, _ := config.WorkDir()
+	log.Debugf("Config: workers=%d, cache_dir=%s, work_dir=%s, temp_dir=%s",
+	config.Workers(), cacheDir, workDir, config.TempDir())
 }
