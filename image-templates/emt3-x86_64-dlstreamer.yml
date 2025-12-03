@@ -73,7 +73,7 @@ systemConfig:
     - gstreamer
     - opencv
     - intel-dlstreamer
-    - openvino
+    - openvino-2025.2.0
 
   # Kernel Configuration
   kernel:

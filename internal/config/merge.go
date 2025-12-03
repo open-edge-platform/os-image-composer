@@ -162,6 +162,10 @@ func mergeSystemConfig(defaultConfig, userConfig SystemConfig) SystemConfig {
 		merged.Description = userConfig.Description
 	}
 
+	if userConfig.HostName != "" {
+		merged.HostName = userConfig.HostName
+	}
+
 	if userConfig.Initramfs.Template != "" {
 		merged.Initramfs.Template = userConfig.Initramfs.Template
 	}

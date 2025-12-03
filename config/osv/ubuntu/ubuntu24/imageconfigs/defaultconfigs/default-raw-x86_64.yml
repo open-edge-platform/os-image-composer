@@ -67,6 +67,8 @@ systemConfig:
     - dracut-core
     - systemd
     - cryptsetup-bin
+    - openssh-server
+    - systemd-resolved
 
   additionalFiles:
     - local: ../additionalfiles/dhcp.network

@@ -80,6 +80,8 @@ systemConfig:
     - dracut-vrf
     - initramfs
     - shadow-utils
+    # ssh-server
+    - openssh-server
     # cloud-init packages
     - cloud-init
     - cloud-utils-growpart

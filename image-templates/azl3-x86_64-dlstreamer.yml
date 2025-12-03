@@ -75,7 +75,7 @@ systemConfig:
     - gstreamer
     - opencv
     - intel-dlstreamer
-    - openvino
+    - openvino-2025.2.0
 
   kernel:
     version: "6.12"
