@@ -10,9 +10,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+
 // Command-line flags that can override config file settings
 var (
-	configFile       string = "" // Path to config file 
+	configFile       string = "" // Path to config file
 	logLevel         string = "" // Empty means use config file value
 	verbose          bool = false // default verbose off 
 	logFilePath      string = "" // Optional log file override
