@@ -13,7 +13,7 @@ import (
 var (
 	configFile       string = "" // Path to config file
 	logLevel         string = "" // Empty means use config file value
-	verbose          bool = false // default verbose off 
+	verbose          bool = false // default verbose off
 	logFilePath      string = "" // Optional log file override
 	actualConfigFile string = "" // Actual config file path found during init
 	loggerCleanup    func()
