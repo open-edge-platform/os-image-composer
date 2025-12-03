@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 // resetValidateFlags resets validate command flags to their default values
 func resetValidateFlags() {
 	validateMerged = false
@@ -442,6 +441,7 @@ func TestExecuteValidate_DirectCall(t *testing.T) {
 		defer func() {
 			if r := recover(); r != nil {
 				// Expected to panic with empty args
+				t.Logf("recovered from panic: %v", r)
 			}
 		}()
 		_ = executeValidate(cmd, []string{})

@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 // resetBuildFlags resets all build command flags to their default values
 func resetBuildFlags() {
 	workers = -1
@@ -243,7 +242,9 @@ func TestExecuteBuild_FlagOverrides(t *testing.T) {
 
 		// Set the flag
 		workers = 16
-		cmd.Flags().Set("workers", "16")
+		if err := cmd.Flags().Set("workers", "16"); err != nil {
+			t.Fatalf("failed to set workers flag: %v", err)
+		}
 
 		// Simulate the flag override logic from executeBuild
 		if cmd.Flags().Changed("workers") {
@@ -270,7 +271,9 @@ func TestExecuteBuild_FlagOverrides(t *testing.T) {
 
 		testCacheDir := "/tmp/test-cache"
 		cacheDir = testCacheDir
-		cmd.Flags().Set("cache-dir", testCacheDir)
+		if err := cmd.Flags().Set("cache-dir", testCacheDir); err != nil {
+			t.Fatalf("failed to set cache-dir flag: %v", err)
+		}
 
 		if cmd.Flags().Changed("cache-dir") {
 			currentConfig := config.Global()
@@ -295,7 +298,9 @@ func TestExecuteBuild_FlagOverrides(t *testing.T) {
 
 		testWorkDir := "/tmp/test-work"
 		workDir = testWorkDir
-		cmd.Flags().Set("work-dir", testWorkDir)
+		if err := cmd.Flags().Set("work-dir", testWorkDir); err != nil {
+			t.Fatalf("failed to set work-dir flag: %v", err)
+		}
 
 		if cmd.Flags().Changed("work-dir") {
 			currentConfig := config.Global()
@@ -653,9 +658,15 @@ func TestExecuteBuild_ConfigOverrides(t *testing.T) {
 		cacheDir = "/custom/cache"
 		workDir = "/custom/work"
 
-		cmd.Flags().Set("workers", "12")
-		cmd.Flags().Set("cache-dir", "/custom/cache")
-		cmd.Flags().Set("work-dir", "/custom/work")
+		if err := cmd.Flags().Set("workers", "12"); err != nil {
+			t.Fatalf("failed to set workers flag: %v", err)
+		}
+		if err := cmd.Flags().Set("cache-dir", "/custom/cache"); err != nil {
+			t.Fatalf("failed to set cache-dir flag: %v", err)
+		}
+		if err := cmd.Flags().Set("work-dir", "/custom/work"); err != nil {
+			t.Fatalf("failed to set work-dir flag: %v", err)
+		}
 
 		// Apply overrides as executeBuild does
 		if cmd.Flags().Changed("workers") {
