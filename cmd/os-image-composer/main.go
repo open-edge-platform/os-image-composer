@@ -2,20 +2,20 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/security"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 // Command-line flags that can override config file settings
 var (
-	configFile       string = "" // Path to config file
-	logLevel         string = "" // Empty means use config file value
-	verbose          bool = false // default verbose off
-	logFilePath      string = "" // Optional log file override
-	actualConfigFile string = "" // Actual config file path found during init
+	configFile       string = ""    // Path to config file
+	logLevel         string = ""    // Empty means use config file value
+	verbose          bool   = false // default verbose off
+	logFilePath      string = ""    // Optional log file override
+	actualConfigFile string = ""    // Actual config file path found during init
 	loggerCleanup    func()
 )
 
@@ -124,7 +124,7 @@ func wrapWithLogging(cmd *cobra.Command) {
 	prev := cmd.PersistentPreRunE
 	cmd.PersistentPreRunE = func(c *cobra.Command, args []string) error {
 		applyLogOverrides(c)
-	
+
 		logConfigurationDetails()
 		if prev != nil {
 			return prev(c, args)
@@ -141,8 +141,8 @@ func applyLogOverrides(cmd *cobra.Command) {
 
 	globalConfig := config.Global()
 	if globalConfig.Logging.Level != requested {
-	globalConfig.Logging.Level = requested
-	config.SetGlobal(globalConfig)
+		globalConfig.Logging.Level = requested
+		config.SetGlobal(globalConfig)
 	}
 	logger.SetLogLevel(requested)
 }
@@ -160,7 +160,7 @@ func resolveRequestedLogLevel(cmd *cobra.Command) string {
 	}
 	isVerbose, err := cmd.Flags().GetBool("verbose")
 	if err != nil || !isVerbose {
-	return ""
+		return ""
 	}
 	return "debug"
 }
@@ -173,5 +173,5 @@ func logConfigurationDetails() {
 	cacheDir, _ := config.CacheDir()
 	workDir, _ := config.WorkDir()
 	log.Debugf("Config: workers=%d, cache_dir=%s, work_dir=%s, temp_dir=%s",
-	config.Workers(), cacheDir, workDir, config.TempDir())
+		config.Workers(), cacheDir, workDir, config.TempDir())
 }
