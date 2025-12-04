@@ -320,6 +320,8 @@ os-image-composer version
 
 Install shell completion for the os-image-composer command. Supports bash, zsh, fish, and PowerShell.
 
+**Prerequisites:** The `os-image-composer` binary must be in your system's `$PATH` for completion to function properly. The completion script is registered for the command name `os-image-composer`, not for relative or absolute paths.
+
 ```bash
 os-image-composer install-completion [flags]
 ```
@@ -346,7 +348,7 @@ os-image-composer install-completion --force
 
 **Post-Installation Steps:**
 
-After installing completion, you need to reload your shell configuration:
+After installing completion, ensure `os-image-composer` is in your PATH, then reload your shell configuration:
 
 **Bash:**
 
