@@ -381,20 +381,28 @@ Displays the tool's version number, build date, and Git commit SHA:
 
 #### install-completion
 
-Installs the shell completion feature for your current shell or a specified shell:
+Installs the shell completion feature for your current shell or a specified shell.
+
+**Prerequisites:** For shell completion to work, the `os-image-composer` binary must be accessible in your system's `$PATH`. This is automatically satisfied when:
+
+* Installing via the Debian package (installs to `/usr/local/bin/`)
+* Manually copying the binary to a standard location like `/usr/local/bin/` or `~/bin/`
+* Adding the binary's directory to your `$PATH` environment variable
+
+**Note:** The completion is registered for the command name `os-image-composer`, not for relative or absolute paths like `./os-image-composer`.
 
 ```bash
 # Auto-detect shell and create completion file
-./os-image-composer install-completion
+os-image-composer install-completion
 
 # Specify shell type
-./os-image-composer install-completion --shell bash
-./os-image-composer install-completion --shell zsh
-./os-image-composer install-completion --shell fish
-./os-image-composer install-completion --shell powershell
+os-image-composer install-completion --shell bash
+os-image-composer install-completion --shell zsh
+os-image-composer install-completion --shell fish
+os-image-composer install-completion --shell powershell
 
 # Force overwrite existing completion files
-./os-image-composer install-completion --force
+os-image-composer install-completion --force
 ```
 
 **Important**: The command creates completion files but additional activation steps are required:
@@ -530,18 +538,20 @@ The OS Image Composer CLI supports shell auto-completion for the Bash, Zsh, Fish
 
 #### Generate Completion Scripts
 
+**Note:** These examples assume the binary is in your PATH. If running from a local build, use the full path (e.g., `./build/os-image-composer`).
+
 ```bash
 # Bash
-./os-image-composer completion bash > os-image-composer_completion.bash
+os-image-composer completion bash > os-image-composer_completion.bash
 
 # Zsh
-./os-image-composer completion zsh > os-image-composer_completion.zsh
+os-image-composer completion zsh > os-image-composer_completion.zsh
 
 # Fish
-./os-image-composer completion fish > os-image-composer_completion.fish
+os-image-composer completion fish > os-image-composer_completion.fish
 
 # PowerShell
-./os-image-composer completion powershell > os-image-composer_completion.ps1
+os-image-composer completion powershell > os-image-composer_completion.ps1
 ```
 
 #### Install Completion Scripts
@@ -584,19 +594,19 @@ echo ". /path/to/os-image-composer_completion.ps1" >> $PROFILE
 
 #### Examples of Completion in Action
 
-Once the completion script is installed, the tool is configured to suggest YAML files when completing the template file argument for the build and validate commands, and you can see that in action:
+Once the completion script is installed and the binary is in your PATH, the tool is configured to suggest YAML files when completing the template file argument for the build and validate commands, and you can see that in action:
 
 ```bash
 # Tab-complete commands
-./os-image-composer <TAB>
+os-image-composer <TAB>
 build      completion  config     help       validate    version
 
 # Tab-complete flags
-sudo -E ./os-image-composer build --<TAB>
+sudo -E os-image-composer build --<TAB>
 --cache-dir  --config    --help       --log-level  --verbose    --work-dir   --workers
 
 # Tab-complete YAML files for template file argument
-sudo -E ./os-image-composer build <TAB>
+sudo -E os-image-composer build <TAB>
 # Will show YAML files in the current directory
 ```
 
