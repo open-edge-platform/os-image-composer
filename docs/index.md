@@ -198,7 +198,7 @@ sudo -E ./os-image-composer build --workers 16 --cache-dir /tmp/cache image-temp
 ./os-image-composer version
 
 # Install shell completion for your current shell
-./os-image-composer install-completion
+./os-image-composer completion install
 ```
 
 ### Commands
@@ -261,23 +261,36 @@ Displays the tool’s version number, build date, and Git commit SHA:
 ./os-image-composer version
 ```
 
-#### install-completion
+#### completion
 
-Installs the shell completion feature for your current shell or
-a specified shell:
+Generates and installs shell completion scripts for various shells.
+
+##### Generate completion scripts
 
 ```bash
-# Auto-detect shell and create completion file
-./os-image-composer install-completion
+# Generate completion script for bash (output to stdout)
+./os-image-composer completion bash
+
+# Generate completion script for other shells
+./os-image-composer completion zsh
+./os-image-composer completion fish
+./os-image-composer completion powershell
+```
+
+##### Install completion automatically
+
+```bash
+# Auto-detect shell and install completion file
+./os-image-composer completion install
 
 # Specify shell type
-./os-image-composer install-completion --shell bash
-./os-image-composer install-completion --shell zsh
-./os-image-composer install-completion --shell fish
-./os-image-composer install-completion --shell powershell
+./os-image-composer completion install --shell bash
+./os-image-composer completion install --shell zsh
+./os-image-composer completion install --shell fish
+./os-image-composer completion install --shell powershell
 
 # Force overwrite existing completion files
-./os-image-composer install-completion --force
+./os-image-composer completion install --force
 ```
 
 **Important**: The command creates completion files but additional activation

@@ -20,12 +20,12 @@ func TestCreateRootCommand_Wiring(t *testing.T) {
 
 	// Expected subcommands
 	want := map[string]bool{
-		"build":              false,
-		"validate":           false,
-		"version":            false,
-		"config":             false,
-		"cache":              false,
-		"install-completion": false,
+		"build":      false,
+		"validate":   false,
+		"version":    false,
+		"config":     false,
+		"cache":      false,
+		"completion": false,
 	}
 	for _, c := range root.Commands() {
 		if _, ok := want[c.Name()]; ok {

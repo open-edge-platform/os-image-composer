@@ -93,7 +93,7 @@ func TestCreateRootCommand(t *testing.T) {
 
 	t.Run("Subcommands", func(t *testing.T) {
 		expectedCommands := []string{
-			"build", "validate", "version", "config", "cache", "install-completion",
+			"build", "validate", "version", "config", "cache", "completion",
 		}
 
 		foundCommands := make(map[string]bool)

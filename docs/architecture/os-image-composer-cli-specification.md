@@ -17,7 +17,9 @@
       - [config init](#config-init)
       - [config show](#config-show)
     - [Version Command](#version-command)
-    - [Install-Completion Command](#install-completion-command)
+    - [Completion Command](#completion-command)
+      - [Generate Completion Scripts](#generate-completion-scripts)
+      - [Install Completion Automatically](#install-completion-automatically)
   - [Examples](#examples)
     - [Building an Image](#building-an-image)
     - [Managing Configuration](#managing-configuration)
@@ -80,7 +82,7 @@ flowchart TD
 
     Commands -->|version| Version[Show Version Info]
     
-    Commands -->|install-completion| Completion[Install Shell Completion]
+    Commands -->|completion| Completion[Generate/Install Shell Completion]
 
     %% Styling
     classDef command fill:#b5e2fa,stroke:#0077b6,stroke-width:2px;
@@ -316,14 +318,36 @@ os-image-composer version
 - Git commit SHA
 - Organization
 
-### Install-Completion Command
+### Completion Command
 
-Install shell completion for the os-image-composer command. Supports bash, zsh, fish, and PowerShell.
+Generate or install shell completion scripts for os-image-composer. Supports bash, zsh, fish, and PowerShell.
 
 **Prerequisites:** The `os-image-composer` binary must be in your system's `$PATH` for completion to function properly. The completion script is registered for the command name `os-image-composer`, not for relative or absolute paths.
 
+#### Generate Completion Scripts
+
+Generate completion scripts to stdout for manual installation:
+
 ```bash
-os-image-composer install-completion [flags]
+os-image-composer completion [bash|zsh|fish|powershell]
+```
+
+**Example:**
+
+```bash
+# Generate bash completion script
+os-image-composer completion bash > /etc/bash_completion.d/os-image-composer
+
+# Generate zsh completion script
+os-image-composer completion zsh > ~/.zsh/completion/_os-image-composer
+```
+
+#### Install Completion Automatically
+
+Automatically detect shell and install completion scripts:
+
+```bash
+os-image-composer completion install [flags]
 ```
 
 **Flags:**
@@ -337,13 +361,13 @@ os-image-composer install-completion [flags]
 
 ```bash
 # Auto-detect shell and install completion
-os-image-composer install-completion
+os-image-composer completion install
 
 # Install completion for specific shell
-os-image-composer install-completion --shell bash
+os-image-composer completion install --shell bash
 
 # Force reinstall
-os-image-composer install-completion --force
+os-image-composer completion install --force
 ```
 
 **Post-Installation Steps:**

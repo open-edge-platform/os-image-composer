@@ -11,14 +11,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// helper to run the install-completion command with given args
+// helper to run the completion install command with given args
 func runInstallCompletion(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 
-	// Minimal root command so that cobra can generate completion for it
+	// Create root command
 	root := &cobra.Command{Use: "os-image-composer"}
-	root.AddCommand(createInstallCompletionCommand())
-	root.SetArgs(append([]string{"install-completion"}, args...))
+
+	// Manually create and add completion command (since InitDefaultCompletionCmd doesn't actually add it immediately)
+	completionCmd := &cobra.Command{
+		Use:   "completion",
+		Short: "Generate completion scripts",
+	}
+	completionCmd.AddCommand(createCompletionInstallCommand())
+	root.AddCommand(completionCmd)
+
+	root.SetArgs(append([]string{"completion", "install"}, args...))
 
 	// Execute through cobra path so flag parsing is exercised
 	_, err := root.ExecuteC()
@@ -33,10 +41,18 @@ func TestInstallCompletion_UnknownShellDetection(t *testing.T) {
 	t.Setenv("SHELL", "/bin/unknown-shell")
 	t.Setenv("PSModulePath", "")
 
-	// Run command without explicit --shell flag, expecting an error about unsupported shell
+	// Create root command
 	root := &cobra.Command{Use: "os-image-composer"}
-	root.AddCommand(createInstallCompletionCommand())
-	root.SetArgs([]string{"install-completion"})
+
+	// Manually create and add completion command
+	completionCmd := &cobra.Command{
+		Use:   "completion",
+		Short: "Generate completion scripts",
+	}
+	completionCmd.AddCommand(createCompletionInstallCommand())
+	root.AddCommand(completionCmd)
+
+	root.SetArgs([]string{"completion", "install"})
 
 	err := root.Execute()
 	if err == nil {
@@ -93,9 +109,18 @@ func runCompletionFor(t *testing.T, shell string) {
 	t.Setenv("HOME", tmp)
 	t.Setenv("USERPROFILE", tmp) // windows env used by os.UserHomeDir on some setups
 
+	// Create root command
 	root := &cobra.Command{Use: "os-image-composer"}
-	root.AddCommand(createInstallCompletionCommand())
-	root.SetArgs([]string{"install-completion", "--shell", shell, "--force"})
+
+	// Manually create and add completion command
+	completionCmd := &cobra.Command{
+		Use:   "completion",
+		Short: "Generate completion scripts",
+	}
+	completionCmd.AddCommand(createCompletionInstallCommand())
+	root.AddCommand(completionCmd)
+
+	root.SetArgs([]string{"completion", "install", "--shell", shell, "--force"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("completion for %s failed: %v", shell, err)

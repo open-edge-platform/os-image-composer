@@ -10,10 +10,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// createInstallCompletionCommand creates the install-completion subcommand
-func createInstallCompletionCommand() *cobra.Command {
-	installCompletionCmd := &cobra.Command{
-		Use:   "install-completion",
+// createCompletionInstallCommand creates the install subcommand under completion
+func createCompletionInstallCommand() *cobra.Command {
+	installCmd := &cobra.Command{
+		Use:   "install",
 		Short: "Install shell completion script",
 		Long: `Install shell completion script for Bash, Zsh, Fish, or PowerShell.
 Automatically detects your shell and installs the appropriate completion script.`,
@@ -21,10 +21,10 @@ Automatically detects your shell and installs the appropriate completion script.
 	}
 
 	// Add flags
-	installCompletionCmd.Flags().String("shell", "", "Specify shell type (bash, zsh, fish, powershell)")
-	installCompletionCmd.Flags().Bool("force", false, "Force overwrite existing completion files")
+	installCmd.Flags().String("shell", "", "Specify shell type (bash, zsh, fish, powershell)")
+	installCmd.Flags().Bool("force", false, "Force overwrite existing completion files")
 
-	return installCompletionCmd
+	return installCmd
 }
 
 // executeInstallCompletion handles installation of shell completion scripts

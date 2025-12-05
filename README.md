@@ -312,7 +312,7 @@ sudo -E ./os-image-composer build --workers 16 --cache-dir /tmp/cache image-temp
 ./os-image-composer version
 
 # Install shell completion for your current shell
-./os-image-composer install-completion
+./os-image-composer completion install
 ```
 
 ### Commands
@@ -379,9 +379,9 @@ Displays the tool's version number, build date, and Git commit SHA:
 - **Simple Go build** (`go build`): Shows default development values unless ldflags are used
 - For production releases, always use the Earthly build or equivalent build system that injects version information
 
-#### install-completion
+#### completion
 
-Installs the shell completion feature for your current shell or a specified shell.
+Generates and installs shell completion scripts for various shells.
 
 **Prerequisites:** For shell completion to work, the `os-image-composer` binary must be accessible in your system's `$PATH`. This is automatically satisfied when:
 
@@ -391,18 +391,32 @@ Installs the shell completion feature for your current shell or a specified shel
 
 **Note:** The completion is registered for the command name `os-image-composer`, not for relative or absolute paths like `./os-image-composer`.
 
+##### Generate completion scripts
+
 ```bash
-# Auto-detect shell and create completion file
-os-image-composer install-completion
+# Generate completion script for bash (output to stdout)
+os-image-composer completion bash
+
+# Generate completion script for other shells
+os-image-composer completion zsh
+os-image-composer completion fish
+os-image-composer completion powershell
+```
+
+##### Install completion automatically
+
+```bash
+# Auto-detect shell and install completion file
+os-image-composer completion install
 
 # Specify shell type
-os-image-composer install-completion --shell bash
-os-image-composer install-completion --shell zsh
-os-image-composer install-completion --shell fish
-os-image-composer install-completion --shell powershell
+os-image-composer completion install --shell bash
+os-image-composer completion install --shell zsh
+os-image-composer completion install --shell fish
+os-image-composer completion install --shell powershell
 
 # Force overwrite existing completion files
-os-image-composer install-completion --force
+os-image-composer completion install --force
 ```
 
 **Important**: The command creates completion files but additional activation steps are required:
