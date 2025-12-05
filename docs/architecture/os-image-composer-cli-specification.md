@@ -18,6 +18,8 @@
       - [config show](#config-show)
     - [Version Command](#version-command)
     - [Completion Command](#completion-command)
+      - [Generate Completion Scripts](#generate-completion-scripts)
+      - [Install Completion Automatically](#install-completion-automatically)
   - [Examples](#examples)
     - [Building an Image](#building-an-image)
     - [Managing Configuration](#managing-configuration)

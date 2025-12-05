@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/security"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 // Command-line flags that can override config file settings
@@ -109,7 +110,7 @@ The tool supports building custom images for:
 
 	// Initialize Cobra's default completion command
 	rootCmd.InitDefaultCompletionCmd()
-	
+
 	// Add install subcommand to the completion command
 	for _, cmd := range rootCmd.Commands() {
 		if cmd.Name() == "completion" {

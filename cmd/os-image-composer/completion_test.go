@@ -17,7 +17,7 @@ func runInstallCompletion(t *testing.T, args ...string) (string, error) {
 
 	// Create root command
 	root := &cobra.Command{Use: "os-image-composer"}
-	
+
 	// Manually create and add completion command (since InitDefaultCompletionCmd doesn't actually add it immediately)
 	completionCmd := &cobra.Command{
 		Use:   "completion",
@@ -25,7 +25,7 @@ func runInstallCompletion(t *testing.T, args ...string) (string, error) {
 	}
 	completionCmd.AddCommand(createCompletionInstallCommand())
 	root.AddCommand(completionCmd)
-	
+
 	root.SetArgs(append([]string{"completion", "install"}, args...))
 
 	// Execute through cobra path so flag parsing is exercised
@@ -43,7 +43,7 @@ func TestInstallCompletion_UnknownShellDetection(t *testing.T) {
 
 	// Create root command
 	root := &cobra.Command{Use: "os-image-composer"}
-	
+
 	// Manually create and add completion command
 	completionCmd := &cobra.Command{
 		Use:   "completion",
@@ -51,7 +51,7 @@ func TestInstallCompletion_UnknownShellDetection(t *testing.T) {
 	}
 	completionCmd.AddCommand(createCompletionInstallCommand())
 	root.AddCommand(completionCmd)
-	
+
 	root.SetArgs([]string{"completion", "install"})
 
 	err := root.Execute()
@@ -111,7 +111,7 @@ func runCompletionFor(t *testing.T, shell string) {
 
 	// Create root command
 	root := &cobra.Command{Use: "os-image-composer"}
-	
+
 	// Manually create and add completion command
 	completionCmd := &cobra.Command{
 		Use:   "completion",
@@ -119,7 +119,7 @@ func runCompletionFor(t *testing.T, shell string) {
 	}
 	completionCmd.AddCommand(createCompletionInstallCommand())
 	root.AddCommand(completionCmd)
-	
+
 	root.SetArgs([]string{"completion", "install", "--shell", shell, "--force"})
 
 	if err := root.Execute(); err != nil {
