@@ -29,8 +29,7 @@ var log = logger.Logger()
 
 // eLxr implements provider.Provider
 type eLxr struct {
-	repoCfg   debutils.RepoConfig
-	gzHref    string
+	repoCfgs  []debutils.RepoConfig // Add this field
 	chrootEnv chroot.ChrootEnvInterface
 }
 
@@ -54,23 +53,23 @@ func (p *eLxr) Name(dist, arch string) string {
 // Init will initialize the provider, fetching repo configuration
 func (p *eLxr) Init(dist, arch string) error {
 
-	//todo: need to correct of how to get the arch once finalized
+	// Architecture mapping if needed
 	if arch == "x86_64" {
 		arch = "amd64"
 	}
 
-	cfg, err := loadRepoConfig("", arch) // repoURL no longer needed
+	cfgs, err := loadRepoConfig("", arch)
 	if err != nil {
 		log.Errorf("Parsing repo config failed: %v", err)
 		return err
 	}
-	p.repoCfg = cfg
-	p.gzHref = cfg.PkgList
+	p.repoCfgs = cfgs
 
-	log.Infof("Initialized eLxr provider repo section=%s", cfg.Section)
-	log.Infof("name=%s", cfg.Name)
-	log.Infof("package list url=%s", cfg.PkgList)
-	log.Infof("package download url=%s", cfg.PkgPrefix)
+	log.Infof("Initialized elxr provider with %d repositories", len(cfgs))
+	for i, cfg := range cfgs {
+		log.Infof("Repository %d: name=%s, package list url=%s, package download url=%s",
+			i+1, cfg.Name, cfg.PkgList, cfg.PkgPrefix)
+	}
 	return nil
 }
 
@@ -245,56 +244,72 @@ func (p *eLxr) downloadImagePkgs(template *config.ImageTemplate) error {
 		return fmt.Errorf("failed to get global cache dir: %w", err)
 	}
 	pkgCacheDir := filepath.Join(globalCache, "pkgCache", providerId)
-	debutils.RepoCfg = p.repoCfg
-	debutils.GzHref = p.gzHref
-	debutils.Architecture = p.repoCfg.Arch
+
+	// Configure multiple repositories
+	if len(p.repoCfgs) == 0 {
+		return fmt.Errorf("no repository configurations available")
+	}
+
+	// Set up all repositories for debutils
+	debutils.RepoCfgs = p.repoCfgs
+
+	// Set up primary repository for backward compatibility
+	primaryRepo := p.repoCfgs[0]
+	debutils.RepoCfg = primaryRepo
+	debutils.GzHref = primaryRepo.PkgList
+	debutils.Architecture = primaryRepo.Arch
 	debutils.UserRepo = template.GetPackageRepositories()
+
+	log.Infof("Configured %d repositories for package download", len(p.repoCfgs))
+	for i, cfg := range p.repoCfgs {
+		log.Infof("Repository %d: %s (%s)", i+1, cfg.Name, cfg.PkgList)
+	}
+
 	template.FullPkgList, err = debutils.DownloadPackages(pkgList, pkgCacheDir, "")
 	return err
 }
 
-func loadRepoConfig(repoUrl string, arch string) (debutils.RepoConfig, error) {
-	var rc debutils.RepoConfig
+func loadRepoConfig(repoUrl string, arch string) ([]debutils.RepoConfig, error) {
+	var repoConfigs []debutils.RepoConfig
 
-	// Load provider repo config using the centralized config function
-	providerConfigs, err := config.LoadProviderRepoConfig(OsName, "elxr12")
+	// Load provider repo config for elxr - use correct OS name
+	providerConfigs, err := config.LoadProviderRepoConfig(OsName, "elxr12") // Use "wind-river-elxr" and "aria" dist
 	if err != nil {
-		return rc, fmt.Errorf("failed to load provider repo config: %w", err)
+		return repoConfigs, fmt.Errorf("failed to load provider repo config: %w", err)
 	}
 
-	// Use the first repository configuration for backward compatibility
-	if len(providerConfigs) == 0 {
-		return rc, fmt.Errorf("no repository configurations found")
+	repoList := make([]debutils.Repository, len(providerConfigs))
+	repoGroup := "elxr"
+
+	// Convert each ProviderRepoConfig to debutils.RepoConfig
+	for i, providerConfig := range providerConfigs {
+		repoType, name, _, gpgKey, component, _, _, _, _, baseURL, _, _, _ := providerConfig.ToRepoConfigData(arch)
+
+		// Verify this is a DEB repository
+		if repoType != "deb" {
+			log.Warnf("Skipping non-DEB repository: %s (type: %s)", name, repoType)
+			continue
+		}
+
+		repoList[i] = debutils.Repository{
+			ID:        fmt.Sprintf("%s%d", repoGroup, i+1),
+			Codename:  name,
+			URL:       baseURL,
+			PKey:      gpgKey,
+			Component: component,
+		}
 	}
 
-	providerConfig := providerConfigs[0]
-
-	// Convert ProviderRepoConfig to debutils.RepoConfig using the unified conversion method
-	repoType, name, url, gpgKey, component, buildPath, pkgPrefix, releaseFile, releaseSign, _, gpgCheck, repoGPGCheck, enabled := providerConfig.ToRepoConfigData(arch)
-
-	// Verify this is a DEB repository
-	if repoType != "deb" {
-		return rc, fmt.Errorf("expected DEB repository type, got: %s", repoType)
+	repoConfigs, err = debutils.BuildRepoConfigs(repoList, arch)
+	if err != nil {
+		return nil, fmt.Errorf("building user repo configs failed: %w", err)
 	}
 
-	rc = debutils.RepoConfig{
-		Section:      component, // Map component to Section for DEB utils
-		Name:         name,
-		PkgList:      url, // For DEB repos, this is the Packages.gz URL
-		PkgPrefix:    pkgPrefix,
-		GPGCheck:     gpgCheck,
-		RepoGPGCheck: repoGPGCheck,
-		Enabled:      enabled,
-		PbGPGKey:     gpgKey, // For DEB repos, gpgKey contains the pbGPGKey value
-		ReleaseFile:  releaseFile,
-		ReleaseSign:  releaseSign,
-		BuildPath:    buildPath,
-		Arch:         arch,
+	if len(repoConfigs) == 0 {
+		return repoConfigs, fmt.Errorf("no valid DEB repositories found")
 	}
 
-	log.Infof("Loaded repo config for %s: %+v", OsName, rc)
-
-	return rc, nil
+	return repoConfigs, nil
 }
 
 // displayImageArtifacts displays all image artifacts in the build directory

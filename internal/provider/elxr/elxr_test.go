@@ -98,20 +98,20 @@ func TestElxrProviderInit(t *testing.T) {
 		t.Logf("Init failed as expected in test environment: %v", err)
 	} else {
 		// If it succeeds, verify the configuration was set up
-		if elxr.repoCfg.Name == "" {
-			t.Error("Expected repoCfg.Name to be set after successful Init")
+		if len(elxr.repoCfgs) == 0 {
+			t.Error("Expected repoCfgs to be populated after successful Init")
 		}
 
-		if elxr.repoCfg.PkgList == "" {
-			t.Error("Expected repoCfg.PkgList to be set after successful Init")
+		if elxr.repoCfgs[0].PkgList == "" {
+			t.Error("Expected repoCfgs[0].PkgList to be set after successful Init")
 		}
 
 		// Verify that the architecture is correctly set in the config
-		if elxr.repoCfg.Arch != "amd64" {
-			t.Errorf("Expected arch to be amd64, got %s", elxr.repoCfg.Arch)
+		if elxr.repoCfgs[0].Arch != "amd64" {
+			t.Errorf("Expected arch to be amd64, got %s", elxr.repoCfgs[0].Arch)
 		}
 
-		t.Logf("Successfully initialized with config: %s", elxr.repoCfg.Name)
+		t.Logf("Successfully initialized with config: %s", elxr.repoCfgs[0].Name)
 	}
 }
 
@@ -138,20 +138,22 @@ func TestElxrProviderInitArchMapping(t *testing.T) {
 	if err != nil {
 		t.Logf("Init failed as expected: %v", err)
 	} else {
-		// Verify that repoCfg.PkgList contains the expected architecture mapping
-		if elxr.repoCfg.PkgList != "" {
+		// Verify that repoCfgs[0].PkgList contains the expected architecture mapping
+		if len(elxr.repoCfgs) > 0 && elxr.repoCfgs[0].PkgList != "" {
 			expectedArchInURL := "binary-amd64"
-			if !strings.Contains(elxr.repoCfg.PkgList, expectedArchInURL) {
-				t.Errorf("Expected PkgList to contain %s for x86_64 arch, got %s", expectedArchInURL, elxr.repoCfg.PkgList)
+			if !strings.Contains(elxr.repoCfgs[0].PkgList, expectedArchInURL) {
+				t.Errorf("Expected PkgList to contain %s for x86_64 arch, got %s", expectedArchInURL, elxr.repoCfgs[0].PkgList)
 			}
 		}
 
 		// Verify architecture was mapped correctly
-		if elxr.repoCfg.Arch != "amd64" {
-			t.Errorf("Expected mapped arch to be amd64, got %s", elxr.repoCfg.Arch)
+		if len(elxr.repoCfgs) > 0 && elxr.repoCfgs[0].Arch != "amd64" {
+			t.Errorf("Expected mapped arch to be amd64, got %s", elxr.repoCfgs[0].Arch)
 		}
 
-		t.Logf("Successfully mapped x86_64 -> amd64, PkgList: %s", elxr.repoCfg.PkgList)
+		if len(elxr.repoCfgs) > 0 {
+			t.Logf("Successfully mapped x86_64 -> amd64, PkgList: %s", elxr.repoCfgs[0].PkgList)
+		}
 	}
 }
 
@@ -178,20 +180,20 @@ func TestLoadRepoConfig(t *testing.T) {
 	}
 
 	// If we successfully load config, verify the values
-	if config.Name == "" {
+	if config[0].Name == "" {
 		t.Error("Expected config name to be set")
 	}
 
-	if config.Arch != "amd64" {
-		t.Errorf("Expected arch 'amd64', got '%s'", config.Arch)
+	if config[0].Arch != "amd64" {
+		t.Errorf("Expected arch 'amd64', got '%s'", config[0].Arch)
 	}
 
 	// Verify PkgList contains expected architecture
-	if config.PkgList != "" && !strings.Contains(config.PkgList, "binary-amd64") {
-		t.Errorf("Expected PkgList to contain 'binary-amd64', got '%s'", config.PkgList)
+	if config[0].PkgList != "" && !strings.Contains(config[0].PkgList, "binary-amd64") {
+		t.Errorf("Expected PkgList to contain 'binary-amd64', got '%s'", config[0].PkgList)
 	}
 
-	t.Logf("Successfully loaded repo config: %s", config.Name)
+	t.Logf("Successfully loaded repo config: %s", config[0].Name)
 }
 
 // mockChrootEnv is a simple mock implementation of ChrootEnvInterface for testing
@@ -253,15 +255,14 @@ func TestElxrProviderPreProcess(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
 
 	elxr := &eLxr{
-		repoCfg: debutils.RepoConfig{
+		repoCfgs: []debutils.RepoConfig{{
 			Section:   "main",
 			Name:      "Wind River eLxr 12",
 			PkgList:   "https://mirror.elxr.dev/elxr/dists/aria/main/binary-amd64/Packages.gz",
 			PkgPrefix: "https://mirror.elxr.dev/elxr/",
 			Enabled:   true,
 			GPGCheck:  true,
-		},
-		gzHref:    "https://mirror.elxr.dev/elxr/dists/aria/main/binary-amd64/Packages.gz",
+		}},
 		chrootEnv: &mockChrootEnv{}, // Add the missing chrootEnv mock
 	}
 
@@ -536,10 +537,12 @@ func TestElxrProviderWorkflow(t *testing.T) {
 		t.Logf("Init failed as expected: %v", err)
 	} else {
 		// If Init succeeds, verify configuration was loaded
-		if elxr.repoCfg.Name == "" {
+		if len(elxr.repoCfgs) == 0 || elxr.repoCfgs[0].Name == "" {
 			t.Error("Expected repo config name to be set after successful Init")
 		}
-		t.Logf("Repo config loaded: %s", elxr.repoCfg.Name)
+		if len(elxr.repoCfgs) > 0 {
+			t.Logf("Repo config loaded: %s", elxr.repoCfgs[0].Name)
+		}
 	}
 
 	// Skip PreProcess and BuildImage tests to avoid sudo commands
@@ -628,15 +631,15 @@ func TestElxrArchitectureHandling(t *testing.T) {
 				t.Logf("Init failed as expected: %v", err)
 			} else {
 				// We expect success, so we can check arch mapping
-				if elxr.repoCfg.Arch != tc.expectedArch {
-					t.Errorf("For input arch %s, expected config arch %s, got %s", tc.inputArch, tc.expectedArch, elxr.repoCfg.Arch)
+				if len(elxr.repoCfgs) > 0 && elxr.repoCfgs[0].Arch != tc.expectedArch {
+					t.Errorf("For input arch %s, expected config arch %s, got %s", tc.inputArch, tc.expectedArch, elxr.repoCfgs[0].Arch)
 				}
 
 				// If we have a PkgList, verify it contains the expected architecture
-				if elxr.repoCfg.PkgList != "" {
+				if len(elxr.repoCfgs) > 0 && elxr.repoCfgs[0].PkgList != "" {
 					expectedArchInURL := "binary-" + tc.expectedArch
-					if !strings.Contains(elxr.repoCfg.PkgList, expectedArchInURL) {
-						t.Errorf("For arch %s, expected PkgList to contain %s, got %s", tc.inputArch, expectedArchInURL, elxr.repoCfg.PkgList)
+					if !strings.Contains(elxr.repoCfgs[0].PkgList, expectedArchInURL) {
+						t.Errorf("For arch %s, expected PkgList to contain %s, got %s", tc.inputArch, expectedArchInURL, elxr.repoCfgs[0].PkgList)
 					}
 				}
 
