@@ -11,7 +11,6 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/image/rawmaker"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/debutils"
 	"github.com/open-edge-platform/os-image-composer/internal/provider"
-	"github.com/open-edge-platform/os-image-composer/internal/utils/display"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/system"
@@ -29,8 +28,7 @@ var log = logger.Logger()
 
 // eLxr implements provider.Provider
 type eLxr struct {
-	repoCfg   debutils.RepoConfig
-	gzHref    string
+	repoCfgs  []debutils.RepoConfig
 	chrootEnv chroot.ChrootEnvInterface
 }
 
@@ -59,18 +57,18 @@ func (p *eLxr) Init(dist, arch string) error {
 		arch = "amd64"
 	}
 
-	cfg, err := loadRepoConfig("", arch) // repoURL no longer needed
+	cfgs, err := loadRepoConfig("", arch) // repoURL no longer needed
 	if err != nil {
 		log.Errorf("Parsing repo config failed: %v", err)
 		return err
 	}
-	p.repoCfg = cfg
-	p.gzHref = cfg.PkgList
+	p.repoCfgs = cfgs
 
-	log.Infof("Initialized eLxr provider repo section=%s", cfg.Section)
-	log.Infof("name=%s", cfg.Name)
-	log.Infof("package list url=%s", cfg.PkgList)
-	log.Infof("package download url=%s", cfg.PkgPrefix)
+	log.Infof("Initialized eLxr provider with %d repositories", len(cfgs))
+	for i, cfg := range cfgs {
+		log.Infof("Repository %d: name=%s, package list url=%s, package download url=%s",
+			i+1, cfg.Name, cfg.PkgList, cfg.PkgPrefix)
+	}
 	return nil
 }
 
@@ -122,22 +120,7 @@ func (p *eLxr) buildRawImage(template *config.ImageTemplate) error {
 		return fmt.Errorf("failed to initialize raw maker: %w", err)
 	}
 
-	if err := rawMaker.BuildRawImage(); err != nil {
-		return err
-	}
-
-	// Display summary after build completes (loop device detached, files accessible)
-	// Construct the actual image build directory path (on host, not in chroot)
-	globalWorkDir, err := config.WorkDir()
-	if err != nil {
-		return fmt.Errorf("failed to get work directory: %w", err)
-	}
-	providerId := system.GetProviderId(template.Target.OS, template.Target.Dist, template.Target.Arch)
-	imageBuildDir := filepath.Join(globalWorkDir, providerId, "imagebuild", template.GetSystemConfigName())
-
-	displayImageArtifacts(imageBuildDir, "RAW")
-
-	return nil
+	return rawMaker.BuildRawImage()
 }
 
 func (p *eLxr) buildInitrdImage(template *config.ImageTemplate) error {
@@ -173,22 +156,7 @@ func (p *eLxr) buildIsoImage(template *config.ImageTemplate) error {
 		return fmt.Errorf("failed to initialize iso maker: %w", err)
 	}
 
-	if err := isoMaker.BuildIsoImage(); err != nil {
-		return err
-	}
-
-	// Display summary after build completes
-	// Construct the actual image build directory path (on host, not in chroot)
-	globalWorkDir, err := config.WorkDir()
-	if err != nil {
-		return fmt.Errorf("failed to get work directory: %w", err)
-	}
-	providerId := system.GetProviderId(template.Target.OS, template.Target.Dist, template.Target.Arch)
-	imageBuildDir := filepath.Join(globalWorkDir, providerId, "imagebuild", template.GetSystemConfigName())
-
-	displayImageArtifacts(imageBuildDir, "ISO")
-
-	return nil
+	return isoMaker.BuildIsoImage()
 }
 
 func (p *eLxr) PostProcess(template *config.ImageTemplate, err error) error {
@@ -245,59 +213,71 @@ func (p *eLxr) downloadImagePkgs(template *config.ImageTemplate) error {
 		return fmt.Errorf("failed to get global cache dir: %w", err)
 	}
 	pkgCacheDir := filepath.Join(globalCache, "pkgCache", providerId)
-	debutils.RepoCfg = p.repoCfg
-	debutils.GzHref = p.gzHref
-	debutils.Architecture = p.repoCfg.Arch
+
+	// Configure multiple repositories
+	if len(p.repoCfgs) == 0 {
+		return fmt.Errorf("no repository configurations available")
+	}
+
+	// Set up all repositories for debutils
+	debutils.RepoCfgs = p.repoCfgs
+
+	// Set up primary repository for backward compatibility with existing code
+	primaryRepo := p.repoCfgs[0]
+	debutils.RepoCfg = primaryRepo
+	debutils.GzHref = primaryRepo.PkgList
+	debutils.Architecture = primaryRepo.Arch
 	debutils.UserRepo = template.GetPackageRepositories()
+
+	log.Infof("Configured %d repositories for package download", len(p.repoCfgs))
+	for i, cfg := range p.repoCfgs {
+		log.Infof("Repository %d: %s (%s)", i+1, cfg.Name, cfg.PkgList)
+	}
+
 	template.FullPkgList, err = debutils.DownloadPackages(pkgList, pkgCacheDir, "")
 	return err
 }
 
-func loadRepoConfig(repoUrl string, arch string) (debutils.RepoConfig, error) {
-	var rc debutils.RepoConfig
+func loadRepoConfig(repoUrl string, arch string) ([]debutils.RepoConfig, error) {
+	var repoConfigs []debutils.RepoConfig
 
 	// Load provider repo config using the centralized config function
 	providerConfigs, err := config.LoadProviderRepoConfig(OsName, "elxr12")
 	if err != nil {
-		return rc, fmt.Errorf("failed to load provider repo config: %w", err)
+		return repoConfigs, fmt.Errorf("failed to load provider repo config: %w", err)
 	}
 
-	// Use the first repository configuration for backward compatibility
-	if len(providerConfigs) == 0 {
-		return rc, fmt.Errorf("no repository configurations found")
+	repoList := make([]debutils.Repository, len(providerConfigs))
+	repoGroup := "elxr"
+
+	// Convert each ProviderRepoConfig to debutils.RepoConfig
+	for i, providerConfig := range providerConfigs {
+		// Convert ProviderRepoConfig to debutils.RepoConfig using the unified conversion method
+		repoType, name, _, gpgKey, component, _, _, _, _, baseURL, _, _, _ := providerConfig.ToRepoConfigData(arch)
+
+		// Verify this is a DEB repository
+		if repoType != "deb" {
+			log.Warnf("Skipping non-DEB repository: %s (type: %s)", name, repoType)
+			continue
+		}
+
+		repoList[i] = debutils.Repository{
+			ID:        fmt.Sprintf("%s%d", repoGroup, i+1),
+			Codename:  name,
+			URL:       baseURL,
+			PKey:      gpgKey,
+			Component: component,
+		}
 	}
 
-	providerConfig := providerConfigs[0]
-
-	// Convert ProviderRepoConfig to debutils.RepoConfig using the unified conversion method
-	repoType, name, url, gpgKey, component, buildPath, pkgPrefix, releaseFile, releaseSign, _, gpgCheck, repoGPGCheck, enabled := providerConfig.ToRepoConfigData(arch)
-
-	// Verify this is a DEB repository
-	if repoType != "deb" {
-		return rc, fmt.Errorf("expected DEB repository type, got: %s", repoType)
+	repoConfigs, err = debutils.BuildRepoConfigs(repoList, arch)
+	if err != nil {
+		return nil, fmt.Errorf("building user repo configs failed: %w", err)
 	}
 
-	rc = debutils.RepoConfig{
-		Section:      component, // Map component to Section for DEB utils
-		Name:         name,
-		PkgList:      url, // For DEB repos, this is the Packages.gz URL
-		PkgPrefix:    pkgPrefix,
-		GPGCheck:     gpgCheck,
-		RepoGPGCheck: repoGPGCheck,
-		Enabled:      enabled,
-		PbGPGKey:     gpgKey, // For DEB repos, gpgKey contains the pbGPGKey value
-		ReleaseFile:  releaseFile,
-		ReleaseSign:  releaseSign,
-		BuildPath:    buildPath,
-		Arch:         arch,
+	if len(repoConfigs) == 0 {
+		return repoConfigs, fmt.Errorf("no valid DEB repositories found")
 	}
 
-	log.Infof("Loaded repo config for %s: %+v", OsName, rc)
-
-	return rc, nil
-}
-
-// displayImageArtifacts displays all image artifacts in the build directory
-func displayImageArtifacts(imageBuildDir, imageType string) {
-	display.PrintImageDirectorySummary(imageBuildDir, imageType)
+	return repoConfigs, nil
 }
