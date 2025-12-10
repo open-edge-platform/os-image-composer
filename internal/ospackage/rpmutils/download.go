@@ -369,7 +369,14 @@ func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospack
 	return needed, nil
 }
 
+// DownloadPackages downloads packages and returns the list of downloaded package names.
 func DownloadPackages(pkgList []string, destDir, dotFile string) ([]string, error) {
+	downloadedPkgs, _, err := DownloadPackagesComplete(pkgList, destDir, dotFile)
+	return downloadedPkgs, err
+}
+
+// DownloadPackagesComplete downloads packages and returns both package names and full package info.
+func DownloadPackagesComplete(pkgList []string, destDir, dotFile string) ([]string, []ospackage.PackageInfo, error) {
 	var downloadPkgList []string
 
 	log := logger.Logger()
@@ -377,21 +384,21 @@ func DownloadPackages(pkgList []string, destDir, dotFile string) ([]string, erro
 	all, err := Packages()
 	if err != nil {
 		log.Errorf("base packages fetch failed: %v", err)
-		return downloadPkgList, fmt.Errorf("base package fetch failed: %v", err)
+		return downloadPkgList, nil, fmt.Errorf("base package fetch failed: %v", err)
 	}
 
 	// Fetch the entire user repos package list
 	userpkg, err := UserPackages()
 	if err != nil {
 		log.Errorf("getting user packages failed: %v", err)
-		return downloadPkgList, fmt.Errorf("user package fetch failed: %w", err)
+		return downloadPkgList, nil, fmt.Errorf("user package fetch failed: %w", err)
 	}
 	all = append(all, userpkg...)
 
 	// Match the packages in the template against all the packages
 	req, err := MatchRequested(pkgList, all)
 	if err != nil {
-		return downloadPkgList, fmt.Errorf("matching packages: %v", err)
+		return downloadPkgList, nil, fmt.Errorf("matching packages: %v", err)
 	}
 	log.Infof("Matched a total of %d packages", len(req))
 
@@ -402,7 +409,7 @@ func DownloadPackages(pkgList []string, destDir, dotFile string) ([]string, erro
 	// Resolve the dependencies of the requested packages
 	needed, err := Resolve(req, all)
 	if err != nil {
-		return downloadPkgList, fmt.Errorf("resolving packages: %v", err)
+		return downloadPkgList, nil, fmt.Errorf("resolving packages: %v", err)
 	}
 
 	// Generate SPDX manifest, generated in temp directory
@@ -412,7 +419,7 @@ func DownloadPackages(pkgList []string, destDir, dotFile string) ([]string, erro
 	//check if file not exists, if yes create it, only need user (not chroot) packages first time
 	if _, err := os.Stat(spdxFile); os.IsNotExist(err) {
 		if err := manifest.WriteSPDXToFile(needed, spdxFile); err != nil {
-			return downloadPkgList, fmt.Errorf("SPDX file: %w", err)
+			return downloadPkgList, nil, fmt.Errorf("SPDX file: %w", err)
 		}
 		log.Infof("SPDX file created at %s", spdxFile)
 	}
@@ -440,23 +447,23 @@ func DownloadPackages(pkgList []string, destDir, dotFile string) ([]string, erro
 	// Ensure dest directory exists
 	absDestDir, err := filepath.Abs(destDir)
 	if err != nil {
-		return downloadPkgList, fmt.Errorf("resolving cache directory: %v", err)
+		return downloadPkgList, nil, fmt.Errorf("resolving cache directory: %v", err)
 	}
 	if err := os.MkdirAll(absDestDir, 0755); err != nil {
-		return downloadPkgList, fmt.Errorf("creating cache directory %s: %v", absDestDir, err)
+		return downloadPkgList, nil, fmt.Errorf("creating cache directory %s: %v", absDestDir, err)
 	}
 
 	// Download packages using configured workers and cache directory
 	log.Infof("Downloading %d packages to %s using %d workers", len(urls), absDestDir, config.Workers())
 	if err := pkgfetcher.FetchPackages(urls, absDestDir, config.Workers()); err != nil {
-		return downloadPkgList, fmt.Errorf("fetch failed: %v", err)
+		return downloadPkgList, nil, fmt.Errorf("fetch failed: %v", err)
 	}
 	log.Info("All downloads complete")
 
 	// Verify downloaded packages
 	if err := Validate(destDir); err != nil {
-		return downloadPkgList, fmt.Errorf("verification failed: %v", err)
+		return downloadPkgList, nil, fmt.Errorf("verification failed: %v", err)
 	}
 
-	return downloadPkgList, nil
+	return downloadPkgList, needed, nil
 }
