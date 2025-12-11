@@ -607,6 +607,10 @@ func updateImageConfig(installRoot string, diskPathIdMap map[string]string, temp
 	if err := addImageAdditionalFiles(installRoot, template); err != nil {
 		return fmt.Errorf("failed to add additional files to image: %w", err)
 	}
+	if err := manifest.CopySBOMToChroot(installRoot); err != nil {
+		log.Warnf("failed to copy SBOM into image filesystem: %v", err)
+		// Don't fail the build if SBOM copy fails, just log warning
+	}
 	if err := updateImageUsrGroup(installRoot, template); err != nil {
 		return fmt.Errorf("failed to update image user/group: %w", err)
 	}
@@ -742,32 +746,6 @@ func addImageAdditionalFiles(installRoot string, template *config.ImageTemplate)
 		}
 		log.Debugf("Successfully added additional file: %s", dstFile)
 	}
-
-	// ADD SBOM FILE AUTOMATICALLY
-	log.Infof("Adding SBOM file to image filesystem")
-	spdxNm := manifest.DefaultSPDXFile
-	srcSBOM := filepath.Join(config.TempDir(), spdxNm)
-	dstSBOM := filepath.Join(installRoot, manifest.ImageSBOMPath, spdxNm)
-
-	// Check if source SBOM exists
-	if _, err := os.Stat(srcSBOM); os.IsNotExist(err) {
-		log.Warnf("SBOM file not found at %s, skipping copy to image", srcSBOM)
-	} else {
-		// Create destination directory
-		dstDir := filepath.Dir(dstSBOM)
-		if _, err := shell.ExecCmd("mkdir -p "+dstDir, true, shell.HostPath, nil); err != nil {
-			log.Errorf("Failed to create SBOM directory: %v", err)
-			return fmt.Errorf("failed to create SBOM directory: %w", err)
-		}
-
-		// Copy SBOM file
-		if err := file.CopyFile(srcSBOM, dstSBOM, "-p", true); err != nil {
-			log.Errorf("Failed to copy SBOM file to image: %v", err)
-			return fmt.Errorf("failed to copy SBOM file to image: %w", err)
-		}
-		log.Infof("Successfully added SBOM file to image: %s", dstSBOM)
-	}
-
 	return nil
 }
 
