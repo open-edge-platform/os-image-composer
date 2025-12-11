@@ -6,6 +6,7 @@ import (
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/config/manifest"
 	"github.com/open-edge-platform/os-image-composer/internal/image/initrdmaker"
 	"github.com/open-edge-platform/os-image-composer/internal/image/isomaker"
 	"github.com/open-edge-platform/os-image-composer/internal/image/rawmaker"
@@ -252,7 +253,18 @@ func (p *AzureLinux) downloadImagePkgs(template *config.ImageTemplate) error {
 	rpmutils.GzHref = p.gzHref
 	rpmutils.Dist = template.Target.Dist
 	rpmutils.UserRepo = template.GetPackageRepositories()
-	template.FullPkgList, err = rpmutils.DownloadPackages(pkgList, pkgCacheDir, "")
+
+	fullPkgList, fullPkgListBom, err := rpmutils.DownloadPackagesComplete(pkgList, pkgCacheDir, "")
+	template.FullPkgList = fullPkgList
+
+	// Generate SPDX manifest, generated in temp directory
+	manifest.DefaultSPDXFile = rpmutils.GenerateSPDXFileName(p.repoCfg.Name)
+	spdxFile := filepath.Join(config.TempDir(), manifest.DefaultSPDXFile)
+	if err := manifest.WriteSPDXToFile(fullPkgListBom, spdxFile); err != nil {
+		return fmt.Errorf("SPDX SBOM creation error: %w", err)
+	}
+	log.Infof("SPDX file created at %s", spdxFile)
+
 	return err
 }
 

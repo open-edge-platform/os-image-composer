@@ -6,6 +6,7 @@ import (
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/config/manifest"
 	"github.com/open-edge-platform/os-image-composer/internal/image/initrdmaker"
 	"github.com/open-edge-platform/os-image-composer/internal/image/isomaker"
 	"github.com/open-edge-platform/os-image-composer/internal/image/rawmaker"
@@ -265,7 +266,17 @@ func (p *eLxr) downloadImagePkgs(template *config.ImageTemplate) error {
 		log.Infof("Repository %d: %s (%s)", i+1, cfg.Name, cfg.PkgList)
 	}
 
-	template.FullPkgList, err = debutils.DownloadPackages(pkgList, pkgCacheDir, "")
+	fullPkgList, fullPkgListBom, err := debutils.DownloadPackagesComplete(pkgList, pkgCacheDir, "")
+	template.FullPkgList = fullPkgList
+
+	// Generate SPDX manifest, generated in temp directory
+	manifest.DefaultSPDXFile = debutils.GenerateSPDXFileName(p.repoCfgs[0].Name)
+	spdxFile := filepath.Join(config.TempDir(), manifest.DefaultSPDXFile)
+	if err := manifest.WriteSPDXToFile(fullPkgListBom, spdxFile); err != nil {
+		return fmt.Errorf("SPDX SBOM creation error: %w", err)
+	}
+	log.Infof("SPDX file created at %s", spdxFile)
+
 	return err
 }
 

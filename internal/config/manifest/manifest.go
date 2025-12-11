@@ -201,6 +201,7 @@ func WriteSPDXToFile(pkgs []ospackage.PackageInfo, outFile string) error {
 		log.Errorf("Failed to write SPDX file: %v", err)
 		return fmt.Errorf("failed to create SPDX output file: %w", err)
 	}
+	log.Infof("SPDX manifest written to staging %s", outFile)
 
 	return nil
 }

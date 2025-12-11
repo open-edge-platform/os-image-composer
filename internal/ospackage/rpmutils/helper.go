@@ -3,8 +3,10 @@ package rpmutils
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
@@ -689,4 +691,11 @@ func comparePackageVersions(a, b string) (int, error) {
 		return cmp, nil
 	}
 	return 0, nil
+}
+
+// GenerateSPDXFileName creates a SPDX manifest filename based on repository configuration
+func GenerateSPDXFileName(repoNm string) string {
+	timestamp := time.Now().Format("20060102_150405")
+	SPDXFileNm := filepath.Join("spdx_manifest_rpm_" + strings.ReplaceAll(repoNm, " ", "_") + "_" + timestamp + ".json")
+	return SPDXFileNm
 }
