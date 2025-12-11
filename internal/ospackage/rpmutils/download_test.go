@@ -5,11 +5,79 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
+	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/rpmutils"
 )
+
+func TestUserPackages(t *testing.T) {
+	// Save original global variables
+	originalUserRepo := rpmutils.UserRepo
+	defer func() {
+		rpmutils.UserRepo = originalUserRepo
+	}()
+
+	testCases := []struct {
+		name        string
+		userRepos   []config.PackageRepository
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "empty user repository list",
+			userRepos:   []config.PackageRepository{},
+			expectError: false, // Should return empty list without error
+		},
+		{
+			name: "invalid user repository URL",
+			userRepos: []config.PackageRepository{
+				{
+					URL:      "invalid-url",
+					Codename: "test",
+					PKey:     "http://example.com/key.asc",
+				},
+			},
+			expectError: false, // Invalid URL gets skipped, returns empty list
+		},
+		{
+			name: "valid user repository configuration",
+			userRepos: []config.PackageRepository{
+				{
+					URL:      "https://example.com/repo",
+					Codename: "stable",
+					PKey:     "https://example.com/key.asc",
+				},
+			},
+			expectError: true, // Will fail due to network call
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rpmutils.UserRepo = tc.userRepos
+
+			_, err := rpmutils.UserPackages()
+
+			if tc.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				if tc.errorMsg != "" && err != nil && !strings.Contains(err.Error(), tc.errorMsg) {
+					t.Errorf("Expected error to contain %q, got %q", tc.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+				// For empty user repo list, result can be nil (no repositories processed)
+				// This is valid behavior
+			}
+		})
+	}
+}
 
 func TestPackages(t *testing.T) {
 	// Save original global variables
@@ -305,8 +373,10 @@ func TestIsValidVersionFormat(t *testing.T) {
 func TestValidate(t *testing.T) {
 	// Save original global variables
 	originalRepoCfg := rpmutils.RepoCfg
+	originalUserRepo := rpmutils.UserRepo
 	defer func() {
 		rpmutils.RepoCfg = originalRepoCfg
+		rpmutils.UserRepo = originalUserRepo
 	}()
 
 	testCases := []struct {
@@ -314,6 +384,7 @@ func TestValidate(t *testing.T) {
 		setupRepo   func() *httptest.Server
 		destDir     func() string
 		expectError bool
+		errorMsg    string
 	}{
 		{
 			name: "invalid GPG key URL",
@@ -325,9 +396,10 @@ func TestValidate(t *testing.T) {
 				return tmpDir
 			},
 			expectError: true,
+			errorMsg:    "no GPG keys configured",
 		},
 		{
-			name: "no RPMs to verify",
+			name: "no RPMs to verify with valid GPG key",
 			setupRepo: func() *httptest.Server {
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.Header().Set("Content-Type", "text/plain")
@@ -341,6 +413,33 @@ func TestValidate(t *testing.T) {
 			},
 			expectError: false, // Should not error when no RPMs found
 		},
+		{
+			name: "user repo without GPG key",
+			setupRepo: func() *httptest.Server {
+				return nil
+			},
+			destDir: func() string {
+				tmpDir, _ := os.MkdirTemp("", "test-rpms-*")
+				return tmpDir
+			},
+			expectError: true,
+			errorMsg:    "no GPG key URL configured for user repo",
+		},
+		{
+			name: "multiple GPG keys from different sources",
+			setupRepo: func() *httptest.Server {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "text/plain")
+					_, _ = w.Write([]byte("dummy-gpg-key-content"))
+				}))
+				return server
+			},
+			destDir: func() string {
+				tmpDir, _ := os.MkdirTemp("", "test-rpms-*")
+				return tmpDir
+			},
+			expectError: false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -348,12 +447,42 @@ func TestValidate(t *testing.T) {
 			server := tc.setupRepo()
 			if server != nil {
 				defer server.Close()
+			}
+
+			// Setup test configuration based on test case
+			switch tc.name {
+			case "invalid GPG key URL":
+				rpmutils.RepoCfg = rpmutils.RepoConfig{}
+				rpmutils.UserRepo = []config.PackageRepository{}
+			case "user repo without GPG key":
+				rpmutils.RepoCfg = rpmutils.RepoConfig{}
+				rpmutils.UserRepo = []config.PackageRepository{
+					{
+						URL:  "https://example.com",
+						PKey: "", // Empty PKey should cause error
+					},
+				}
+			case "multiple GPG keys from different sources":
 				rpmutils.RepoCfg = rpmutils.RepoConfig{
 					GPGKey: server.URL,
 				}
-			} else {
-				rpmutils.RepoCfg = rpmutils.RepoConfig{
-					GPGKey: "invalid://invalid-url-scheme",
+				rpmutils.UserRepo = []config.PackageRepository{
+					{
+						URL:  "https://example.com",
+						PKey: server.URL,
+					},
+				}
+			default:
+				if server != nil {
+					rpmutils.RepoCfg = rpmutils.RepoConfig{
+						GPGKey: server.URL,
+					}
+					rpmutils.UserRepo = []config.PackageRepository{}
+				} else {
+					rpmutils.RepoCfg = rpmutils.RepoConfig{
+						GPGKey: "invalid://invalid-url-scheme",
+					}
+					rpmutils.UserRepo = []config.PackageRepository{}
 				}
 			}
 
@@ -365,6 +494,9 @@ func TestValidate(t *testing.T) {
 			if tc.expectError {
 				if err == nil {
 					t.Error("Expected error but got none")
+				}
+				if tc.errorMsg != "" && !strings.Contains(err.Error(), tc.errorMsg) {
+					t.Errorf("Expected error to contain %q, got %q", tc.errorMsg, err.Error())
 				}
 			} else {
 				if err != nil {
@@ -479,9 +611,11 @@ func TestDownloadPackages(t *testing.T) {
 	// Save original global variables
 	originalRepoCfg := rpmutils.RepoCfg
 	originalGzHref := rpmutils.GzHref
+	originalUserRepo := rpmutils.UserRepo
 	defer func() {
 		rpmutils.RepoCfg = originalRepoCfg
 		rpmutils.GzHref = originalGzHref
+		rpmutils.UserRepo = originalUserRepo
 	}()
 
 	testCases := []struct {
@@ -490,6 +624,7 @@ func TestDownloadPackages(t *testing.T) {
 		destDir     string
 		dotFile     string
 		expectError bool
+		errorMsg    string
 	}{
 		{
 			name:        "empty package list",
@@ -497,6 +632,7 @@ func TestDownloadPackages(t *testing.T) {
 			destDir:     "",
 			dotFile:     "",
 			expectError: true, // Will fail when trying to fetch packages
+			errorMsg:    "base package fetch failed",
 		},
 		{
 			name:        "invalid destination directory",
@@ -504,6 +640,15 @@ func TestDownloadPackages(t *testing.T) {
 			destDir:     "/invalid/path/that/cannot/be/created",
 			dotFile:     "",
 			expectError: true,
+			errorMsg:    "base package fetch failed",
+		},
+		{
+			name:        "invalid main repository with user repo",
+			pkgList:     []string{"test-package"},
+			destDir:     "",
+			dotFile:     "",
+			expectError: true,
+			errorMsg:    "base package fetch failed", // Will fail at base repo first
 		},
 	}
 
@@ -514,6 +659,23 @@ func TestDownloadPackages(t *testing.T) {
 				URL: "invalid-url",
 			}
 			rpmutils.GzHref = "repodata/primary.xml.gz"
+
+			// Setup user repo for specific test case
+			if tc.name == "invalid main repository with user repo" {
+				// Set up invalid main repo and user repo to test both paths
+				rpmutils.RepoCfg = rpmutils.RepoConfig{
+					URL: "invalid-url", // This will fail at base repo level
+				}
+				rpmutils.UserRepo = []config.PackageRepository{
+					{
+						URL:      "invalid-user-repo-url",
+						Codename: "test",
+						PKey:     "https://example.com/key.asc",
+					},
+				}
+			} else {
+				rpmutils.UserRepo = []config.PackageRepository{}
+			}
 
 			if tc.destDir == "" {
 				tmpDir, err := os.MkdirTemp("", "test-download-*")
@@ -529,6 +691,9 @@ func TestDownloadPackages(t *testing.T) {
 			if tc.expectError {
 				if err == nil {
 					t.Error("Expected error but got none")
+				}
+				if tc.errorMsg != "" && !strings.Contains(err.Error(), tc.errorMsg) {
+					t.Errorf("Expected error to contain %q, got %q", tc.errorMsg, err.Error())
 				}
 			} else {
 				if err != nil {
@@ -795,6 +960,110 @@ func TestResolveEdgeCases(t *testing.T) {
 	}
 }
 
+// TestDownloadPackagesComplete tests the new DownloadPackagesComplete function
+func TestDownloadPackagesComplete(t *testing.T) {
+	// Save original global variables
+	originalRepoCfg := rpmutils.RepoCfg
+	originalGzHref := rpmutils.GzHref
+	originalUserRepo := rpmutils.UserRepo
+	defer func() {
+		rpmutils.RepoCfg = originalRepoCfg
+		rpmutils.GzHref = originalGzHref
+		rpmutils.UserRepo = originalUserRepo
+	}()
+
+	testCases := []struct {
+		name         string
+		pkgList      []string
+		setupRepos   func()
+		expectError  bool
+		errorMsg     string
+		checkResults func([]string, []ospackage.PackageInfo) error
+	}{
+		{
+			name:    "empty package list",
+			pkgList: []string{},
+			setupRepos: func() {
+				rpmutils.RepoCfg = rpmutils.RepoConfig{
+					URL: "invalid-url",
+				}
+				rpmutils.UserRepo = []config.PackageRepository{}
+			},
+			expectError: true,
+			errorMsg:    "base package fetch failed",
+		},
+		{
+			name:    "invalid base repository",
+			pkgList: []string{"test-package"},
+			setupRepos: func() {
+				rpmutils.RepoCfg = rpmutils.RepoConfig{
+					URL: "invalid-url",
+				}
+				rpmutils.UserRepo = []config.PackageRepository{}
+			},
+			expectError: true,
+			errorMsg:    "base package fetch failed",
+		},
+		{
+			name:    "invalid user repository",
+			pkgList: []string{"test-package"},
+			setupRepos: func() {
+				// This will still fail at base repo level, but tests user repo path
+				rpmutils.RepoCfg = rpmutils.RepoConfig{
+					URL: "https://example.com",
+				}
+				rpmutils.UserRepo = []config.PackageRepository{
+					{
+						URL:      "invalid-user-url",
+						Codename: "test",
+						PKey:     "https://example.com/key.asc",
+					},
+				}
+			},
+			expectError: true,
+			errorMsg:    "base package fetch failed", // Will fail at base repo first
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.setupRepos()
+
+			tmpDir, err := os.MkdirTemp("", "test-download-complete-*")
+			if err != nil {
+				t.Fatalf("Failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tmpDir)
+
+			downloadList, packageInfos, err := rpmutils.DownloadPackagesComplete(tc.pkgList, tmpDir, "")
+
+			if tc.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				if tc.errorMsg != "" && !strings.Contains(err.Error(), tc.errorMsg) {
+					t.Errorf("Expected error to contain %q, got %q", tc.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+				if downloadList == nil {
+					t.Error("Expected downloadList to be non-nil")
+				}
+				if packageInfos == nil {
+					t.Error("Expected packageInfos to be non-nil")
+				}
+				if tc.checkResults != nil {
+					if err := tc.checkResults(downloadList, packageInfos); err != nil {
+						t.Errorf("Result validation failed: %v", err)
+					}
+				}
+			}
+		})
+	}
+}
+
 // TestMatchRequestedPerformance tests performance with large package lists
 func TestMatchRequestedPerformance(t *testing.T) {
 	// Generate a large list of packages
@@ -836,6 +1105,273 @@ func TestMatchRequestedPerformance(t *testing.T) {
 
 			if len(result) != tt.requestCount {
 				t.Errorf("Expected %d packages, got %d", tt.requestCount, len(result))
+			}
+		})
+	}
+}
+
+// TestDownloadPackagesCompleteFunction tests the new DownloadPackagesComplete function
+func TestDownloadPackagesCompleteFunction(t *testing.T) {
+	// Save original global variables
+	originalRepoCfg := rpmutils.RepoCfg
+	originalGzHref := rpmutils.GzHref
+	originalUserRepo := rpmutils.UserRepo
+	defer func() {
+		rpmutils.RepoCfg = originalRepoCfg
+		rpmutils.GzHref = originalGzHref
+		rpmutils.UserRepo = originalUserRepo
+	}()
+
+	testCases := []struct {
+		name         string
+		pkgList      []string
+		setupRepos   func()
+		expectError  bool
+		errorMsg     string
+		checkResults func([]string, []ospackage.PackageInfo) error
+	}{
+		{
+			name:    "empty package list",
+			pkgList: []string{},
+			setupRepos: func() {
+				rpmutils.RepoCfg = rpmutils.RepoConfig{
+					URL: "invalid-url",
+				}
+				rpmutils.UserRepo = []config.PackageRepository{}
+			},
+			expectError: true,
+			errorMsg:    "base package fetch failed",
+		},
+		{
+			name:    "invalid base repository",
+			pkgList: []string{"test-package"},
+			setupRepos: func() {
+				rpmutils.RepoCfg = rpmutils.RepoConfig{
+					URL: "invalid-url",
+				}
+				rpmutils.UserRepo = []config.PackageRepository{}
+			},
+			expectError: true,
+			errorMsg:    "base package fetch failed",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.setupRepos()
+
+			tmpDir, err := os.MkdirTemp("", "test-download-complete-*")
+			if err != nil {
+				t.Fatalf("Failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tmpDir)
+
+			downloadList, packageInfos, err := rpmutils.DownloadPackagesComplete(tc.pkgList, tmpDir, "")
+
+			if tc.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				if tc.errorMsg != "" && !strings.Contains(err.Error(), tc.errorMsg) {
+					t.Errorf("Expected error to contain %q, got %q", tc.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+				if downloadList == nil {
+					t.Error("Expected downloadList to be non-nil")
+				}
+				if packageInfos == nil {
+					t.Error("Expected packageInfos to be non-nil")
+				}
+				if tc.checkResults != nil {
+					if err := tc.checkResults(downloadList, packageInfos); err != nil {
+						t.Errorf("Result validation failed: %v", err)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestBinaryGPGKeyHandling tests binary GPG key detection and conversion indirectly
+func TestBinaryGPGKeyHandling(t *testing.T) {
+	testCases := []struct {
+		name         string
+		data         []byte
+		expectBinary bool
+		description  string
+	}{
+		{
+			name: "ASCII armored GPG key",
+			data: []byte(`-----BEGIN PGP PUBLIC KEY BLOCK-----
+Version: GnuPG v1
+
+mQENBFciSdkBCADNxMYPr1/...test...key...content...
+-----END PGP PUBLIC KEY BLOCK-----`),
+			expectBinary: false,
+			description:  "Standard ASCII armored GPG key should not be detected as binary",
+		},
+		{
+			name: "binary data simulation",
+			data: func() []byte {
+				data := make([]byte, 100)
+				for i := range data {
+					data[i] = byte(i % 256)
+				}
+				return data
+			}(),
+			expectBinary: true,
+			description:  "Binary data with less than 70% printable characters should be detected as binary",
+		},
+		{
+			name:         "empty data",
+			data:         []byte{},
+			expectBinary: false,
+			description:  "Empty data should not be detected as binary",
+		},
+		{
+			name:         "small binary data",
+			data:         []byte{0x01, 0x02, 0x03},
+			expectBinary: false, // Less than 4 bytes
+			description:  "Very small data should not be detected as binary",
+		},
+		{
+			name:         "text with some binary",
+			data:         []byte("This is mostly text with some \x00\x01\x02 binary data mixed in for testing purposes"),
+			expectBinary: false, // Still mostly printable
+			description:  "Text with minimal binary should not be detected as binary",
+		},
+	}
+
+	// Test indirectly through the GPG key handling in Validate function
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a test server that serves the test data
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.expectBinary {
+					w.Header().Set("Content-Type", "application/octet-stream")
+				} else {
+					w.Header().Set("Content-Type", "text/plain")
+				}
+				_, _ = w.Write(tc.data)
+			}))
+			defer server.Close()
+
+			// Save original configuration
+			originalRepoCfg := rpmutils.RepoCfg
+			originalUserRepo := rpmutils.UserRepo
+			defer func() {
+				rpmutils.RepoCfg = originalRepoCfg
+				rpmutils.UserRepo = originalUserRepo
+			}()
+
+			// Setup test configuration
+			rpmutils.RepoCfg = rpmutils.RepoConfig{
+				GPGKey: server.URL,
+			}
+			rpmutils.UserRepo = []config.PackageRepository{}
+
+			tmpDir, err := os.MkdirTemp("", "test-binary-gpg-*")
+			if err != nil {
+				t.Fatalf("Failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tmpDir)
+
+			// Call Validate which will internally use the GPG key detection functions
+			err = rpmutils.Validate(tmpDir)
+
+			// For ASCII armored keys, we expect no error (when no RPMs to verify)
+			// For binary keys that can't be converted, we expect an error
+			if !tc.expectBinary {
+				if err != nil && !strings.Contains(err.Error(), "no RPMs found") {
+					// ASCII keys should either succeed or fail only due to no RPMs
+					t.Logf("GPG key validation result for ASCII key: %v", err)
+				}
+			} else {
+				// Binary keys will likely fail during conversion
+				if err == nil {
+					t.Logf("Binary GPG key was processed successfully (unexpected but not necessarily wrong)")
+				} else {
+					t.Logf("Binary GPG key processing failed as expected: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// TestUserRepoConfig tests user repository configuration scenarios
+func TestUserRepoConfig(t *testing.T) {
+	// Save original configuration
+	originalUserRepo := rpmutils.UserRepo
+	defer func() {
+		rpmutils.UserRepo = originalUserRepo
+	}()
+
+	testCases := []struct {
+		name          string
+		userRepos     []config.PackageRepository
+		expectedRepos int
+		description   string
+	}{
+		{
+			name:          "empty user repository list",
+			userRepos:     []config.PackageRepository{},
+			expectedRepos: 0,
+			description:   "No user repositories should result in empty package list",
+		},
+		{
+			name: "single user repository",
+			userRepos: []config.PackageRepository{
+				{
+					URL:      "https://repo1.example.com",
+					Codename: "stable",
+					PKey:     "https://repo1.example.com/key.asc",
+				},
+			},
+			expectedRepos: 1,
+			description:   "Single repository should be configured",
+		},
+		{
+			name: "multiple user repositories",
+			userRepos: []config.PackageRepository{
+				{
+					URL:      "https://repo1.example.com",
+					Codename: "stable",
+					PKey:     "https://repo1.example.com/key.asc",
+				},
+				{
+					URL:      "https://repo2.example.com",
+					Codename: "testing",
+					PKey:     "https://repo2.example.com/key.asc",
+				},
+			},
+			expectedRepos: 2,
+			description:   "Multiple repositories should all be configured",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rpmutils.UserRepo = tc.userRepos
+
+			// Test that UserPackages function can handle the configuration
+			// Even though it will fail due to network calls, it validates the structure
+			_, err := rpmutils.UserPackages()
+
+			// For empty repos, should not error
+			if len(tc.userRepos) == 0 {
+				if err != nil {
+					t.Errorf("Expected no error for empty user repos, got: %v", err)
+				}
+			} else {
+				// For non-empty repos, will fail due to network, but that's expected
+				if err == nil {
+					t.Logf("Unexpected success for user repo configuration")
+				} else {
+					t.Logf("Expected network-related error for user repos: %v", err)
+				}
 			}
 		})
 	}

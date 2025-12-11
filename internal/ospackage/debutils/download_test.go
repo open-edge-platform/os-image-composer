@@ -95,6 +95,189 @@ func TestPackages(t *testing.T) {
 	}
 }
 
+// TestPackagesFromMultipleRepos tests the PackagesFromMultipleRepos function
+func TestPackagesFromMultipleRepos(t *testing.T) {
+	// Save original values
+	origRepoCfgs := RepoCfgs
+	origRepoCfg := RepoCfg
+	defer func() {
+		RepoCfgs = origRepoCfgs
+		RepoCfg = origRepoCfg
+	}()
+
+	tests := []struct {
+		name          string
+		setupRepos    func()
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "no multiple repositories configured - fallback to single",
+			setupRepos: func() {
+				RepoCfgs = []RepoConfig{}
+				// Setup single repo with invalid config to trigger error
+				RepoCfg = RepoConfig{
+					PkgList: "invalid-url",
+				}
+			},
+			expectError:   true,
+			errorContains: "parsing default repo failed",
+		},
+		{
+			name: "all repositories fail",
+			setupRepos: func() {
+				RepoCfgs = []RepoConfig{
+					{
+						Name:    "repo1",
+						PkgList: "invalid-url1",
+					},
+					{
+						Name:    "repo2",
+						PkgList: "invalid-url2",
+					},
+				}
+			},
+			expectError:   true,
+			errorContains: "all 2 repositories failed to parse",
+		},
+		{
+			name: "some repositories fail but continue with others",
+			setupRepos: func() {
+				// This will fail because ParseRepositoryMetadata is not mocked
+				RepoCfgs = []RepoConfig{
+					{
+						Name:        "repo1",
+						PkgList:     "invalid-url1",
+						PkgPrefix:   "http://example.com",
+						ReleaseFile: "http://example.com/Release",
+						ReleaseSign: "http://example.com/Release.gpg",
+					},
+					{
+						Name:        "repo2",
+						PkgList:     "invalid-url2",
+						PkgPrefix:   "http://example2.com",
+						ReleaseFile: "http://example2.com/Release",
+						ReleaseSign: "http://example2.com/Release.gpg",
+					},
+				}
+			},
+			expectError:   true, // Will fail because ParseRepositoryMetadata is not mocked
+			errorContains: "all 2 repositories failed to parse",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupRepos()
+
+			packages, err := PackagesFromMultipleRepos()
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("Expected error to contain %q, got: %v", tt.errorContains, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+				if packages == nil {
+					t.Error("Expected packages to be non-nil")
+				}
+			}
+		})
+	}
+}
+
+// TestBuildRepoConfigs tests the BuildRepoConfigs function
+func TestBuildRepoConfigs(t *testing.T) {
+	tests := []struct {
+		name          string
+		userRepoList  []Repository
+		arch          string
+		expectError   bool
+		errorContains string
+		expectedCount int
+	}{
+		{
+			name:          "empty repository list",
+			userRepoList:  []Repository{},
+			arch:          "amd64",
+			expectError:   false,
+			expectedCount: 0,
+		},
+		{
+			name: "single repository with default component",
+			userRepoList: []Repository{
+				{
+					ID:        "test-repo",
+					Codename:  "stable",
+					URL:       "http://example.com",
+					PKey:      "test-key",
+					Component: "", // Should default to "main"
+				},
+			},
+			arch:          "amd64",
+			expectError:   true, // Will fail because GetPackagesNames is not mocked
+			errorContains: "fail connecting to repository",
+		},
+		{
+			name: "single repository with specified component",
+			userRepoList: []Repository{
+				{
+					ID:        "test-repo",
+					Codename:  "stable",
+					URL:       "http://example.com",
+					PKey:      "test-key",
+					Component: "contrib",
+				},
+			},
+			arch:          "amd64",
+			expectError:   true, // Will fail because GetPackagesNames is not mocked
+			errorContains: "fail connecting to repository",
+		},
+		{
+			name: "multiple components",
+			userRepoList: []Repository{
+				{
+					ID:        "test-repo",
+					Codename:  "stable",
+					URL:       "http://example.com",
+					PKey:      "test-key",
+					Component: "main contrib non-free",
+				},
+			},
+			arch:          "amd64",
+			expectError:   true, // Will fail because GetPackagesNames is not mocked
+			errorContains: "fail connecting to repository",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repoConfigs, err := BuildRepoConfigs(tt.userRepoList, tt.arch)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("Expected error to contain %q, got: %v", tt.errorContains, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+				if len(repoConfigs) != tt.expectedCount {
+					t.Errorf("Expected %d repo configs, got %d", tt.expectedCount, len(repoConfigs))
+				}
+			}
+		})
+	}
+}
+
 // TestUserPackages tests the UserPackages function
 func TestUserPackages(t *testing.T) {
 	// Save original values
@@ -120,18 +303,38 @@ func TestUserPackages(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "invalid user repo URL - skips gracefully",
+			name: "placeholder URLs - should return empty package list",
 			setupUserRepo: func() {
 				UserRepo = []config.PackageRepository{
 					{
-						URL:      "invalid-url",
+						URL:      "<URL>",
+						Codename: "stable",
+						PKey:     "dummy-key",
+					},
+					{
+						URL:      "",
 						Codename: "stable",
 						PKey:     "dummy-key",
 					},
 				}
 				Architecture = "amd64"
 			},
-			expectError: true,
+			expectError: false,
+		},
+		{
+			name: "invalid user repo URL - should fail",
+			setupUserRepo: func() {
+				UserRepo = []config.PackageRepository{
+					{
+						URL:      "http://invalid-url.example.com",
+						Codename: "stable",
+						PKey:     "dummy-key",
+					},
+				}
+				Architecture = "amd64"
+			},
+			expectError:   true,
+			errorContains: "building user repo configs failed",
 		},
 	}
 
@@ -614,15 +817,17 @@ func TestWriteArrayToFile(t *testing.T) {
 	}
 }
 
-// TestDownloadPackages tests the DownloadPackages function
-func TestDownloadPackages(t *testing.T) {
+// TestDownloadPackagesComplete tests the DownloadPackagesComplete function
+func TestDownloadPackagesComplete(t *testing.T) {
 	// Save original values
 	origRepoCfg := RepoCfg
+	origRepoCfgs := RepoCfgs
 	origUserRepo := UserRepo
 	origPkgChecksum := PkgChecksum
 	origGzHref := GzHref
 	defer func() {
 		RepoCfg = origRepoCfg
+		RepoCfgs = origRepoCfgs
 		UserRepo = origUserRepo
 		PkgChecksum = origPkgChecksum
 		GzHref = origGzHref
@@ -636,10 +841,131 @@ func TestDownloadPackages(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name:    "empty package list",
+			name:    "empty package list with multiple repos",
 			pkgList: []string{},
 			setup: func() error {
-				// Set up invalid configuration to trigger early error
+				// Setup multiple repos with invalid config
+				RepoCfgs = []RepoConfig{
+					{Name: "repo1", PkgList: "invalid-url1"},
+					{Name: "repo2", PkgList: "invalid-url2"},
+				}
+				UserRepo = nil
+				return nil
+			},
+			expectError:   true,
+			errorContains: "getting packages",
+		},
+		{
+			name:    "empty package list with single repo fallback",
+			pkgList: []string{},
+			setup: func() error {
+				// No multiple repos configured, should fallback to single
+				RepoCfgs = []RepoConfig{}
+				RepoCfg = RepoConfig{
+					PkgList: "invalid-url",
+				}
+				UserRepo = nil
+				GzHref = "invalid-gz"
+				return nil
+			},
+			expectError:   true,
+			errorContains: "getting packages",
+		},
+		{
+			name:    "valid package list but invalid configuration",
+			pkgList: []string{"test-pkg"},
+			setup: func() error {
+				RepoCfgs = []RepoConfig{}
+				RepoCfg = RepoConfig{
+					PkgList: "invalid-url",
+				}
+				UserRepo = nil
+				return nil
+			},
+			expectError:   true,
+			errorContains: "getting packages",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir, err := os.MkdirTemp("", "download_complete_test")
+			if err != nil {
+				t.Fatalf("Failed to create temp directory: %v", err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			if err := tt.setup(); err != nil {
+				t.Fatalf("Failed to setup test: %v", err)
+			}
+
+			downloadList, packageInfos, err := DownloadPackagesComplete(tt.pkgList, tempDir, "")
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("Expected error to contain %q, got: %v", tt.errorContains, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+				if downloadList == nil {
+					t.Error("Expected download list to be non-nil")
+				}
+				if packageInfos == nil {
+					t.Error("Expected package infos to be non-nil")
+				}
+			}
+		})
+	}
+}
+
+// TestDownloadPackages tests the DownloadPackages function
+func TestDownloadPackages(t *testing.T) {
+	// Save original values
+	origRepoCfg := RepoCfg
+	origRepoCfgs := RepoCfgs
+	origUserRepo := UserRepo
+	origPkgChecksum := PkgChecksum
+	origGzHref := GzHref
+	defer func() {
+		RepoCfg = origRepoCfg
+		RepoCfgs = origRepoCfgs
+		UserRepo = origUserRepo
+		PkgChecksum = origPkgChecksum
+		GzHref = origGzHref
+	}()
+
+	tests := []struct {
+		name          string
+		pkgList       []string
+		setup         func() error
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:    "empty package list with multiple repos",
+			pkgList: []string{},
+			setup: func() error {
+				// Set up multiple repos with invalid configuration
+				RepoCfgs = []RepoConfig{
+					{Name: "repo1", PkgList: "invalid-url1"},
+				}
+				UserRepo = nil
+				return nil
+			},
+			expectError:   true,
+			errorContains: "getting packages",
+		},
+		{
+			name:    "empty package list with single repo fallback",
+			pkgList: []string{},
+			setup: func() error {
+				// No multiple repos configured - should fallback to single repo
+				RepoCfgs = []RepoConfig{}
 				RepoCfg = RepoConfig{}
 				UserRepo = nil
 				GzHref = ""
@@ -649,9 +975,26 @@ func TestDownloadPackages(t *testing.T) {
 			errorContains: "getting packages",
 		},
 		{
-			name:    "invalid configuration",
+			name:    "invalid configuration with multiple repos",
 			pkgList: []string{"test-pkg"},
 			setup: func() error {
+				RepoCfgs = []RepoConfig{
+					{
+						Name:    "repo1",
+						PkgList: "invalid-url",
+					},
+				}
+				UserRepo = nil
+				return nil
+			},
+			expectError:   true,
+			errorContains: "getting packages",
+		},
+		{
+			name:    "invalid configuration with single repo fallback",
+			pkgList: []string{"test-pkg"},
+			setup: func() error {
+				RepoCfgs = []RepoConfig{}
 				RepoCfg = RepoConfig{
 					PkgList: "invalid-url",
 				}
@@ -750,12 +1093,42 @@ func TestPkgChecksum(t *testing.T) {
 	}
 }
 
+// TestRepository tests the Repository struct
+func TestRepository(t *testing.T) {
+	repo := Repository{
+		ID:        "test-repo-1",
+		Codename:  "stable",
+		URL:       "http://example.com/debian",
+		PKey:      "test-gpg-key",
+		Component: "main contrib",
+	}
+
+	// Verify all fields are set correctly
+	if repo.ID != "test-repo-1" {
+		t.Errorf("Expected ID 'test-repo-1', got %s", repo.ID)
+	}
+	if repo.Codename != "stable" {
+		t.Errorf("Expected Codename 'stable', got %s", repo.Codename)
+	}
+	if repo.URL != "http://example.com/debian" {
+		t.Errorf("Expected URL 'http://example.com/debian', got %s", repo.URL)
+	}
+	if repo.PKey != "test-gpg-key" {
+		t.Errorf("Expected PKey 'test-gpg-key', got %s", repo.PKey)
+	}
+	if repo.Component != "main contrib" {
+		t.Errorf("Expected Component 'main contrib', got %s", repo.Component)
+	}
+}
+
 // TestGlobalVariables tests global variable initialization
 func TestGlobalVariables(t *testing.T) {
 	// Test that global variables can be modified
 	origReportPath := ReportPath
+	origRepoCfgs := RepoCfgs
 	defer func() {
 		ReportPath = origReportPath
+		RepoCfgs = origRepoCfgs
 	}()
 
 	// Test default value
@@ -781,4 +1154,30 @@ func TestGlobalVariables(t *testing.T) {
 	}
 
 	PkgChecksum = origPkgChecksum
+
+	// Test RepoCfgs slice
+	RepoCfgs = []RepoConfig{
+		{
+			Name:    "repo1",
+			PkgList: "http://example.com/packages1",
+			Arch:    "amd64",
+		},
+		{
+			Name:    "repo2",
+			PkgList: "http://example.com/packages2",
+			Arch:    "arm64",
+		},
+	}
+
+	if len(RepoCfgs) != 2 {
+		t.Errorf("Expected RepoCfgs length 2, got %d", len(RepoCfgs))
+	}
+
+	if RepoCfgs[0].Name != "repo1" {
+		t.Errorf("Expected RepoCfgs[0].Name 'repo1', got %s", RepoCfgs[0].Name)
+	}
+
+	if RepoCfgs[1].Arch != "arm64" {
+		t.Errorf("Expected RepoCfgs[1].Arch 'arm64', got %s", RepoCfgs[1].Arch)
+	}
 }

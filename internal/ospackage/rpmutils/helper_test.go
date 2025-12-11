@@ -1,6 +1,8 @@
 package rpmutils
 
 import (
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
@@ -1099,5 +1101,138 @@ func TestPackageNameExtractionEdgeCases(t *testing.T) {
 				t.Errorf("extractBasePackageNameFromFile(%q) = %q, want %q", tt.fullName, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestGenerateSPDXFileName(t *testing.T) {
+	tests := []struct {
+		name         string
+		repoName     string
+		wantPrefix   string
+		wantSuffix   string
+		wantContains []string
+	}{
+		{
+			name:         "Simple repository name",
+			repoName:     "Azure_Linux",
+			wantPrefix:   "spdx_manifest_rpm_Azure_Linux_",
+			wantSuffix:   ".json",
+			wantContains: []string{"spdx_manifest_rpm", "Azure_Linux"},
+		},
+		{
+			name:         "Repository name with spaces",
+			repoName:     "Azure Linux 3.0",
+			wantPrefix:   "spdx_manifest_rpm_Azure_Linux_3.0_",
+			wantSuffix:   ".json",
+			wantContains: []string{"spdx_manifest_rpm", "Azure_Linux_3.0"},
+		},
+		{
+			name:         "Empty repository name",
+			repoName:     "",
+			wantPrefix:   "spdx_manifest_rpm__",
+			wantSuffix:   ".json",
+			wantContains: []string{"spdx_manifest_rpm"},
+		},
+		{
+			name:         "Repository name with multiple spaces",
+			repoName:     "My Test Repo Name",
+			wantPrefix:   "spdx_manifest_rpm_My_Test_Repo_Name_",
+			wantSuffix:   ".json",
+			wantContains: []string{"spdx_manifest_rpm", "My_Test_Repo_Name"},
+		},
+		{
+			name:         "Repository name with special characters",
+			repoName:     "Ubuntu-22.04 LTS",
+			wantPrefix:   "spdx_manifest_rpm_Ubuntu-22.04_LTS_",
+			wantSuffix:   ".json",
+			wantContains: []string{"spdx_manifest_rpm", "Ubuntu-22.04_LTS"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GenerateSPDXFileName(tt.repoName)
+
+			// Check prefix
+			if !strings.HasPrefix(result, tt.wantPrefix) {
+				t.Errorf("GenerateSPDXFileName() result %q does not start with expected prefix %q", result, tt.wantPrefix)
+			}
+
+			// Check suffix
+			if !strings.HasSuffix(result, tt.wantSuffix) {
+				t.Errorf("GenerateSPDXFileName() result %q does not end with expected suffix %q", result, tt.wantSuffix)
+			}
+
+			// Check that all expected substrings are present
+			for _, expected := range tt.wantContains {
+				if !strings.Contains(result, expected) {
+					t.Errorf("GenerateSPDXFileName() result %q does not contain expected substring %q", result, expected)
+				}
+			}
+
+			// Validate timestamp format in the filename (YYYYMMDD_HHMMSS pattern)
+			// The timestamp should be at the end before .json
+			// Expected format: spdx_manifest_rpm_<reponame>_YYYYMMDD_HHMMSS.json
+			if !strings.HasSuffix(result, ".json") {
+				t.Errorf("GenerateSPDXFileName() result %q does not end with .json", result)
+				return
+			}
+
+			// Remove .json and get the last part which should be the timestamp
+			withoutExt := strings.TrimSuffix(result, ".json")
+			parts := strings.Split(withoutExt, "_")
+			if len(parts) < 2 {
+				t.Errorf("GenerateSPDXFileName() result %q does not contain expected format", result)
+				return
+			}
+
+			// The last two parts should be date and time: YYYYMMDD and HHMMSS
+			if len(parts) >= 2 {
+				dateTime := parts[len(parts)-2] + "_" + parts[len(parts)-1]
+				// Validate timestamp format: should be exactly 15 characters (YYYYMMDD_HHMMSS)
+				timestampPattern := `^\d{8}_\d{6}$`
+				matched, err := regexp.MatchString(timestampPattern, dateTime)
+				if err != nil {
+					t.Errorf("Error matching timestamp pattern: %v", err)
+					return
+				}
+				if !matched {
+					t.Errorf("GenerateSPDXFileName() timestamp %q does not match expected pattern YYYYMMDD_HHMMSS", dateTime)
+				}
+			}
+
+			// Ensure the filename doesn't contain any spaces (they should be replaced with underscores)
+			if strings.Contains(result, " ") {
+				t.Errorf("GenerateSPDXFileName() result %q contains spaces, but they should be replaced with underscores", result)
+			}
+		})
+	}
+}
+
+// TestGenerateSPDXFileNameConsistency ensures the function generates consistent patterns
+func TestGenerateSPDXFileNameConsistency(t *testing.T) {
+	repoName := "Test Repo"
+
+	// Generate multiple filenames
+	result1 := GenerateSPDXFileName(repoName)
+	result2 := GenerateSPDXFileName(repoName)
+
+	// They should have the same structure but potentially different timestamps
+	expectedPattern := `^spdx_manifest_rpm_Test_Repo_\d{8}_\d{6}\.json$`
+
+	matched1, err := regexp.MatchString(expectedPattern, result1)
+	if err != nil {
+		t.Errorf("Error matching pattern for result1: %v", err)
+	}
+	if !matched1 {
+		t.Errorf("First result %q does not match expected pattern", result1)
+	}
+
+	matched2, err := regexp.MatchString(expectedPattern, result2)
+	if err != nil {
+		t.Errorf("Error matching pattern for result2: %v", err)
+	}
+	if !matched2 {
+		t.Errorf("Second result %q does not match expected pattern", result2)
 	}
 }
