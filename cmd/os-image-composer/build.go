@@ -99,8 +99,10 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 
 post:
 
-	if err := p.PostProcess(template, buildErr); err != nil {
-		return fmt.Errorf("post-processing failed: %v", err)
+	if p != nil {
+		if err := p.PostProcess(template, buildErr); err != nil {
+			return fmt.Errorf("post-processing failed: %v", err)
+		}
 	}
 
 	if buildErr == nil {
