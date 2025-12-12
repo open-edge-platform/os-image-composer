@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/open-edge-platform/os-image-composer/internal/config"
-	"github.com/open-edge-platform/os-image-composer/internal/config/manifest"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/pkgfetcher"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/pkgsorter"
@@ -465,18 +464,6 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string) ([]stri
 		return downloadPkgList, nil, fmt.Errorf("resolving packages: %w", err)
 	}
 	log.Infof("resolved %d packages", len(needed))
-
-	// Generate SPDX manifest, generated in temp directory
-	manifest.DefaultSPDXFile = filepath.Join("spdx_manifest_deb_" + strings.ReplaceAll(RepoCfg.Name, " ", "_") + ".json")
-	spdxFile := filepath.Join(config.TempDir(), manifest.DefaultSPDXFile)
-
-	//check if file not exists, if yes create it, only need user (not chroot) packages first time
-	if _, err := os.Stat(spdxFile); os.IsNotExist(err) {
-		if err := manifest.WriteSPDXToFile(needed, spdxFile); err != nil {
-			return downloadPkgList, nil, fmt.Errorf("SPDX file: %w", err)
-		}
-		log.Infof("SPDX file created at %s", spdxFile)
-	}
 
 	sorted_pkgs, err := pkgsorter.SortPackages(needed)
 	if err != nil {
