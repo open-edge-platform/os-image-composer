@@ -20,7 +20,6 @@ func resetBuildFlags() {
 	workers = -1
 	cacheDir = ""
 	workDir = ""
-	dotFile = ""
 }
 
 // createTestTemplate creates a minimal valid template file for testing
@@ -105,7 +104,6 @@ func TestCreateBuildCommand(t *testing.T) {
 			{name: "workers", shorthand: "w", shouldExist: true},
 			{name: "cache-dir", shorthand: "d", shouldExist: true},
 			{name: "work-dir", shorthand: "", shouldExist: true},
-			{name: "dotfile", shorthand: "f", shouldExist: true},
 		}
 
 		for _, expected := range expectedFlags {
@@ -526,9 +524,6 @@ func TestBuildFlags_DefaultValues(t *testing.T) {
 	if verbose != false {
 		t.Errorf("verbose should default to false, got %v", verbose)
 	}
-	if dotFile != "" {
-		t.Errorf("dotFile should default to empty, got %q", dotFile)
-	}
 }
 
 // TestBuildCommand_FlagParsing tests that flags are correctly parsed
@@ -558,19 +553,6 @@ func TestBuildCommand_FlagParsing(t *testing.T) {
 				}
 			},
 		},
-		{
-			name: "DotFileFlag",
-			args: []string{"--dotfile", "deps.dot", "template.yml"},
-			validate: func(t *testing.T) {
-				if err := cmd.ParseFlags([]string{"--dotfile", "deps.dot"}); err != nil {
-					t.Fatalf("failed to parse flags: %v", err)
-				}
-				val, _ := cmd.Flags().GetString("dotfile")
-				if val != "deps.dot" {
-					t.Errorf("expected dotfile='deps.dot', got %q", val)
-				}
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -593,7 +575,6 @@ func TestBuildCommand_HelpText(t *testing.T) {
 		"--workers",
 		"--cache-dir",
 		"--work-dir",
-		"--dotfile",
 	}
 
 	for _, expected := range expectedInHelp {

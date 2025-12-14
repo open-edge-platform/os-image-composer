@@ -19,7 +19,6 @@ var (
 	workers  int    = -1 // -1 means use config file value
 	cacheDir string = "" // Empty means use config file value
 	workDir  string = "" // Empty means use config file value
-	dotFile  string = "" // Generate a dot file for the dependency graph
 )
 
 // createBuildCommand creates the build subcommand
@@ -41,7 +40,6 @@ The template file must be in YAML format following the image template schema.`,
 		"Package cache directory")
 	buildCmd.Flags().StringVar(&workDir, "work-dir", "",
 		"Working directory for builds")
-	buildCmd.Flags().StringVarP(&dotFile, "dotfile", "f", "", "Generate a dot file for the dependency graph")
 
 	return buildCmd
 }
@@ -99,8 +97,10 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 
 post:
 
-	if err := p.PostProcess(template, buildErr); err != nil {
-		return fmt.Errorf("post-processing failed: %v", err)
+	if p != nil {
+		if err := p.PostProcess(template, buildErr); err != nil {
+			return fmt.Errorf("post-processing failed: %v", err)
+		}
 	}
 
 	if buildErr == nil {

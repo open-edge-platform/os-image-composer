@@ -143,7 +143,6 @@ os-image-composer build [flags] TEMPLATE_FILE
 | `--cache-dir, -d DIR` | Package cache directory (overrides config). Proper caching significantly improves build times. |
 | `--work-dir DIR` | Working directory for builds (overrides config). This directory is where images are constructed before being finalized. |
 | `--verbose, -v` | Enable verbose output (equivalent to --log-level debug). Displays detailed information about each step of the build process. |
-| `--dotfile, -f FILE` | Generate a dot file for the dependency graph. Useful for visualizing package dependencies. |
 
 **Example:**
 
@@ -156,9 +155,6 @@ sudo -E os-image-composer build --workers 16 --cache-dir /tmp/cache my-image-tem
 
 # Build with verbose output
 sudo -E os-image-composer build --verbose my-image-template.yml
-
-# Build and generate dependency graph
-sudo -E os-image-composer build --dotfile deps.dot my-image-template.yml
 ```
 
 **Note:** The build command typically requires sudo privileges for operations like creating loopback devices and mounting filesystems.

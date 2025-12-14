@@ -333,7 +333,6 @@ Flags:
 - `--cache-dir, -d`: Package cache directory (overrides the configuration file)
 - `--work-dir`: Working directory for builds (overrides the configuration file)
 - `--verbose, -v`: Enable verbose output
-- `--dotfile, -f`: Generate dependency graph as a dot file
 - `--config`: Path to the configuration file
 - `--log-level`: Log level (debug, info, warn, and error)
 - `--log-file`: Override the log file path defined in the configuration

@@ -16,7 +16,7 @@ packageRepositories:
     pkey: "https://yum.repos.intel.com/edgeai/GPG-PUB-KEY-INTEL-DLS.gpg" # Uncomment and replace in real config
 
   - codename: "edge-base"
-    url: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0/"
+    url: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpms/3.0/base"
     pkey: "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY" # Uncomment and replace in real config
 
   - codename: "OpenVINO"
@@ -76,7 +76,10 @@ systemConfig:
     - opencv
     - intel-dlstreamer
     - openvino-2025.2.0
+    - linux-firmware-i915
 
   kernel:
     version: "6.12"
-    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7 i915.force_probe=*"
+    packages:
+      - kernel-drivers-gpu-6.12.55
