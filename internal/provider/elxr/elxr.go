@@ -268,6 +268,7 @@ func (p *eLxr) downloadImagePkgs(template *config.ImageTemplate) error {
 
 	fullPkgList, fullPkgListBom, err := debutils.DownloadPackagesComplete(pkgList, pkgCacheDir, "")
 	template.FullPkgList = fullPkgList
+	template.FullPkgListBom = fullPkgListBom
 
 	// Generate SPDX manifest, generated in temp directory
 	manifest.DefaultSPDXFile = debutils.GenerateSPDXFileName(p.repoCfgs[0].Name)

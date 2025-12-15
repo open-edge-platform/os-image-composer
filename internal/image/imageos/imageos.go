@@ -17,6 +17,8 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/image/imagedisc"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imagesecure"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imagesign"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage/debutils"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/file"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/mount"
@@ -509,6 +511,7 @@ func preImageOsInstall(installRoot string, template *config.ImageTemplate) error
 }
 
 func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.ImageTemplate) error {
+
 	pkgType := imageOs.chrootEnv.GetTargetOsPkgType()
 	if pkgType == "rpm" {
 		if err := imageOs.initImageRpmDb(installRoot, template); err != nil {
@@ -534,6 +537,7 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 		// Force to use the local cache repository
 		var repoSrcList []string = []string{"/etc/apt/sources.list.d/local.list"}
 		var efiVariableAccessPkg = []string{"systemd-boot", "dracut-core"}
+		var installedPkgs []ospackage.PackageInfo
 		for i, pkg := range imagePkgOrderedList {
 			log.Infof("Installing package %d/%d: %s", i+1, imagePkgNum, pkg)
 			if slice.Contains(efiVariableAccessPkg, pkg) {
@@ -554,7 +558,30 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 					"DEBCONF_NOWARNINGS=yes",
 				}
 
+				// Initialize apt output extractor
+				// extractor := debutils.NewAptOutputExtractor()
+
 				output, err := shell.ExecCmdWithStream(installCmd, true, installRoot, envVars)
+
+				// Trace installed packages from the output
+				if output != "" {
+					// lines := strings.Split(output, "\n")
+					// for _, line := range lines {
+					// 	packages := extractor.ExtractPackages(line)
+					// 	if len(packages) > 0 {
+					// 		log.Infof("APT extracted packages from %s: %v", pkg, packages)
+					// 		for _, p := range packages {
+					// 			pkgInfo := debutils.GetPackageFromList(template.FullPkgListBom, p)
+					// 			if pkgInfo.Name != "" {
+					// 				installedPkgs = append(installedPkgs, pkgInfo)
+					// 			}
+					// 		}
+					// 	}
+					// }
+					foundPackages := debutils.ExtractPkgListFrmAptOutput(output, pkg, template.FullPkgListBom, installedPkgs)
+					installedPkgs = append(installedPkgs, foundPackages...)
+				}
+
 				if err != nil {
 					if strings.Contains(output, "Failed to write 'LoaderSystemToken' EFI variable") {
 						log.Debugf("Expected error: The EFI variable shouldn't be accessed in chroot.")
@@ -564,14 +591,56 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 					}
 				}
 			} else {
-				if err := imageOs.chrootEnv.AptInstallPackage(pkg, installRoot, repoSrcList); err != nil {
+				// Get the apt install command that would be executed
+				installCmd := fmt.Sprintf("apt-get install -y %s", pkg)
+				if len(repoSrcList) > 0 {
+					for _, repoSrc := range repoSrcList {
+						installCmd += fmt.Sprintf(" -o Dir::Etc::sourcelist=%s", repoSrc)
+					}
+				}
+
+				envVars := []string{
+					"DEBIAN_FRONTEND=noninteractive",
+					"DEBCONF_NONINTERACTIVE_SEEN=true",
+					"DEBCONF_NOWARNINGS=yes",
+				}
+
+				// Initialize apt output extractor for regular packages
+				// extractor := debutils.NewAptOutputExtractor()
+
+				// Execute the command directly to get output
+				output, err := shell.ExecCmdWithStream(installCmd, true, installRoot, envVars)
+
+				// Trace installed packages from the output
+				if output != "" {
+					// lines := strings.Split(output, "\n")
+					// for _, line := range lines {
+					// 	packages := extractor.ExtractPackages(line)
+					// 	if len(packages) > 0 {
+					// 		log.Infof("APT extracted packages from %s: %v", pkg, packages)
+					// 		for _, p := range packages {
+					// 			pkgInfo := debutils.GetPackageFromList(template.FullPkgListBom, p)
+					// 			if pkgInfo.Name != "" {
+					// 				installedPkgs = append(installedPkgs, pkgInfo)
+					// 			}
+					// 		}
+					// 	}
+					// }
+					foundPackages := debutils.ExtractPkgListFrmAptOutput(output, pkg, template.FullPkgListBom, installedPkgs)
+					installedPkgs = append(installedPkgs, foundPackages...)
+				}
+
+				if err != nil {
 					return fmt.Errorf("failed to install package %s: %w", pkg, err)
 				}
 			}
 		}
+		log.Debugf("Packages downloaded=%d versus installed=%d\n", len(template.FullPkgListBom), len(installedPkgs))
+
 		if err := imageOs.deInitDebLocalRepoWithinInstallRoot(installRoot); err != nil {
 			return fmt.Errorf("failed to de-initialize local repository within install root: %w", err)
 		}
+
 	} else {
 		return fmt.Errorf("unsupported package type: %s", pkgType)
 	}

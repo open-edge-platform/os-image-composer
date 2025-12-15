@@ -256,6 +256,7 @@ func (p *AzureLinux) downloadImagePkgs(template *config.ImageTemplate) error {
 
 	fullPkgList, fullPkgListBom, err := rpmutils.DownloadPackagesComplete(pkgList, pkgCacheDir, "")
 	template.FullPkgList = fullPkgList
+	template.FullPkgListBom = fullPkgListBom
 
 	// Generate SPDX manifest, generated in temp directory
 	manifest.DefaultSPDXFile = rpmutils.GenerateSPDXFileName(p.repoCfg.Name)
