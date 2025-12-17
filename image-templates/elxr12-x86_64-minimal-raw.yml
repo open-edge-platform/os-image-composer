@@ -41,11 +41,5 @@ systemConfig:
   name: Minimal_Raw
   description: Default yml configuration for raw image
 
-  packages:
-    - ostree
-    - ostree-boot
-    - python3-apt-ostree
-    - xterm
-
   immutability:
     enabled: false # default is true, overridden to false here
