@@ -103,16 +103,16 @@ func VerifyFileSize(fileSize interface{}) (string, error) {
 		if len(match) == 3 {
 			num := match[1]
 			if !IsDigit(num) {
-				return "", fmt.Errorf("file size number incorrect: " + num)
+				return "", fmt.Errorf("file size number incorrect: %s", num)
 			}
 			sizeSuffix := match[2]
 			if !slice.Contains(sizeSuffixesList, sizeSuffix) {
-				return "", fmt.Errorf("file size suffix incorrect: " + sizeSuffix)
+				return "", fmt.Errorf("file size suffix incorrect: %s", sizeSuffix)
 			} else {
 				return v, nil
 			}
 		}
-		return "", fmt.Errorf("file size format incorrect: " + v)
+		return "", fmt.Errorf("file size format incorrect: %s", v)
 	default:
 		return "", fmt.Errorf("unsupported fileSize type")
 	}
@@ -134,9 +134,9 @@ func TranslateSizeStrToBytes(sizeStr string) (uint64, error) {
 				return uint64(sizeBytesMap[i] * num), nil
 			}
 		}
-		return 0, fmt.Errorf("file size suffix incorrect: " + sizeSuffix)
+		return 0, fmt.Errorf("file size suffix incorrect: %s", sizeSuffix)
 	}
-	return 0, fmt.Errorf("size format incorrect: " + sizeStr)
+	return 0, fmt.Errorf("size format incorrect: %s", sizeStr)
 }
 
 func TranslateBytesToSizeStr(byteSize uint64) string {
