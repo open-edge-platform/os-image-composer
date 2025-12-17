@@ -711,7 +711,6 @@ func TestCompressImageFile(t *testing.T) {
 }
 
 // TestTrimUnusedSpace tests the trimUnusedSpace function
-// TestTrimUnusedSpace tests the trimUnusedSpace function
 func TestTrimUnusedSpace(t *testing.T) {
 	tests := []struct {
 		name         string
