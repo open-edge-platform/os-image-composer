@@ -26,9 +26,7 @@ func GetPackageFromList(all []ospackage.PackageInfo, pkgNm string) ospackage.Pac
 }
 
 func ExtractPkgListFrmAptOutput(output, sourcePackage string, downloaded []ospackage.PackageInfo, installed []ospackage.PackageInfo) []ospackage.PackageInfo {
-
 	log := logger.Logger()
-
 	var foundPackages []ospackage.PackageInfo
 
 	if output == "" {
@@ -53,8 +51,18 @@ func ExtractPkgListFrmAptOutput(output, sourcePackage string, downloaded []ospac
 							break
 						}
 					}
-					// Only add if not already installed
-					if !alreadyInstalled {
+
+					// Check if package is already in current foundPackages list
+					alreadyFound := false
+					for _, foundPkg := range foundPackages {
+						if foundPkg.Name == pkgInfo.Name {
+							alreadyFound = true
+							break
+						}
+					}
+
+					// Only add if not already installed and not already found in current batch
+					if !alreadyInstalled && !alreadyFound {
 						foundPackages = append(foundPackages, pkgInfo)
 					}
 				}
