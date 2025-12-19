@@ -262,7 +262,6 @@ func (p *Emt) downloadImagePkgs(template *config.ImageTemplate) error {
 	rpmutils.UserRepo = template.GetPackageRepositories()
 
 	fullPkgList, fullPkgListBom, err := rpmutils.DownloadPackagesComplete(pkgList, pkgCacheDir, "")
-	template.FullPkgList = fullPkgList
 	if err != nil {
 		return fmt.Errorf("failed to download packages: %w", err)
 	}

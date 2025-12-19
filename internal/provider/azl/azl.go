@@ -78,8 +78,8 @@ func (p *AzureLinux) Init(dist, arch string) error {
 	log.Infof("primary.xml.gz=%s", p.gzHref)
 	log.Infof("using %d workers for downloads", config.Workers())
 	if err := os.MkdirAll(config.TempDir(), 0700); err != nil {
-		log.Errorf("Failed to create temp directory for EMT: %v", err)
-		return fmt.Errorf("failed to create temp directory for EMT: %w", err)
+		log.Errorf("Failed to create temp directory for AZL: %v", err)
+		return fmt.Errorf("failed to create temp directory for AZL: %w", err)
 	}
 	return nil
 }

@@ -1462,8 +1462,6 @@ func configUserStartupScript(installRoot string, user config.UserConfig) error {
 	return nil
 }
 func (imageOs *ImageOs) generateSBOM(installRoot string, template *config.ImageTemplate) (string, error) {
-
-	manifest.DefaultSPDXFile = debutils.GenerateSPDXFileName(template.GetImageName())
 	pkgType := imageOs.chrootEnv.GetTargetOsPkgType()
 	sBomFNm := rpmutils.GenerateSPDXFileName(template.GetImageName())
 	cmd := "rpm -qa"
@@ -1513,7 +1511,7 @@ func (imageOs *ImageOs) generateSBOM(installRoot string, template *config.ImageT
 	// Generate SPDX manifest, generated in temp directory
 	spdxFile := filepath.Join(config.TempDir(), manifest.DefaultSPDXFile)
 	if err := manifest.WriteSPDXToFile(finalPkgs, spdxFile); err != nil {
-		log.Warnf("SPDX SBOM creation error: %w", err)
+		log.Warnf("SPDX SBOM creation error: %v", err)
 	}
 	log.Infof("SPDX file created at %s", spdxFile)
 
