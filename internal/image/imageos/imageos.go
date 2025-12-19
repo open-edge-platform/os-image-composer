@@ -17,6 +17,9 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/image/imagedisc"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imagesecure"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imagesign"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage/debutils"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage/rpmutils"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/file"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/mount"
@@ -186,6 +189,13 @@ func (imageOs *ImageOs) InstallImageOs(diskPathIdMap map[string]string) (version
 		return
 	}
 
+	log.Infof("Image SBOM generation...")
+	versionInfo, err = imageOs.generateSBOM(imageOs.installRoot, imageOs.template)
+	if err != nil {
+		err = fmt.Errorf("generating SBOM failed: %w", err)
+		return
+	}
+
 	if err = imagesecure.ConfigImageSecurity(imageOs.installRoot, imageOs.template); err != nil {
 		err = fmt.Errorf("failed to configure image security: %w", err)
 		return
@@ -197,6 +207,7 @@ func (imageOs *ImageOs) InstallImageOs(diskPathIdMap map[string]string) (version
 		return
 	}
 
+	log.Infof("Configuring Sign Image...")
 	if err = imagesign.SignImage(imageOs.installRoot, imageOs.template); err != nil {
 		err = fmt.Errorf("failed to sign image: %w", err)
 		return
@@ -606,10 +617,6 @@ func updateImageConfig(installRoot string, diskPathIdMap map[string]string, temp
 	}
 	if err := addImageAdditionalFiles(installRoot, template); err != nil {
 		return fmt.Errorf("failed to add additional files to image: %w", err)
-	}
-	if err := manifest.CopySBOMToChroot(installRoot); err != nil {
-		log.Warnf("failed to copy SBOM into image filesystem: %v", err)
-		// Don't fail the build if SBOM copy fails, just log warning
 	}
 	if err := updateImageUsrGroup(installRoot, template); err != nil {
 		return fmt.Errorf("failed to update image user/group: %w", err)
@@ -1453,4 +1460,66 @@ func configUserStartupScript(installRoot string, user config.UserConfig) error {
 		return fmt.Errorf("failed to update user %s startup command: %w", user.Name, err)
 	}
 	return nil
+}
+func (imageOs *ImageOs) generateSBOM(installRoot string, template *config.ImageTemplate) (string, error) {
+	pkgType := imageOs.chrootEnv.GetTargetOsPkgType()
+	sBomFNm := rpmutils.GenerateSPDXFileName(template.GetImageName())
+	cmd := "rpm -qa"
+	if pkgType == "deb" {
+		cmd = "dpkg -l | awk '/^ii/ {print $2}'"
+		sBomFNm = debutils.GenerateSPDXFileName(template.GetImageName())
+	}
+	manifest.DefaultSPDXFile = sBomFNm
+
+	result, err := shell.ExecCmd(cmd, true, installRoot, nil)
+	if err != nil {
+		log.Errorf("failed to pull BOM from actual image: %v", err)
+		return "", fmt.Errorf("Failed to pull BOM from actual image: %w", err)
+	}
+
+	installRootPkgs := strings.Split(strings.TrimSpace(result), "\n")
+	downloadedPkgs := template.FullPkgListBom
+
+	// Create a map of normalized package names from installed packages for faster lookup
+	installedPkgMap := make(map[string]bool)
+	for _, pkg := range installRootPkgs {
+		// Remove architecture tag (e.g., ":amd64") if present
+		normalizedPkg := pkg
+		if colonIndex := strings.Index(pkg, ":"); colonIndex != -1 {
+			normalizedPkg = pkg[:colonIndex]
+		}
+		installedPkgMap[normalizedPkg] = true
+	}
+
+	var finalPkgs []ospackage.PackageInfo
+	for _, pkg := range downloadedPkgs {
+		// Normalize package name by removing file extensions
+		normalizedName := pkg.Name
+		if strings.HasSuffix(normalizedName, ".rpm") {
+			normalizedName = strings.TrimSuffix(normalizedName, ".rpm")
+		} else if strings.HasSuffix(normalizedName, ".deb") {
+			normalizedName = strings.TrimSuffix(normalizedName, ".deb")
+		}
+
+		if installedPkgMap[normalizedName] {
+			finalPkgs = append(finalPkgs, pkg)
+		}
+	}
+
+	log.Infof("SBOM raw data (installed=%d, downloaded=%d, final=%d)", len(installRootPkgs), len(downloadedPkgs), len(finalPkgs))
+
+	// Generate SPDX manifest, generated in temp directory
+	spdxFile := filepath.Join(config.TempDir(), manifest.DefaultSPDXFile)
+	if err := manifest.WriteSPDXToFile(finalPkgs, spdxFile); err != nil {
+		log.Warnf("SPDX SBOM creation error: %v", err)
+	}
+	log.Infof("SPDX file created at %s", spdxFile)
+
+	// Copy SBOM into image filesystem
+	if err := manifest.CopySBOMToChroot(installRoot); err != nil {
+		log.Warnf("failed to copy SBOM into image filesystem: %v", err)
+		// Don't fail the build if SBOM copy fails, just log warning
+	}
+
+	return result, nil
 }

@@ -2,11 +2,11 @@ package emt
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
-	"github.com/open-edge-platform/os-image-composer/internal/config/manifest"
 	"github.com/open-edge-platform/os-image-composer/internal/image/initrdmaker"
 	"github.com/open-edge-platform/os-image-composer/internal/image/isomaker"
 	"github.com/open-edge-platform/os-image-composer/internal/image/rawmaker"
@@ -77,6 +77,12 @@ func (p *Emt) Init(dist, arch string) error {
 	log.Infof("url=%s", cfg.URL)
 	log.Infof("primary.xml.zst=%s", p.zstHref)
 	log.Infof("using %d workers for downloads", config.Workers())
+
+	if err := os.MkdirAll(config.TempDir(), 0700); err != nil {
+		log.Errorf("Failed to create temp directory for EMT: %v", err)
+		return fmt.Errorf("failed to create temp directory for EMT: %w", err)
+	}
+
 	return nil
 }
 
@@ -256,17 +262,13 @@ func (p *Emt) downloadImagePkgs(template *config.ImageTemplate) error {
 	rpmutils.UserRepo = template.GetPackageRepositories()
 
 	fullPkgList, fullPkgListBom, err := rpmutils.DownloadPackagesComplete(pkgList, pkgCacheDir, "")
-	template.FullPkgList = fullPkgList
-
-	// Generate SPDX manifest, generated in temp directory
-	manifest.DefaultSPDXFile = rpmutils.GenerateSPDXFileName(p.repoCfg.Name)
-	spdxFile := filepath.Join(config.TempDir(), manifest.DefaultSPDXFile)
-	if err := manifest.WriteSPDXToFile(fullPkgListBom, spdxFile); err != nil {
-		return fmt.Errorf("SPDX SBOM creation error: %w", err)
+	if err != nil {
+		return fmt.Errorf("failed to download packages: %w", err)
 	}
-	log.Infof("SPDX file created at %s", spdxFile)
+	template.FullPkgList = fullPkgList
+	template.FullPkgListBom = fullPkgListBom
 
-	return err
+	return nil
 }
 
 // loadRepoConfigFromYAML loads repository configuration from centralized YAML config

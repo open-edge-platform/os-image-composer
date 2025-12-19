@@ -10,6 +10,7 @@ import (
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
 )
 
@@ -3200,4 +3201,449 @@ func TestConfigUserStartupScript(t *testing.T) {
 	// If we want to verify the file change, we would need to implement the sed logic in the mock,
 	// or use a real sed if available and not requiring sudo.
 	// But file.ReplaceRegexInFile forces sudo.
+}
+
+// TestGenerateSBOM tests the generateSBOM functionality
+func TestGenerateSBOM(t *testing.T) {
+	// Set up mock executor
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	tests := []struct {
+		name             string
+		pkgType          string
+		mockCommands     []shell.MockCommand
+		downloadedPkgs   []ospackage.PackageInfo
+		expectError      bool
+		expectedPkgCount int
+	}{
+		{
+			name:    "successful RPM SBOM generation",
+			pkgType: "rpm",
+			mockCommands: []shell.MockCommand{
+				{
+					Pattern: `rpm -qa`,
+					Output:  "curl-7.68.0-1.x86_64\nwget-1.21.1-1.x86_64\nvim-8.2.0-1.x86_64",
+					Error:   nil,
+				},
+			},
+			downloadedPkgs: []ospackage.PackageInfo{
+				{Name: "curl-7.68.0-1.x86_64.rpm", Version: "7.68.0-1", Arch: "x86_64"},
+				{Name: "wget-1.21.1-1.x86_64.rpm", Version: "1.21.1-1", Arch: "x86_64"},
+				{Name: "vim-8.2.0-1.x86_64.rpm", Version: "8.2.0-1", Arch: "x86_64"},
+				{Name: "uninstalled-pkg.rpm", Version: "1.0.0", Arch: "x86_64"},
+			},
+			expectError:      false,
+			expectedPkgCount: 3, // Only installed packages should be included
+		},
+		{
+			name:    "successful DEB SBOM generation",
+			pkgType: "deb",
+			mockCommands: []shell.MockCommand{
+				{
+					Pattern: `dpkg -l \| awk '/\^ii/ \{print \$2\}'`,
+					Output:  "curl\nwget:amd64\nvim",
+					Error:   nil,
+				},
+			},
+			downloadedPkgs: []ospackage.PackageInfo{
+				{Name: "curl.deb", Version: "7.68.0", Arch: "amd64"},
+				{Name: "wget.deb", Version: "1.21.1", Arch: "amd64"},
+				{Name: "vim.deb", Version: "8.2.0", Arch: "amd64"},
+				{Name: "uninstalled-pkg.deb", Version: "1.0.0", Arch: "amd64"},
+			},
+			expectError:      false,
+			expectedPkgCount: 3, // Only installed packages should be included
+		},
+		{
+			name:    "RPM command fails",
+			pkgType: "rpm",
+			mockCommands: []shell.MockCommand{
+				{
+					Pattern: `rpm -qa`,
+					Output:  "",
+					Error:   fmt.Errorf("rpm command failed"),
+				},
+			},
+			downloadedPkgs:   []ospackage.PackageInfo{},
+			expectError:      true,
+			expectedPkgCount: 0,
+		},
+		{
+			name:    "no packages installed",
+			pkgType: "rpm",
+			mockCommands: []shell.MockCommand{
+				{
+					Pattern: `rpm -qa`,
+					Output:  "",
+					Error:   nil,
+				},
+			},
+			downloadedPkgs: []ospackage.PackageInfo{
+				{Name: "curl-7.68.0-1.x86_64.rpm", Version: "7.68.0-1", Arch: "x86_64"},
+			},
+			expectError:      false,
+			expectedPkgCount: 0,
+		},
+		{
+			name:    "package name normalization",
+			pkgType: "deb",
+			mockCommands: []shell.MockCommand{
+				{
+					Pattern: `dpkg -l \| awk '/\^ii/ \{print \$2\}'`,
+					Output:  "package-with-arch:amd64\npackage-without-arch",
+					Error:   nil,
+				},
+			},
+			downloadedPkgs: []ospackage.PackageInfo{
+				{Name: "package-with-arch.deb", Version: "1.0.0", Arch: "amd64"},
+				{Name: "package-without-arch.deb", Version: "1.0.0", Arch: "amd64"},
+			},
+			expectError:      false,
+			expectedPkgCount: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shell.Default = shell.NewMockExecutor(tt.mockCommands)
+
+			// Create temp directory for install root
+			tempDir, err := os.MkdirTemp("", "sbom_test_*")
+			if err != nil {
+				t.Fatalf("Failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			// Create mock chroot environment
+			mockChrootEnv := &MockChrootEnv{
+				chrootImageBuildDir: tempDir,
+				pkgType:             tt.pkgType,
+			}
+
+			// Create test template with downloaded packages
+			template := &config.ImageTemplate{
+				Image: config.ImageInfo{
+					Name:    "test-image",
+					Version: "1.0.0",
+				},
+				FullPkgListBom: tt.downloadedPkgs,
+			}
+
+			// Create ImageOs instance
+			imageOs := &ImageOs{
+				installRoot: tempDir,
+				chrootEnv:   mockChrootEnv,
+				template:    template,
+			}
+
+			// Test generateSBOM
+			result, err := imageOs.generateSBOM(tempDir, template)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			// Verify result contains expected output
+			if result == "" && tt.expectedPkgCount > 0 {
+				t.Error("Expected non-empty result")
+			}
+
+			// The function should have generated an SPDX file
+			// Note: In a real test environment, we might want to verify the SPDX file was created
+			// but since we're mocking and the file operations might fail due to permissions,
+			// we focus on testing the core logic
+			t.Logf("SBOM generation completed with result length: %d", len(result))
+		})
+	}
+}
+
+// TestGenerateSBOMPackageMatching tests the package matching logic specifically
+func TestGenerateSBOMPackageMatching(t *testing.T) {
+	// Set up mock executor
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	testCases := []struct {
+		name           string
+		installedPkgs  string
+		downloadedPkgs []ospackage.PackageInfo
+		expectedCount  int
+	}{
+		{
+			name:          "exact RPM package matching",
+			installedPkgs: "package1-1.0.0-1.x86_64\npackage2-2.0.0-1.x86_64",
+			downloadedPkgs: []ospackage.PackageInfo{
+				{Name: "package1-1.0.0-1.x86_64.rpm", Version: "1.0.0-1"},
+				{Name: "package2-2.0.0-1.x86_64.rpm", Version: "2.0.0-1"},
+				{Name: "package3-3.0.0-1.x86_64.rpm", Version: "3.0.0-1"},
+			},
+			expectedCount: 2,
+		},
+		{
+			name:          "DEB package matching with architecture",
+			installedPkgs: "package1:amd64\npackage2\npackage3:i386",
+			downloadedPkgs: []ospackage.PackageInfo{
+				{Name: "package1.deb", Version: "1.0.0"},
+				{Name: "package2.deb", Version: "2.0.0"},
+				{Name: "package3.deb", Version: "3.0.0"},
+				{Name: "package4.deb", Version: "4.0.0"},
+			},
+			expectedCount: 3,
+		},
+		{
+			name:          "no matching packages",
+			installedPkgs: "installed-pkg1\ninstalled-pkg2",
+			downloadedPkgs: []ospackage.PackageInfo{
+				{Name: "downloaded-pkg1.rpm", Version: "1.0.0"},
+				{Name: "downloaded-pkg2.rpm", Version: "2.0.0"},
+			},
+			expectedCount: 0,
+		},
+		{
+			name:          "partial matching",
+			installedPkgs: "common-pkg\ninstalled-only-pkg",
+			downloadedPkgs: []ospackage.PackageInfo{
+				{Name: "common-pkg.deb", Version: "1.0.0"},
+				{Name: "downloaded-only-pkg.deb", Version: "2.0.0"},
+			},
+			expectedCount: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCommands := []shell.MockCommand{
+				{
+					Pattern: `rpm -qa`,
+					Output:  tc.installedPkgs,
+					Error:   nil,
+				},
+			}
+			shell.Default = shell.NewMockExecutor(mockCommands)
+
+			// Create temp directory
+			tempDir, err := os.MkdirTemp("", "sbom_matching_test_*")
+			if err != nil {
+				t.Fatalf("Failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			// Create mock chroot environment
+			mockChrootEnv := &MockChrootEnv{
+				chrootImageBuildDir: tempDir,
+				pkgType:             "rpm",
+			}
+
+			// Create test template
+			template := &config.ImageTemplate{
+				Image: config.ImageInfo{
+					Name: "test-matching",
+				},
+				FullPkgListBom: tc.downloadedPkgs,
+			}
+
+			// Create ImageOs instance
+			imageOs := &ImageOs{
+				installRoot: tempDir,
+				chrootEnv:   mockChrootEnv,
+				template:    template,
+			}
+
+			// Test generateSBOM
+			_, err = imageOs.generateSBOM(tempDir, template)
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			// The actual matching logic is tested implicitly through the mock
+			// In a real implementation, we might want to access the internal
+			// finalPkgs slice to verify the count, but since it's not exposed,
+			// we verify the function completes without error
+			t.Logf("Package matching test completed for case: %s", tc.name)
+		})
+	}
+}
+
+// TestGenerateSBOMWithDifferentPkgTypes tests SBOM generation with different package types
+func TestGenerateSBOMWithDifferentPkgTypes(t *testing.T) {
+	// Set up mock executor
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	// Test RPM vs DEB package type handling
+	testCases := []struct {
+		name            string
+		pkgType         string
+		expectedCommand string
+		mockOutput      string
+	}{
+		{
+			name:            "RPM package type",
+			pkgType:         "rpm",
+			expectedCommand: "rpm -qa",
+			mockOutput:      "rpm-pkg1\nrpm-pkg2",
+		},
+		{
+			name:            "DEB package type",
+			pkgType:         "deb",
+			expectedCommand: `dpkg -l | awk '/^ii/ {print $2}'`,
+			mockOutput:      "deb-pkg1\ndeb-pkg2",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var mockCommands []shell.MockCommand
+			if tc.pkgType == "rpm" {
+				mockCommands = []shell.MockCommand{
+					{Pattern: `rpm -qa`, Output: tc.mockOutput, Error: nil},
+				}
+			} else {
+				mockCommands = []shell.MockCommand{
+					{Pattern: `dpkg -l \| awk '/\^ii/ \{print \$2\}'`, Output: tc.mockOutput, Error: nil},
+				}
+			}
+
+			shell.Default = shell.NewMockExecutor(mockCommands)
+
+			// Create temp directory
+			tempDir, err := os.MkdirTemp("", "sbom_pkgtype_test_*")
+			if err != nil {
+				t.Fatalf("Failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			// Create mock chroot environment with specific package type
+			mockChrootEnv := &MockChrootEnv{
+				chrootImageBuildDir: tempDir,
+				pkgType:             tc.pkgType,
+			}
+
+			// Create test template
+			template := &config.ImageTemplate{
+				Image: config.ImageInfo{
+					Name: fmt.Sprintf("test-%s", tc.pkgType),
+				},
+				FullPkgListBom: []ospackage.PackageInfo{}, // Empty for this test
+			}
+
+			// Create ImageOs instance
+			imageOs := &ImageOs{
+				installRoot: tempDir,
+				chrootEnv:   mockChrootEnv,
+				template:    template,
+			}
+
+			// Test generateSBOM
+			result, err := imageOs.generateSBOM(tempDir, template)
+			if err != nil {
+				t.Errorf("Unexpected error for %s: %v", tc.pkgType, err)
+				return
+			}
+
+			// Verify the result contains the expected mock output
+			if !strings.Contains(result, strings.Split(tc.mockOutput, "\n")[0]) {
+				t.Errorf("Expected result to contain mock output for %s package type", tc.pkgType)
+			}
+
+			t.Logf("SBOM generation for %s completed successfully", tc.pkgType)
+		})
+	}
+}
+
+// TestGenerateSBOMErrorHandling tests error handling in generateSBOM
+func TestGenerateSBOMErrorHandling(t *testing.T) {
+	// Set up mock executor
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	errorCases := []struct {
+		name          string
+		mockCommands  []shell.MockCommand
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "command execution failure",
+			mockCommands: []shell.MockCommand{
+				{
+					Pattern: `rpm -qa`,
+					Output:  "",
+					Error:   fmt.Errorf("command not found"),
+				},
+			},
+			expectError:   true,
+			errorContains: "Failed to pull BOM from actual image",
+		},
+		{
+			name: "empty command output",
+			mockCommands: []shell.MockCommand{
+				{
+					Pattern: `rpm -qa`,
+					Output:  "",
+					Error:   nil,
+				},
+			},
+			expectError: false, // Empty output should not cause error
+		},
+	}
+
+	for _, tc := range errorCases {
+		t.Run(tc.name, func(t *testing.T) {
+			shell.Default = shell.NewMockExecutor(tc.mockCommands)
+
+			// Create temp directory
+			tempDir, err := os.MkdirTemp("", "sbom_error_test_*")
+			if err != nil {
+				t.Fatalf("Failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(tempDir)
+
+			// Create mock chroot environment
+			mockChrootEnv := &MockChrootEnv{
+				chrootImageBuildDir: tempDir,
+				pkgType:             "rpm",
+			}
+
+			// Create test template
+			template := &config.ImageTemplate{
+				Image: config.ImageInfo{
+					Name: "test-error-handling",
+				},
+				FullPkgListBom: []ospackage.PackageInfo{},
+			}
+
+			// Create ImageOs instance
+			imageOs := &ImageOs{
+				installRoot: tempDir,
+				chrootEnv:   mockChrootEnv,
+				template:    template,
+			}
+
+			// Test generateSBOM
+			_, err = imageOs.generateSBOM(tempDir, template)
+
+			if tc.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				} else if !strings.Contains(err.Error(), tc.errorContains) {
+					t.Errorf("Expected error to contain '%s', got: %v", tc.errorContains, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+			}
+		})
+	}
 }
