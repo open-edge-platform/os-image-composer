@@ -27,3 +27,5 @@ essential:
 
 packages:
   - mmdebstrap
+  - grub-pc-bin
+  - grub-efi-amd64-bin
