@@ -81,6 +81,8 @@ systemConfig:
     - xorg 
     - mesa-utils
     - ssl-cert
+    - lightdm
+    - lightdm-gtk-greeter
 
   additionalFiles:
     - local: ../additionalfiles/dhcp.network
