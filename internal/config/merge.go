@@ -191,6 +191,10 @@ func mergeSystemConfig(defaultConfig, userConfig SystemConfig) SystemConfig {
 		merged.AdditionalFiles = mergeAdditionalFiles(defaultConfig.AdditionalFiles, userConfig.AdditionalFiles)
 	}
 
+	if len(userConfig.HookScripts) > 0 {
+		merged.HookScripts = mergeHookScripts(defaultConfig.HookScripts, userConfig.HookScripts)
+	}
+
 	// Merge bootloader config
 	if !isEmptyBootloader(userConfig.Bootloader) {
 		merged.Bootloader = mergeBootloader(defaultConfig.Bootloader, userConfig.Bootloader)
@@ -537,4 +541,27 @@ func LoadAndMergeTemplate(templatePath string) (*ImageTemplate, error) {
 		mergedTemplate.SystemConfig.Name, mergedTemplate.Disk.Name)
 
 	return mergedTemplate, nil
+}
+
+func mergeHookScripts(defaultFiles, userFiles []HookScriptInfo) []HookScriptInfo {
+	// Create a map to track unique additional files by their final path
+	fileMap := make(map[string]HookScriptInfo)
+
+	// Add default files first
+	for _, file := range defaultFiles {
+		fileMap[file.TargetPostRootfs] = file
+	}
+
+	// Add/override with user files
+	for _, file := range userFiles {
+		fileMap[file.TargetPostRootfs] = file
+	}
+
+	// Convert map back to slice
+	mergedFiles := make([]HookScriptInfo, 0, len(fileMap))
+	for _, file := range fileMap {
+		mergedFiles = append(mergedFiles, file)
+	}
+
+	return mergedFiles
 }

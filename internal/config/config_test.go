@@ -686,7 +686,9 @@ func TestAllSupportedProviders(t *testing.T) {
 	}{
 		{"azure-linux", "azl3", "AzureLinux3", "3"},
 		{"emt", "emt3", "EMT3.0", "3.0"},
-		{"elxr", "elxr12", "eLxr12", "12"},
+		{"wind-river-elxr", "elxr12", "eLxr12", "12"},
+		{"ubuntu", "ubuntu24", "ubuntu24", ""},
+		{"madani", "madani24", "madani24", ""},
 	}
 
 	for _, tc := range testCases {
@@ -714,6 +716,46 @@ func TestAllSupportedProviders(t *testing.T) {
 		version := template.GetDistroVersion()
 		if version != tc.version {
 			t.Errorf("for %s/%s expected version '%s', got '%s'", tc.os, tc.dist, tc.version, version)
+		}
+	}
+}
+
+func TestUnsupportedProviders(t *testing.T) {
+	testCases := []struct {
+		os   string
+		dist string
+	}{
+		{"unsupported-os", "unknown-dist"},
+		{"azure-linux", "unsupported-dist"},
+		{"wind-river-elxr", "unsupported-version"},
+		{"ubuntu", "unsupported-version"},
+		{"madani", "unsupported-version"},
+	}
+
+	for _, tc := range testCases {
+		template := &ImageTemplate{
+			Target: TargetInfo{
+				OS:        tc.os,
+				Dist:      tc.dist,
+				Arch:      "x86_64",
+				ImageType: "iso",
+			},
+			SystemConfig: SystemConfig{
+				Name:     "test",
+				Packages: []string{"test-package"},
+				Kernel:   KernelConfig{Version: "6.12"},
+			},
+		}
+
+		// Test that unsupported providers return empty strings
+		providerName := template.GetProviderName()
+		if providerName != "" {
+			t.Errorf("for unsupported %s/%s expected empty provider name, got '%s'", tc.os, tc.dist, providerName)
+		}
+
+		version := template.GetDistroVersion()
+		if version != "" {
+			t.Errorf("for unsupported %s/%s expected empty version, got '%s'", tc.os, tc.dist, version)
 		}
 	}
 }

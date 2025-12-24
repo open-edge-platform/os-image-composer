@@ -267,7 +267,12 @@
         },
         "additionalFiles": {
           "type": "array",
-          "description": "Additional files to include in the system",
+          "description": " to include in the system",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "hookScripts": {
+          "type": "array",
+          "description": "Hook scripts to include in the system",
           "items": { "type": "object", "additionalProperties": true }
         },
         "kernel": { "$ref": "#/$defs/Kernel" }

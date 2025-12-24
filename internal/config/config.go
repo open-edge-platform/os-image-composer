@@ -127,6 +127,7 @@ type SystemConfig struct {
 	Bootloader      Bootloader           `yaml:"bootloader"`
 	Packages        []string             `yaml:"packages"`
 	AdditionalFiles []AdditionalFileInfo `yaml:"additionalFiles"`
+	HookScripts     []HookScriptInfo     `yaml:"hookScripts,omitempty"`
 	Kernel          KernelConfig         `yaml:"kernel"`
 }
 
@@ -134,6 +135,14 @@ type SystemConfig struct {
 type AdditionalFileInfo struct {
 	Local string `yaml:"local"` // path to the file on the host system
 	Final string `yaml:"final"` // path where the file should be placed in the image
+}
+
+// HookScriptInfo holds information about hook scripts to be included in the image
+type HookScriptInfo struct {
+    LocalPostRootfs  string `yaml:"local_post_rootfs,omitempty"`  // Local path to post-rootfs script
+    TargetPostRootfs string `yaml:"target_post_rootfs,omitempty"` // Target path in image for post-rootfs script
+    LocalPreRootfs   string `yaml:"local_pre_rootfs,omitempty"`   // For future pre-rootfs hooks
+    TargetPreRootfs  string `yaml:"target_pre_rootfs,omitempty"`  // For future pre-rootfs hooks
 }
 
 // KernelConfig holds the kernel configuration
@@ -237,10 +246,13 @@ func parseYAMLTemplate(data []byte, validateFull bool) (*ImageTemplate, error) {
 func (t *ImageTemplate) GetProviderName() string {
 	// Map OS/dist combinations to provider names
 	providerMap := map[string]map[string]string{
-		"azure-linux": {"azl3": "AzureLinux3"},
-		"emt":         {"emt3": "EMT3.0"},
-		"elxr":        {"elxr12": "eLxr12"},
+		"azure-linux":      {"azl3": "AzureLinux3"},
+		"emt":              {"emt3": "EMT3.0"},
+		"wind-river-elxr":  {"elxr12": "eLxr12"},
+		"ubuntu":           {"ubuntu24": "ubuntu24"},
+	    "madani":           {"madani24": "madani24"},
 	}
+	
 
 	if providers, ok := providerMap[t.Target.OS]; ok {
 		if provider, ok := providers[t.Target.Dist]; ok {
@@ -362,6 +374,54 @@ func (t *ImageTemplate) GetAdditionalFileInfo() []AdditionalFileInfo {
 					if !found {
 						log.Warnf("Ignoring additional file entry with non-existent local path: %+v",
 							t.SystemConfig.AdditionalFiles[i])
+					}
+				}
+			}
+		}
+	}
+	return PathUpdatedList
+}
+
+func (t *ImageTemplate) GetHookScriptInfo() []HookScriptInfo {
+	var PathUpdatedList []HookScriptInfo
+	if len(t.SystemConfig.HookScripts) == 0 {
+		return []HookScriptInfo {}
+	}
+
+	for i := range t.SystemConfig.HookScripts {
+		if t.SystemConfig.HookScripts[i].LocalPostRootfs == "" || t.SystemConfig.HookScripts[i].TargetPostRootfs == "" {
+			log.Warnf("Ignoring hook script entry with empty local or target path: %+v",
+				t.SystemConfig.HookScripts[i])
+		} else {
+			if filepath.IsAbs(t.SystemConfig.HookScripts[i].LocalPostRootfs) {
+				if _, err := os.Stat(t.SystemConfig.HookScripts[i].LocalPostRootfs); err == nil {
+					PathUpdatedList = append(PathUpdatedList, t.SystemConfig.HookScripts[i])
+				} else {
+					log.Warnf("Ignoring hook script entry with non-existent local path: %+v",
+						t.SystemConfig.HookScripts[i])
+				}
+			} else {
+				if len(t.PathList) == 0 {
+					log.Warnf("Cannot resolve relative additional file path without template file context: %+v",
+						t.SystemConfig.HookScripts[i])
+				} else {
+					var found bool
+					for _, path := range t.PathList {
+						templateDir := filepath.Dir(path)
+						candidatePath := filepath.Join(templateDir, t.SystemConfig.HookScripts[i].LocalPostRootfs)
+						if _, err := os.Stat(candidatePath); err == nil {
+							newFileInfo := HookScriptInfo{
+								LocalPostRootfs: candidatePath,
+								TargetPostRootfs: t.SystemConfig.HookScripts[i].TargetPostRootfs,
+							}
+							PathUpdatedList = append(PathUpdatedList, newFileInfo)
+							found = true
+							break
+						}
+					}
+					if !found {
+						log.Warnf("Ignoring hook script entry with non-existent local path: %+v",
+							t.SystemConfig.HookScripts[i])
 					}
 				}
 			}

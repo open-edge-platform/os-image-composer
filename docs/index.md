@@ -421,7 +421,9 @@ Array of system configurations that define what goes into the image:
 |----|-------------|---------|----------|
 | azure-linux | azl3 | 3 | AzureLinux3 |
 | emt | emt3 | 3.0 | EMT3.0 |
-| elxr | elxr12 | 12 | eLxr12 |
+| wind-river-elxr | elxr12 | 12 | eLxr12 |
+| ubuntu | ubuntu24 | | ubuntu24 |
+| madani | madani24 | | madani24 |
 
 #### Package Examples
 
