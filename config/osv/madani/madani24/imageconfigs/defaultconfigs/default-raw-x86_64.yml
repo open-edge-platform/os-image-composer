@@ -59,7 +59,7 @@ systemConfig:
     provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
 
   immutability:
-    enabled: false # default is true
+    enabled: false # default is false, you need 4 partitions for true immutability setup
 
   packages:
     # base
@@ -83,6 +83,13 @@ systemConfig:
     - ssl-cert
     - lightdm
     - lightdm-gtk-greeter
+    #networking
+    - net-tools
+    - network-manager
+    - network-manager-gnome
+    - linux-firmware
+    - wireless-tools
+    - wpasupplicant
 
   additionalFiles:
     - local: ../additionalfiles/dhcp.network

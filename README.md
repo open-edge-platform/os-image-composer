@@ -1,4 +1,4 @@
-# OS Image Composer
+# Madani OS Builder
 
 ***This is a fork of upstream/project.
 It contains custom changes for Madani OS use and is not intended for upstream contribution.***
@@ -8,12 +8,12 @@ ___
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Go Lint Check](https://github.com/open-edge-platform/os-image-composer/actions/workflows/go-lint.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/go-lint.yml) [![Unit and Coverage](https://github.com/open-edge-platform/os-image-composer/actions/workflows/unit-test-and-coverage-gate.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/unit-test-and-coverage-gate.yml) [![Security zizmor 🌈](https://github.com/open-edge-platform/os-image-composer/actions/workflows/zizmor.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/zizmor.yml) [![Fuzz test](https://github.com/open-edge-platform/os-image-composer/actions/workflows/fuzz-test.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/fuzz-test.yml) [![Trivy scan](https://github.com/open-edge-platform/os-image-composer/actions/workflows/trivy-scan.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/trivy-scan.yml)
 
-OS Image Composer is a command-line tool that uses a simple toolchain to build mutable or immutable Linux distributions from the pre-built packages sourced from various OS distribution repositories.
-Developed in the Go programming language, or Golang, the tool initially builds custom images for [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit), [Linux OS for Azure 1P services and edge appliances (azurelinux)](https://github.com/microsoft/azurelinux) and [Wind River eLxr Linux distribution](https://www.windriver.com/blog/Introducing-eLxr).
+Madani OS Builder is a specialized command-line tool designed to build lightweight Linux distributions optimized for low-end machines with pre-built AI stack capabilities. Using a simple toolchain, it creates mutable or immutable Madani OS images from pre-built packages sourced from various OS distribution repositories.
+Developed in the Go programming language, the tool primarily focuses on building custom Madani OS images that provide efficient AI workload support on resource-constrained hardware, while maintaining compatibility with [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit), [Linux OS for Azure 1P services and edge appliances (azurelinux)](https://github.com/microsoft/azurelinux), [Wind River eLxr Linux distribution](https://www.windriver.com/blog/Introducing-eLxr), and Ubuntu.
 
 ## Get Started
 
-Intel has validated and recommends using Ubuntu OS version 24.04 to work with the initial release of the OS Image Composer tool. Intel has not validated other Linux distributions. The plan for later releases is to include a containerized version to support portability across operating systems.
+Madani Team has validated and recommends using Ubuntu OS version 24.04 to work with the initial release of the Madani OS Builder tool. Madani Team has not validated other Linux distributions. The plan for later releases is to include a containerized version to support portability across operating systems and enhanced support for AI workloads on low-end devices.
 
 * Download the tool by cloning and checking out the latest tagged release on the [GitHub repository](https://github.com/open-edge-platform/os-image-composer/). Alternatively, you can download the [latest tagged release](https://github.com/open-edge-platform/os-image-composer/releases) of the ZIP archive.
 
@@ -118,7 +118,7 @@ sudo dpkg -i dist/os-image-composer_1.0.0_amd64.deb
 sudo apt-get install -y mmdebstrap || sudo apt-get install -y debootstrap
 ```
 
-> Note: Intel recommends using `apt install` for automatic handling of dependencies. If you use `dpkg -i` and encounter dependency errors, run `sudo apt-get install -f` to fix them.
+> Note: Madani Team recommends using `apt install` for automatic handling of dependencies. If you use `dpkg -i` and encounter dependency errors, run `sudo apt-get install -f` to fix them.
 
 #### Verify Installation
 
