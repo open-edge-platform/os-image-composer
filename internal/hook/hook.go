@@ -20,8 +20,18 @@ func HookPostRootfs(installRoot string, template *config.ImageTemplate) error {
         return fmt.Errorf("template cannot be nil")
     }
  
+    // Filter to only get post-rootfs hooks (those with LocalPostRootfs and TargetPostRootfs defined)
+    postRootfsHooks := []config.HookScriptInfo{}
     for _, hook := range template.GetHookScriptInfo() {
-        log.Infof("Found hook script to include: local=%s, target=%s", hook.LocalPostRootfs, hook.TargetPostRootfs)
+        // Only include hooks that have post-rootfs fields defined and are not empty
+        if hook.LocalPostRootfs != "" && hook.TargetPostRootfs != "" {
+            postRootfsHooks = append(postRootfsHooks, hook)
+            log.Infof("Found post-rootfs hook script to include: local=%s, target=%s", hook.LocalPostRootfs, hook.TargetPostRootfs)
+        }
+    }
+
+    // Process only the post-rootfs hooks
+    for _, hook := range postRootfsHooks {
         // Copy the hook script into the target rootfs
         localPath := hook.LocalPostRootfs
         targetPath := fmt.Sprintf("%s/%s", installRoot, hook.TargetPostRootfs)
