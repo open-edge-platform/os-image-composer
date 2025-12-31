@@ -76,6 +76,8 @@ systemConfig:
     - linux-firmware
     - wireless-tools
     - wpasupplicant
+    #cloud init
+    - cloud-init  
 
   additionalFiles:
     - local: ../additionalfiles/dhcp.network
@@ -86,8 +88,11 @@ systemConfig:
   hookScripts:
     - local_post_download_packages: ../hookscripts/post_download.sh
       target_post_download_packages: /hooks/post_download.sh
-    - local_post_rootfs: ../hookscripts/post_rootfs.sh
-      target_post_rootfs: /etc/hooks/post_rootfs.sh
+    - local_post_rootfs: ../hookscripts/rebranding.sh
+      target_post_rootfs: /etc/hooks/rebranding.sh
+    - local_post_rootfs: ../hookscripts/cloudinit.sh
+      target_post_rootfs: /etc/hooks/cloudinit.sh
+
   
   kernel:
     version: "6.14"
