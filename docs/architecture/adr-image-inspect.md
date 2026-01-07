@@ -222,3 +222,107 @@ Fallback category when images do not meet any of the similarity criteria above.
 - Modifying images during inspection or comparison
 - Inspecting live or running systems
 - Supporting non-raw image formats in the initial implementation
+
+## Components
+
+```mermaid
+
+classDiagram
+    class InspectCommand {
+      +Run()
+      -imagePath
+      -format
+      -csvKind
+      -output
+    }
+
+    class DiffCommand {
+      +Run()
+      -imageA
+      -imageB
+      -summaryA
+      -summaryB
+      -format
+    }
+
+    class Inspector {
+      <<interface>>
+      +InspectImage(path string): ImageSummary
+    }
+
+    class DiskfsInspector {
+      +InspectImage(path string): ImageSummary
+    }
+
+    class DiffEngine {
+      +Compare(a: ImageSummary, b: ImageSummary): ImageDiff
+    }
+
+    class ImageSummary
+    class ImageDiff
+
+    class Renderer {
+      <<interface>>
+      +RenderSummary(summary: ImageSummary, w: io.Writer)
+      +RenderDiff(diff: ImageDiff, w: io.Writer)
+    }
+
+    class TextRenderer
+    class YamlRenderer
+    class JsonRenderer
+    class CsvRenderer
+
+    %% Relationships
+    InspectCommand --> Inspector : uses
+    InspectCommand --> Renderer : uses
+
+    DiffCommand --> Inspector : uses (when diffing images)
+    DiffCommand --> DiffEngine : uses
+    DiffCommand --> Renderer : uses
+
+    DiskfsInspector ..|> Inspector
+
+    TextRenderer ..|> Renderer
+    YamlRenderer ..|> Renderer
+    JsonRenderer ..|> Renderer
+    CsvRenderer ..|> Renderer
+
+    DiffEngine --> ImageSummary
+    DiffEngine --> ImageDiff
+
+```
+
+## Relevant Data Structures
+
+The following outlines the conceptual data structure required for evaluating
+the similarity classification of images. 
+
+```go
+
+type ImageDiff struct {
+    Equal         bool                `json:"equal"`
+    Level         string              `json:"level"` // "binary-identical", "semantic-identical", "layout-identical", "different"`
+    Binary        BinaryDiff          `json:"binary"`
+    PartitionTable PartitionTableDiff `json:"partitionTable"`
+    Kernel        KernelDiff          `json:"kernel"`
+    Boot          BootDiff            `json:"boot"`
+    SBOM          SBOMDiff            `json:"sbom"`
+    HashAlgo      string              `json:"hashAlgo,omitempty"` // "sha256"
+    Hashes        []string            `json:"hashA, hashB, omitempty"`
+    Notes         []string            `json:"notes,omitempty"`
+}
+
+...
+
+// Trivial heuristics can be used to  check each of the evaluated items to 
+// classify them into one of the pre-defined categories.
+switch {
+    case layoutEqual && kernelEqual && bootEqual && sbomEqual:
+        diff.Level = "semantic-identical"
+    case layoutEqual:
+        diff.Level = "layout-identical"
+    default:
+        diff.Level = "different"
+    }
+
+```
