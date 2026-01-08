@@ -43,7 +43,14 @@ wsl -d %DISTRO% -u root bash -c "printf 'export PATH=\x24PATH:/usr/local/go/bin\
 
 echo [4/5] Cloning Repository to /data...
 wsl -d %DISTRO% -u root bash -c "if [ ! -d '/data/%REPO_DIR%' ]; then cd /data && git clone %REPO_URL%; fi"
+
+echo [4.1/5] Setting proper permissions for everyone to access the repository...
+:: Set ownership to allow all users to read/write
+wsl -d %DISTRO% -u root chown -R nobody:nogroup /data/%REPO_DIR%
+:: Set full read/write permissions for owner, group, and others
 wsl -d %DISTRO% -u root chmod -R 777 /data/%REPO_DIR%
+:: Ensure git directory is also accessible
+wsl -d %DISTRO% -u root chmod -R 777 /data/%REPO_DIR%/.git
 
 echo [5/5] Final Verification...
 echo ----------------------------------------------
