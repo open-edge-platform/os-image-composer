@@ -4,8 +4,8 @@ SETLOCAL DisableDelayedExpansion
 :: ==========================================
 :: SETTINGS & VARIABLES
 :: ==========================================
-SET "REPO_URL=https://github.com/open-edge-platform/os-image-composer.git"
-SET "REPO_DIR=os-image-composer"
+SET "REPO_URL=https://github.com/yockgen/madani-os-builder.git"
+SET "REPO_DIR=madani-os-builder"
 SET "GO_VERSION=go1.25.5"
 SET "DISTRO=Ubuntu-24.04"
 :: ==========================================
