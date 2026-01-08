@@ -215,10 +215,15 @@ func TestMergeSystemConfigWithImmutability(t *testing.T) {
 		Packages:     []string{"base-package"},
 	}
 
+	// User explicitly provides immutability config with secure boot settings
+	// This represents a user who explicitly configured immutability
 	userConfig := SystemConfig{
-		Name:         "user",
-		Immutability: ImmutabilityConfig{Enabled: false},
-		Packages:     []string{"user-package"},
+		Name: "user",
+		Immutability: ImmutabilityConfig{
+			Enabled:         false,
+			SecureBootDBKey: "/path/to/key", // This makes it clear user provided config
+		},
+		Packages: []string{"user-package"},
 	}
 
 	merged := mergeSystemConfig(defaultConfig, userConfig)
