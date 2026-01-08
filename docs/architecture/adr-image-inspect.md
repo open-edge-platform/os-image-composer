@@ -109,12 +109,14 @@ The OS Image Composer CLI will be extended with additional commands:
 ```bash
 os-image-composer inspect <image.img> \
   --format=yml \
-  --output=report.yml
+  --output=report.yml \
+  --verbose
 
   
 os-image-composer diff <image-1.img> <image-2.img> \
   --format=yml \
-  --output=report.yml
+  --output=report.yml \
+  --verbose
 
 ```
 
@@ -294,11 +296,63 @@ classDiagram
 
 ## Relevant Data Structures
 
-The following outlines the conceptual data structure required for evaluating
-the similarity classification of images. 
+The following outlines the conceptual data structures required for image
+inspection and comparison.
+
+### ImageSummary
+
+Represents the complete inspection result for a single image:
 
 ```go
+type ImageSummary struct {
+    Path           string         `json:"path"`
+    Hash           string         `json:"hash"`
+    HashAlgo       string         `json:"hashAlgo"` // "sha256"
+    Size           int64          `json:"size"`
+    PartitionTable PartitionTable `json:"partitionTable"`
+    Kernel         KernelInfo     `json:"kernel"`
+    Boot           BootInfo       `json:"boot"`
+    SBOM           SBOMInfo       `json:"sbom,omitempty"`
+}
 
+type PartitionTable struct {
+    Type       string      `json:"type"` // "gpt" or "mbr"
+    Partitions []Partition `json:"partitions"`
+}
+
+type Partition struct {
+    Number   int    `json:"number"`
+    Type     string `json:"type"`
+    StartLBA uint64 `json:"startLBA"`
+    Size     uint64 `json:"size"`
+    Label    string `json:"label,omitempty"`
+    UUID     string `json:"uuid,omitempty"`
+}
+
+type KernelInfo struct {
+    Version     string `json:"version"`
+    CommandLine string `json:"commandLine"`
+}
+
+type BootInfo struct {
+    Bootloader  string `json:"bootloader"` // "grub2", "systemd-boot"
+    SecureBoot  bool   `json:"secureBoot"`
+    ShimPresent bool   `json:"shimPresent"`
+}
+
+type SBOMInfo struct {
+    Present  bool     `json:"present"`
+    Path     string   `json:"path,omitempty"`
+    Checksum string   `json:"checksum,omitempty"`
+    Packages []string `json:"packages,omitempty"`
+}
+```
+
+### ImageDiff
+
+Represents the comparison result between two images:
+
+```go
 type ImageDiff struct {
     Equal         bool                `json:"equal"`
     Level         string              `json:"level"` // "binary-identical", "semantic-identical", "layout-identical", "different"`
@@ -308,15 +362,18 @@ type ImageDiff struct {
     Boot          BootDiff            `json:"boot"`
     SBOM          SBOMDiff            `json:"sbom"`
     HashAlgo      string              `json:"hashAlgo,omitempty"` // "sha256"
-    Hashes        []string            `json:"hashA, hashB, omitempty"`
+    Hashes        []string            `json:"hashes,omitempty"` // [hashA, hashB]
     Notes         []string            `json:"notes,omitempty"`
 }
+```
 
-...
+### Similarity Classification Logic
 
 // Trivial heuristics can be used to  check each of the evaluated items to 
 // classify them into one of the pre-defined categories.
 switch {
+    case diff.Binary.Equal:
+        diff.Level = "binary-identical"
     case layoutEqual && kernelEqual && bootEqual && sbomEqual:
         diff.Level = "semantic-identical"
     case layoutEqual:
@@ -326,3 +383,25 @@ switch {
     }
 
 ```
+
+## Error Handling
+
+The inspect and diff commands must handle various error conditions gracefully:
+
+| Error Condition | Behavior |
+|-----------------|----------|
+| Image file not found | Return error with clear message |
+| Image file unreadable (permissions) | Return error with suggestion to check permissions |
+| Corrupted or truncated image | Return error indicating file may be corrupted |
+| Unrecognized partition table | Report as "unknown" in output, continue inspection |
+| Filesystem mount failure | Skip filesystem-level inspection, report in notes |
+| SBOM not present in image | Set `sbom.present = false`, continue without error |
+| Unsupported image format | Return error listing supported formats |
+
+### Verbose Mode
+
+When `--verbose` is specified:
+- Log each inspection phase as it executes
+- Include timing information for performance analysis
+- Show detailed error context for troubleshooting
+- Display intermediate results during comparison
