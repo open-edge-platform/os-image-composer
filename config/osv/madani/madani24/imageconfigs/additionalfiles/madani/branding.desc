@@ -1,0 +1,41 @@
+---
+componentName:   madani
+welcomeStyleCalamares: true
+welcomeExpandingLogo: true
+windowExpanding: normal
+windowSize: 800px,580px
+windowPlacement: center
+
+strings:
+    productName:         madani GNU/Linux
+    shortProductName:    madani
+    version:             24
+    shortVersion:        24
+    versionedName:       madani 24
+    shortVersionedName:  madani 24
+    bootloaderEntryName: madani
+    productUrl:          https://debian.org
+    supportUrl:          https://www.debian.org/support
+    knownIssuesUrl:      https://bugs.debian.org
+    releaseNotesUrl:     https://www.debian.org/releases/bookworm/releasenotes
+    donateUrl:           https://www.debian.org
+
+sidebar: widget
+navigation: widget
+
+images:
+#    productBanner:       "/usr/share/desktop-base/emerald-theme/grub/grub-16x9.png"
+    productLogo:         "debian-logo.png"
+    productIcon:         "debian-logo.png"
+    productWelcome:      "welcome.png"
+#    productWallpaper:    ""
+
+slideshow:               "show.qml"
+
+style:
+   SidebarBackground:    "#010027"
+   SidebarText:          "#FFFFFF"
+   SidebarTextCurrent:   "#fbfbfb"
+   SidebarBackgroundCurrent: "#017877"
+
+slideshowAPI: 2

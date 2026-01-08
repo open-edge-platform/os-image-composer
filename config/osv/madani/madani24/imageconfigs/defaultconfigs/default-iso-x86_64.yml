@@ -42,33 +42,33 @@ systemConfig: # Required
 
   packages:
     - ubuntu-minimal
-    - grub2-common
+    - grub-pc-bin
     - grub-efi-amd64-bin
-    # - initramfs-tools
-    # - dracut-core
-    - systemd
-    # - cryptsetup-bin
-    - systemd-resolved
-    # GUI packages
-    - xfce4 
-    - xfce4-goodies    
-    - xrdp 
-    - xfce4-session 
-    - dbus-x11 
-    - dbus-user-session
-    - x11-xserver-utils 
-    - xorg 
-    - mesa-utils
-    - ssl-cert
-    - lightdm
-    - lightdm-gtk-greeter
-    #networking
-    - net-tools
-    - network-manager
-    - network-manager-gnome
-    - linux-firmware
-    - wireless-tools
-    - wpasupplicant
+    # # - initramfs-tools
+    # # - dracut-core
+    # - systemd
+    # # - cryptsetup-bin
+    # - systemd-resolved
+    # # GUI packages
+    # - xfce4 
+    # - xfce4-goodies    
+    # - xrdp 
+    # - xfce4-session 
+    # - dbus-x11 
+    # - dbus-user-session
+    # - x11-xserver-utils 
+    # - xorg 
+    # - mesa-utils
+    # - ssl-cert
+    # - lightdm
+    # - lightdm-gtk-greeter
+    # #networking
+    # - net-tools
+    # - network-manager
+    # - network-manager-gnome
+    # - linux-firmware
+    # - wireless-tools
+    # - wpasupplicant
 
   additionalFiles:
     - local: ../additionalfiles/dhcp.network

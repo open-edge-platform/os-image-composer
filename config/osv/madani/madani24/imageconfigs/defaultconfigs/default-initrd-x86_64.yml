@@ -17,25 +17,82 @@ systemConfig:
     provider: grub # (grub for efi and legacy mode, or systemd-boot for efi mode)
 
   packages:
-    # core
-    - ca-certificates
-    - sudo
-    # bootloader
-    - grub-pc-bin
-    - grub-efi-amd64-bin
-    # GUI
-    - dbus
-    - policykit-1
-    - xterm
-    - xorg
-    - xinit
-    - openbox
+    # disk management
+    - udisks2
+    - util-linux
+    - udev
+    - os-prober
+    - efibootmgr
+    - kpartx
+    - ntfs-3g
+    - dosfstools
+    - e2fsprogs
+    - btrfs-progs
+    - xfsprogs
+    - parted
+    - gparted
+    - partitionmanager
     # operation
     - qemu-utils
     - pv
+    - dmidecode
+    - pciutils
+    - usbutils
+    - systemd
+    # # calamares
+    # - calamares
+    # - calamares-settings-debian
+
+    # base
+    - ubuntu-minimal
+    # bootloader
+    - grub-pc-bin
+    - grub-efi-amd64-bin
+    # GUI packages
+    - xfce4 
+    - xfce4-goodies    
+    - xrdp 
+    - xfce4-session 
+    - dbus-x11 
+    - dbus-user-session
+    - x11-xserver-utils 
+    - xorg 
+    - mesa-utils
+    - ssl-cert
+    # - lightdm
+    # - lightdm-gtk-greeter
+    - xinit
+    - xterm
+    - dbus
+    - policykit-1
+    - openbox
+    #networking
+    - net-tools
+    - network-manager
+    - network-manager-gnome
+    - linux-firmware
+    - wireless-tools
+    - wpasupplicant
+    # calamares dependencies
+    - qtbase5-dev
+    - qtchooser
+    - qt5-qmake
+    - qttools5-dev-tools
+    - qttools5-dev
+    - libqt5svg5-dev
+    - qtdeclarative5-dev
+    - libpolkit-qt5-1-dev
+    - libkf5coreaddons-dev
+    - python3-dev
+    - libkpmcore-dev
+    - libkpmcore12
+    - libkf5i18n-dev
+    - libkf5widgetsaddons-dev
     # calamares
     - calamares
     - calamares-settings-debian
+    # edit
+    - nano
 
   additionalFiles:
     - local: ../additionalfiles/dhcp.network
@@ -50,8 +107,16 @@ systemConfig:
       final: /root/attendedinstaller
     - local: ../additionalfiles/calamares-settings.conf
       final: /etc/calamares/settings.conf
-    - local: ../additionalfiles/calamares-branding.desc
+    - local: ../additionalfiles/madani/branding.desc
       final: /etc/calamares/branding/madani/branding.desc
+    - local: ../additionalfiles/madani/debian-logo.png
+      final: /etc/calamares/branding/madani/debian-logo.png
+    - local: ../additionalfiles/madani/show.qml
+      final: /etc/calamares/branding/madani/show.qml
+    - local: ../additionalfiles/madani/slide1.png
+      final: /etc/calamares/branding/madani/slide1.png
+    - local: ../additionalfiles/madani/welcome.png
+      final: /etc/calamares/branding/madani/welcome.png
     - local: ../additionalfiles/welcome.conf
       final: /etc/calamares/modules/welcome.conf
     - local: ../additionalfiles/partition.conf

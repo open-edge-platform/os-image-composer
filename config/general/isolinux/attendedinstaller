@@ -51,21 +51,34 @@ stty -echo
 # Disable kernel messages on the current terminal
 dmesg -D
 
-# Start X server in background
-export DISPLAY=:0
-Xorg :0 -ac -nolisten tcp vt7 &
-X_PID=$!
+# Launch calamares with retry logic
+installerExitCode=1
+retry_count=0
+max_retries=3
+while [ $retry_count -lt $max_retries ]; do
+    # Start X server in background
+    export DISPLAY=:0
+    Xorg :0 -ac -nolisten tcp vt7 &
+    X_PID=$!
 
-# Wait for X to start
-sleep 3
+    # Wait for X to start
+    sleep 5
 
-# Start a simple window manager
-openbox &
-OPENBOX_PID=$!
+    # Start a simple window manager
+    openbox &
+    OPENBOX_PID=$!
 
-# Launch calamares
-calamares
-installerExitCode=$?
+    calamares -D8
+    installerExitCode=$?
+    if [ $installerExitCode -eq 0 ]; then
+        break
+    fi
+    ((retry_count++))
+    if [ $retry_count -lt $max_retries ]; then
+        echo "Calamares failed with exit code $installerExitCode. Retrying... (attempt $((retry_count + 1))/$max_retries)"
+        sleep 15
+    fi
+done
 
 # Clean up X server and window manager
 kill $OPENBOX_PID 2>/dev/null
@@ -85,7 +98,8 @@ stty echo
 dmesg -E
 
 if [ $installerExitCode -eq 0 ]; then
-    reboot
+    # reboot
+    /bin/bash
 else
     /bin/bash
 fi
