@@ -164,9 +164,9 @@ When `-o` is not specified, filenames are generated based on analysis parameters
 ```
 
 Examples:
-- `deps_vim_d2.svg` — vim dependencies, depth 2, SVG format
-- `deps_libc6_d3_reverse.svg` — packages depending on libc6, depth 3
-- `deps_apt.dot` — apt dependencies, default depth, DOT format
+- `deps_vim_d2.svg` - vim dependencies, depth 2, SVG format
+- `deps_libc6_d3_reverse.svg` - packages depending on libc6, depth 3
+- `deps_apt.dot` - apt dependencies, default depth, DOT format
 
 ---
 
