@@ -153,11 +153,9 @@ test:
     # Run the comprehensive coverage tests using our script
     RUN cd /work && ./scripts/run_coverage_tests.sh "${PRINT_TS}" "${FAIL_ON_NO_TESTS}"
     
-    # Save all generated artifacts locally
+    # Save coverage artifacts locally
     SAVE ARTIFACT coverage.out AS LOCAL ./coverage.out
-    SAVE ARTIFACT coverage_total.txt AS LOCAL ./coverage_total.txt
-    SAVE ARTIFACT coverage_packages.txt AS LOCAL ./coverage_packages.txt
-    SAVE ARTIFACT test_raw.log AS LOCAL ./test_raw.log
+    SAVE ARTIFACT coverage_report.txt AS LOCAL ./coverage_report.txt
 
 test-debug:
     FROM +golang-base
@@ -170,14 +168,12 @@ test-debug:
     # Make the coverage script executable
     RUN chmod +x /work/scripts/run_coverage_tests.sh
     
-    # Run the coverage tests with debug output
+    # Run the coverage tests with debug output (keeps temp files for inspection)
     RUN cd /work && ./scripts/run_coverage_tests.sh "${PRINT_TS}" "${FAIL_ON_NO_TESTS}" "true"
     
-    # Save all generated artifacts locally
+    # Save coverage artifacts locally
     SAVE ARTIFACT coverage.out AS LOCAL ./coverage.out
-    SAVE ARTIFACT coverage_total.txt AS LOCAL ./coverage_total.txt
-    SAVE ARTIFACT coverage_packages.txt AS LOCAL ./coverage_packages.txt
-    SAVE ARTIFACT test_raw.log AS LOCAL ./test_raw.log
+    SAVE ARTIFACT coverage_report.txt AS LOCAL ./coverage_report.txt
 
 test-quick:
     FROM +golang-base
