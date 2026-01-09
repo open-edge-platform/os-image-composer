@@ -1321,16 +1321,6 @@ os-image-composer ai --cache-stats
 
 ---
 
-## Review and Approval
-
-| Role | Name | Date | Status |
-|------|------|------|--------|
-| Author | | 2026-01-05 | Draft |
-| Architecture Review | | | Pending |
-| Product Owner | | | Pending |
-
----
-
 ## Revision History
 
 | Version | Date | Author | Changes |
