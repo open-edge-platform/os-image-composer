@@ -75,9 +75,10 @@ jobs:
             
             # Extract overall coverage
             if [[ -f coverage_report.txt ]]; then
-              OVERALL=$(grep "Overall Coverage:" coverage_report.txt | sed 's/.*: //' || echo "N/A")
-              THRESHOLD=$(grep "Threshold:" coverage_report.txt | sed 's/.*: //' | sed 's/ .*//' || echo "N/A")
-              STATUS=$(grep "Status:" coverage_report.txt | sed 's/.*: //' || echo "UNKNOWN")
+              # Format: **Overall Coverage:** 66.4%
+              OVERALL=$(grep "Overall Coverage:" coverage_report.txt | sed 's/.*:\*\* //' | sed 's/%.*//')%
+              THRESHOLD=$(grep "Threshold:" coverage_report.txt | sed 's/.*:\*\* //' | sed 's/%.*//')%
+              STATUS=$(grep "Status:" coverage_report.txt | sed 's/.*:\*\* //')
               
               # Status badge
               if [[ "$STATUS" == "PASSED" ]]; then
