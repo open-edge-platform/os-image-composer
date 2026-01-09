@@ -198,7 +198,7 @@ sudo -E ./os-image-composer build --workers 16 --cache-dir /tmp/cache image-temp
 ./os-image-composer version
 
 # Install shell completion for your current shell
-./os-image-composer completion install
+./os-image-composer install-completion
 ```
 
 ### Commands
@@ -220,6 +220,8 @@ Flags:
 - `--cache-dir, -d`: Package cache directory (overrides the configuration file)
 - `--work-dir`: Working directory for builds (overrides the configuration file)
 - `--verbose, -v`: Enable verbose output
+- `--dotfile, -f`: Generate a dependency graph for the merged template as a dot file (color legend: essential = pale yellow, user packages = green, kernel = blue, bootloader = orange)
+- `--system-packages-only`: Use together with `--dotfile` to keep only `SystemConfig.Packages` roots in the graph (dependencies still appear if required)
 - `--config`: Path to the configuration file
 - `--log-level`: Log level (debug, info, warn, and error)
 
@@ -260,36 +262,23 @@ Displays the tool’s version number, build date, and Git commit SHA:
 ./os-image-composer version
 ```
 
-#### completion
+#### install-completion
 
-Generates and installs shell completion scripts for various shells.
-
-##### Generate completion scripts
-
-```bash
-# Generate completion script for bash (output to stdout)
-./os-image-composer completion bash
-
-# Generate completion script for other shells
-./os-image-composer completion zsh
-./os-image-composer completion fish
-./os-image-composer completion powershell
-```
-
-##### Install completion automatically
+Installs the shell completion feature for your current shell or
+a specified shell:
 
 ```bash
-# Auto-detect shell and install completion file
-./os-image-composer completion install
+# Auto-detect shell and create completion file
+./os-image-composer install-completion
 
 # Specify shell type
-./os-image-composer completion install --shell bash
-./os-image-composer completion install --shell zsh
-./os-image-composer completion install --shell fish
-./os-image-composer completion install --shell powershell
+./os-image-composer install-completion --shell bash
+./os-image-composer install-completion --shell zsh
+./os-image-composer install-completion --shell fish
+./os-image-composer install-completion --shell powershell
 
 # Force overwrite existing completion files
-./os-image-composer completion install --force
+./os-image-composer install-completion --force
 ```
 
 **Important**: The command creates completion files but additional activation
@@ -622,11 +611,10 @@ See [License](https://github.com/open-edge-platform/os-image-composer/blob/main/
 :::{toctree}
 :hidden:
 
-Architecture <architecture/architecture.md>
-Prerequisites <tutorial/prerequisite.md>
-Secure Boot Configuration <tutorial/configure-secure-boot.md>
-Image User Configuration <configure-image-user.md>
-release-notes.md
+Architecture <architecture/architecture>
+Prerequisites <tutorial/prerequisite>
+Secure Boot Configuration <tutorial/configure-secure-boot>
+release-notes
 
 :::
 hide_directive-->

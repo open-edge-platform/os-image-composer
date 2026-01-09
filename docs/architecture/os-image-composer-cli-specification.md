@@ -17,9 +17,7 @@
       - [config init](#config-init)
       - [config show](#config-show)
     - [Version Command](#version-command)
-    - [Completion Command](#completion-command)
-      - [Generate Completion Scripts](#generate-completion-scripts)
-      - [Install Completion Automatically](#install-completion-automatically)
+    - [Install-Completion Command](#install-completion-command)
   - [Examples](#examples)
     - [Building an Image](#building-an-image)
     - [Managing Configuration](#managing-configuration)
@@ -82,7 +80,7 @@ flowchart TD
 
     Commands -->|version| Version[Show Version Info]
     
-    Commands -->|completion| Completion[Generate/Install Shell Completion]
+    Commands -->|install-completion| Completion[Install Shell Completion]
 
     %% Styling
     classDef command fill:#b5e2fa,stroke:#0077b6,stroke-width:2px;
@@ -143,6 +141,8 @@ os-image-composer build [flags] TEMPLATE_FILE
 | `--cache-dir, -d DIR` | Package cache directory (overrides config). Proper caching significantly improves build times. |
 | `--work-dir DIR` | Working directory for builds (overrides config). This directory is where images are constructed before being finalized. |
 | `--verbose, -v` | Enable verbose output (equivalent to --log-level debug). Displays detailed information about each step of the build process. |
+| `--dotfile, -f FILE` | Generate a dot file for the merged template dependency graph (user + defaults with resolved packages). Nodes are color-coded: essentials (pale yellow), template packages (green), kernel (blue), bootloader (orange). |
+| `--system-packages-only` | When paired with `--dotfile`, limit the dependency graph to roots defined in `SystemConfig.Packages`. Dependencies pulled in by those roots still appear, but essentials/kernel/bootloader packages aren't drawn unless required by a system package. |
 
 **Example:**
 
@@ -155,6 +155,11 @@ sudo -E os-image-composer build --workers 16 --cache-dir /tmp/cache my-image-tem
 
 # Build with verbose output
 sudo -E os-image-composer build --verbose my-image-template.yml
+
+# Build and generate dependency graphs
+sudo -E os-image-composer build --dotfile deps.dot my-image-template.yml
+# Limit the graph to SystemConfig.Packages roots
+sudo -E os-image-composer build --dotfile system.dot --system-packages-only my-image-template.yml
 ```
 
 **Note:** The build command typically requires sudo privileges for operations like creating loopback devices and mounting filesystems.
@@ -314,36 +319,12 @@ os-image-composer version
 - Git commit SHA
 - Organization
 
-### Completion Command
+### Install-Completion Command
 
-Generate or install shell completion scripts for os-image-composer. Supports bash, zsh, fish, and PowerShell.
-
-**Prerequisites:** The `os-image-composer` binary must be in your system's `$PATH` for completion to function properly. The completion script is registered for the command name `os-image-composer`, not for relative or absolute paths.
-
-#### Generate Completion Scripts
-
-Generate completion scripts to stdout for manual installation:
+Install shell completion for the os-image-composer command. Supports bash, zsh, fish, and PowerShell.
 
 ```bash
-os-image-composer completion [bash|zsh|fish|powershell]
-```
-
-**Example:**
-
-```bash
-# Generate bash completion script
-os-image-composer completion bash > /etc/bash_completion.d/os-image-composer
-
-# Generate zsh completion script
-os-image-composer completion zsh > ~/.zsh/completion/_os-image-composer
-```
-
-#### Install Completion Automatically
-
-Automatically detect shell and install completion scripts:
-
-```bash
-os-image-composer completion install [flags]
+os-image-composer install-completion [flags]
 ```
 
 **Flags:**
@@ -357,18 +338,18 @@ os-image-composer completion install [flags]
 
 ```bash
 # Auto-detect shell and install completion
-os-image-composer completion install
+os-image-composer install-completion
 
 # Install completion for specific shell
-os-image-composer completion install --shell bash
+os-image-composer install-completion --shell bash
 
 # Force reinstall
-os-image-composer completion install --force
+os-image-composer install-completion --force
 ```
 
 **Post-Installation Steps:**
 
-After installing completion, ensure `os-image-composer` is in your PATH, then reload your shell configuration:
+After installing completion, you need to reload your shell configuration:
 
 **Bash:**
 

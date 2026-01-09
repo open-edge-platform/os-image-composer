@@ -686,7 +686,7 @@ func TestDownloadPackages(t *testing.T) {
 				defer os.RemoveAll(tmpDir)
 			}
 
-			result, err := rpmutils.DownloadPackages(tc.pkgList, tc.destDir, tc.dotFile)
+			result, err := rpmutils.DownloadPackages(tc.pkgList, tc.destDir, tc.dotFile, nil, false)
 
 			if tc.expectError {
 				if err == nil {
@@ -1035,7 +1035,7 @@ func TestDownloadPackagesComplete(t *testing.T) {
 			}
 			defer os.RemoveAll(tmpDir)
 
-			downloadList, packageInfos, err := rpmutils.DownloadPackagesComplete(tc.pkgList, tmpDir, "")
+			downloadList, packageInfos, err := rpmutils.DownloadPackagesComplete(tc.pkgList, tmpDir, "", nil, false)
 
 			if tc.expectError {
 				if err == nil {
@@ -1166,7 +1166,7 @@ func TestDownloadPackagesCompleteFunction(t *testing.T) {
 			}
 			defer os.RemoveAll(tmpDir)
 
-			downloadList, packageInfos, err := rpmutils.DownloadPackagesComplete(tc.pkgList, tmpDir, "")
+			downloadList, packageInfos, err := rpmutils.DownloadPackagesComplete(tc.pkgList, tmpDir, "", nil, false)
 
 			if tc.expectError {
 				if err == nil {

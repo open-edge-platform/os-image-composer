@@ -1,8 +1,13 @@
 package debutils_test
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/debutils"
 )
@@ -87,10 +92,13 @@ func TestResolveDependenciesAdvanced(t *testing.T) {
 }
 
 func TestGenerateDot(t *testing.T) {
+	tmpDir := t.TempDir()
+
 	testCases := []struct {
 		name        string
 		pkgs        []ospackage.PackageInfo
 		filename    string
+		pkgSources  map[string]config.PackageSource
 		expectError bool
 	}{
 		{
@@ -99,40 +107,51 @@ func TestGenerateDot(t *testing.T) {
 				{Name: "pkg-a", Version: "1.0", Requires: []string{"pkg-b"}},
 				{Name: "pkg-b", Version: "2.0"},
 			},
-			filename:    "/tmp/test-deps.dot",
+			filename:    filepath.Join(tmpDir, "test-deps.dot"),
+			expectError: false,
+		},
+		{
+			name: "with package sources",
+			pkgs: []ospackage.PackageInfo{
+				{Name: "sys", Version: "1.0"},
+				{Name: "ess", Version: "1.0"},
+			},
+			filename: filepath.Join(tmpDir, "colored.dot"),
+			pkgSources: map[string]config.PackageSource{
+				"sys": config.PackageSourceSystem,
+				"ess": config.PackageSourceEssential,
+			},
 			expectError: false,
 		},
 		{
 			name:        "empty package list",
 			pkgs:        []ospackage.PackageInfo{},
-			filename:    "/tmp/empty-deps.dot",
+			filename:    filepath.Join(tmpDir, "empty-deps.dot"),
 			expectError: false,
 		},
 		{
 			name: "complex dependencies",
 			pkgs: []ospackage.PackageInfo{
-				{Name: "root", Version: "1.0", Requires: []string{"lib1", "lib2"}},
+				{Name: "root", Version: "1.0", Requires: []string{"lib1 (>= 1.0)", "lib2 | lib3", "lib-special:amd64"}},
 				{Name: "lib1", Version: "1.0", Requires: []string{"base"}},
-				{Name: "lib2", Version: "2.0", Requires: []string{"base"}},
 				{Name: "base", Version: "1.0"},
 			},
-			filename:    "/tmp/complex-deps.dot",
+			filename:    filepath.Join(tmpDir, "complex-deps.dot"),
 			expectError: false,
 		},
 		{
-			name: "function is stub - always returns nil",
+			name: "invalid path",
 			pkgs: []ospackage.PackageInfo{
 				{Name: "pkg", Version: "1.0"},
 			},
-			filename:    "/invalid/path/that/does/not/exist/deps.dot",
-			expectError: false, // Function is a stub that always returns nil
+			filename:    filepath.Join(tmpDir, "missing", "deps.dot"),
+			expectError: true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := debutils.GenerateDot(tc.pkgs, tc.filename)
-
+			err := debutils.GenerateDot(tc.pkgs, tc.filename, tc.pkgSources)
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("expected error but got none")
@@ -141,12 +160,56 @@ func TestGenerateDot(t *testing.T) {
 			}
 
 			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
+				t.Fatalf("unexpected error: %v", err)
 			}
 
-			// NOTE: GenerateDot is currently a stub that returns nil
-			// When implemented, this test would need to verify file creation
+			content, err := os.ReadFile(tc.filename)
+			if err != nil {
+				t.Fatalf("failed to read generated DOT file: %v", err)
+			}
+			contentStr := string(content)
+
+			if tc.pkgSources != nil {
+				if !strings.Contains(contentStr, "legend_system") {
+					t.Errorf("legend for system packages not found in DOT output")
+				}
+				if !strings.Contains(contentStr, "\"sys\" [label=\"sys\", fillcolor=\"#d4efdf\", color=\"#27ae60\"];") {
+					t.Errorf("expected system package styling for sys node")
+				}
+				if !strings.Contains(contentStr, "\"ess\" [label=\"ess\", fillcolor=\"#fff4d6\", color=\"#f5c518\"];") {
+					t.Errorf("expected essential package styling for ess node")
+				}
+			}
+
+			if !strings.Contains(contentStr, "digraph G {") {
+				t.Error("DOT file should start with 'digraph G {'")
+			}
+			if !strings.Contains(contentStr, "rankdir=LR;") {
+				t.Error("DOT file should declare 'rankdir=LR;'")
+			}
+			if !strings.Contains(contentStr, "}") {
+				t.Error("DOT file should end with '}'")
+			}
+
+			for _, pkg := range tc.pkgs {
+				if pkg.Name == "" {
+					continue
+				}
+				nodePrefix := fmt.Sprintf("\"%s\" [label=\"%s\"", pkg.Name, pkg.Name)
+				if !strings.Contains(contentStr, nodePrefix) {
+					t.Errorf("DOT file should contain node for %s", pkg.Name)
+				}
+				for _, dep := range pkg.Requires {
+					depName := debutils.CleanDependencyName(dep)
+					if depName == "" {
+						continue
+					}
+					edge := fmt.Sprintf("\"%s\" -> \"%s\";", pkg.Name, depName)
+					if !strings.Contains(contentStr, edge) {
+						t.Errorf("DOT file should contain edge: %s", edge)
+					}
+				}
+			}
 		})
 	}
 }

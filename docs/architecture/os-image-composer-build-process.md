@@ -356,6 +356,12 @@ sudo -E os-image-composer build \
 
 # Enable verbose logging for debugging
 sudo -E os-image-composer build --verbose my-template.yml
+
+# Generate dependency graph visualization
+sudo -E os-image-composer build --dotfile deps.dot my-template.yml
+
+# Generate a graph that only shows SystemConfig roots
+sudo -E os-image-composer build --dotfile system.dot --system-packages-only my-template.yml
 ```
 
 ## Common Build Patterns
@@ -515,6 +521,7 @@ Error: Package conflict: package-a requires version 1.0, but version 2.0 is alre
 - Review your package list for conflicting requirements
 - Check if you're mixing packages from incompatible repositories
 - Use specific package versions if needed
+- Review dependency resolution with `--dotfile` to visualize conflicts
 
 **Problem: Chroot environment corruption**
 

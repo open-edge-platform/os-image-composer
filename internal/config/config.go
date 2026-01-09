@@ -86,7 +86,20 @@ type ImageTemplate struct {
 	KernelPkgList     []string                `yaml:"-"`
 	FullPkgList       []string                `yaml:"-"`
 	FullPkgListBom    []ospackage.PackageInfo `yaml:"-"`
+	DotFilePath       string                  `yaml:"-"`
+	DotSystemOnly     bool                    `yaml:"-"`
 }
+
+// PackageSource identifies why a package was requested in the merged template.
+type PackageSource string
+
+const (
+	PackageSourceUnknown    PackageSource = "unknown"
+	PackageSourceEssential  PackageSource = "essential"
+	PackageSourceKernel     PackageSource = "kernel"
+	PackageSourceSystem     PackageSource = "system"
+	PackageSourceBootloader PackageSource = "bootloader"
+)
 
 type Initramfs struct {
 	Template string `yaml:"template"` // Template: path to the initramfs configuration template file
@@ -322,6 +335,37 @@ func (t *ImageTemplate) GetPackages() []string {
 	allPkgList = append(allPkgList, t.SystemConfig.Packages...)
 	allPkgList = append(allPkgList, t.BootloaderPkgList...)
 	return allPkgList
+}
+
+var packageSourcePriority = map[PackageSource]int{
+	PackageSourceUnknown:    0,
+	PackageSourceEssential:  10,
+	PackageSourceKernel:     20,
+	PackageSourceBootloader: 20,
+	PackageSourceSystem:     30,
+}
+
+// GetPackageSourceMap returns a map of package name to the template section that requested it.
+func (t *ImageTemplate) GetPackageSourceMap() map[string]PackageSource {
+	sources := make(map[string]PackageSource)
+	setSources := func(pkgs []string, source PackageSource) {
+		for _, pkg := range pkgs {
+			pkg = strings.TrimSpace(pkg)
+			if pkg == "" {
+				continue
+			}
+			if current, ok := sources[pkg]; !ok || packageSourcePriority[source] >= packageSourcePriority[current] {
+				sources[pkg] = source
+			}
+		}
+	}
+
+	setSources(t.EssentialPkgList, PackageSourceEssential)
+	setSources(t.KernelPkgList, PackageSourceKernel)
+	setSources(t.BootloaderPkgList, PackageSourceBootloader)
+	setSources(t.SystemConfig.Packages, PackageSourceSystem)
+
+	return sources
 }
 
 func (t *ImageTemplate) GetAdditionalFileInfo() []AdditionalFileInfo {
