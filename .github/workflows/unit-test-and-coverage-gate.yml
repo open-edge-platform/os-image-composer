@@ -121,7 +121,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Auto-update coverage threshold (ratchet)
-        if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: success() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Get current coverage from report
           CURRENT=$(grep "Overall Coverage:" coverage_report.txt | sed 's/.*:\*\* //' | sed 's/%.*//')
@@ -138,6 +140,10 @@ jobs:
             echo "Updating threshold: ${OLD_THRESHOLD}% → ${NEW_THRESHOLD}%"
             echo "${NEW_THRESHOLD}" > .coverage-threshold
             
+            # Checkout the PR branch
+            git fetch origin ${{ github.head_ref }}
+            git checkout ${{ github.head_ref }}
+            
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add .coverage-threshold
@@ -145,7 +151,9 @@ jobs:
 
 Coverage increased from ${OLD_THRESHOLD}% to ${CURRENT}%
 Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            git push
+            git push origin ${{ github.head_ref }}
+            
+            echo "::notice::Coverage threshold updated to ${NEW_THRESHOLD}% on PR branch"
           else
             echo "Coverage did not increase significantly, threshold unchanged"
           fi
