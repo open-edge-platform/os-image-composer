@@ -121,11 +121,27 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Auto-update coverage threshold (ratchet)
-        if: success() && github.event_name == 'pull_request'
+        if: success() && github.ref != 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -x  # Debug: show commands
+          
+          # Determine branch name based on event type
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BRANCH="${{ github.head_ref }}"
+          else
+            # For workflow_dispatch or other events, use ref_name
+            BRANCH="${{ github.ref_name }}"
+          fi
+          
+          echo "Target branch: ${BRANCH}"
+          
+          # Skip if on main branch (shouldn't happen due to condition, but safety check)
+          if [[ "$BRANCH" == "main" ]]; then
+            echo "Skipping ratchet on main branch"
+            exit 0
+          fi
           
           # Get current coverage from report
           CURRENT=$(grep "Overall Coverage:" coverage_report.txt | sed 's/.*:\*\* //' | sed 's/%.*//')
@@ -148,16 +164,16 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             
-            # Fetch and checkout the PR branch
-            git fetch origin "${{ github.head_ref }}"
-            git checkout "${{ github.head_ref }}"
+            # Fetch and checkout the branch
+            git fetch origin "${BRANCH}"
+            git checkout "${BRANCH}"
             
             # Stage and commit
             git add .coverage-threshold
             git commit -m "chore: auto-update coverage threshold to ${NEW_THRESHOLD}% (was ${OLD_THRESHOLD}%)"
-            git push origin "${{ github.head_ref }}"
+            git push origin "${BRANCH}"
             
-            echo "::notice::Coverage threshold updated to ${NEW_THRESHOLD}% on PR branch"
+            echo "::notice::Coverage threshold updated to ${NEW_THRESHOLD}% on branch ${BRANCH}"
           else
             echo "New threshold (${NEW_THRESHOLD}%) is not higher than current (${OLD_THRESHOLD}%), no update needed"
           fi
