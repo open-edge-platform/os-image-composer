@@ -112,12 +112,13 @@ jobs:
                 echo ""
               fi
               
-              # Package breakdown (top 10 lowest coverage)
-              if grep -q "Package Coverage Breakdown" coverage_report.txt; then
-                echo "### 📦 Lowest Coverage Packages (Top 10)"
+              # Package breakdown (top 10 lowest coverage functions)
+              if grep -q "Package Coverage" coverage_report.txt; then
+                echo "### 📦 Coverage Details"
                 echo ""
                 echo '```'
-                sed -n '/```/,/```/p' coverage_report.txt | grep -v '```' | head -10
+                # Extract content between the ``` markers in the Package Coverage section
+                sed -n '/### Package Coverage/,/^###/p' coverage_report.txt | grep -v "^###" | grep -v '```' | head -25
                 echo '```'
               fi
             else

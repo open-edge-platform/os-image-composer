@@ -2,7 +2,13 @@
 set -euo pipefail
 
 # Script to run Go tests with per-directory coverage reporting
-# Usage: ./run_coverage_tests.sh [COVERAGE_THRESHOLD] [PRINT_TS] [FAIL_ON_NO_TESTS] [DEBUG]
+# Usage: ./run_coverage_tests.sh [COV_THRESHOLD] [PRINT_TS] [FAIL_ON_NO_TESTS] [DEBUG]
+#
+# Arguments:
+#   COV_THRESHOLD    - Minimum coverage percentage required (default: 64.2)
+#   PRINT_TS         - Build ID/timestamp for reports (default: empty)
+#   FAIL_ON_NO_TESTS - Fail if directories have no tests (default: false)
+#   DEBUG            - Keep temp files for debugging (default: false)
 #
 # Behavior:
 # - Runs all tests in all directories, even if some fail (for complete visibility)
@@ -14,10 +20,10 @@ set -euo pipefail
 # - coverage.out: Combined coverage profile for use with go tool cover
 # - coverage_report.txt: Human-readable coverage summary
 
-COV_THRESHOLD=64.2
-PRINT_TS=${1:-""}
-FAIL_ON_NO_TESTS=${2:-false}  # Set to true if directories without tests should fail the build
-DEBUG=${3:-false}  # Set to true for verbose debugging
+COV_THRESHOLD=${1:-64.2}
+PRINT_TS=${2:-""}
+FAIL_ON_NO_TESTS=${3:-false}  # Set to true if directories without tests should fail the build
+DEBUG=${4:-false}  # Set to true for verbose debugging
 OVERALL_EXIT_CODE=0
 FAILED_DIRS=""
 
@@ -503,17 +509,49 @@ for GO_DIR in ${ALL_GO_DIRS}; do
 done
 
 # Append package-level coverage breakdown to the report
+# Aggregate function coverage to package level
 if [[ -f "${OVERALL_COVERAGE_FILE}" ]] && [[ -s "${OVERALL_COVERAGE_FILE}" ]]; then
     echo "" >> coverage_report.txt
-    echo "### Package Coverage Breakdown (sorted by coverage ascending)" >> coverage_report.txt
+    echo "### Package Coverage (sorted by coverage ascending)" >> coverage_report.txt
     echo '```' >> coverage_report.txt
-    $GO_BIN tool cover -func="${OVERALL_COVERAGE_FILE}" | grep -v "total:" | sort -k3 -n >> coverage_report.txt
+    # Extract package paths and their coverage, aggregate by package directory
+    $GO_BIN tool cover -func="${OVERALL_COVERAGE_FILE}" 2>/dev/null | \
+        grep -v "total:" | \
+        awk -F: '{
+            # Extract package path (everything before the last colon and filename)
+            split($1, parts, "/")
+            pkg = ""
+            for (i=1; i<=length(parts)-1; i++) pkg = pkg (i>1 ? "/" : "") parts[i]
+            gsub(/.*os-image-composer\//, "", pkg)  # Remove module prefix
+            print pkg
+        }' | \
+        sort | uniq -c | \
+        awk '{print $2 " (" $1 " funcs)"}' | \
+        head -20 >> coverage_report.txt
+    echo "" >> coverage_report.txt
+    echo "Top 10 functions with lowest coverage:" >> coverage_report.txt
+    $GO_BIN tool cover -func="${OVERALL_COVERAGE_FILE}" 2>/dev/null | \
+        grep -v "total:" | \
+        grep "0.0%" | \
+        head -10 | \
+        awk -F: '{
+            # Shorten the path for readability
+            gsub(/.*os-image-composer\//, "", $1)
+            printf "  %-50s %s\n", $1, $NF
+        }' >> coverage_report.txt
     echo '```' >> coverage_report.txt
 elif [[ -f "coverage.out" ]] && [[ -s "coverage.out" ]]; then
     echo "" >> coverage_report.txt
-    echo "### Package Coverage Breakdown (sorted by coverage ascending)" >> coverage_report.txt
+    echo "### Package Coverage (sorted by coverage ascending)" >> coverage_report.txt
     echo '```' >> coverage_report.txt
-    $GO_BIN tool cover -func="coverage.out" | grep -v "total:" | sort -k3 -n >> coverage_report.txt
+    $GO_BIN tool cover -func="coverage.out" 2>/dev/null | \
+        grep -v "total:" | \
+        grep "0.0%" | \
+        head -10 | \
+        awk -F: '{
+            gsub(/.*os-image-composer\//, "", $1)
+            printf "  %-50s %s\n", $1, $NF
+        }' >> coverage_report.txt
     echo '```' >> coverage_report.txt
 fi
 
