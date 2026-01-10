@@ -125,6 +125,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -x  # Debug: show commands
+          
           # Get current coverage from report
           CURRENT=$(grep "Overall Coverage:" coverage_report.txt | sed 's/.*:\*\* //' | sed 's/%.*//')
           OLD_THRESHOLD=$(cat .coverage-threshold 2>/dev/null || echo "0")
@@ -132,25 +134,30 @@ jobs:
           echo "Current coverage: ${CURRENT}%"
           echo "Current threshold: ${OLD_THRESHOLD}%"
           
-          # Only update if coverage increased by at least 0.1%
-          if (( $(echo "$CURRENT > $OLD_THRESHOLD + 0.1" | bc -l) )); then
-            # Set new threshold (with 0.5% buffer to avoid flaky failures)
-            NEW_THRESHOLD=$(echo "scale=1; $CURRENT - 0.5" | bc -l)
-            
+          # Calculate new threshold (0.5% buffer below actual coverage)
+          NEW_THRESHOLD=$(echo "scale=1; $CURRENT - 0.5" | bc -l)
+          
+          echo "Proposed new threshold: ${NEW_THRESHOLD}%"
+          
+          # Only update if new threshold is higher than old threshold
+          if (( $(echo "$NEW_THRESHOLD > $OLD_THRESHOLD" | bc -l) )); then
             echo "Updating threshold: ${OLD_THRESHOLD}% -> ${NEW_THRESHOLD}%"
             echo "${NEW_THRESHOLD}" > .coverage-threshold
             
-            # Checkout the PR branch
+            # Configure git
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            
+            # Fetch and checkout the PR branch
             git fetch origin "${{ github.head_ref }}"
             git checkout "${{ github.head_ref }}"
             
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
+            # Stage and commit
             git add .coverage-threshold
             git commit -m "chore: auto-update coverage threshold to ${NEW_THRESHOLD}% (was ${OLD_THRESHOLD}%)"
             git push origin "${{ github.head_ref }}"
             
             echo "::notice::Coverage threshold updated to ${NEW_THRESHOLD}% on PR branch"
           else
-            echo "Coverage did not increase significantly, threshold unchanged"
+            echo "New threshold (${NEW_THRESHOLD}%) is not higher than current (${OLD_THRESHOLD}%), no update needed"
           fi
