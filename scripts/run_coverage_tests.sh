@@ -515,7 +515,8 @@ if [[ -f "${OVERALL_COVERAGE_FILE}" ]] && [[ -s "${OVERALL_COVERAGE_FILE}" ]]; t
     echo "### Package Coverage (sorted by coverage ascending)" >> coverage_report.txt
     echo '```' >> coverage_report.txt
     # Extract package paths and their coverage, aggregate by package directory
-    $GO_BIN tool cover -func="${OVERALL_COVERAGE_FILE}" 2>/dev/null | \
+    # Use subshell and || true to prevent SIGPIPE (exit 141) when head closes pipe early
+    ($GO_BIN tool cover -func="${OVERALL_COVERAGE_FILE}" 2>/dev/null | \
         grep -v "total:" | \
         awk -F: '{
             # Extract package path (everything before the last colon and filename)
@@ -527,10 +528,10 @@ if [[ -f "${OVERALL_COVERAGE_FILE}" ]] && [[ -s "${OVERALL_COVERAGE_FILE}" ]]; t
         }' | \
         sort | uniq -c | \
         awk '{print $2 " (" $1 " funcs)"}' | \
-        head -20 >> coverage_report.txt
+        head -20 >> coverage_report.txt) || true
     echo "" >> coverage_report.txt
     echo "Top 10 functions with lowest coverage:" >> coverage_report.txt
-    $GO_BIN tool cover -func="${OVERALL_COVERAGE_FILE}" 2>/dev/null | \
+    ($GO_BIN tool cover -func="${OVERALL_COVERAGE_FILE}" 2>/dev/null | \
         grep -v "total:" | \
         grep "0.0%" | \
         head -10 | \
@@ -538,20 +539,20 @@ if [[ -f "${OVERALL_COVERAGE_FILE}" ]] && [[ -s "${OVERALL_COVERAGE_FILE}" ]]; t
             # Shorten the path for readability
             gsub(/.*os-image-composer\//, "", $1)
             printf "  %-50s %s\n", $1, $NF
-        }' >> coverage_report.txt
+        }' >> coverage_report.txt) || true
     echo '```' >> coverage_report.txt
 elif [[ -f "coverage.out" ]] && [[ -s "coverage.out" ]]; then
     echo "" >> coverage_report.txt
     echo "### Package Coverage (sorted by coverage ascending)" >> coverage_report.txt
     echo '```' >> coverage_report.txt
-    $GO_BIN tool cover -func="coverage.out" 2>/dev/null | \
+    ($GO_BIN tool cover -func="coverage.out" 2>/dev/null | \
         grep -v "total:" | \
         grep "0.0%" | \
         head -10 | \
         awk -F: '{
             gsub(/.*os-image-composer\//, "", $1)
             printf "  %-50s %s\n", $1, $NF
-        }' >> coverage_report.txt
+        }' >> coverage_report.txt) || true
     echo '```' >> coverage_report.txt
 fi
 
