@@ -508,54 +508,6 @@ for GO_DIR in ${ALL_GO_DIRS}; do
     fi
 done
 
-# Append package-level coverage breakdown to the report
-# Aggregate function coverage to package level
-if [[ -f "${OVERALL_COVERAGE_FILE}" ]] && [[ -s "${OVERALL_COVERAGE_FILE}" ]]; then
-    echo "" >> coverage_report.txt
-    echo "### Package Coverage (sorted by coverage ascending)" >> coverage_report.txt
-    echo '```' >> coverage_report.txt
-    # Extract package paths and their coverage, aggregate by package directory
-    # Use subshell and || true to prevent SIGPIPE (exit 141) when head closes pipe early
-    ($GO_BIN tool cover -func="${OVERALL_COVERAGE_FILE}" 2>/dev/null | \
-        grep -v "total:" | \
-        awk -F: '{
-            # Extract package path (everything before the last colon and filename)
-            split($1, parts, "/")
-            pkg = ""
-            for (i=1; i<=length(parts)-1; i++) pkg = pkg (i>1 ? "/" : "") parts[i]
-            gsub(/.*os-image-composer\//, "", pkg)  # Remove module prefix
-            print pkg
-        }' | \
-        sort | uniq -c | \
-        awk '{print $2 " (" $1 " funcs)"}' | \
-        head -20 >> coverage_report.txt) || true
-    echo "" >> coverage_report.txt
-    echo "Top 10 functions with lowest coverage:" >> coverage_report.txt
-    ($GO_BIN tool cover -func="${OVERALL_COVERAGE_FILE}" 2>/dev/null | \
-        grep -v "total:" | \
-        grep "0.0%" | \
-        head -10 | \
-        awk -F: '{
-            # Shorten the path for readability
-            gsub(/.*os-image-composer\//, "", $1)
-            printf "  %-50s %s\n", $1, $NF
-        }' >> coverage_report.txt) || true
-    echo '```' >> coverage_report.txt
-elif [[ -f "coverage.out" ]] && [[ -s "coverage.out" ]]; then
-    echo "" >> coverage_report.txt
-    echo "### Package Coverage (sorted by coverage ascending)" >> coverage_report.txt
-    echo '```' >> coverage_report.txt
-    ($GO_BIN tool cover -func="coverage.out" 2>/dev/null | \
-        grep -v "total:" | \
-        grep "0.0%" | \
-        head -10 | \
-        awk -F: '{
-            gsub(/.*os-image-composer\//, "", $1)
-            printf "  %-50s %s\n", $1, $NF
-        }' >> coverage_report.txt) || true
-    echo '```' >> coverage_report.txt
-fi
-
 echo ""
 if [[ ${OVERALL_EXIT_CODE} -eq 0 ]]; then
     echo -e "${GREEN}🎉 All tests passed!${NC}"

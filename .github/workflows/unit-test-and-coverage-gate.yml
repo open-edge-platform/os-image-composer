@@ -111,16 +111,6 @@ jobs:
                 sed -n '/| Directory/,/^$/p' coverage_report.txt | head -50
                 echo ""
               fi
-              
-              # Package breakdown (top 10 lowest coverage functions)
-              if grep -q "Package Coverage" coverage_report.txt; then
-                echo "### 📦 Coverage Details"
-                echo ""
-                echo '```'
-                # Extract content between the ``` markers in the Package Coverage section
-                sed -n '/### Package Coverage/,/^###/p' coverage_report.txt | grep -v "^###" | grep -v '```' | head -25
-                echo '```'
-              fi
             else
               echo "⚠️ Coverage report not generated"
               echo ""
