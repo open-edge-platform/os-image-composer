@@ -141,7 +141,7 @@ lint:
 
 test:
     FROM +golang-base
-    ARG COV_THRESHOLD=64.2
+    ARG COV_THRESHOLD=""
     ARG PRINT_TS=""
     ARG FAIL_ON_NO_TESTS=false
     
@@ -153,7 +153,10 @@ test:
     
     # Run the comprehensive coverage tests using our script
     # Args: COV_THRESHOLD PRINT_TS FAIL_ON_NO_TESTS DEBUG
-    RUN cd /work && ./scripts/run_coverage_tests.sh "${COV_THRESHOLD}" "${PRINT_TS}" "${FAIL_ON_NO_TESTS}"
+    # If COV_THRESHOLD not provided, read from .coverage-threshold file
+    RUN cd /work && \
+        THRESHOLD="${COV_THRESHOLD:-$(cat .coverage-threshold 2>/dev/null || echo 65.0)}" && \
+        ./scripts/run_coverage_tests.sh "${THRESHOLD}" "${PRINT_TS}" "${FAIL_ON_NO_TESTS}"
     
     # Save coverage artifacts locally
     SAVE ARTIFACT coverage.out AS LOCAL ./coverage.out
@@ -161,7 +164,7 @@ test:
 
 test-debug:
     FROM +golang-base
-    ARG COV_THRESHOLD=64.2
+    ARG COV_THRESHOLD=""
     ARG PRINT_TS=""
     ARG FAIL_ON_NO_TESTS=false
     
@@ -173,7 +176,10 @@ test-debug:
     
     # Run the coverage tests with debug output (keeps temp files for inspection)
     # Args: COV_THRESHOLD PRINT_TS FAIL_ON_NO_TESTS DEBUG
-    RUN cd /work && ./scripts/run_coverage_tests.sh "${COV_THRESHOLD}" "${PRINT_TS}" "${FAIL_ON_NO_TESTS}" "true"
+    # If COV_THRESHOLD not provided, read from .coverage-threshold file
+    RUN cd /work && \
+        THRESHOLD="${COV_THRESHOLD:-$(cat .coverage-threshold 2>/dev/null || echo 65.0)}" && \
+        ./scripts/run_coverage_tests.sh "${THRESHOLD}" "${PRINT_TS}" "${FAIL_ON_NO_TESTS}" "true"
     
     # Save coverage artifacts locally
     SAVE ARTIFACT coverage.out AS LOCAL ./coverage.out

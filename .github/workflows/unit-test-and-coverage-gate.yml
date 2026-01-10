@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write  # Needed to push threshold updates
 
 jobs:
   test:
@@ -32,7 +32,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false
           ref: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Earthly
@@ -43,10 +42,13 @@ jobs:
       - name: Configure test parameters
         id: config
         run: |
-          COV_THRESHOLD="${{ inputs.cov_threshold || '64.2' }}"
+          # Read threshold from file, allow manual override
+          FILE_THRESHOLD=$(cat .coverage-threshold 2>/dev/null || echo "65.0")
+          COV_THRESHOLD="${{ inputs.cov_threshold }}"
+          COV_THRESHOLD="${COV_THRESHOLD:-$FILE_THRESHOLD}"
           echo "cov_threshold=${COV_THRESHOLD}" >> "$GITHUB_OUTPUT"
           echo "build_id=${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
-          echo "::notice::Coverage threshold: ${COV_THRESHOLD}%"
+          echo "::notice::Coverage threshold: ${COV_THRESHOLD}% (from ${{ inputs.cov_threshold && 'manual override' || '.coverage-threshold file' }})"
 
       - name: Run tests with coverage
         id: test
@@ -117,3 +119,33 @@ jobs:
               echo "Check the workflow logs for details."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Auto-update coverage threshold (ratchet)
+        if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          # Get current coverage from report
+          CURRENT=$(grep "Overall Coverage:" coverage_report.txt | sed 's/.*:\*\* //' | sed 's/%.*//')
+          OLD_THRESHOLD=$(cat .coverage-threshold 2>/dev/null || echo "0")
+          
+          echo "Current coverage: ${CURRENT}%"
+          echo "Current threshold: ${OLD_THRESHOLD}%"
+          
+          # Only update if coverage increased by at least 0.1%
+          if (( $(echo "$CURRENT > $OLD_THRESHOLD + 0.1" | bc -l) )); then
+            # Set new threshold (with 0.5% buffer to avoid flaky failures)
+            NEW_THRESHOLD=$(echo "scale=1; $CURRENT - 0.5" | bc -l)
+            
+            echo "Updating threshold: ${OLD_THRESHOLD}% → ${NEW_THRESHOLD}%"
+            echo "${NEW_THRESHOLD}" > .coverage-threshold
+            
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add .coverage-threshold
+            git commit -m "chore: auto-update coverage threshold to ${NEW_THRESHOLD}%
+
+Coverage increased from ${OLD_THRESHOLD}% to ${CURRENT}%
+Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            git push
+          else
+            echo "Coverage did not increase significantly, threshold unchanged"
+          fi
