@@ -137,21 +137,18 @@ jobs:
             # Set new threshold (with 0.5% buffer to avoid flaky failures)
             NEW_THRESHOLD=$(echo "scale=1; $CURRENT - 0.5" | bc -l)
             
-            echo "Updating threshold: ${OLD_THRESHOLD}% → ${NEW_THRESHOLD}%"
+            echo "Updating threshold: ${OLD_THRESHOLD}% -> ${NEW_THRESHOLD}%"
             echo "${NEW_THRESHOLD}" > .coverage-threshold
             
             # Checkout the PR branch
-            git fetch origin ${{ github.head_ref }}
-            git checkout ${{ github.head_ref }}
+            git fetch origin "${{ github.head_ref }}"
+            git checkout "${{ github.head_ref }}"
             
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add .coverage-threshold
-            git commit -m "chore: auto-update coverage threshold to ${NEW_THRESHOLD}%
-
-Coverage increased from ${OLD_THRESHOLD}% to ${CURRENT}%
-Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            git push origin ${{ github.head_ref }}
+            git commit -m "chore: auto-update coverage threshold to ${NEW_THRESHOLD}% (was ${OLD_THRESHOLD}%)"
+            git push origin "${{ github.head_ref }}"
             
             echo "::notice::Coverage threshold updated to ${NEW_THRESHOLD}% on PR branch"
           else
