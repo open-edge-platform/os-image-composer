@@ -17,11 +17,57 @@ Developed in Go, the tool primarily focuses on building custom Madani OS images 
 
 ---
 
+## Table of Contents
+
+- [Overview](#overview)
+- [System Requirements](#system-requirements)
+  - [Windows WSL Setup (Automated)](#windows-wsl-setup-automated)
+- [Quick Start Guide](#quick-start-guide)
+- [Testing with the OS Raw Image](#testing-with-the-os-raw-image)
+  - [Usage Examples](#usage-examples)
+- [Advanced Topics](#advanced-topics)
+  - [Build Options](#build-options)
+  - [Debian Package Installation](#debian-package-installation)
+- [Configuration](#configuration)
+- [Operations Requiring Sudo Access](#operations-requiring-sudo-access)
+- [Usage](#usage)
+- [Image Template Format](#image-template-format)
+- [Template Examples](#template-examples)
+- [Resources](#resources)
+- [Legal](#legal)
+
+---
+
 ## System Requirements
 
 **Recommended Operating System:** Ubuntu 24.04
 
 > **Note:** Madani Team has validated and recommends using Ubuntu OS version 24.04. Other Linux distributions have not been validated. Future releases will include a containerized version for enhanced portability.
+
+### Windows WSL Setup (Automated)
+
+**For Windows users who want to run Madani OS Builder in WSL:**
+
+Use the provided automated setup script to configure Ubuntu 24.04 in WSL with all required dependencies:
+
+```cmd
+# Download and run the setup script
+setup-wsl.bat
+```
+
+**What the script does:**
+- Installs Ubuntu 24.04 in WSL (if not already installed)
+- Sets up Go programming language (v1.25.5)
+- Creates `/data` directory for the project
+- Clones the repository to `/data/madani-os-builder`
+- Configures proper permissions and PATH variables
+
+**After running the script:**
+1. The script will automatically launch WSL
+2. Navigate to the project directory: `cd /data/madani-os-builder`
+3. Continue with [step 3 of the Quick Start Guide](#3-build-the-tool)
+
+> **Note:** If prompted to create a username/password during Ubuntu installation, complete the setup and return to the batch script window.
 
 ---
 
@@ -86,7 +132,7 @@ The raw image file can be deployed on various platforms:
 gzip -dc ./workspace/madani-madani24-x86_64/imagebuild/minimal/minimal-os-image-madani-24.04.raw.gz > /data/raw/test-madani-final.raw
 ```
 
-#### Run with QEMU
+#### Run with QEMU (No GUI)
 
 ```bash
 sudo qemu-system-x86_64 \
@@ -103,6 +149,42 @@ sudo qemu-system-x86_64 \
   -nographic \
   -serial mon:stdio
 ```
+
+#### Run with QEMU (with GUI)
+
+**For Windows WSL users:**
+
+```bash
+# Install QEMU and setup permissions
+sudo apt install qemu-system-x86 ovmf
+sudo usermod -aG kvm $USER && newgrp kvm
+sudo chmod 666 /dev/kvm
+
+# Prepare VM files
+cd /data/raw
+chmod 777 test-madani-final.raw
+cp /usr/share/OVMF/OVMF_VARS_4M.fd ./my_vars.fd
+chmod 644 ./my_vars.fd
+
+# Run QEMU with GUI
+qemu-system-x86_64 \
+  -machine q35 \
+  -m 4G \
+  -smp 4,cores=4,threads=1 \
+  -cpu host,migratable=no,+invtsc \
+  -accel kvm \
+  -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+  -drive if=pflash,format=raw,file=./my_vars.fd \
+  -device virtio-scsi-pci \
+  -drive if=none,id=drive0,file=test-madani-final.raw,format=raw,cache=none,aio=native \
+  -device scsi-hd,drive=drive0 \
+  -netdev user,id=net0,hostfwd=tcp::2223-:22,hostfwd=tcp::8081-:80 \
+  -device virtio-net-pci,netdev=net0 \
+  -vga virtio \
+  -display gtk,gl=on
+```
+
+**Troubleshooting:** If no GUI appears, ensure X11 server is running on Windows or use WSLg (Windows 11 22H2+).
 
 > **⚠️ Warning:** Flashing this image will overwrite all existing data on the target device. Ensure you have selected the correct destination and have backed up any important data.
 

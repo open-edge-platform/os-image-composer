@@ -86,6 +86,8 @@ systemConfig:
       final: /etc/apt/sources.list.d/ubuntu-noble.list
     - local: ../additionalfiles/mos-wallpaper.png
       final: /usr/share/backgrounds/mos-wallpaper.png
+    - local: ../additionalfiles/mos-wallpaper.png
+      final: /usr/share/backgrounds/warty-final-ubuntu.png
     - local: ../additionalfiles/xfce4-desktop.xml
       final: /etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml
   
@@ -96,7 +98,6 @@ systemConfig:
       target_post_rootfs: /etc/hooks/rebranding.sh
     - local_post_rootfs: ../hookscripts/cloudinit.sh
       target_post_rootfs: /etc/hooks/cloudinit.sh
-
   
   kernel:
     version: "6.14"
