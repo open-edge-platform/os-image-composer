@@ -17,6 +17,27 @@ Developed in Go, the tool primarily focuses on building custom Madani OS images 
 
 ---
 
+## Table of Contents
+
+- [Overview](#overview)
+- [System Requirements](#system-requirements)
+  - [Windows WSL Setup (Automated)](#windows-wsl-setup-automated)
+- [Quick Start Guide](#quick-start-guide)
+- [Testing with the OS Raw Image](#testing-with-the-os-raw-image)
+  - [Usage Examples](#usage-examples)
+- [Advanced Topics](#advanced-topics)
+  - [Build Options](#build-options)
+  - [Debian Package Installation](#debian-package-installation)
+- [Configuration](#configuration)
+- [Operations Requiring Sudo Access](#operations-requiring-sudo-access)
+- [Usage](#usage)
+- [Image Template Format](#image-template-format)
+- [Template Examples](#template-examples)
+- [Resources](#resources)
+- [Legal](#legal)
+
+---
+
 ## System Requirements
 
 **Recommended Operating System:** Ubuntu 24.04
