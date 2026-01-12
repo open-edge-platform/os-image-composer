@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/open-edge-platform/os-image-composer/internal/config/validate"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/security"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/slice"
@@ -84,6 +85,7 @@ type ImageTemplate struct {
 	EssentialPkgList  []string `yaml:"-"`
 	KernelPkgList     []string `yaml:"-"`
 	FullPkgList       []string `yaml:"-"`
+	FullPkgListBom    []ospackage.PackageInfo `yaml:"-"`
 }
 
 type Initramfs struct {
