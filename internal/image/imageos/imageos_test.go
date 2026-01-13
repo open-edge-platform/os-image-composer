@@ -3893,7 +3893,9 @@ func TestAdditionalFilesErrorHandling(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tempDir := t.TempDir()
 			installRoot := filepath.Join(tempDir, "install")
-			os.MkdirAll(installRoot, 0755)
+			if err := os.MkdirAll(installRoot, 0755); err != nil {
+				t.Fatalf("Failed to create install directory: %v", err)
+			}
 
 			if tc.setupFunc != nil {
 				tc.setupFunc(tempDir)
@@ -3993,7 +3995,9 @@ func TestImageConfigurationWorkflowIntegration(t *testing.T) {
 
 			tempDir := t.TempDir()
 			installRoot := filepath.Join(tempDir, "install")
-			os.MkdirAll(installRoot, 0755)
+			if err := os.MkdirAll(installRoot, 0755); err != nil {
+				t.Fatalf("Failed to create install directory: %v", err)
+			}
 
 			// Defer cleanup function to fix permissions
 			defer func() {
@@ -4231,7 +4235,9 @@ func TestSystemConfigurationErrorRecovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tempDir := t.TempDir()
 			installRoot := filepath.Join(tempDir, "install")
-			os.MkdirAll(installRoot, 0755)
+			if err := os.MkdirAll(installRoot, 0755); err != nil {
+				t.Fatalf("Failed to create install directory: %v", err)
+			}
 
 			// Use t.Cleanup to ensure permissions are fixed before test cleanup
 			t.Cleanup(func() {
