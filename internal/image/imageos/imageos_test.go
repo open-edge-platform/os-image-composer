@@ -4004,7 +4004,10 @@ func TestImageConfigurationWorkflowIntegration(t *testing.T) {
 				// Make all files and directories writable before cleanup
 				if err := filepath.Walk(tempDir, func(path string, info os.FileInfo, err error) error {
 					if err == nil {
-						os.Chmod(path, 0755)
+						if chmodErr := os.Chmod(path, 0755); chmodErr != nil {
+							// Log chmod errors but continue cleanup
+							t.Logf("Warning: failed to chmod %s during cleanup: %v", path, chmodErr)
+						}
 					}
 					return nil
 				}); err != nil {
@@ -4248,9 +4251,13 @@ func TestSystemConfigurationErrorRecovery(t *testing.T) {
 				if err := filepath.Walk(tempDir, func(path string, info os.FileInfo, err error) error {
 					if err == nil {
 						if info.IsDir() {
-							os.Chmod(path, 0755) // rwxr-xr-x for directories
+							if chmodErr := os.Chmod(path, 0755); chmodErr != nil { // rwxr-xr-x for directories
+								t.Logf("Warning: failed to chmod directory %s during cleanup: %v", path, chmodErr)
+							}
 						} else {
-							os.Chmod(path, 0644) // rw-r--r-- for files, but owner can still delete
+							if chmodErr := os.Chmod(path, 0644); chmodErr != nil { // rw-r--r-- for files, but owner can still delete
+								t.Logf("Warning: failed to chmod file %s during cleanup: %v", path, chmodErr)
+							}
 						}
 					}
 					return nil
@@ -4259,7 +4266,9 @@ func TestSystemConfigurationErrorRecovery(t *testing.T) {
 					t.Logf("Warning: failed to walk directory during cleanup: %v", err)
 				}
 				// Make the entire directory writable by owner to ensure cleanup works
-				os.Chmod(tempDir, 0755)
+				if err := os.Chmod(tempDir, 0755); err != nil {
+					t.Logf("Warning: failed to chmod temp directory during cleanup: %v", err)
+				}
 			})
 
 			template := tc.setupFunc(tempDir)
