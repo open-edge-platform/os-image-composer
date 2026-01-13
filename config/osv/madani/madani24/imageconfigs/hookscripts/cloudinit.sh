@@ -20,9 +20,10 @@ EOF
 # Create user-data file
 cat <<EOF > "$TARGET_ROOTFS/var/lib/cloud/seed/nocloud/user-data"
 #cloud-config
+package_update: true
 runcmd:
-  - apt update
-  - apt install -y nano
+  - [ chmod, "+x", "/opt/software/setup-ollama.sh" ]
+  - [ /bin/bash, "/opt/software/setup-ollama.sh" ]
 EOF
 
 echo "Cloud-init seed configuration complete."
