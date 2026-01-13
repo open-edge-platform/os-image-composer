@@ -1,0 +1,103 @@
+# Image metadata describing template identity
+# this template attempt to create ubuntu cloud minimal in qcow2 
+# based on https://cloud-images.ubuntu.com/minimal/releases/noble/release-20250429/ubuntu-24.04-minimal-cloudimg-amd64.img
+image:
+  name: ubuntu-minimal-cloud-amd64
+  version: "24.04"
+
+# Target platform that the image builder should produce
+target:
+  # Provider family
+  os: ubuntu
+  # Distribution release within provider family
+  dist: ubuntu24
+  # CPU architecture for artifacts
+  arch: x86_64
+  # Artifact format expected from build pipeline
+  imageType: raw
+
+# Disk layout and output artifact definition
+disk:
+  # Human friendly name logged by builders
+  name: ubuntu-minimal-cloud-raw
+  artifacts:
+    # Request conversion to qcow2
+    - type: qcow2
+      compression: zstd
+  size: 3500MiB
+  # GPT partition table per installer spec
+  partitionTableType: gpt
+  partitions:
+    # EFI system partition for bootloaders
+    - id: EFI
+      name: EFI
+      type: esp
+      # GPT type GUID for EFI system partition
+      typeUUID: c12a7328-f81f-11d2-ba4b-00a0c93ec93b
+      fsType: vfat
+      # Builder expects explicit MiB offsets
+      start: 1MiB
+      end: 106MiB
+      mountPoint: /boot/efi
+      mountOptions: defaults
+      flags:
+        - boot
+        - esp
+    # Dedicated /boot to host kernels and bootloader assets
+    - id: BOOT
+      name: BOOT
+      type: linux
+      # GPT GUID for Linux /boot partition
+      typeUUID: bc13c2ff-59e6-4262-a352-b275fd6f7172
+      fsType: ext4
+      start: 106MiB
+      end: 913MiB
+      mountPoint: /boot
+      mountOptions: defaults
+      flags: []
+    # Root filesystem filling remainder of disk
+    - id: ROOT
+      name: ROOT
+      type: linux-root-amd64
+      # Standard Linux root filesystem GUID for x86_64
+      typeUUID: 4f68bce3-e8cd-4db1-96e7-fbcaf984b709
+      fsType: ext4
+      start: 913MiB
+      end: "0"
+      mountPoint: /
+      mountOptions: defaults
+      flags: []
+
+# Host OS configuration applied within the image
+systemConfig:
+  # Name reused by logging and validation output
+  name: ubuntu-minimal-cloud-amd64
+  # High-level description surfaced in manifests
+  description: Minimal Ubuntu 24.04 cloud image for x86_64
+  # Bootloader settings; grub following ubuntu defaults
+  bootloader:
+    bootType: efi
+    provider: grub
+  # Packages derived from ubuntu minimal cloud image
+  packages:
+    - bsdutils
+    - debianutils
+    - diffutils
+    - findutils
+    - grep
+    - grub-pc
+    - gzip
+    - libattr1
+    - linux-base
+    - mawk
+    - ncurses-base
+    - ncurses-bin
+    - shim-signed
+    - ubuntu-cloud-minimal
+
+  # Kernel metadata used by builder to set cmdline and module hints
+  kernel:
+    version: "6.8"
+    cmdline: "console=tty0 console=ttyS0,115200"
+    packages:
+      - linux-image-virtual
