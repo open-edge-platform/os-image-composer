@@ -98,7 +98,7 @@ if [[ "${SHOW_STATS}" == "true" ]]; then
   echo "Graph Statistics for: ${INPUT}"
   echo "  Total packages: ${nodes}"
   echo "  Total dependencies: ${edges}"
-  echo "  Root packages (no deps on them): ${roots}"
+  echo "  Root packages (no incoming dependencies): ${roots}"
   echo "  Leaf packages (no deps): ${leaves}"
   exit 0
 fi
