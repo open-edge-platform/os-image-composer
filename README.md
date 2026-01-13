@@ -8,12 +8,7 @@
 
 Madani OS Builder is a specialized command-line tool designed to build lightweight Linux distributions optimized for low-end machines with pre-built AI stack capabilities. Using a simple toolchain, it creates mutable or immutable Madani OS images from pre-built packages sourced from various OS distribution repositories.
 
-Developed in Go, the tool primarily focuses on building custom Madani OS images that provide efficient AI workload support on resource-constrained hardware, while maintaining compatibility with:
-
-- Edge Microvisor Toolkit
-- Linux OS for Azure 1P services and edge appliances (azurelinux)
-- Wind River eLxr Linux distribution
-- Ubuntu
+Developed in Go, the tool specializes in building custom Madani OS images optimized for efficient AI workload execution on resource-constrained hardware. The tool's versatile architecture also supports building images for other Linux distributions including Ubuntu, Wind River eLxr, Azure Linux, and Intel EMT.
 
 ---
 
