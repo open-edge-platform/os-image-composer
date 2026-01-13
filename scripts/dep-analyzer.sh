@@ -41,6 +41,7 @@ INPUT="" ROOT="" DEPTH=2 OUT="" TYPE="dot"
 REVERSE="false" HIGHLIGHT="false"
 LIST_ROOTS="false" LIST_LEAVES="false" SHOW_STATS="false"
 DEPTH_SET="false"
+HIGHLIGHT_PENWIDTH=3  # Border thickness for highlighted root node
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -193,7 +194,7 @@ N {
   if (dist[$] < 0) {
     delete($G, $);
   } else if (hl == 1 && dist[$] == 0) {
-    $.penwidth = "3";
+    $.penwidth = "'"${HIGHLIGHT_PENWIDTH}"'";
     $.style = "filled,bold";
   }
 }
