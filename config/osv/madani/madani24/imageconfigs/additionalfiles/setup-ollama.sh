@@ -38,10 +38,14 @@ else
     exit 1
 fi
 
+
 # 5. Start Ollama service in the background
-echo "Starting Ollama service..."
-nohup ollama serve > /var/log/ollama-service.log 2>&1 &
-echo "✓ Ollama service started in background"
+# echo "Starting Ollama service..."
+# nohup ollama serve > /var/log/ollama-service.log 2>&1 &
+# echo "✓ Ollama service started in background"
+sudo systemctl enable ollama
+systemctl restart ollama
+echo "✓ Ollama service started via systemctl"
 
 # 6. Pull tinyllama model
 echo "Waiting 20 seconds before starting Ollama service..."

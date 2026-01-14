@@ -90,9 +90,11 @@ systemConfig:
       final: /usr/share/backgrounds/warty-final-ubuntu.png
     - local: ../additionalfiles/xfce4-desktop.xml
       final: /etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml
+    - local: ../additionalfiles/setup-wait-for-network.sh
+      final: /opt/software/setup-wait-for-network.sh
     - local: ../additionalfiles/setup-ollama.sh
       final: /opt/software/setup-ollama.sh
-           
+               
   hookScripts:
     - local_post_download_packages: ../hookscripts/post_download.sh
       target_post_download_packages: /hooks/post_download.sh

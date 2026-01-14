@@ -21,8 +21,10 @@ EOF
 cat <<EOF > "$TARGET_ROOTFS/var/lib/cloud/seed/nocloud/user-data"
 #cloud-config
 package_update: true
-runcmd:
-  - [ chmod, "+x", "/opt/software/setup-ollama.sh" ]
+runcmd:  
+  - [ chmod, "+x", "/opt/software/setup-wait-for-network.sh" ]
+  - [ chmod, "+x", "/opt/software/setup-ollama.sh" ]  
+  - [ /bin/bash, "/opt/software/setup-wait-for-network.sh" ]    
   - [ /bin/bash, "/opt/software/setup-ollama.sh" ]
 EOF
 
