@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -608,6 +609,9 @@ func updateInitrdConfig(installRoot string, template *config.ImageTemplate) erro
 	if err := createResolvConfSymlink(installRoot, template); err != nil {
 		return fmt.Errorf("failed to create resolv.conf: %w", err)
 	}
+	if err := addImageConfigs(installRoot, template); err != nil {
+		return fmt.Errorf("failed to execute customized configurations to image: %w", err)
+	}
 	return nil
 }
 
@@ -632,6 +636,9 @@ func updateImageConfig(installRoot string, diskPathIdMap map[string]string, temp
 	}
 	if err := createResolvConfSymlink(installRoot, template); err != nil {
 		return fmt.Errorf("failed to create resolv.conf: %w", err)
+	}
+	if err := addImageConfigs(installRoot, template); err != nil {
+		return fmt.Errorf("failed to execute customized configurations to image: %w", err)
 	}
 	return nil
 }
@@ -753,6 +760,26 @@ func addImageAdditionalFiles(installRoot string, template *config.ImageTemplate)
 		}
 		log.Debugf("Successfully added additional file: %s", dstFile)
 	}
+	return nil
+}
+func addImageConfigs(installRoot string, template *config.ImageTemplate) error {
+	customConfigs := template.GetConfigurationInfo()
+	if len(customConfigs) == 0 {
+		log.Debug("No custom configurations to add to the image")
+		return nil
+	}
+
+	for _, configInfo := range customConfigs {
+		cmdStr := configInfo.Cmd
+		// Use chroot to execute commands in the image context with proper shell
+		chrootCmd := fmt.Sprintf("chroot %s /bin/bash -c %s", installRoot, strconv.Quote(cmdStr))
+		if _, err := shell.ExecCmd(chrootCmd, true, shell.HostPath, nil); err != nil {
+			log.Errorf("Failed to execute custom configuration cmd %s: %v", configInfo.Cmd, err)
+			return fmt.Errorf("failed to execute custom configuration cmd %s: %w", configInfo.Cmd, err)
+		}
+		log.Debugf("Successfully executed custom configuration cmd: %s", configInfo.Cmd)
+	}
+
 	return nil
 }
 
