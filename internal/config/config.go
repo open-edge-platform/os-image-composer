@@ -142,6 +142,7 @@ type SystemConfig struct {
 	Bootloader      Bootloader           `yaml:"bootloader"`
 	Packages        []string             `yaml:"packages"`
 	AdditionalFiles []AdditionalFileInfo `yaml:"additionalFiles"`
+	Configurations  []ConfigurationInfo  `yaml:"configurations"`
 	Kernel          KernelConfig         `yaml:"kernel"`
 }
 
@@ -149,6 +150,11 @@ type SystemConfig struct {
 type AdditionalFileInfo struct {
 	Local string `yaml:"local"` // path to the file on the host system
 	Final string `yaml:"final"` // path where the file should be placed in the image
+}
+
+// ConfigurationInfo holds information about instructions to execute during system configuration
+type ConfigurationInfo struct {
+	Cmd string `yaml:"cmd"`
 }
 
 // KernelConfig holds the kernel configuration
@@ -414,6 +420,10 @@ func (t *ImageTemplate) GetAdditionalFileInfo() []AdditionalFileInfo {
 		}
 	}
 	return PathUpdatedList
+}
+
+func (t *ImageTemplate) GetConfigurationInfo() []ConfigurationInfo {
+	return t.SystemConfig.Configurations
 }
 
 // GetKernel returns the kernel configuration from the system configuration
