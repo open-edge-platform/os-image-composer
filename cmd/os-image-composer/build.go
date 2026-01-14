@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/provider"
@@ -16,9 +18,11 @@ import (
 
 // Build command flags
 var (
-	workers  int    = -1 // -1 means use config file value
-	cacheDir string = "" // Empty means use config file value
-	workDir  string = "" // Empty means use config file value
+	workers            int    = -1 // -1 means use config file value
+	cacheDir           string = "" // Empty means use config file value
+	workDir            string = "" // Empty means use config file value
+	dotFile            string = "" // Generate a dot file for the dependency graph
+	systemPackagesOnly bool   = false
 )
 
 // createBuildCommand creates the build subcommand
@@ -40,6 +44,9 @@ The template file must be in YAML format following the image template schema.`,
 		"Package cache directory")
 	buildCmd.Flags().StringVar(&workDir, "work-dir", "",
 		"Working directory for builds")
+	buildCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+	buildCmd.Flags().StringVarP(&dotFile, "dotfile", "f", "", "Generate a dot file for the dependency graph")
+	buildCmd.Flags().BoolVar(&systemPackagesOnly, "system-packages-only", false, "When generating a dot graph, only include roots from SystemConfig.Packages")
 
 	return buildCmd
 }
@@ -77,6 +84,19 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 	template, err := config.LoadAndMergeTemplate(templateFile)
 	if err != nil {
 		return fmt.Errorf("loading and merging template: %v", err)
+	}
+	template.DotSystemOnly = systemPackagesOnly
+
+	if dotFile != "" {
+		dotFilePath, err := filepath.Abs(dotFile)
+		if err != nil {
+			return fmt.Errorf("resolving dotfile path: %w", err)
+		}
+		if err := os.MkdirAll(filepath.Dir(dotFilePath), 0755); err != nil {
+			return fmt.Errorf("preparing dotfile directory: %w", err)
+		}
+		template.DotFilePath = dotFilePath
+		log.Infof("Dependency graph will be written to %s", dotFilePath)
 	}
 
 	p, err := InitProvider(template.Target.OS, template.Target.Dist, template.Target.Arch)
