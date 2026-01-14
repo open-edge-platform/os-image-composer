@@ -74,6 +74,11 @@ func (p *eLxr) Init(dist, arch string) error {
 }
 
 func (p *eLxr) PreProcess(template *config.ImageTemplate) error {
+	// Generate apt sources file from packageRepositories
+	if err := template.GenerateAptSourcesFromRepositories(); err != nil {
+		return fmt.Errorf("failed to generate apt sources from repositories: %w", err)
+	}
+
 	if err := p.installHostDependency(); err != nil {
 		return fmt.Errorf("failed to install host dependencies: %w", err)
 	}
@@ -303,6 +308,7 @@ func loadRepoConfig(repoUrl string, arch string) ([]debutils.RepoConfig, error) 
 			URL:       baseURL,
 			PKey:      gpgKey,
 			Component: component,
+			Priority:  0, // Default priority
 		}
 	}
 

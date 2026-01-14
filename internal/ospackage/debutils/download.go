@@ -27,6 +27,7 @@ type Repository struct {
 	URL       string
 	PKey      string
 	Component string
+	Priority  int
 }
 
 // repoConfig hold repo related info
@@ -43,6 +44,7 @@ type RepoConfig struct {
 	ReleaseSign  string
 	BuildPath    string // path to store builds, relative to the root of the repo
 	Arch         string // architecture, e.g., amd64, all
+	Priority     int    // repository priority (higher numbers = higher priority)
 }
 
 type pkgChecksum struct {
@@ -145,6 +147,7 @@ func BuildRepoConfigs(userRepoList []Repository, arch string) ([]RepoConfig, err
 					PbGPGKey:     pkey,
 					BuildPath:    filepath.Join(config.TempDir(), "builds", fmt.Sprintf("%s_%s_%s", id, localArch, componentName)),
 					Arch:         localArch,
+					Priority:     repoItem.Priority,
 				}
 				userRepo = append(userRepo, repo)
 				connectSuccess = true
@@ -177,8 +180,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 			Codename:  repo.Codename,
 			URL:       repo.URL,
 			PKey:      repo.PKey,
-			Component: repo.Component,
-		})
+			Component: repo.Component, Priority: repo.Priority})
 	}
 
 	// If no valid repositories were found (all were placeholders), return empty package list

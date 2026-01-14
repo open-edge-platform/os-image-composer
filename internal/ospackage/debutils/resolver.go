@@ -241,6 +241,167 @@ func ParseRepositoryMetadata(baseURL string, pkggz string, releaseFile string, r
 	return pkgs, nil
 }
 
+// getRepositoryPriority returns the priority for a given repository URL
+func getRepositoryPriority(packageURL string) int {
+	repoBase, err := extractRepoBase(packageURL)
+	if err != nil {
+		return 0 // Default priority if we can't extract repo base
+	}
+
+	// Check global RepoCfgs for priority
+	if len(RepoCfgs) > 0 {
+		for _, repoCfg := range RepoCfgs {
+			if repoCfg.PkgPrefix == repoBase {
+				return repoCfg.Priority
+			}
+		}
+	}
+
+	// Check single RepoCfg for backward compatibility
+	if RepoCfg.PkgPrefix == repoBase {
+		return RepoCfg.Priority
+	}
+
+	return 0 // Default priority
+}
+
+// APT Priority behavior functions
+
+// shouldBlockPackage returns true if the package should be blocked based on priority < 0
+func shouldBlockPackage(pkg ospackage.PackageInfo) bool {
+	priority := getRepositoryPriority(pkg.URL)
+	return priority < 0
+}
+
+// shouldForceInstall returns true if the package should be force installed (priority > 1000)
+func shouldForceInstall(pkg ospackage.PackageInfo) bool {
+	priority := getRepositoryPriority(pkg.URL)
+	return priority > 1000
+}
+
+// shouldInstallEvenIfLower returns true if the package should be installed even if version is lower (priority = 1000)
+func shouldInstallEvenIfLower(pkg ospackage.PackageInfo) bool {
+	priority := getRepositoryPriority(pkg.URL)
+	return priority == 1000
+}
+
+// shouldPrefer returns true if the package should be preferred (priority = 990)
+func shouldPrefer(pkg ospackage.PackageInfo) bool {
+	priority := getRepositoryPriority(pkg.URL)
+	return priority == 990
+}
+
+// isDefaultPriority returns true if the package has default priority (priority = 500)
+func isDefaultPriority(pkg ospackage.PackageInfo) bool {
+	priority := getRepositoryPriority(pkg.URL)
+	return priority == 500 || priority == 0 // 0 is treated as default
+}
+
+// filterCandidatesByPriority filters out blocked packages and applies priority-based sorting
+func filterCandidatesByPriority(candidates []ospackage.PackageInfo) []ospackage.PackageInfo {
+	var filtered []ospackage.PackageInfo
+
+	// First pass: filter out blocked packages (priority < 0)
+	for _, candidate := range candidates {
+		if !shouldBlockPackage(candidate) {
+			filtered = append(filtered, candidate)
+		}
+	}
+
+	// Sort by APT priority rules
+	sort.Slice(filtered, func(i, j int) bool {
+		pkgI := filtered[i]
+		pkgJ := filtered[j]
+
+		priorityI := getRepositoryPriority(pkgI.URL)
+		priorityJ := getRepositoryPriority(pkgJ.URL)
+
+		// Force install (>1000) has highest preference
+		forceI := shouldForceInstall(pkgI)
+		forceJ := shouldForceInstall(pkgJ)
+		if forceI != forceJ {
+			return forceI // Force install comes first
+		}
+
+		// Install even if lower (1000) has next preference
+		lowerI := shouldInstallEvenIfLower(pkgI)
+		lowerJ := shouldInstallEvenIfLower(pkgJ)
+		if lowerI != lowerJ {
+			return lowerI
+		}
+
+		// Preferred (990) comes next
+		preferI := shouldPrefer(pkgI)
+		preferJ := shouldPrefer(pkgJ)
+		if preferI != preferJ {
+			return preferI
+		}
+
+		// For same priority category, use numerical priority comparison
+		if priorityI != priorityJ {
+			return priorityI > priorityJ
+		}
+
+		// Finally, compare by version (highest version first)
+		return compareVersions(pkgI.Version, pkgJ.Version) > 0
+	})
+
+	return filtered
+}
+
+// comparePriorityBehavior compares two packages based on APT priority behavior
+// Returns true if pkgA should be preferred over pkgB
+func comparePriorityBehavior(pkgA, pkgB ospackage.PackageInfo) bool {
+	// Block packages with negative priority
+	if shouldBlockPackage(pkgA) {
+		return false
+	}
+	if shouldBlockPackage(pkgB) {
+		return true
+	}
+
+	// Force install (>1000) beats everything else
+	if shouldForceInstall(pkgA) && !shouldForceInstall(pkgB) {
+		return true
+	}
+	if shouldForceInstall(pkgB) && !shouldForceInstall(pkgA) {
+		return false
+	}
+
+	// Install even if lower (1000) beats lower priorities
+	if shouldInstallEvenIfLower(pkgA) && !shouldInstallEvenIfLower(pkgB) && !shouldForceInstall(pkgB) {
+		return true
+	}
+	if shouldInstallEvenIfLower(pkgB) && !shouldInstallEvenIfLower(pkgA) && !shouldForceInstall(pkgA) {
+		return false
+	}
+
+	// Preferred (990) beats default and lower
+	if shouldPrefer(pkgA) && !shouldPrefer(pkgB) && !shouldInstallEvenIfLower(pkgB) && !shouldForceInstall(pkgB) {
+		return true
+	}
+	if shouldPrefer(pkgB) && !shouldPrefer(pkgA) && !shouldInstallEvenIfLower(pkgA) && !shouldForceInstall(pkgA) {
+		return false
+	}
+
+	// For same priority category, compare versions
+	priorityA := getRepositoryPriority(pkgA.URL)
+	priorityB := getRepositoryPriority(pkgB.URL)
+
+	if priorityA == priorityB {
+		// Special handling for priority 1000 - can install even if version is lower
+		if priorityA == 1000 {
+			return true // Accept either package for priority 1000
+		}
+
+		// For other priorities, prefer higher version
+		return compareVersions(pkgA.Version, pkgB.Version) > 0
+	}
+
+	// Different priorities - higher numerical priority wins
+	return priorityA > priorityB
+}
+
 // ResolveDependencies takes a seed list of PackageInfos (the exact versions
 // matched) and the full list of all PackageInfos from the repo, and
 // returns the minimal closure of PackageInfos needed to satisfy all Requires.
@@ -727,6 +888,12 @@ func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospac
 			candidates = append(candidates, pi)
 			break
 		}
+		// with version and arch, e.g, gstreamer1.0-plugins-base-apps_1.26.5-1ppa1~noble3_amd64.deb
+		// filename := filepath.Base(pi.URL)
+		// if strings.HasPrefix(filename, want+"_") && strings.HasSuffix(filename, ".deb") {
+		// 	candidates = append(candidates, pi)
+		// 	break
+		// }
 		// 2) exact name, e.g. acct
 		if pi.Name == want {
 			candidates = append(candidates, pi)
@@ -758,14 +925,20 @@ func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospac
 		return ospackage.PackageInfo{}, false
 	}
 
+	// Filter out blocked packages (priority < 0)
+	candidates = filterCandidatesByPriority(candidates)
+	if len(candidates) == 0 {
+		return ospackage.PackageInfo{}, false
+	}
+
 	// If we got an exact match in step (1), it's the only candidate
 	if len(candidates) == 1 && (candidates[0].Name == want || candidates[0].Name == want+".deb") {
 		return candidates[0], true
 	}
 
-	// Sort by version (highest version first)
+	// Sort by APT priority behavior rules
 	sort.Slice(candidates, func(i, j int) bool {
-		return compareVersions(candidates[i].URL, candidates[j].URL) > 0
+		return comparePriorityBehavior(candidates[i], candidates[j])
 	})
 
 	return candidates[0], true
@@ -793,12 +966,9 @@ func findAllCandidates(depName string, all []ospackage.PackageInfo) []ospackage.
 		}
 	}
 
-	// Sort by version (highest version first)
-	sort.Slice(candidates, func(i, j int) bool {
-		return compareVersions(candidates[i].URL, candidates[j].URL) > 0
-	})
-
-	return candidates
+	// Apply APT priority filtering and sorting
+	filtered := filterCandidatesByPriority(candidates)
+	return filtered
 }
 
 // Helper function to resolve multiple candidates by picking the last one
@@ -918,6 +1088,12 @@ func matchesRepoBase(parentBase []string, candidateBase string) bool {
 }
 
 func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospackage.PackageInfo) (ospackage.PackageInfo, error) {
+	// Filter out blocked packages (priority < 0) first
+	candidates = filterCandidatesByPriority(candidates)
+	if len(candidates) == 0 {
+		return ospackage.PackageInfo{}, fmt.Errorf("all candidates are blocked by negative priority")
+	}
+
 	parent, err := extractRepoBase(parentPkg.URL)
 	if err != nil {
 		return ospackage.PackageInfo{}, fmt.Errorf("failed to extract repo base from parent package URL: %w", err)
@@ -1026,13 +1202,12 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 			}
 		}
 
-		// Compare versions between sameRepoMatches[0] and otherRepoMatches[0]
-		// Return whichever has the latest version, with sameRepoMatches[0] as tiebreaker
+		// Compare using APT priority behavior rules between sameRepoMatches[0] and otherRepoMatches[0]
 		if len(sameRepoMatches) > 0 && len(otherRepoMatches) > 0 {
-			cmp := compareVersions(sameRepoMatches[0].Version, otherRepoMatches[0].Version)
-			if cmp >= 0 { // sameRepo version >= otherRepo version (tiebreaker favors sameRepo)
+			// Apply APT priority behavior comparison
+			if comparePriorityBehavior(sameRepoMatches[0], otherRepoMatches[0]) {
 				return sameRepoMatches[0], nil
-			} else { // otherRepo version > sameRepo version
+			} else {
 				return otherRepoMatches[0], nil
 			}
 		}
@@ -1087,13 +1262,12 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 		}
 	}
 
-	// Compare latest versions between same base and other base (first element is always latest)
-	// Return whichever has the latest version, with same base as tiebreaker
+	// Compare using APT priority behavior rules between same base and other base candidates
 	if len(sameBaseCandidates) > 0 && len(otherBaseCandidates) > 0 {
-		cmp := compareVersions(sameBaseCandidates[0].Version, otherBaseCandidates[0].Version)
-		if cmp >= 0 { // sameBase version >= otherBase version (tiebreaker favors sameBase)
+		// Apply APT priority behavior comparison
+		if comparePriorityBehavior(sameBaseCandidates[0], otherBaseCandidates[0]) {
 			return sameBaseCandidates[0], nil
-		} else { // otherBase version > sameBase version
+		} else {
 			return otherBaseCandidates[0], nil
 		}
 	}

@@ -257,7 +257,7 @@
         "packages": {
           "type": "array",
           "description": "List of packages to include in the system",
-          "items": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9+_.-]*[A-Za-z0-9+])?$" },
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9+_.:~-]*[A-Za-z0-9+])?$" },
           "uniqueItems": true
         },
         "additionalFiles": {
@@ -292,6 +292,13 @@
           "type": "string",
           "description": "Repository component (e.g., 'main', 'restricted')",
           "minLength": 1
+        },
+        "priority": {
+          "type": "integer",
+          "description": "Repository priority (higher numbers = higher priority, like apt pinning)",
+          "minimum": 0,
+          "maximum": 9999,
+          "default": 0
         }
       },
       "required": ["codename", "url", "pkey"],

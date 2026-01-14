@@ -1,0 +1,319 @@
+image:
+  name: minimal-desktop-ubuntu-ptl
+  version: "24.04"
+
+target:
+  os: ubuntu
+  dist: ubuntu24
+  arch: x86_64
+  imageType: raw
+
+# Disk layout and output artifact definition
+disk:
+  # Human friendly name logged by builders
+  name: minimal-desktop-ubuntu-ptl
+  artifacts:
+    # Request conversion to raw
+    - type: raw
+      compression: gz
+  size: 6GiB
+  # GPT partition table per installer spec
+  partitionTableType: gpt
+  partitions:
+    # EFI system partition for bootloaders
+    - id: EFI
+      name: EFI
+      type: esp
+      # GPT type GUID for EFI system partition
+      typeUUID: c12a7328-f81f-11d2-ba4b-00a0c93ec93b
+      fsType: vfat
+      # Builder expects explicit MiB offsets
+      start: 1MiB
+      end: 106MiB
+      mountPoint: /boot/efi
+      mountOptions: defaults
+      flags:
+        - boot
+        - esp
+    # Dedicated /boot to host kernels and bootloader assets
+    - id: BOOT
+      name: BOOT
+      type: linux
+      # GPT GUID for Linux /boot partition
+      typeUUID: bc13c2ff-59e6-4262-a352-b275fd6f7172
+      fsType: ext4
+      start: 106MiB
+      end: 500MiB
+      mountPoint: /boot
+      mountOptions: defaults
+      flags: []
+    # Root filesystem filling remainder of disk
+    - id: ROOT
+      name: ROOT
+      type: linux-root-amd64
+      # Standard Linux root filesystem GUID for x86_64
+      typeUUID: 4f68bce3-e8cd-4db1-96e7-fbcaf984b709
+      fsType: ext4
+      start: 500MiB
+      end: "0"
+      mountPoint: /
+      mountOptions: defaults
+      flags: []
+
+# Additional package repositories for this image
+packageRepositories:
+  - codename: "sed"
+    url: "https://eci.intel.com/sed-repos/noble"
+    pkey: "https://eci.intel.com/sed-repos/gpg-keys/GPG-PUB-KEY-INTEL-SED.gpg" # Uncomment and replace in real config
+    priority: 1000  # Higher priority means preferred over other repos
+
+  - codename: "ubuntu24"
+    url: "https://apt.repos.intel.com/openvino/2025"
+    pkey: "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB" # Uncomment and replace in real config
+
+  - codename: "noble"
+    url: "https://af01p-png.devtools.intel.com/artifactory/hspe-edge-png-local/ubuntu/noble/noble/20251029-0810_SW_A_REL6_RC02_plus"
+    pkey: "https://af01p-png.devtools.intel.com/artifactory/hspe-edge-png-local/ubuntu/keys/adl-hirsute-public.gpg" # Uncomment and replace in real config
+    component: "main non-free multimedia internal"
+    priority: 1001 # Higher priority means preferred over other repos
+
+  - codename: "noble"
+    url: "https://af01p-png.devtools.intel.com/artifactory/hspe-edge-repos-png-local-png-local/ubuntu-ppa2/"
+    pkey: "https://af01p-png.devtools.intel.com/artifactory/hspe-edge-repos-png-local-png-local/ubuntu-ppa2/pub.gpg" # Uncomment and replace in real config
+    priority: 1001 # Higher priority means preferred over other repos
+
+systemConfig:
+  name: minimal
+  description: Minimal desktop ubuntu image for PTL
+
+  bootloader:
+    bootType: efi
+    provider: grub
+
+  immutability:
+    enabled: false # default is true
+
+  packages:
+    - bsdutils
+    - debianutils
+    - diffutils
+    - findutils
+    - grep
+    - gzip
+    - libattr1
+    - linux-base
+    - mawk
+    - ncurses-base
+    - ncurses-bin
+    - shim-signed
+    - ubuntu-minimal
+    - ubuntu-desktop-minimal
+    - systemd
+    - openssh-server
+    - systemd-resolved
+    - util-linux
+    - udev
+    - initramfs-tools
+    - grub-pc-bin
+    - grub-efi-amd64-bin
+    - efibootmgr
+    # PTL packages
+    - vim
+    - ocl-icd-libopencl1
+    - curl
+    - net-tools
+    - xdp-tools
+    - libdrm-amdgpu1
+    - libdrm-common
+    - libdrm-dev
+    - libdrm-intel1
+    - libdrm-nouveau2
+    - libdrm-radeon1
+    - libdrm-tests
+    - libdrm2
+    - libgstreamer-plugins-good1.0-0
+    - libgstreamer-plugins-good1.0-dev
+    - libtpms-dev
+    - libtpms0
+    - libwayland-bin
+    - libwayland-client0
+    - libwayland-cursor0
+    - libwayland-dev
+    - libwayland-doc
+    - libwayland-egl-backend-dev
+    - libwayland-egl1
+    - libwayland-server0
+    - mesa-utils
+    - ovmf
+    - ovmf-ia32
+    - xserver-xorg-core
+    - libvirt0
+    - libvirt-clients
+    - libvirt-daemon
+    - libvirt-daemon-config-network
+    - libvirt-daemon-config-nwfilter
+    - libvirt-daemon-driver-lxc
+    - libvirt-daemon-driver-qemu
+    - libvirt-daemon-driver-storage-gluster
+    - libvirt-daemon-driver-storage-iscsi-direct
+    - libvirt-daemon-driver-storage-rbd
+    - libvirt-daemon-driver-storage-zfs
+    - libvirt-daemon-driver-vbox
+    - libvirt-daemon-driver-xen
+    - libvirt-daemon-system
+    - libvirt-daemon-system-systemd
+    - libvirt-dev
+    - libvirt-doc
+    - libvirt-login-shell
+    - libvirt-sanlock
+    - libvirt-wireshark
+    - libnss-libvirt
+    - swtpm
+    - swtpm-tools
+    - bmap-tools
+    - adb
+    - autoconf
+    - automake
+    - libtool
+    - cmake
+    - g++
+    - gcc
+    - git
+    - intel-gpu-tools
+    - libssl3
+    - libssl-dev
+    - make
+    - mosquitto
+    - mosquitto-clients
+    - build-essential
+    - apt-transport-https
+    - default-jre
+    - docker-compose
+    - git-lfs
+    - gnuplot
+    - lbzip2
+    - libglew-dev
+    - libglm-dev
+    - libsdl2-dev
+    - mc
+    - openssl
+    - pciutils
+    - python3-pandas
+    - python3-pip
+    - python3-seaborn
+    - terminator
+    - wmctrl
+    - gdbserver
+    - iperf3
+    - msr-tools
+    - powertop
+    - lsscsi
+    - tpm2-tools
+    - tpm2-abrmd
+    - binutils
+    - cifs-utils
+    - i2c-tools
+    - xdotool
+    - gnupg
+    - lsb-release
+    - socat
+    - virt-viewer
+    - util-linux-extra
+    - dbus-x11
+    - sg3-utils
+    - rpm
+    - mutter-common-bin-46.2-1.0.24.04.13-1ppa1~noble2
+    - libmutter-14-0-46.2-1.0.24.04.13-1ppa1~noble2
+    - gir1.2-mutter-14-46.2-1.0.24.04.13-1ppa1~noble2
+    - libigdgmm-dev-22.8.2-1ppa1~noble2
+    - libigdgmm12-22.8.2-1ppa1~noble2
+    - libmfx-gen1.2-25.3.4-1ppa1~noble2
+    - libva-dev-2.22.0-1ppa1~noble3
+    - libva-drm2-2.22.0-1ppa1~noble3
+    - libva-glx2-2.22.0-1ppa1~noble3
+    - libva-wayland2-2.22.0-1ppa1~noble3
+    - libva-x11-2-2.22.0-1ppa1~noble3
+    - libva2-2.22.0-1ppa1~noble3
+    - libxatracker2-25.0.0-1ppa1~noble9
+    - linux-firmware-20240318.git3b128b60-0.2.17-1ppa1-noble9
+    - mesa-va-drivers-25.0.0-1ppa1~noble9
+    - mesa-vdpau-drivers-25.0.0-1ppa1~noble9
+    - mesa-vulkan-drivers-25.0.0-1ppa1~noble9
+    - libvpl-dev-1:2.15.0-1ppa1~noble2
+    - libmfx-gen-dev-25.3.4-1ppa1~noble2
+    - onevpl-tools-1:2.15.0-1ppa1~noble2
+    - qemu-block-extra-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-guest-agent-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-system-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-system-arm-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-system-common-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-system-data-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-system-gui-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-system-mips-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-system-misc-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-system-ppc-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-system-s390x-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-system-sparc-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-system-x86-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-user-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-user-binfmt-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-utils-4:9.1.0+git20251029-ppa1-noble2
+    - qemu-system-modules-opengl-4:9.1.0+git20251029-ppa1-noble2
+    - va-driver-all-2.22.0-1ppa1~noble3
+    - weston-10.0.0+git20250321-1ppa1~noble6
+    - wayland-protocols-1.38-1ppa1~noble3
+    - linuxptp-4.3-ppa1~noble2
+    - libvpl-tools-2:1.4.0~1ppa1-noble2
+    - spice-client-gtk-0.42-1ppa1~noble4
+    - intel-media-va-driver-non-free-25.3.4-1ppa1~noble5
+    - gir1.2-gst-plugins-bad-1.0-1.26.5-1ppa1~noble11
+    - gir1.2-gst-plugins-base-1.0-1.26.5-1ppa1~noble3
+    - gir1.2-gstreamer-1.0-1.26.5-1ppa1~noble3
+    - gir1.2-gst-rtsp-server-1.0-1.26.5-1ppa1~noble2
+    - gstreamer1.0-alsa-1.26.5-1ppa1~noble3
+    - gstreamer1.0-gl-1.26.5-1ppa1~noble3
+    - gstreamer1.0-gtk3-1.26.5-1ppa1~noble3
+    - gstreamer1.0-opencv-1.26.5-1ppa1~noble11
+    - gstreamer1.0-plugins-bad-1.26.5-1ppa1~noble11
+    - gstreamer1.0-plugins-bad-apps-1.26.5-1ppa1~noble11
+    - gstreamer1.0-plugins-base-1.26.5-1ppa1~noble3
+    - gstreamer1.0-plugins-base-apps-1.26.5-1ppa1~noble3
+    - gstreamer1.0-plugins-good-1.26.5-1ppa1~noble3
+    - gstreamer1.0-plugins-ugly-1.26.5-1ppa1~noble2
+    - gstreamer1.0-pulseaudio-1.26.5-1ppa1~noble3
+    - gstreamer1.0-qt5-1.26.5-1ppa1~noble3
+    - gstreamer1.0-rtsp-1.26.5-1ppa1~noble2
+    - gstreamer1.0-tools-1.26.5-1ppa1~noble3
+    - gstreamer1.0-x-1.26.5-1ppa1~noble3
+    - libgstrtspserver-1.0-dev-1.26.5-1ppa1~noble2
+    - libgstrtspserver-1.0-0-1.26.5-1ppa1~noble2
+    - libgstreamer-gl1.0-0-1.26.5-1ppa1~noble3
+    - libgstreamer-opencv1.0-0-1.26.5-1ppa1~noble11
+    - libgstreamer-plugins-bad1.0-0-1.26.5-1ppa1~noble11
+    - libgstreamer-plugins-bad1.0-dev-1.26.5-1ppa1~noble11
+    - libgstreamer-plugins-base1.0-0-1.26.5-1ppa1~noble3
+    - libgstreamer-plugins-base1.0-dev-1.26.5-1ppa1~noble3
+    - libgstreamer1.0-0-1.26.5-1ppa1~noble3
+    - libgstreamer1.0-dev-1.26.5-1ppa1~noble3
+    - vainfo-2.22.0-1ppa1~noble1
+    - ffmpeg-7:8.0.0-1ppa1~noble1
+    - xpu-smi-1.3.0-20250707.103634.3db7de07~u24.04
+    - intel-ocloc-25.40.35563.4-0
+    - libze-intel-gpu1-25.40.35563.4-0
+    - intel-metrics-discovery-1.14.180-1
+    - intel-metrics-library-1.0.196-1
+    - intel-gsc-0.9.5-1ppa1~noble1
+    - level-zero-1.22.4
+    - intel-igc-core-2-2.20.3
+    - intel-igc-opencl-2-2.20.3
+    - intel-opencl-icd-25.40.35563.4-0
+    - xserver-common-2:21.1.12-1ppa1~noble3
+    - xnest-2:21.1.12-1ppa1~noble3
+    - xserver-xorg-dev-2:21.1.12-1ppa1~noble3
+    - xvfb-2:21.1.12-1ppa1~noble3
+    
+  kernel:
+    version: "6.14"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    packages:
+      - linux-image-generic-hwe-24.04
