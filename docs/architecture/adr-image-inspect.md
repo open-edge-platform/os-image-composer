@@ -3,7 +3,7 @@
 
 **Status**: Proposed  
 **Date**: 2026-01-07  
-**Updated**: N/A  
+**Updated**: 2026-01-14  
 **Authors**: OS Image Composer Team  
 **Technical Area**: Image Analysis / Image Introspection
 
@@ -369,6 +369,7 @@ type ImageDiff struct {
 
 ### Similarity Classification Logic
 
+```go
 // Trivial heuristics can be used to check each of the evaluated items to 
 // classify them into one of the pre-defined categories.
 switch {
