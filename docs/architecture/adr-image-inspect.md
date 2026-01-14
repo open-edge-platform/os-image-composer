@@ -369,7 +369,7 @@ type ImageDiff struct {
 
 ### Similarity Classification Logic
 
-// Trivial heuristics can be used to  check each of the evaluated items to 
+// Trivial heuristics can be used to check each of the evaluated items to 
 // classify them into one of the pre-defined categories.
 switch {
     case diff.Binary.Equal:
