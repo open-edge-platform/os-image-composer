@@ -19,7 +19,7 @@ type ImageSummary struct {
 	File           string
 	SizeBytes      int64
 	PartitionTable PartitionTableSummary
-	//SBOM           SBOMSummary
+	// SBOM           SBOMSummary
 }
 
 // PartitionTableSummary holds information about the partition table of the disk image.
