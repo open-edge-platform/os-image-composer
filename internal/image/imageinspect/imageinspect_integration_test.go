@@ -16,7 +16,9 @@ func TestInspectImage_Minimal(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			filename := repoRootTestdataPath(t, tc.img)
-
+			if _, err := os.Stat(filename); os.IsNotExist(err) {
+				t.Skipf("testdata not found: %s (run 'make testdata' to generate)", filename)
+			}
 			is := NewDiskfsInspector()
 			got, err := is.Inspect(filename)
 			if err != nil {
@@ -51,7 +53,9 @@ func TestInspect_Image_SanityAndInvariants(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			filename := repoRootTestdataPath(t, tc.img)
-
+			if _, err := os.Stat(filename); os.IsNotExist(err) {
+				t.Skipf("testdata not found: %s (run 'make testdata' to generate)", filename)
+			}
 			got, err := is.Inspect(filename)
 			if err != nil {
 				t.Fatalf("inspect(%s): %v", filename, err)
