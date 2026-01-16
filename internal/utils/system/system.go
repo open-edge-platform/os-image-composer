@@ -369,25 +369,3 @@ func StopGPGComponents(chrootPath string) error {
 
 	return nil
 }
-/*
-func SetupHostEnv(os, dist, arch string) (error) {
-        var hostOsInfo = GetHostOsInfo()
-
-
-
-    // we do not need to do anything when both host arch and target arch is same 
-
-    if(arch != hostOsInfo["arch"] ) {
-      switch hostOsInfo["arch"] {
-      case "x86_64":
-	log.Infof("Host Architecture %v, Target Arch %v", hostOsInfo["arch"], arch);
-      case "aarch64": 
-	log.Infof("Host Architecture %v, Target Arch %v", hostOsInfo["arch"], arch);
-      default:
-	log.Errorf("Not Supported Architecture\n");
-    }
-
-    log.Infof(" Target OS %v, Target Dist %v, Target Arch %v", os, dist, arch);
-    return nil;
-}
-*/
