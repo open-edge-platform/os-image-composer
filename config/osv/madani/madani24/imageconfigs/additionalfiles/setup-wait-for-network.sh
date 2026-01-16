@@ -1,26 +1,27 @@
 #!/bin/bash
-# /opt/software/wait-for-network.sh
-
-set -e
+# REMOVED set -e to allow the loop to continue even if curl fails
 
 TARGET="ollama.com"
-MAX_ATTEMPTS=60  # 60 attempts * 5 seconds = 5 minutes total
+MAX_ATTEMPTS=600
 COUNT=0
 
 echo "Starting Network Waiter for $TARGET..."
 
-while ! curl -s --head --request GET "https://$TARGET" | grep "200 OK" > /dev/null; do
-    echo "Network unreachable. Waiting for connection... (Attempt $COUNT/$MAX_ATTEMPTS)"
-    
-    # Check if we've exceeded the timeout
-    if [ $COUNT -ge $MAX_ATTEMPTS ]; then
-        echo "Error: Network timeout reached. Proceeding without network (installation may fail)."
-        exit 1
+while [ $COUNT -lt $MAX_ATTEMPTS ]; do
+    # Check if we can reach the target. 
+    # We use '|| true' to prevent the script from exiting on a network error.
+    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "https://$TARGET" || echo "000")
+
+    if [ "$HTTP_STATUS" == "200" ]; then
+        echo "✓ Network connection detected. Proceeding..."
+        exit 0
     fi
 
-    sleep 5
+    echo "Network unreachable (Status: $HTTP_STATUS). Waiting... (Attempt $COUNT/$MAX_ATTEMPTS)"
+    
+    sleep 10
     ((COUNT++))
 done
 
-echo "✓ Network connection detected. Proceeding..."
-exit 0
+echo "Error: Network timeout reached."
+exit 1

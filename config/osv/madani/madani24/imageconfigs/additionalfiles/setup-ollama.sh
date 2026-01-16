@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 # Redirect all output to a custom log as well so you don't just rely on cloud-init logs
 exec > >(tee -a /var/log/ollama-setup-trace.log) 2>&1
@@ -20,7 +19,11 @@ while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
     sleep 5
 done
 
-# 2. Ensure Curl and zstd installed
+# 2. Update package lists
+echo "Updating package lists..."
+apt update
+
+# 3. Ensure Curl and zstd installed
 if ! command -v curl >/dev/null 2>&1; then
     apt-get install -y curl
 fi
@@ -29,11 +32,11 @@ if ! command -v zstd >/dev/null 2>&1; then
     apt-get install -y zstd
 fi
 
-# 3. Use the Official Install script but ensure it's non-interactive
+# 4. Use the Official Install script but ensure it's non-interactive
 echo "Downloading and running Ollama install script..."
 curl -fsSL https://ollama.com/install.sh | sh
 
-# 4. Final check
+# 5. Final check
 if command -v ollama >/dev/null 2>&1; then
     echo "✓ Ollama installed successfully"
     ollama --version
@@ -43,7 +46,7 @@ else
 fi
 
 
-# 5. Start Ollama service in the background
+# 6. Start Ollama service in the background
 # echo "Starting Ollama service..."
 # nohup ollama serve > /var/log/ollama-service.log 2>&1 &
 # echo "✓ Ollama service started in background"

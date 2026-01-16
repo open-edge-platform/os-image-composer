@@ -2,6 +2,7 @@
 <channel name="xfce4-desktop" version="1.0">
   <property name="backdrop" type="empty">
     <property name="screen0" type="empty">
+      <!-- Generic monitor -->
       <property name="monitor0" type="empty">
         <property name="workspace0" type="empty">
           <property name="color-style" type="int" value="0"/>
@@ -9,6 +10,8 @@
           <property name="last-image" type="string" value="/usr/share/backgrounds/mos-wallpaper.png"/>
         </property>
       </property>
+      
+      <!-- VM monitors -->
       <property name="monitorVirtual-1" type="empty">
         <property name="workspace0" type="empty">
           <property name="color-style" type="int" value="0"/>
@@ -16,7 +19,41 @@
           <property name="last-image" type="string" value="/usr/share/backgrounds/mos-wallpaper.png"/>
         </property>
       </property>
+      
       <property name="monitorVirtual1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="color-style" type="int" value="0"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="last-image" type="string" value="/usr/share/backgrounds/mos-wallpaper.png"/>
+        </property>
+      </property>
+
+      <!-- Physical hardware monitors -->
+      <property name="monitorHDMI-A-1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="color-style" type="int" value="0"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="last-image" type="string" value="/usr/share/backgrounds/mos-wallpaper.png"/>
+        </property>
+      </property>
+
+      <property name="monitorDP-1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="color-style" type="int" value="0"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="last-image" type="string" value="/usr/share/backgrounds/mos-wallpaper.png"/>
+        </property>
+      </property>
+
+      <property name="monitorDVI-D-1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="color-style" type="int" value="0"/>
+          <property name="image-style" type="int" value="5"/>
+          <property name="last-image" type="string" value="/usr/share/backgrounds/mos-wallpaper.png"/>
+        </property>
+      </property>
+
+      <property name="monitoreDP-1" type="empty">
         <property name="workspace0" type="empty">
           <property name="color-style" type="int" value="0"/>
           <property name="image-style" type="int" value="5"/>

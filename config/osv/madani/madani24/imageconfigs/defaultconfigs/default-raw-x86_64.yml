@@ -14,7 +14,7 @@ disk:
     -
       type: raw  # image file format
       compression: gz # image compression format (optional)
-  size: 9GiB # Increased to accommodate larger rootfs partition
+  size: 6GiB # Increased to accommodate larger rootfs partition
   partitionTableType: gpt # Partition table type, valid value: [gpt, mbr]
   partitions: # Required for raw, optional for ISO, not needed for rootfs.
     - id: boot

@@ -20,12 +20,26 @@ EOF
 # Create user-data file
 cat <<EOF > "$TARGET_ROOTFS/var/lib/cloud/seed/nocloud/user-data"
 #cloud-config
-package_update: true
-runcmd:  
-  - [ chmod, "+x", "/opt/software/setup-wait-for-network.sh" ]
-  - [ chmod, "+x", "/opt/software/setup-ollama.sh" ]  
-  - [ /bin/bash, "/opt/software/setup-wait-for-network.sh" ]    
-  - [ /bin/bash, "/opt/software/setup-ollama.sh" ]
+growpart:
+  mode: auto
+  devices: ['/']
+  ignore_growroot_disabled: false
+
+resize_rootfs: true
+
+package_update: false
+package_upgrade: false
+
+runcmd:
+  - |
+    echo "Starting sequential setup..."
+    chmod +x /opt/software/setup-wait-for-network.sh
+    chmod +x /opt/software/setup-ollama.sh
+    
+    # This is the secret: one line, one sequence.
+    /opt/software/setup-wait-for-network.sh && /opt/software/setup-ollama.sh
+    
+    echo "Setup sequence complete."
 EOF
 
 echo "Cloud-init seed configuration complete."
