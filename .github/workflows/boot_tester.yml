@@ -1,8 +1,5 @@
 name: Boot Tester
 on:
-  pull_request:
-    branches:
-      - main
   schedule:
     # Run twice a week: Tuesdays at 02:00 UTC and Fridays at 02:00 UTC
     - cron: '0 2 * * 2'  # Tuesday at 2 AM UTC
