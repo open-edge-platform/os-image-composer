@@ -86,7 +86,20 @@ type ImageTemplate struct {
 	KernelPkgList     []string                `yaml:"-"`
 	FullPkgList       []string                `yaml:"-"`
 	FullPkgListBom    []ospackage.PackageInfo `yaml:"-"`
+	DotFilePath       string                  `yaml:"-"`
+	DotSystemOnly     bool                    `yaml:"-"`
 }
+
+// PackageSource identifies why a package was requested in the merged template.
+type PackageSource string
+
+const (
+	PackageSourceUnknown    PackageSource = "unknown"
+	PackageSourceEssential  PackageSource = "essential"
+	PackageSourceKernel     PackageSource = "kernel"
+	PackageSourceSystem     PackageSource = "system"
+	PackageSourceBootloader PackageSource = "bootloader"
+)
 
 type Initramfs struct {
 	Template string `yaml:"template"` // Template: path to the initramfs configuration template file
@@ -129,6 +142,7 @@ type SystemConfig struct {
 	Bootloader      Bootloader           `yaml:"bootloader"`
 	Packages        []string             `yaml:"packages"`
 	AdditionalFiles []AdditionalFileInfo `yaml:"additionalFiles"`
+	Configurations  []ConfigurationInfo  `yaml:"configurations"`
 	Kernel          KernelConfig         `yaml:"kernel"`
 }
 
@@ -136,6 +150,11 @@ type SystemConfig struct {
 type AdditionalFileInfo struct {
 	Local string `yaml:"local"` // path to the file on the host system
 	Final string `yaml:"final"` // path where the file should be placed in the image
+}
+
+// ConfigurationInfo holds information about instructions to execute during system configuration
+type ConfigurationInfo struct {
+	Cmd string `yaml:"cmd"`
 }
 
 // KernelConfig holds the kernel configuration
@@ -324,6 +343,37 @@ func (t *ImageTemplate) GetPackages() []string {
 	return allPkgList
 }
 
+var packageSourcePriority = map[PackageSource]int{
+	PackageSourceUnknown:    0,
+	PackageSourceEssential:  10,
+	PackageSourceKernel:     20,
+	PackageSourceBootloader: 20,
+	PackageSourceSystem:     30,
+}
+
+// GetPackageSourceMap returns a map of package name to the template section that requested it.
+func (t *ImageTemplate) GetPackageSourceMap() map[string]PackageSource {
+	sources := make(map[string]PackageSource)
+	setSources := func(pkgs []string, source PackageSource) {
+		for _, pkg := range pkgs {
+			pkg = strings.TrimSpace(pkg)
+			if pkg == "" {
+				continue
+			}
+			if current, ok := sources[pkg]; !ok || packageSourcePriority[source] >= packageSourcePriority[current] {
+				sources[pkg] = source
+			}
+		}
+	}
+
+	setSources(t.EssentialPkgList, PackageSourceEssential)
+	setSources(t.KernelPkgList, PackageSourceKernel)
+	setSources(t.BootloaderPkgList, PackageSourceBootloader)
+	setSources(t.SystemConfig.Packages, PackageSourceSystem)
+
+	return sources
+}
+
 func (t *ImageTemplate) GetAdditionalFileInfo() []AdditionalFileInfo {
 	var PathUpdatedList []AdditionalFileInfo
 	if len(t.SystemConfig.AdditionalFiles) == 0 {
@@ -370,6 +420,10 @@ func (t *ImageTemplate) GetAdditionalFileInfo() []AdditionalFileInfo {
 		}
 	}
 	return PathUpdatedList
+}
+
+func (t *ImageTemplate) GetConfigurationInfo() []ConfigurationInfo {
+	return t.SystemConfig.Configurations
 }
 
 // GetKernel returns the kernel configuration from the system configuration

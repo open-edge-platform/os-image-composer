@@ -3,26 +3,25 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Go Lint Check](https://github.com/open-edge-platform/os-image-composer/actions/workflows/go-lint.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/go-lint.yml) [![Unit and Coverage](https://github.com/open-edge-platform/os-image-composer/actions/workflows/unit-test-and-coverage-gate.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/unit-test-and-coverage-gate.yml) [![Security zizmor 🌈](https://github.com/open-edge-platform/os-image-composer/actions/workflows/zizmor.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/zizmor.yml) [![Fuzz test](https://github.com/open-edge-platform/os-image-composer/actions/workflows/fuzz-test.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/fuzz-test.yml) [![Trivy scan](https://github.com/open-edge-platform/os-image-composer/actions/workflows/trivy-scan.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/trivy-scan.yml)
 
-OS Image Composer is a command-line tool that uses a simple toolchain to build mutable or immutable Linux distributions from the pre-built packages sourced from various OS distribution repositories.
-Developed in the Go programming language, or Golang, the tool initially builds custom images for [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit), [Linux OS for Azure 1P services and edge appliances (azurelinux)](https://github.com/microsoft/azurelinux) and [Wind River eLxr Linux distribution](https://www.windriver.com/blog/Introducing-eLxr).
+OS Image Composer is a command-line tool that uses a simple toolchain to build mutable or immutable Linux distributions from the pre-built packages from different OS distribution repositories.
+Developed in the Go programming language, or Golang, the tool initially builds custom images for [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit), [Azure Linux](https://github.com/microsoft/azurelinux) and [Wind River eLxr](https://www.windriver.com/blog/Introducing-eLxr).
 
 ## Get Started
 
-Intel has validated and recommends using Ubuntu OS version 24.04 to work with the initial release of the OS Image Composer tool. Intel has not validated other Linux distributions. The plan for later releases is to include a containerized version to support portability across operating systems.
+The initial release of the OS Image Composer tool has been tested and validated to work with Ubuntu 24.04, which is the recommended distribution for running the tool. Other standard Linux distributions should also work but haven't been validated. The plan for later releases is to include a containerized version to support portability across operating systems.
 
-* Download the tool by cloning and checking out the latest tagged release on the [GitHub repository](https://github.com/open-edge-platform/os-image-composer/). Alternatively, you can download the [latest tagged release](https://github.com/open-edge-platform/os-image-composer/releases) of the ZIP archive.
+* Download the tool by cloning and checking out the latest tagged release on [GitHub](https://github.com/open-edge-platform/os-image-composer/). Alternatively, you can download the [latest tagged release](https://github.com/open-edge-platform/os-image-composer/releases) of the ZIP archive.
 
-* Install Go programming language version 1.22.12 or later before building the tool; see the [Go programming language installation instructions](https://go.dev/doc/manage-install) for your Linux distribution.
+* Install version 1.22.12 or later of the Go programming language before building the tool; see the [Go installation instructions](https://go.dev/doc/manage-install) for your Linux distribution.
 
-## How It Works
 
 ### Build the Tool
 
-Build the OS Image Composer command-line utility by using Go programming language directly or by using the Earthly framework:
+Build the OS Image Composer command-line utility by using Go directly or by using the Earthly framework:
 
-#### Development Build (Go Programming Language)
+#### Development Build (Go)
 
-For development and testing purposes, you can use Go programming language directly:
+For development and testing purposes, you can use Go directly:
 
 ```bash
 # Build the tool:
@@ -35,9 +34,9 @@ go build -buildmode=pie -o ./build/live-installer -ldflags "-s -w" ./cmd/live-in
 go run ./cmd/os-image-composer --help
 ```
 
-> Note: Development builds using `go build` shows default version information (e.g., `Version: 0.1.0`, `Build Date: unknown`). This is expected during development.
+**Note**: Development builds using `go build` will show default version information (e.g., `Version: 0.1.0`, `Build Date: unknown`). This is expected during development.
 
-To include version information in a development build, use ldflags with Git commands:
+To include version information in a development build, use ldflags with git commands:
 
 ```bash
 VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -65,18 +64,18 @@ go build -buildmode=pie \
   ./cmd/live-installer
 ```
 
-#### Production Build (Earthly Framework)
+#### Production Build (Earthly)
 
-For production and release builds, use the Earthly framework to produce a reproducible build that automatically includes the version number (from Git tags), the build date (the current UTC date), and the Git commit Secure Hash Algorithm (SHA):
+For production and release builds, use the Earthly framework, which produces a reproducible build that automatically includes the version number (from git tags), the build date (the current UTC date), and the Git commit SHA:
 
 ```bash
-# Default build (uses latest Git tag for version)
+# Default build (uses latest git tag for version)
 earthly +build
 
 # Build with custom version metadata
 earthly +build --VERSION=1.2.0
 
-### Install via Debian Package (Ubuntu or Debian Systems)
+### Install via Debian Package (Ubuntu/Debian)
 
 For Ubuntu and Debian systems, you can build and install OS Image Composer as a Debian package. This method provides a cleaner installation with proper package management.
 
@@ -95,7 +94,7 @@ earthly +deb --VERSION=1.2.0 --ARCH=amd64
 earthly +deb --VERSION=1.0.0 --ARCH=arm64
 ```
 
-The package is created in the `dist/` directory as `os-image-composer_<VERSION>_<ARCH>.deb`. A companion file `dist/os-image-composer.version` captures the resolved version when the package was built.
+The package will be created in the `dist/` directory as `os-image-composer_<VERSION>_<ARCH>.deb`. A companion file `dist/os-image-composer.version` captures the resolved version when the package was built.
 
 #### Install the Package
 
@@ -113,7 +112,7 @@ sudo dpkg -i dist/os-image-composer_1.0.0_amd64.deb
 sudo apt-get install -y mmdebstrap || sudo apt-get install -y debootstrap
 ```
 
-> Note: Intel recommends using `apt install` for automatic handling of dependencies. If you use `dpkg -i` and encounter dependency errors, run `sudo apt-get install -f` to fix them.
+**Note:** Using `apt install` is strongly recommended as it automatically handles all dependencies. If you use `dpkg -i` and encounter dependency errors, run `sudo apt-get install -f` to fix them.
 
 #### Verify Installation
 
@@ -132,19 +131,19 @@ os-image-composer version
 
 The Debian package installs the following files:
 
-* **Binary:** `/usr/local/bin/os-image-composer` - Main executable file
-* **Configuration:** `/etc/os-image-composer/` - Default configuration and OS variant configurations
+* **Binary:** `/usr/local/bin/os-image-composer` - Main executable
+* **Configuration:** `/etc/os-image-composer/` - Default configuration and OS variant configs
   - `/etc/os-image-composer/config.yml` - Global configuration with system paths
   - `/etc/os-image-composer/config/` - OS variant configuration files
 * **Examples:** `/usr/share/os-image-composer/examples/` - Sample image templates
 * **Documentation:** `/usr/share/doc/os-image-composer/` - README, LICENSE, and CLI specification
 * **Cache Directory:** `/var/cache/os-image-composer/` - Package cache storage
 
-After installation via the Debian package, you can use `os-image-composer` directly from any directory. The configuration is pre-set to use system paths. You can reference the example templates from `/usr/share/os-image-composer/examples/`.
+After installation via the Debian package, you can use `os-image-composer` directly from any directory. The configuration is pre-set to use system paths, and you can reference the example templates from `/usr/share/os-image-composer/examples/`.
 
 #### Package Dependencies
 
-The Debian package installs the following runtime dependencies automatically:
+The Debian package automatically installs the following runtime dependencies:
 
 **Required Dependencies:**
 * `bash` - Shell for script execution
@@ -158,21 +157,21 @@ The Debian package installs the following runtime dependencies automatically:
 * `mmdebstrap` - Debian bootstrap tool (preferred, version 1.4.3+ required)
 * `debootstrap` - Alternative Debian bootstrap tool
 
-**Important:** `mmdebstrap` version 0.8.x (included in Ubuntu OS version 22.04) has known issues. For Ubuntu OS version 22.04 users, you must install `mmdebstrap` version 1.4.3+ manually as described in the [prerequisite documentation](./docs/tutorial/prerequisite.md#mmdebstrap).
+**Important:** `mmdebstrap` version 0.8.x (included in Ubuntu 22.04) has known issues. For Ubuntu 22.04 users, you must install `mmdebstrap` version 1.4.3+ manually as described in the [prerequisite documentation](./docs/tutorial/prerequisite.md#mmdebstrap).
 
 #### Uninstall the Package
 
 ```bash
-# Remove the package but keep the configuration files
+# Remove package (keeps configuration files)
 sudo dpkg -r os-image-composer
 
-# Remove the package and the configuration files
+# Remove package and configuration files
 sudo dpkg --purge os-image-composer
 ```
 
 ### Install the Prerequisites for Composing an Image
 
-Before you compose an OS image with the OS Image Composer tool, install additional prerequisites:
+Before you compose an operating system image with the OS Image Composer tool, you need to install additional prerequisites:
 
 **Required Tools:**
 
@@ -183,15 +182,15 @@ Before you compose an OS image with the OS Image Composer tool, install addition
 
 * **`mmdebstrap`** - Downloads and installs Debian packages to initialize a chroot
   * **Ubuntu 23.04+**: Automatically installed with the Debian package (version 1.4.3+)
-  * **Ubuntu 22.04**: The version in Ubuntu OS version 22.04 repositories (0.8.x) has known bugs and will not work
-    * **Required:** Manually install version 1.4.3+. See [mmdebstrap installation instructions](./docs/tutorial/prerequisite.md#mmdebstrap)
+  * **Ubuntu 22.04**: The version in Ubuntu 22.04 repositories (0.8.x) has known bugs and will not work
+    * **Required:** Manually install version 1.4.3+ following [mmdebstrap installation instructions](./docs/tutorial/prerequisite.md#mmdebstrap)
   * **Alternative**: Can use `debootstrap` for Debian-based images
 
-> Note: If you have installed os-image-composer via the Debian package, `mmdebstrap` may already be installed. You would still need to install `ukify` separately by following the instructions above.
+**Note:** If you installed os-image-composer via the Debian package, `mmdebstrap` may already be installed. You still need to install `ukify` separately following the instructions above.
 
 ### Compose or Validate an Image
 
-Now you are ready to compose an image from a built-in template, or validate a template.
+Now you're ready to compose an image from a built-in template or validate a template.
 
 ```bash
 # Build an image from template
@@ -206,7 +205,7 @@ sudo os-image-composer build /usr/share/os-image-composer/examples/azl3-x86_64-e
 ./os-image-composer validate image-templates/azl3-x86_64-edge-raw.yml
 ```
 
-After the image is built, check your output directory. The exact name of the output directory varies by environment and image but looks similar to the following:
+After the image finishes building, check your output directory. The exact name of the output directory varies by environment and image but should look something like this:
 
 ```
 /os-image-composer/tmp/os-image-composer/azl3-x86_64-edge-raw/imagebuild/Minimal_Raw
@@ -232,7 +231,7 @@ The tool searches for configuration files in the following order:
 5. `~/.config/os-image-composer/config.yaml` (XDG config directory)
 6. `/etc/os-image-composer/config.yaml` (system-wide)
 
-> Note: When installed via the Debian package, the default configuration is located at `/etc/os-image-composer/config.yml` and is pre-configured with system paths.
+**Note:** When installed via the Debian package, the default configuration is located at `/etc/os-image-composer/config.yml` and is pre-configured with system paths.
 
 
 ### Configuration Parameters
@@ -255,7 +254,7 @@ logging:
 # Create a new configuration file
 ./os-image-composer config init
 
-# Create configuration file at specific location
+# Create config file at specific location
 ./os-image-composer config init /path/to/config.yaml
 
 # Show current configuration
@@ -274,27 +273,27 @@ The OS Image Composer performs several system-level operations that require elev
 The following system directories require root access for OS Image Composer operations:
 
 - **`/etc/` directory operations**: Writing system configuration files, modifying network configurations, updating system settings
-- **`/dev/` device access**: Block device operations, loop device management, and hardware access
-- **`/sys/` filesystem access**: System parameter modification and kernel interface access
+- **`/dev/` device access**: Block device operations, loop device management, hardware access
+- **`/sys/` filesystem access**: System parameter modification, kernel interface access
 - **`/proc/` filesystem modification**: Process and system state changes
 - **`/boot/` directory**: Boot loader and kernel image management
-- **`/var/` system directories**: System logs, package databases, and runtime state
+- **`/var/` system directories**: System logs, package databases, runtime state
 - **`/usr/sbin/` and `/sbin/`**: System administrator binaries
 
 ### Common Privileged Operations
 
-OS Image Composer typically requires sudo access for:
+OS Image Composer typically requires sudo for:
 
-- **Block device management**: Creating loop devices, partitions, and filesystem
-- **Mount/unmount operations**: Mounting filesystems and managing mount points
+- **Block device management**: Creating loop devices, partitioning, filesystem creation
+- **Mount/unmount operations**: Mounting filesystems, managing mount points
 - **Chroot environment setup**: Creating and managing isolated build environments
 - **Package installation**: System-wide package management operations
-- **Boot configuration**: Installing bootloaders and managing EFI settings
-- **Security operations**: Secure boot signing and cryptographic operations
+- **Boot configuration**: Installing bootloaders, managing EFI settings
+- **Security operations**: Secure boot signing, cryptographic operations
 
 ## Usage
 
-The OS Image Composer tool uses a command-line interface with various commands. Some examples:
+The OS Image Composer tool uses a command-line interface with various commands. Here are some examples:
 
 ```bash
 # Show help
@@ -313,12 +312,12 @@ sudo -E ./os-image-composer build --workers 16 --cache-dir /tmp/cache image-temp
 ./os-image-composer version
 
 # Install shell completion for your current shell
-./os-image-composer completion install
+./os-image-composer install-completion
 ```
 
 ### Commands
 
-The OS Image Composer tool provides the following commands.
+The OS Image Composer tool provides the following commands:
 
 #### build
 
@@ -334,6 +333,7 @@ Flags:
 - `--cache-dir, -d`: Package cache directory (overrides the configuration file)
 - `--work-dir`: Working directory for builds (overrides the configuration file)
 - `--verbose, -v`: Enable verbose output
+- `--dotfile, -f`: Generate a dependency graph for the merged template as a dot file (nodes are color-coded: essentials in pale yellow, template packages in green, kernel in blue, bootloader in orange)
 - `--config`: Path to the configuration file
 - `--log-level`: Log level (debug, info, warn, and error)
 - `--log-file`: Override the log file path defined in the configuration
@@ -374,49 +374,27 @@ Displays the tool's version number, build date, and Git commit SHA:
 ./os-image-composer version
 ```
 
-> Note: The version information depends on how the binary was built:
-- **Earthly build** (`earthly +build`): Shows actual version from Git tags, build date, and commit SHA
+**Note**: The version information depends on how the binary was built:
+- **Earthly build** (`earthly +build`): Shows actual version from git tags, build date, and commit SHA
 - **Simple Go build** (`go build`): Shows default development values unless ldflags are used
-- For production releases, always use the Earthly build or equivalent build systems that inject version information
+- For production releases, always use the Earthly build or equivalent build system that injects version information
 
-#### completion
+#### install-completion
 
-Generates and installs shell completion scripts for various shells.
-
-**Prerequisites:** For shell completion to work, the `os-image-composer` binary must be accessible in your system's `$PATH`. This is automatically satisfied when:
-
-* Installing via the Debian package (installs to `/usr/local/bin/`)
-* Manually copying the binary to a standard location like `/usr/local/bin/` or `~/bin/`
-* Adding the binary's directory to your `$PATH` environment variable
-
-> Note: The completion is registered for the command name `os-image-composer`, not for relative or absolute paths like `./os-image-composer`.
-
-##### Generate Completion Scripts
+Installs the shell completion feature for your current shell or a specified shell:
 
 ```bash
-# Generate completion script for bash (output to stdout)
-os-image-composer completion bash
-
-# Generate completion script for other shells
-os-image-composer completion zsh
-os-image-composer completion fish
-os-image-composer completion powershell
-```
-
-##### Install Completion Automatically
-
-```bash
-# Auto-detect shell and install completion file
-os-image-composer completion install
+# Auto-detect shell and create completion file
+./os-image-composer install-completion
 
 # Specify shell type
-os-image-composer completion install --shell bash
-os-image-composer completion install --shell zsh
-os-image-composer completion install --shell fish
-os-image-composer completion install --shell powershell
+./os-image-composer install-completion --shell bash
+./os-image-composer install-completion --shell zsh
+./os-image-composer install-completion --shell fish
+./os-image-composer install-completion --shell powershell
 
 # Force overwrite existing completion files
-os-image-composer completion install --force
+./os-image-composer install-completion --force
 ```
 
 **Important**: The command creates completion files but additional activation steps are required:
@@ -469,9 +447,9 @@ os-image-composer build --[TAB]
 
 ### Image Template Format
 
-Written in the YAML format, templates define the requirements for building an OS image. The template structure enables you to define key parameters, such as the OS distribution, version, architecture, software packages, output format, and kernel configuration. The image template format is validated against a JSON schema to check syntax and semantics before building the image.
+Written in the YAML format, templates define the requirements for building an operating system image. The template structure enables you to define key parameters, such as the operating system distribution, version, architecture, software packages, output format, and kernel configuration. The image template format is validated against a JSON schema to check syntax and semantics before building the image.
 
-If you are an entry-level user or have straightforward requirements, you can reuse the basic template and add the rquired packages. If you are addressing an advanced use case with, for instance, robust security requirements, you can edit the template to define disk and partition layouts, and other settings for security.
+If you're an entry-level user or have straightforward requirements, you can reuse the basic template and add the packages you require. If you're addressing an advanced use case with, for instance, robust security requirements, you can modify the template to define disc and partition layouts and other settings for security.
 
 ```yaml
 image:
@@ -505,7 +483,7 @@ systemConfigs:
 
 #### Key Components
 
-The following are the key components of an image template.
+Here are the key components of an image template.
 
 ##### 1. `image`
 
@@ -518,8 +496,8 @@ Basic image identification and metadata:
 Defines the target OS and image configuration:
 - `os`: Target OS (`azure-linux`, `emt`, and `elxr`)
 - `dist`: Distribution identifier (`azl3`, `emt3`, and `elxr12`)
-- `arch`: Target architecture (`x86_64` and `aarch64`)
-- `imageType`: Output format (`raw` and `iso`)
+- `arch`: Target architecture (`x86_64`and `aarch64`)
+- `imageType`: Output format (`raw`, `iso`)
 
 ##### 3. `systemConfigs`
 
@@ -552,25 +530,23 @@ The OS Image Composer CLI supports shell auto-completion for the Bash, Zsh, Fish
 
 #### Generate Completion Scripts
 
-> Note: These examples assume the binary is in your PATH. If running from a local build, use the full path, for example `./build/os-image-composer`).
-
 ```bash
 # Bash
-os-image-composer completion bash > os-image-composer_completion.bash
+./os-image-composer completion bash > os-image-composer_completion.bash
 
 # Zsh
-os-image-composer completion zsh > os-image-composer_completion.zsh
+./os-image-composer completion zsh > os-image-composer_completion.zsh
 
 # Fish
-os-image-composer completion fish > os-image-composer_completion.fish
+./os-image-composer completion fish > os-image-composer_completion.fish
 
 # PowerShell
-os-image-composer completion powershell > os-image-composer_completion.ps1
+./os-image-composer completion powershell > os-image-composer_completion.ps1
 ```
 
 #### Install Completion Scripts
 
-After you have installed the completion script for your command-line shell, you can use tab completion to navigate through commands, flags, and arguments.
+After you install the completion script for your command-line shell, you can use tab completion to navigate commands, flags, and arguments.
 
 **Bash**:
 
@@ -608,25 +584,25 @@ echo ". /path/to/os-image-composer_completion.ps1" >> $PROFILE
 
 #### Examples of Completion in Action
 
-After the completion script is installed and the binary is in your PATH, the tool is configured to suggest YAML files when completing the template file argument for the build and validate commands, and you can see that in action:
+Once the completion script is installed, the tool is configured to suggest YAML files when completing the template file argument for the build and validate commands, and you can see that in action:
 
 ```bash
 # Tab-complete commands
-os-image-composer <TAB>
+./os-image-composer <TAB>
 build      completion  config     help       validate    version
 
 # Tab-complete flags
-sudo -E os-image-composer build --<TAB>
+sudo -E ./os-image-composer build --<TAB>
 --cache-dir  --config    --help       --log-level  --verbose    --work-dir   --workers
 
 # Tab-complete YAML files for template file argument
-sudo -E os-image-composer build <TAB>
+sudo -E ./os-image-composer build <TAB>
 # Will show YAML files in the current directory
 ```
 
 ## Template Examples
 
-The following are examples of YAML template files. You can use YAML image templates to reproduce custom, verified, and inventoried operating systems rapidly; see [Creating and Reusing Image Templates](./docs/architecture/os-image-composer-templates.md).
+Here are several example YAML template files. You can use YAML image templates to rapidly reproduce custom, verified, and inventoried operating systems; see [Creating and Reusing Image Templates](./docs/architecture/os-image-composer-templates.md).
 
 ### Minimal Edge Device
 
@@ -707,12 +683,12 @@ systemConfigs:
       cmdline: "quiet splash systemd.unified_cgroup_hierarchy=0"
 ```
 
-## Learn More
+## Get Help
 
-* Run `./os-image-composer --help` in the command-line tool to see all commands and options. 
-* See [CLI Specification and Reference](./docs/architecture/os-image-composer-cli-specification.md).
-* See the [documentation](https://github.com/open-edge-platform/os-image-composer/tree/main/docs).
-* To troubleshoot, see [Build Process documentation](./docs/architecture/os-image-composer-build-process.md#troubleshooting-build-issues).
+* Run the following command in the command-line tool to see all the commands and options: `./os-image-composer --help`
+* See the [CLI Specification and Reference](./docs/architecture/os-image-composer-cli-specification.md).
+* Read the [documentation](https://github.com/open-edge-platform/os-image-composer/tree/main/docs).
+* Troubleshoot by using the [Build Process documentation](./docs/architecture/os-image-composer-build-process.md#troubleshooting-build-issues).
 * [Participate in discussions](https://github.com/open-edge-platform/os-image-composer/discussions).
 
 ## Contribute
@@ -722,8 +698,6 @@ systemConfigs:
 * [Submit a pull request](https://github.com/open-edge-platform/os-image-composer/pulls).
 
 
-## Notices
-
-### License Information
+## License Information
 
 See [License](./LICENSE).

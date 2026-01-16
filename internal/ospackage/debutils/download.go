@@ -13,6 +13,7 @@ import (
 
 	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
+	"github.com/open-edge-platform/os-image-composer/internal/ospackage/dotfilter"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/pkgfetcher"
 	"github.com/open-edge-platform/os-image-composer/internal/ospackage/pkgsorter"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
@@ -415,12 +416,12 @@ func WriteArrayToFile(arr []string, title string) (string, error) {
 }
 
 // DownloadPackages downloads packages and returns the list of downloaded package names.
-func DownloadPackages(pkgList []string, destDir, dotFile string) ([]string, error) {
-	downloadedPkgs, _, err := DownloadPackagesComplete(pkgList, destDir, dotFile)
+func DownloadPackages(pkgList []string, destDir, dotFile string, pkgSources map[string]config.PackageSource, systemRootsOnly bool) ([]string, error) {
+	downloadedPkgs, _, err := DownloadPackagesComplete(pkgList, destDir, dotFile, pkgSources, systemRootsOnly)
 	return downloadedPkgs, err
 }
 
-func DownloadPackagesComplete(pkgList []string, destDir, dotFile string) ([]string, []ospackage.PackageInfo, error) {
+func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSources map[string]config.PackageSource, systemRootsOnly bool) ([]string, []ospackage.PackageInfo, error) {
 	var downloadPkgList []string
 
 	log := logger.Logger()
@@ -473,7 +474,11 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string) ([]stri
 
 	// If a dot file is specified, generate the dependency graph
 	if dotFile != "" {
-		if err := GenerateDot(needed, dotFile); err != nil {
+		graphPkgs := needed
+		if systemRootsOnly {
+			graphPkgs = dotfilter.FilterPackagesForDot(needed, pkgSources, true)
+		}
+		if err := GenerateDot(graphPkgs, dotFile, pkgSources); err != nil {
 			log.Debugf("generating dot file: %w", err)
 		}
 	}
