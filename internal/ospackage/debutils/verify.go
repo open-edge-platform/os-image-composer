@@ -131,6 +131,13 @@ func VerifyRelease(relPath string, relSignPath string, pKeyPath string) (bool, e
 
 	// Read the public key
 	keyringBytes, err := os.ReadFile(pKeyPath)
+
+	//ignore verification if trusted=yes
+	if pKeyPath == "[trusted=yes]" {
+		log.Infof("Repository marked (%s) as [trusted=yes], skipping Release file signature verification", relPath)
+		return true, nil
+	}
+
 	if err != nil {
 		return false, fmt.Errorf("failed to read public key: %w", err)
 	}
