@@ -211,7 +211,7 @@ func summarizePartitionTable(pt partition.Table, logicalBlockSize int64) (Partit
 			ptSummary.Partitions = append(ptSummary.Partitions, PartitionSummary{
 				// Index will be assigned after sorting
 				Name:      p.Name,
-				Type:      fmt.Sprintf("%s", p.Type),
+				Type:      string(p.Type),
 				StartLBA:  p.Start,
 				EndLBA:    p.End,
 				SizeBytes: sizeBytes,
