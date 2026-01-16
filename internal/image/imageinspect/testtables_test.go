@@ -28,7 +28,6 @@ type fakeDiskAccessor struct {
 	}
 }
 
-
 func (f *fakeDiskAccessor) GetPartitionTable() (partition.Table, error) {
 	f.calls.getPT++
 	if f.ptErr != nil {
