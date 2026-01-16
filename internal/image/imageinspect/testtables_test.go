@@ -3,6 +3,7 @@ package imageinspect
 import (
 	"bytes"
 	"io"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -88,7 +89,12 @@ func repoRootTestdataPath(t *testing.T, filename string) string {
 	}
 	pkgDir := filepath.Dir(thisFile)
 	repoRoot := filepath.Clean(filepath.Join(pkgDir, "..", "..", ".."))
-	return filepath.Join(repoRoot, "testdata", filename)
+	path := filepath.Join(repoRoot, "testdata", filename)
+
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skipf("testdata file not found: %s", path)
+	}
+	return path
 }
 
 func tinyReaderAt(n int) io.ReaderAt {
