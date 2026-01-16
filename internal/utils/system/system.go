@@ -297,7 +297,7 @@ func InstallQemuUserStatic() error {
 	case "rpm":
 		// RPM-based distributions
 		packageName = "qemu-user-static"
-		
+
 		// Determine which package manager to use
 		var pkgManager string
 		for _, mgr := range osInfo.PackageManagers {
@@ -306,7 +306,7 @@ func InstallQemuUserStatic() error {
 				break
 			}
 		}
-		
+
 		if pkgManager == "" {
 			return fmt.Errorf("no suitable package manager found for RPM-based distribution")
 		}

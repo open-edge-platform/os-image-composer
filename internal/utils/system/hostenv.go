@@ -265,7 +265,7 @@ func setupArmv7Compat() error {
 			log.Infof("armhf architecture already enabled")
 			return nil
 		}
-		
+
 		// Add armhf architecture
 		log.Infof("Adding armhf architecture")
 		if _, err := shell.ExecCmd("dpkg --add-architecture armhf", true, shell.HostPath, nil); err != nil {
@@ -287,7 +287,7 @@ func ensureBinfmtMisc() error {
 	// Check if binfmt_misc is already mounted
 	if _, err := os.Stat(binfmtPath); os.IsNotExist(err) {
 		log.Infof("binfmt_misc is not mounted, attempting to mount")
-		
+
 		// Try to mount binfmt_misc
 		cmd := fmt.Sprintf("mount binfmt_misc -t binfmt_misc %s", binfmtPath)
 		if _, err := shell.ExecCmd(cmd, true, shell.HostPath, nil); err != nil {
@@ -310,7 +310,7 @@ func ensureBinfmtMisc() error {
 // registerBinfmt registers a binfmt handler for the target architecture
 func registerBinfmt(targetArch string) error {
 	binfmtPath := "/proc/sys/fs/binfmt_misc"
-	
+
 	// Check if already registered
 	binfmtFile := filepath.Join(binfmtPath, fmt.Sprintf("qemu-%s", targetArch))
 	if _, err := os.Stat(binfmtFile); err == nil {
@@ -343,11 +343,11 @@ func registerBinfmt(targetArch string) error {
 
 // contains checks if a string contains a substring
 func contains(s, substr string) bool {
-	return len(s) > 0 && len(substr) > 0 && 
-		(s == substr || len(s) > len(substr) && 
-			(s[0:len(substr)] == substr || 
-			 s[len(s)-len(substr):] == substr || 
-			 findSubstring(s, substr)))
+	return len(s) > 0 && len(substr) > 0 &&
+		(s == substr || len(s) > len(substr) &&
+			(s[0:len(substr)] == substr ||
+				s[len(s)-len(substr):] == substr ||
+				findSubstring(s, substr)))
 }
 
 // findSubstring checks if substr is in s
