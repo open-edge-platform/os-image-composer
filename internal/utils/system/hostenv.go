@@ -238,7 +238,7 @@ func setupMultilib() error {
 			log.Infof("i386 architecture already enabled")
 			return nil
 		}
-		
+
 		// Add i386 architecture
 		log.Infof("Adding i386 architecture")
 		if _, err := shell.ExecCmd("dpkg --add-architecture i386", true, shell.HostPath, nil); err != nil {
