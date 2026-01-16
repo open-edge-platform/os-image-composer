@@ -1,4 +1,4 @@
-name: Build AZL3 ISO Image
+name: Build ELXR12 ISO Image
 on:
   workflow_dispatch:             # Manual runs
     inputs:
@@ -24,7 +24,7 @@ permissions:
   contents: read
 
 jobs:
-  build-azl3-iso:
+  build-elxr12-iso:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -53,17 +53,17 @@ jobs:
 
       - name: Prepare build script
         run: |
-          if [ ! -f scripts/build_azl3_iso.sh ]; then
-            echo "scripts/build_azl3_iso.sh not found!"
+          if [ ! -f scripts/build_elxr12_iso.sh ]; then
+            echo "scripts/build_elxr12_iso.sh not found!"
             exit 1
           fi
-          chmod +x scripts/build_azl3_iso.sh
+          chmod +x scripts/build_elxr12_iso.sh
 
-      - name: Run AZL3 ISO Image Build
+      - name: Run ELXR12 ISO Image Build
         env:
           RUN_QEMU_TEST: ${{ github.event.inputs.run_qemu_test }}
         run: |
-          echo "Starting AZL3 ISO image build..."
+          echo "Starting ELXR12 ISO image build..."
           # Ensure script has access to docker group for Earthly
           sudo usermod -aG docker $USER
           
@@ -83,9 +83,9 @@ jobs:
               ;;
           esac
           
-          # Run the AZL3 ISO image build script
-          ./scripts/build_azl3_iso.sh $ARGS
-          echo "AZL3 ISO image build completed."
+          # Run the ELXR12 ISO image build script
+          ./scripts/build_elxr12_iso.sh $ARGS
+          echo "ELXR12 ISO image build completed."
 
       - name: Notify on failure
         if: ${{ failure() && github.event_name == 'pull_request' }}
@@ -98,7 +98,7 @@ jobs:
             echo "PR_AUTHOR not found in event payload. Skipping notification."
             exit 0
           fi
-          COMMENT_BODY="Hey @$PR_AUTHOR and @$REVIEWER_ID — the AZL3 ISO image build has failed. Please check the logs."
+          COMMENT_BODY="Hey @$PR_AUTHOR and @$REVIEWER_ID — the ELXR12 ISO image build has failed. Please check the logs."
           curl -s -X POST \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
