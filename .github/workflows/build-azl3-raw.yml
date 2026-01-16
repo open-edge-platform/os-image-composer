@@ -1,0 +1,106 @@
+name: Build AZL3 Raw Image
+on:
+  workflow_dispatch:             # Manual runs
+    inputs:
+      ref:
+        description: "Branch or SHA to test (e.g. feature/x or a1b2c3)"
+        required: false
+      run_qemu_test:
+        description: "Run QEMU boot test after build"
+        required: false
+        default: "false"
+        type: choice
+        options:
+        - "true"
+        - "false"
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-azl3-raw:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install Earthly
+        uses: earthly/actions-setup@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: "latest"
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 ovmf tree jq systemd-ukify mmdebstrap systemd-boot
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Prepare build script
+        run: |
+          if [ ! -f scripts/build_azl3_raw.sh ]; then
+            echo "scripts/build_azl3_raw.sh not found!"
+            exit 1
+          fi
+          chmod +x scripts/build_azl3_raw.sh
+
+      - name: Run AZL3 Raw Image Build
+        env:
+          RUN_QEMU_TEST: ${{ github.event.inputs.run_qemu_test }}
+        run: |
+          echo "Starting AZL3 raw image build..."
+          # Ensure script has access to docker group for Earthly
+          sudo usermod -aG docker $USER
+          
+          # Prepare arguments with input validation
+          ARGS=""
+          case "${RUN_QEMU_TEST}" in
+            "true")
+              ARGS="--qemu-test"
+              echo "QEMU boot test will be run after build"
+              ;;
+            "false"|"")
+              echo "QEMU boot test will be skipped"
+              ;;
+            *)
+              echo "Invalid input for run_qemu_test: ${RUN_QEMU_TEST}"
+              exit 1
+              ;;
+          esac
+          
+          # Run the AZL3 raw image build script
+          ./scripts/build_azl3_raw.sh $ARGS
+          echo "AZL3 raw image build completed."
+
+      - name: Notify on failure
+        if: ${{ failure() && github.event_name == 'pull_request' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REVIEWER_ID: srmungar
+        run: |
+          PR_AUTHOR=$(jq --raw-output 'try .pull_request.user.login // empty' "$GITHUB_EVENT_PATH")
+          if [ -z "$PR_AUTHOR" ]; then
+            echo "PR_AUTHOR not found in event payload. Skipping notification."
+            exit 0
+          fi
+          COMMENT_BODY="Hey @$PR_AUTHOR and @$REVIEWER_ID — the AZL3 raw image build has failed. Please check the logs."
+          curl -s -X POST \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            --data "{\"body\": \"$COMMENT_BODY\"}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"

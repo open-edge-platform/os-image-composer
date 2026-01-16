@@ -43,19 +43,19 @@ jobs:
 
       - name: Copy tester script
         run: |
-          if [ ! -f validate.sh ]; then
-            echo "validate.sh not found!"
+          if [ ! -f scripts/validate.sh ]; then
+            echo "scripts/validate.sh not found!"
             exit 1
           fi
-          chmod +x validate.sh
+          chmod +x scripts/validate.sh
 
       - name: Run build-tester
         run: |
-          echo "Starting validate.sh..."
+          echo "Starting scripts/validate.sh..."
           # Ensure script has access to docker group for Earthly
           sudo usermod -aG docker $USER
           # Run the validation script
-          ./validate.sh
+          ./scripts/validate.sh
           echo "Build and tests completed."
 
       # Runs only for PR-triggered events (not manual), so it's safe to leave in.
