@@ -142,7 +142,7 @@ func classifyBootloaderKind(p string, sections []string) BootloaderKind {
 		return BootloaderGrub
 	}
 	if strings.Contains(lp, "mmx64.efi") || strings.Contains(lp, "mmia32.efi") {
-		return BootloaderMokManager 
+		return BootloaderMokManager
 	}
 	// fallback
 	return BootloaderUnknown
