@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    # Run on all branch pushes for immediate feedback
   workflow_dispatch:
     inputs:
       ref:
