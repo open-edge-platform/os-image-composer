@@ -77,10 +77,10 @@ jobs:
             
             # Extract overall coverage
             if [[ -f coverage_report.txt ]]; then
-              # Format: **Overall Coverage:** 66.4%
-              OVERALL=$(grep "Overall Coverage:" coverage_report.txt | sed 's/.*:\*\* //' | sed 's/%.*//')%
-              THRESHOLD=$(grep "Threshold:" coverage_report.txt | sed 's/.*:\*\* //' | sed 's/%.*//')%
-              STATUS=$(grep "Status:" coverage_report.txt | sed 's/.*:\*\* //')
+              # Extract numeric values using simpler patterns
+              OVERALL=$(grep "Overall Coverage:" coverage_report.txt | sed 's/[^0-9.]*\([0-9.]\+\)%.*/\1/')%
+              THRESHOLD=$(grep "Threshold:" coverage_report.txt | sed 's/[^0-9.]*\([0-9.]\+\)%.*/\1/')%
+              STATUS=$(grep "Status:" coverage_report.txt | sed 's/[^A-Z]*\([A-Z]\+\).*/\1/')
               
               # Status badge
               if [[ "$STATUS" == "PASSED" ]]; then
@@ -143,9 +143,15 @@ jobs:
             exit 0
           fi
           
-          # Get current coverage from report
-          CURRENT=$(grep "Overall Coverage:" coverage_report.txt | sed 's/.*:\*\* //' | sed 's/%.*//')
+          # Get current coverage from report using simpler pattern
+          CURRENT=$(grep "Overall Coverage:" coverage_report.txt | sed 's/[^0-9.]*\([0-9.]\+\)%.*/\1/')
           OLD_THRESHOLD=$(cat .coverage-threshold 2>/dev/null || echo "0")
+          
+          # Validate CURRENT is a valid number before proceeding
+          if [[ -z "$CURRENT" ]] || ! [[ "$CURRENT" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+            echo "::error::Failed to parse coverage value from report (got: '$CURRENT')"
+            exit 1
+          fi
           
           echo "Current coverage: ${CURRENT}%"
           echo "Current threshold: ${OLD_THRESHOLD}%"
@@ -168,6 +174,8 @@ jobs:
             # Fetch and checkout the branch
             git fetch origin "${BRANCH}"
             git checkout "${BRANCH}"
+            # Ensure branch is up to date in case it changed after the workflow started
+            git pull --rebase origin "${BRANCH}"
             
             # Stage and commit
             git add .coverage-threshold
