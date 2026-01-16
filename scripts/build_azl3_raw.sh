@@ -224,11 +224,6 @@ git branch
 echo "Building the OS Image Composer..."
 echo "Generating binary with go build..."
 go build ./cmd/os-image-composer
-# Building with earthly too so that we have both options available to test.
-# Earthly built binary will be stored as ./build/os-image-composer
-# we are using both the binaries alternatively in tests below.
-echo "Generating binary with earthly..."
-earthly +build
 
 build_azl3_raw_image() {
   echo "Building AZL3 raw Image. (using os-image-composer binary)"
