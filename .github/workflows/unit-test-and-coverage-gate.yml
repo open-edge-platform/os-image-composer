@@ -151,7 +151,8 @@ jobs:
           echo "Current threshold: ${OLD_THRESHOLD}%"
           
           # Calculate new threshold (0.5% buffer below actual coverage)
-          NEW_THRESHOLD=$(echo "scale=1; $CURRENT - 0.5" | bc -l)
+          # Use printf to ensure consistent one-decimal-place formatting
+          NEW_THRESHOLD=$(printf '%.1f' "$(echo "$CURRENT - 0.5" | bc -l)")
           
           echo "Proposed new threshold: ${NEW_THRESHOLD}%"
           
