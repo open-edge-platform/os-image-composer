@@ -628,11 +628,14 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 							if len(altCandidates) >= 1 {
 								chosenCandidate, err := resolveMultiCandidates(cur, altCandidates)
 								if err == nil {
+									log.Infof("Successfully resolved alternative %q version %q for missing dependency %q", altName, chosenCandidate.Version, depName)
 									queue = append(queue, chosenCandidate)
 									resolvedDeps[altName] = chosenCandidate // Track resolved alternative dependency
 									AddParentChildPair(cur, chosenCandidate, &parentChildPairs)
 									alternativeResolved = true
 									break
+								} else {
+									log.Warnf("Failed to resolve alternative %q for %q: %v", altName, depName, err)
 								}
 							}
 						}
@@ -1022,6 +1025,14 @@ func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospac
 				}
 			}
 		}
+		// 8) Match through Provides field (virtual packages or alternative names)
+		// Example: want="mail-transport-agent", pi.Provides=["mail-transport-agent"]
+		for _, provided := range pi.Provides {
+			if provided == want {
+				candidates = append(candidates, pi)
+				break
+			}
+		}
 	}
 
 	if len(candidates) == 0 {
@@ -1132,7 +1143,32 @@ func extractVersionRequirement(reqVers []string, depName string) ([]VersionConst
 					constraintPart = strings.TrimSpace(constraintPart)
 					// Split into operator and version
 					parts := strings.Fields(constraintPart)
+
+					// Handle both ">>= 1.2.3" and ">>=1.2.3" formats
+					var op, ver string
 					if len(parts) == 2 {
+						op, ver = parts[0], parts[1]
+					} else if len(parts) == 1 {
+						// Try to extract operator from the beginning
+						part := parts[0]
+						// Check for two-character operators first (<<, >>, >=, <=)
+						if len(part) >= 2 {
+							prefix := part[:2]
+							if prefix == "<<" || prefix == ">>" || prefix == ">=" || prefix == "<=" {
+								op = prefix
+								ver = part[2:]
+							} else if part[0] == '<' || part[0] == '>' || part[0] == '=' {
+								// Single-character operator
+								op = string(part[0])
+								ver = part[1:]
+							}
+						} else if len(part) >= 1 && (part[0] == '<' || part[0] == '>' || part[0] == '=') {
+							op = string(part[0])
+							ver = part[1:]
+						}
+					}
+
+					if op != "" && ver != "" {
 						// Collect alternative package names (all alternatives except the current one)
 						var altNames []string
 						for j, altPkg := range alternatives {
@@ -1141,8 +1177,8 @@ func extractVersionRequirement(reqVers []string, depName string) ([]VersionConst
 							}
 						}
 						constraint := VersionConstraint{
-							Op:          parts[0],
-							Ver:         parts[1],
+							Op:          op,
+							Ver:         ver,
 							Alternative: strings.Join(altNames, "|"),
 						}
 						constraints = append(constraints, constraint)

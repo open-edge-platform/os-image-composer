@@ -178,7 +178,7 @@ systemConfig:
     - gcc
     - git
     - intel-gpu-tools
-    # - libssl3
+    - libssl3
     - libssl-dev
     - make
     - mosquitto
@@ -294,7 +294,7 @@ systemConfig:
     - libgstreamer1.0-dev_1.26.5-1ppa1~noble1
     - vainfo_2.22.0-1ppa1~noble1
     - ffmpeg_7:7.1.0-1ppa1~noble5
-    # - xpu-smi_1.3.0-20250707.103634.3db7de07~u24.04
+    - xpu-smi_1.3.0-20250707.103634.3db7de07~u24.04
     - intel-ocloc_25.35.35096.9-0
     - libze-intel-gpu1_25.35.35096.9-0
     - intel-metrics-discovery_1.14.180-1
