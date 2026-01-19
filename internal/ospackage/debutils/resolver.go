@@ -524,6 +524,77 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 					}
 
 					if !constraintsSatisfied {
+						// Before throwing error, check if there's a higher priority candidate available
+						candidates := findAllCandidates(depName, all)
+
+						if len(candidates) > 0 {
+							// Find candidates that satisfy the version constraint
+							var satisfyingCandidates []ospackage.PackageInfo
+							for _, candidate := range candidates {
+								candidateSatisfies := true
+								for _, constraint := range versionConstraints {
+									if constraint.Op != "" && constraint.Ver != "" {
+										cmp, err := CompareDebianVersions(candidate.Version, constraint.Ver)
+										if err == nil {
+											satisfied := false
+											switch constraint.Op {
+											case "=":
+												satisfied = (cmp == 0)
+											case "<<", "<":
+												satisfied = (cmp < 0)
+											case "<=":
+												satisfied = (cmp <= 0)
+											case ">>", ">":
+												satisfied = (cmp > 0)
+											case ">=":
+												satisfied = (cmp >= 0)
+											}
+											if !satisfied {
+												candidateSatisfies = false
+												break
+											}
+										}
+									}
+								}
+								if candidateSatisfies {
+									satisfyingCandidates = append(satisfyingCandidates, candidate)
+								}
+							}
+
+							if len(satisfyingCandidates) > 0 {
+								// Pick the best candidate using the resolver
+								newCandidate, err := resolveMultiCandidates(cur, satisfyingCandidates)
+								if err == nil {
+									resolvedPriority := getRepositoryPriority(resolvedPkg.URL)
+									newPriority := getRepositoryPriority(newCandidate.URL)
+
+									// Apply APT priority comparison
+									if comparePriorityBehavior(newCandidate, resolvedPkg) {
+										// New candidate has higher priority - replace the resolved package
+										log.Debugf("replacing %s_%s (priority %d) with higher priority package %s_%s (priority %d)",
+											resolvedPkg.Name, resolvedPkg.Version, resolvedPriority,
+											newCandidate.Name, newCandidate.Version, newPriority)
+
+										// Remove old package from result and neededSet
+										delete(neededSet, resolvedPkg.Name)
+										for i, pkg := range result {
+											if pkg.Name == resolvedPkg.Name && pkg.Version == resolvedPkg.Version {
+												result = append(result[:i], result[i+1:]...)
+												break
+											}
+										}
+
+										// Add new candidate to queue and resolvedDeps
+										queue = append(queue, newCandidate)
+										resolvedDeps[depName] = newCandidate
+										AddParentChildPair(cur, newCandidate, &parentChildPairs)
+										continue
+									} else {
+										log.Debugf("new candidate does not have higher priority, cannot replace")
+									}
+								}
+							}
+						}
 						return nil, fmt.Errorf("conflicting package dependencies: %s_%s requires %s_%s, but %s_%s is already installed", cur.Name, cur.Version, requiredDep, requiredVer, resolvedPkg.Name, resolvedPkg.Version)
 					}
 				}
@@ -888,12 +959,6 @@ func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospac
 			candidates = append(candidates, pi)
 			break
 		}
-		// with version and arch, e.g, gstreamer1.0-plugins-base-apps_1.26.5-1ppa1~noble3_amd64.deb
-		// filename := filepath.Base(pi.URL)
-		// if strings.HasPrefix(filename, want+"_") && strings.HasSuffix(filename, ".deb") {
-		// 	candidates = append(candidates, pi)
-		// 	break
-		// }
 		// 2) exact name, e.g. acct
 		if pi.Name == want {
 			candidates = append(candidates, pi)
@@ -918,6 +983,44 @@ func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospac
 		// 5) Debian package format (packagename_version_arch.deb)
 		if strings.HasPrefix(pi.Name, want+"_") {
 			candidates = append(candidates, pi)
+			continue
+		}
+		// 6) Match package_epoch:version format (e.g., qemu-system_3:9.1.0+git...)
+		// The want string includes epoch, but the filename in the repo doesn't
+		// Example: want="qemu-system_3:9.1.0+git...", pi.Version="3:9.1.0+git...", filename="qemu-system_9.1.0+git..."
+		if strings.Contains(want, "_") && strings.Contains(want, ":") {
+			parts := strings.SplitN(want, "_", 2)
+			if len(parts) == 2 {
+				pkgName := parts[0]
+				wantVersion := parts[1]
+				// Check if package name matches and version matches (with epoch)
+				if pi.Name == pkgName && pi.Version == wantVersion {
+					candidates = append(candidates, pi)
+					continue
+				}
+			}
+		}
+		// 7) Match package_version format without epoch (e.g., intel-gsc_0.9.5-1ppa1~noble1)
+		// The want string doesn't include epoch, but the package version might have it
+		// Example: want="intel-gsc_0.9.5-1ppa1~noble1", pi.Version="0:0.9.5-1ppa1~noble1" or "0.9.5-1ppa1~noble1"
+		if strings.Contains(want, "_") && !strings.Contains(want, ":") {
+			parts := strings.SplitN(want, "_", 2)
+			if len(parts) == 2 {
+				pkgName := parts[0]
+				wantVersion := parts[1]
+				// Check if package name matches
+				if pi.Name == pkgName {
+					// Strip epoch from package version if present and compare
+					piVersionNoEpoch := pi.Version
+					if colonIdx := strings.Index(pi.Version, ":"); colonIdx != -1 {
+						piVersionNoEpoch = pi.Version[colonIdx+1:]
+					}
+					if piVersionNoEpoch == wantVersion {
+						candidates = append(candidates, pi)
+						continue
+					}
+				}
+			}
 		}
 	}
 
@@ -936,11 +1039,7 @@ func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospac
 		return candidates[0], true
 	}
 
-	// Sort by APT priority behavior rules
-	sort.Slice(candidates, func(i, j int) bool {
-		return comparePriorityBehavior(candidates[i], candidates[j])
-	})
-
+	// Candidates already sorted by filterCandidatesByPriority
 	return candidates[0], true
 }
 

@@ -16,7 +16,7 @@ disk:
     # Request conversion to raw
     - type: raw
       compression: gz
-  size: 6GiB
+  size: 8GiB
   # GPT partition table per installer spec
   partitionTableType: gpt
   partitions:
@@ -78,7 +78,7 @@ packageRepositories:
     priority: 1001 # Higher priority means preferred over other repos
 
   - codename: "noble"
-    url: "https://af01p-png.devtools.intel.com/artifactory/hspe-edge-repos-png-local-png-local/ubuntu-ppa2/"
+    url: "https://af01p-png.devtools.intel.com/artifactory/hspe-edge-repos-png-local-png-local/ubuntu-ppa2"
     pkey: "https://af01p-png.devtools.intel.com/artifactory/hspe-edge-repos-png-local-png-local/ubuntu-ppa2/pub.gpg" # Uncomment and replace in real config
     priority: 1001 # Higher priority means preferred over other repos
 
@@ -120,9 +120,7 @@ systemConfig:
     # PTL packages
     - vim
     - ocl-icd-libopencl1
-    - curl
     - net-tools
-    - xdp-tools
     - libdrm-amdgpu1
     - libdrm-common
     - libdrm-dev
@@ -180,7 +178,7 @@ systemConfig:
     - gcc
     - git
     - intel-gpu-tools
-    - libssl3
+    # - libssl3
     - libssl-dev
     - make
     - mosquitto
@@ -222,98 +220,109 @@ systemConfig:
     - dbus-x11
     - sg3-utils
     - rpm
-    - mutter-common-bin-46.2-1.0.24.04.13-1ppa1~noble2
-    - libmutter-14-0-46.2-1.0.24.04.13-1ppa1~noble2
-    - gir1.2-mutter-14-46.2-1.0.24.04.13-1ppa1~noble2
-    - libigdgmm-dev-22.8.2-1ppa1~noble2
-    - libigdgmm12-22.8.2-1ppa1~noble2
-    - libmfx-gen1.2-25.3.4-1ppa1~noble2
-    - libva-dev-2.22.0-1ppa1~noble3
-    - libva-drm2-2.22.0-1ppa1~noble3
-    - libva-glx2-2.22.0-1ppa1~noble3
-    - libva-wayland2-2.22.0-1ppa1~noble3
-    - libva-x11-2-2.22.0-1ppa1~noble3
-    - libva2-2.22.0-1ppa1~noble3
-    - libxatracker2-25.0.0-1ppa1~noble9
-    - linux-firmware-20240318.git3b128b60-0.2.17-1ppa1-noble9
-    - mesa-va-drivers-25.0.0-1ppa1~noble9
-    - mesa-vdpau-drivers-25.0.0-1ppa1~noble9
-    - mesa-vulkan-drivers-25.0.0-1ppa1~noble9
-    - libvpl-dev-1:2.15.0-1ppa1~noble2
-    - libmfx-gen-dev-25.3.4-1ppa1~noble2
-    - onevpl-tools-1:2.15.0-1ppa1~noble2
-    - qemu-block-extra-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-guest-agent-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-system-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-system-arm-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-system-common-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-system-data-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-system-gui-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-system-mips-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-system-misc-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-system-ppc-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-system-s390x-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-system-sparc-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-system-x86-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-user-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-user-binfmt-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-utils-4:9.1.0+git20251029-ppa1-noble2
-    - qemu-system-modules-opengl-4:9.1.0+git20251029-ppa1-noble2
-    - va-driver-all-2.22.0-1ppa1~noble3
-    - weston-10.0.0+git20250321-1ppa1~noble6
-    - wayland-protocols-1.38-1ppa1~noble3
-    - linuxptp-4.3-ppa1~noble2
-    - libvpl-tools-2:1.4.0~1ppa1-noble2
-    - spice-client-gtk-0.42-1ppa1~noble4
-    - intel-media-va-driver-non-free-25.3.4-1ppa1~noble5
-    - gir1.2-gst-plugins-bad-1.0-1.26.5-1ppa1~noble11
-    - gir1.2-gst-plugins-base-1.0-1.26.5-1ppa1~noble3
-    - gir1.2-gstreamer-1.0-1.26.5-1ppa1~noble3
-    - gir1.2-gst-rtsp-server-1.0-1.26.5-1ppa1~noble2
-    - gstreamer1.0-alsa-1.26.5-1ppa1~noble3
-    - gstreamer1.0-gl-1.26.5-1ppa1~noble3
-    - gstreamer1.0-gtk3-1.26.5-1ppa1~noble3
-    - gstreamer1.0-opencv-1.26.5-1ppa1~noble11
-    - gstreamer1.0-plugins-bad-1.26.5-1ppa1~noble11
-    - gstreamer1.0-plugins-bad-apps-1.26.5-1ppa1~noble11
-    - gstreamer1.0-plugins-base-1.26.5-1ppa1~noble3
-    - gstreamer1.0-plugins-base-apps-1.26.5-1ppa1~noble3
-    - gstreamer1.0-plugins-good-1.26.5-1ppa1~noble3
-    - gstreamer1.0-plugins-ugly-1.26.5-1ppa1~noble2
-    - gstreamer1.0-pulseaudio-1.26.5-1ppa1~noble3
-    - gstreamer1.0-qt5-1.26.5-1ppa1~noble3
-    - gstreamer1.0-rtsp-1.26.5-1ppa1~noble2
-    - gstreamer1.0-tools-1.26.5-1ppa1~noble3
-    - gstreamer1.0-x-1.26.5-1ppa1~noble3
-    - libgstrtspserver-1.0-dev-1.26.5-1ppa1~noble2
-    - libgstrtspserver-1.0-0-1.26.5-1ppa1~noble2
-    - libgstreamer-gl1.0-0-1.26.5-1ppa1~noble3
-    - libgstreamer-opencv1.0-0-1.26.5-1ppa1~noble11
-    - libgstreamer-plugins-bad1.0-0-1.26.5-1ppa1~noble11
-    - libgstreamer-plugins-bad1.0-dev-1.26.5-1ppa1~noble11
-    - libgstreamer-plugins-base1.0-0-1.26.5-1ppa1~noble3
-    - libgstreamer-plugins-base1.0-dev-1.26.5-1ppa1~noble3
-    - libgstreamer1.0-0-1.26.5-1ppa1~noble3
-    - libgstreamer1.0-dev-1.26.5-1ppa1~noble3
-    - vainfo-2.22.0-1ppa1~noble1
-    - ffmpeg-7:8.0.0-1ppa1~noble1
-    - xpu-smi-1.3.0-20250707.103634.3db7de07~u24.04
-    - intel-ocloc-25.40.35563.4-0
-    - libze-intel-gpu1-25.40.35563.4-0
-    - intel-metrics-discovery-1.14.180-1
-    - intel-metrics-library-1.0.196-1
-    - intel-gsc-0.9.5-1ppa1~noble1
-    - level-zero-1.22.4
-    - intel-igc-core-2-2.20.3
-    - intel-igc-opencl-2-2.20.3
-    - intel-opencl-icd-25.40.35563.4-0
-    - xserver-common-2:21.1.12-1ppa1~noble3
-    - xnest-2:21.1.12-1ppa1~noble3
-    - xserver-xorg-dev-2:21.1.12-1ppa1~noble3
-    - xvfb-2:21.1.12-1ppa1~noble3
+    # Pinned versions
+    - xdp-tools_1.2.8-1ppa1~noble2
+    - libigdgmm-dev_22.8.2-1ppa1~noble1
+    - libigdgmm12_22.8.2-1ppa1~noble1
+    - libmfx-gen1.2_25.3.4-1ppa1~noble1
+    - libva-dev_2.22.0-1ppa1~noble2
+    - libva-drm2_2.22.0-1ppa1~noble2
+    - libva-glx2_2.22.0-1ppa1~noble2
+    - libva-wayland2_2.22.0-1ppa1~noble2
+    - libva-x11-2_2.22.0-1ppa1~noble2
+    - libva2_2.22.0-1ppa1~noble2
+    - libxatracker2_25.0.0-1ppa1~noble7
+    - linux-firmware_20240318.git3b128b60-0.2.17-1ppa1-noble7
+    - mesa-va-drivers_25.0.0-1ppa1~noble7
+    - mesa-vdpau-drivers_25.0.0-1ppa1~noble7
+    - mesa-vulkan-drivers_25.0.0-1ppa1~noble7
+    - libvpl-dev_1:2.15.0-1ppa1~noble2
+    - libmfx-gen-dev_25.3.4-1ppa1~noble1
+    - onevpl-tools_1:2.15.0-1ppa1~noble2
+    - qemu-block-extra_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-guest-agent_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-system_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-system-arm_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-system-common_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-system-data_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-system-gui_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-system-mips_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-system-misc_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-system-ppc_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-system-s390x_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-system-sparc_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-system-x86_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-user_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-user-binfmt_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-utils_3:9.1.0+git20250923-ppa1-noble2
+    - qemu-system-modules-opengl_3:9.1.0+git20250923-ppa1-noble2
+    - va-driver-all_2.22.0-1ppa1~noble2
+    - weston_10.0.0+git20250321-1ppa1~noble5
+    - wayland-protocols_1.38-1ppa1~noble3
+    - linuxptp_4.3-ppa1~noble2
+    - libvpl-tools_2:1.4.0~1ppa1-noble2
+    - spice-client-gtk_0.42-1ppa1~noble2
+    - intel-media-va-driver-non-free_25.3.4-1ppa1~noble3
+    - gir1.2-gst-plugins-bad-1.0_1.26.5-1ppa1~noble8
+    - gir1.2-gst-plugins-base-1.0_1.26.5-1ppa1~noble1
+    - gir1.2-gstreamer-1.0_1.26.5-1ppa1~noble1
+    - gir1.2-gst-rtsp-server-1.0_1.26.5-1ppa1~noble1
+    - gstreamer1.0-alsa_1.26.5-1ppa1~noble1
+    - gstreamer1.0-gl_1.26.5-1ppa1~noble1
+    - gstreamer1.0-gtk3_1.26.5-1ppa1~noble1
+    - gstreamer1.0-opencv_1.26.5-1ppa1~noble8
+    - gstreamer1.0-plugins-bad_1.26.5-1ppa1~noble8
+    - gstreamer1.0-plugins-bad-apps_1.26.5-1ppa1~noble8
+    - gstreamer1.0-plugins-base_1.26.5-1ppa1~noble1
+    - gstreamer1.0-plugins-base-apps_1.26.5-1ppa1~noble1
+    - gstreamer1.0-plugins-good_1.26.5-1ppa1~noble1
+    - gstreamer1.0-plugins-ugly_1.26.5-1ppa1~noble1
+    - gstreamer1.0-pulseaudio_1.26.5-1ppa1~noble1
+    - gstreamer1.0-qt5_1.26.5-1ppa1~noble1
+    - gstreamer1.0-rtsp_1.26.5-1ppa1~noble1
+    - gstreamer1.0-tools_1.26.5-1ppa1~noble1
+    - gstreamer1.0-x_1.26.5-1ppa1~noble1
+    - libgstrtspserver-1.0-dev_1.26.5-1ppa1~noble1
+    - libgstrtspserver-1.0-0_1.26.5-1ppa1~noble1
+    - libgstreamer-gl1.0-0_1.26.5-1ppa1~noble1
+    - libgstreamer-opencv1.0-0_1.26.5-1ppa1~noble8
+    - libgstreamer-plugins-bad1.0-0_1.26.5-1ppa1~noble8
+    - libgstreamer-plugins-bad1.0-dev_1.26.5-1ppa1~noble8
+    - libgstreamer-plugins-base1.0-0_1.26.5-1ppa1~noble1
+    - libgstreamer-plugins-base1.0-dev_1.26.5-1ppa1~noble1
+    - libgstreamer1.0-0_1.26.5-1ppa1~noble1
+    - libgstreamer1.0-dev_1.26.5-1ppa1~noble1
+    - vainfo_2.22.0-1ppa1~noble1
+    - ffmpeg_7:7.1.0-1ppa1~noble5
+    # - xpu-smi_1.3.0-20250707.103634.3db7de07~u24.04
+    - intel-ocloc_25.35.35096.9-0
+    - libze-intel-gpu1_25.35.35096.9-0
+    - intel-metrics-discovery_1.14.180-1
+    - intel-metrics-library_1.0.196-1
+    - intel-gsc_0.9.5-1ppa1~noble1
+    - level-zero_1.22.4
+    - intel-igc-core-2_2.18.5
+    - intel-igc-opencl-2_2.18.5
+    - intel-opencl-icd_25.35.35096.9-0
+    - xserver-common_2:21.1.12-1ppa1~noble3
+    - xnest_2:21.1.12-1ppa1~noble3
+    - xserver-xorg-dev_2:21.1.12-1ppa1~noble3
+    - xvfb_2:21.1.12-1ppa1~noble3
+    # Manageability packages
+    # - inbc-program_4.2.8.8-1
+    # - inbm-cloudadapter-agent_4.2.8.8-1
+    # - inbm-configuration-agent_4.2.8.8-1
+    # - inbm-diagnostic-agent_4.2.8.8-1
+    # - inbm-dispatcher-agent_4.2.8.8-1
+    # - inbm-telemetry-agent_4.2.8.8-1
+    # - mqtt_4.2.8.8-1
+    # - tpm-provision_4.2.8.8-1
+    # - trtl_4.2.8.8-1
     
   kernel:
     version: "6.14"
     cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
     packages:
-      - linux-image-generic-hwe-24.04
+      - linux-headers-6.17-intel_251118t134731z-r2
+      - linux-image-6.17-intel_251118t134731z-r2
+

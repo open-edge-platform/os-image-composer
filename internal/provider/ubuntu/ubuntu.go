@@ -3,6 +3,7 @@ package ubuntu
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
@@ -55,7 +56,7 @@ func (p *ubuntu) Init(dist, arch string) error {
 		arch = "amd64"
 	}
 
-	cfgs, err := loadRepoConfig("", arch) // repoURL no longer needed
+	cfgs, err := loadRepoConfig("", arch)
 	if err != nil {
 		log.Errorf("Parsing repo config failed: %v", err)
 		return err
@@ -223,6 +224,51 @@ func (p *ubuntu) downloadImagePkgs(template *config.ImageTemplate) error {
 		return fmt.Errorf("no repository configurations available")
 	}
 
+	// Get user repositories from template
+	userRepos := template.GetPackageRepositories()
+
+	// Build user repository configurations and add them to the list
+	arch := p.repoCfgs[0].Arch
+
+	var userRepoList []debutils.Repository
+	for _, userRepo := range userRepos {
+		// Skip placeholder repositories
+		if userRepo.URL == "<URL>" || userRepo.URL == "" {
+			continue
+		}
+		baseURL := strings.TrimPrefix(strings.TrimPrefix(userRepo.URL, "http://"), "https://")
+		userRepoList = append(userRepoList, debutils.Repository{
+			ID:        fmt.Sprintf("user-%s", baseURL),
+			Codename:  userRepo.Codename,
+			URL:       userRepo.URL,
+			PKey:      userRepo.PKey,
+			Component: userRepo.Component,
+			Priority:  userRepo.Priority,
+		})
+	}
+
+	// Build user repo configs and add to the provider repos
+	if len(userRepoList) > 0 {
+		userRepoCfgs, err := debutils.BuildRepoConfigs(userRepoList, arch)
+		if err != nil {
+			log.Warnf("Failed to build user repo configs: %v", err)
+		} else {
+			p.repoCfgs = append(p.repoCfgs, userRepoCfgs...)
+			log.Infof("Added %d user repositories to configuration", len(userRepoCfgs))
+		}
+	}
+
+	// Build user repo configs and add to the provider repos
+	if len(userRepoList) > 0 {
+		userRepoCfgs, err := debutils.BuildRepoConfigs(userRepoList, arch)
+		if err != nil {
+			log.Warnf("Failed to build user repo configs: %v", err)
+		} else {
+			p.repoCfgs = append(p.repoCfgs, userRepoCfgs...)
+			log.Infof("Added %d user repositories to configuration", len(userRepoCfgs))
+		}
+	}
+
 	// Set up all repositories for debutils
 	debutils.RepoCfgs = p.repoCfgs
 
@@ -231,11 +277,12 @@ func (p *ubuntu) downloadImagePkgs(template *config.ImageTemplate) error {
 	debutils.RepoCfg = primaryRepo
 	debutils.GzHref = primaryRepo.PkgList
 	debutils.Architecture = primaryRepo.Arch
-	debutils.UserRepo = template.GetPackageRepositories()
+	debutils.UserRepo = userRepos
 
 	log.Infof("Configured %d repositories for package download", len(p.repoCfgs))
 	for i, cfg := range p.repoCfgs {
-		log.Infof("Repository %d: %s (%s)", i+1, cfg.Name, cfg.PkgList)
+		log.Infof("Repository %d: name=%s, package list url=%s, package download url=%s, priority=%d",
+			i+1, cfg.Name, cfg.PkgList, cfg.PkgPrefix, cfg.Priority)
 	}
 
 	fullPkgList, fullPkgListBom, err := debutils.DownloadPackagesComplete(pkgList, pkgCacheDir, "")
@@ -271,13 +318,14 @@ func loadRepoConfig(repoUrl string, arch string) ([]debutils.RepoConfig, error) 
 			continue
 		}
 
+		// Ubuntu base repositories default to priority 500 (standard APT priority)
 		repoList[i] = debutils.Repository{
 			ID:        fmt.Sprintf("%s%d", repoGroup, i+1),
 			Codename:  name,
 			URL:       baseURL,
 			PKey:      gpgKey,
 			Component: component,
-			Priority:  0, // Default priority
+			Priority:  500, // Default APT priority for standard repositories
 		}
 	}
 

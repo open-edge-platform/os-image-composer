@@ -2,9 +2,37 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// Test helper to resolve relative paths
+func resolveTestPath(relativePath string) (string, error) {
+	if filepath.IsAbs(relativePath) {
+		return relativePath, nil
+	}
+
+	// If the path starts with ../../../../../../tmp/, extract filename and look in ./tmp
+	if strings.HasPrefix(relativePath, filepath.Join("..", "..", "..", "..", "..", "..", "tmp")) {
+		// Get current working directory
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+
+		// Extract just the filename from the relative path
+		filename := filepath.Base(relativePath)
+		// Return path in local ./tmp relative to cwd
+		return filepath.Join(wd, "tmp", filename), nil
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Clean(filepath.Join(wd, relativePath)), nil
+}
 
 func TestGenerateAptSourcesContent(t *testing.T) {
 	tests := []struct {
@@ -167,6 +195,12 @@ func TestIsDEBBasedTarget(t *testing.T) {
 }
 
 func TestCreateTempAptSourcesFile(t *testing.T) {
+	// Ensure temp directory exists for test
+	tempDir := "./tmp"
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+
 	content := `# Test content
 deb https://example.com stable main
 `
@@ -176,15 +210,21 @@ deb https://example.com stable main
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 
-	// Clean up
-	defer os.Remove(tempFile)
-
-	// Verify file exists and has correct content
-	if _, err := os.Stat(tempFile); os.IsNotExist(err) {
-		t.Errorf("Temp file was not created: %s", tempFile)
+	// Resolve the relative path
+	tempFileAbs, err := resolveTestPath(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to resolve temp file path: %v", err)
 	}
 
-	fileContent, err := os.ReadFile(tempFile)
+	// Clean up
+	defer os.Remove(tempFileAbs)
+
+	// Verify file exists and has correct content
+	if _, err := os.Stat(tempFileAbs); os.IsNotExist(err) {
+		t.Errorf("Temp file was not created: %s (resolved to %s)", tempFile, tempFileAbs)
+	}
+
+	fileContent, err := os.ReadFile(tempFileAbs)
 	if err != nil {
 		t.Fatalf("Failed to read temp file: %v", err)
 	}
@@ -606,15 +646,21 @@ func TestCreateTempAptPreferencesFile(t *testing.T) {
 		t.Fatalf("Failed to create temp preferences file: %v", err)
 	}
 
+	// Resolve the relative path
+	tempFileAbs, err := resolveTestPath(tempFile)
+	if err != nil {
+		t.Fatalf("Failed to resolve temp preferences file path: %v", err)
+	}
+
 	// Clean up
-	defer os.Remove(tempFile)
+	defer os.Remove(tempFileAbs)
 
 	// Verify file exists and has correct content
-	if _, err := os.Stat(tempFile); os.IsNotExist(err) {
+	if _, err := os.Stat(tempFileAbs); os.IsNotExist(err) {
 		t.Errorf("Temp preferences file was not created: %s", tempFile)
 	}
 
-	fileContent, err := os.ReadFile(tempFile)
+	fileContent, err := os.ReadFile(tempFileAbs)
 	if err != nil {
 		t.Fatalf("Failed to read temp preferences file: %v", err)
 	}

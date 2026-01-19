@@ -2,9 +2,39 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// resolveAdditionalFilePath converts relative paths (like ../../../../../../tmp/file.gpg)
+// to absolute paths by joining with working directory or config root
+func resolveAdditionalFilePath(relativePath string) (string, error) {
+	if filepath.IsAbs(relativePath) {
+		return relativePath, nil
+	}
+
+	// If the path starts with ../../../../../../tmp/, extract filename and look in ./tmp
+	if strings.HasPrefix(relativePath, filepath.Join("..", "..", "..", "..", "..", "..", "tmp")) {
+		// Get current working directory
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+
+		// Extract just the filename from the relative path
+		filename := filepath.Base(relativePath)
+		// Return path in local ./tmp relative to cwd
+		return filepath.Join(wd, "tmp", filename), nil
+	}
+
+	// For other relative paths, join with working directory
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Clean(filepath.Join(wd, relativePath)), nil
+}
 
 // TestIntegrationAptSourcesGeneration tests the complete flow
 func TestIntegrationAptSourcesGeneration(t *testing.T) {
@@ -64,16 +94,21 @@ func TestIntegrationAptSourcesGeneration(t *testing.T) {
 		t.Fatal("Apt sources file was not added to additionalFiles")
 	}
 
+	aptSourcesAbsPath, err := resolveAdditionalFilePath(aptSourcesFile.Local)
+	if err != nil {
+		t.Fatalf("Failed to resolve apt sources file path: %v", err)
+	}
+
 	// Verify the file exists and has correct content
-	if _, err := os.Stat(aptSourcesFile.Local); os.IsNotExist(err) {
+	if _, err := os.Stat(aptSourcesAbsPath); os.IsNotExist(err) {
 		t.Fatalf("Generated apt sources file does not exist: %s", aptSourcesFile.Local)
 	}
 
 	// Clean up
-	defer os.Remove(aptSourcesFile.Local)
+	defer os.Remove(aptSourcesAbsPath)
 
 	// Read and verify content
-	content, err := os.ReadFile(aptSourcesFile.Local)
+	content, err := os.ReadFile(aptSourcesAbsPath)
 	if err != nil {
 		t.Fatalf("Failed to read apt sources file: %v", err)
 	}
@@ -144,14 +179,15 @@ func TestIntegrationAptPreferencesGeneration(t *testing.T) {
 		t.Fatalf("Failed to generate apt sources and preferences: %v", err)
 	}
 
-	// Should have: 1 sources file + 3 preferences files = 4 additional files
-	expectedFileCount := 4
+	// Should have: 1 sources file + 3 preferences files + 2 GPG keys = 6 additional files
+	expectedFileCount := 6
 	if len(template.SystemConfig.AdditionalFiles) != expectedFileCount {
 		t.Errorf("Expected %d additional files, got %d", expectedFileCount, len(template.SystemConfig.AdditionalFiles))
 	}
 
 	// Verify files exist and have correct content
 	var sourcesFile, sedPrefsFile, openvinoPrefsFile, noPriorityPrefsFile *AdditionalFileInfo
+	gpgKeyCount := 0
 
 	for i, file := range template.SystemConfig.AdditionalFiles {
 		switch {
@@ -161,15 +197,19 @@ func TestIntegrationAptPreferencesGeneration(t *testing.T) {
 			sedPrefsFile = &template.SystemConfig.AdditionalFiles[i]
 		case file.Final == "/etc/apt/preferences.d/openvino-repo":
 			openvinoPrefsFile = &template.SystemConfig.AdditionalFiles[i]
-		case file.Final == "/etc/apt/preferences.d/no-priority-repo":
+		case strings.Contains(file.Final, "no-priority-repo"):
+			// Updated: filename now includes URL domain for uniqueness
 			noPriorityPrefsFile = &template.SystemConfig.AdditionalFiles[i]
+		case strings.HasPrefix(file.Final, "/usr/share/keyrings/"):
+			gpgKeyCount++
 		}
 	}
 
 	// Clean up all temp files
 	defer func() {
 		for _, file := range template.SystemConfig.AdditionalFiles {
-			os.Remove(file.Local)
+			absPath, _ := resolveAdditionalFilePath(file.Local)
+			os.Remove(absPath)
 		}
 	}()
 
@@ -178,7 +218,12 @@ func TestIntegrationAptPreferencesGeneration(t *testing.T) {
 		t.Fatal("Sources file not found in additionalFiles")
 	}
 
-	sourcesContent, err := os.ReadFile(sourcesFile.Local)
+	sourcesAbsPath, err := resolveAdditionalFilePath(sourcesFile.Local)
+	if err != nil {
+		t.Fatalf("Failed to resolve sources file path: %v", err)
+	}
+
+	sourcesContent, err := os.ReadFile(sourcesAbsPath)
 	if err != nil {
 		t.Fatalf("Failed to read sources file: %v", err)
 	}
@@ -193,7 +238,12 @@ func TestIntegrationAptPreferencesGeneration(t *testing.T) {
 		t.Fatal("SED preferences file not found in additionalFiles")
 	}
 
-	sedContent, err := os.ReadFile(sedPrefsFile.Local)
+	sedAbsPath, err := resolveAdditionalFilePath(sedPrefsFile.Local)
+	if err != nil {
+		t.Fatalf("Failed to resolve SED preferences file path: %v", err)
+	}
+
+	sedContent, err := os.ReadFile(sedAbsPath)
 	if err != nil {
 		t.Fatalf("Failed to read SED preferences file: %v", err)
 	}
@@ -208,7 +258,12 @@ func TestIntegrationAptPreferencesGeneration(t *testing.T) {
 		t.Fatal("OpenVINO preferences file not found in additionalFiles")
 	}
 
-	openvinoContent, err := os.ReadFile(openvinoPrefsFile.Local)
+	openvinoAbsPath, err := resolveAdditionalFilePath(openvinoPrefsFile.Local)
+	if err != nil {
+		t.Fatalf("Failed to resolve OpenVINO preferences file path: %v", err)
+	}
+
+	openvinoContent, err := os.ReadFile(openvinoAbsPath)
 	if err != nil {
 		t.Fatalf("Failed to read OpenVINO preferences file: %v", err)
 	}
@@ -223,7 +278,12 @@ func TestIntegrationAptPreferencesGeneration(t *testing.T) {
 		t.Fatal("No-priority preferences file not found in additionalFiles")
 	}
 
-	noPriorityContent, err := os.ReadFile(noPriorityPrefsFile.Local)
+	noPriorityAbsPath, err := resolveAdditionalFilePath(noPriorityPrefsFile.Local)
+	if err != nil {
+		t.Fatalf("Failed to resolve no-priority preferences file path: %v", err)
+	}
+
+	noPriorityContent, err := os.ReadFile(noPriorityAbsPath)
 	if err != nil {
 		t.Fatalf("Failed to read no-priority preferences file: %v", err)
 	}
@@ -231,6 +291,11 @@ func TestIntegrationAptPreferencesGeneration(t *testing.T) {
 	expectedNoPriorityContent := "# Priority 500: Default\nPackage: *\nPin: origin example.com\nPin-Priority: 500\n"
 	if string(noPriorityContent) != expectedNoPriorityContent {
 		t.Errorf("No-priority preferences file content mismatch.\nExpected:\n%s\nGot:\n%s", expectedNoPriorityContent, string(noPriorityContent))
+	}
+
+	// Verify GPG keys were downloaded and added
+	if gpgKeyCount != 2 {
+		t.Errorf("Expected 2 GPG key files, got %d", gpgKeyCount)
 	}
 
 	t.Logf("Successfully generated apt sources and preferences files")
@@ -296,13 +361,18 @@ func TestIntegrationNoPriorityRepositories(t *testing.T) {
 			t.Error("Preferences file not found")
 		} else {
 			// Check preferences file content
-			content, err := os.ReadFile(preferencesFile.Local)
+			prefsAbsPath, err := resolveAdditionalFilePath(preferencesFile.Local)
 			if err != nil {
-				t.Errorf("Failed to read preferences file: %v", err)
+				t.Errorf("Failed to resolve preferences file path: %v", err)
 			} else {
-				expectedContent := "# Priority 500: Default\nPackage: *\nPin: origin example.com\nPin-Priority: 500\n"
-				if string(content) != expectedContent {
-					t.Errorf("Preferences file content mismatch.\nExpected:\n%s\nGot:\n%s", expectedContent, string(content))
+				content, err := os.ReadFile(prefsAbsPath)
+				if err != nil {
+					t.Errorf("Failed to read preferences file: %v", err)
+				} else {
+					expectedContent := "# Priority 500: Default\nPackage: *\nPin: origin example.com\nPin-Priority: 500\n"
+					if string(content) != expectedContent {
+						t.Errorf("Preferences file content mismatch.\nExpected:\n%s\nGot:\n%s", expectedContent, string(content))
+					}
 				}
 			}
 		}

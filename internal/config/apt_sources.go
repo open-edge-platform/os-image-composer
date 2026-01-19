@@ -2,10 +2,14 @@ package config
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/network"
 )
 
 // GenerateAptSourcesFromRepositories creates an apt sources file from packageRepositories
@@ -56,6 +60,11 @@ func (t *ImageTemplate) GenerateAptSourcesFromRepositories() error {
 	log.Infof("Added apt sources file to additionalFiles: %s -> %s",
 		aptSourcesFile.Local, aptSourcesFile.Final)
 
+	// Download and add GPG keys to the image
+	if err := t.downloadAndAddGPGKeys(normalizedRepos); err != nil {
+		return fmt.Errorf("failed to download and add GPG keys: %w", err)
+	}
+
 	// Generate APT preferences files for repositories with priorities
 	if err := t.generateAptPreferencesFromRepositories(); err != nil {
 		return fmt.Errorf("failed to generate apt preferences from repositories: %w", err)
@@ -66,7 +75,7 @@ func (t *ImageTemplate) GenerateAptSourcesFromRepositories() error {
 
 // isDEBBasedTarget checks if the target OS uses DEB packages
 func isDEBBasedTarget(targetOS string) bool {
-	debOSes := []string{"ubuntu", "elxr"}
+	debOSes := []string{"ubuntu", "elxr", "wind-river-elxr"}
 	for _, os := range debOSes {
 		if targetOS == os {
 			return true
@@ -193,7 +202,8 @@ func createTempAptSourcesFile(content string) (string, error) {
 		return "", fmt.Errorf("failed to write apt sources file: %w", err)
 	}
 
-	return tempFile.Name(), nil
+	// Return relative path from default config location to tmp directory
+	return getRelativePathFromDefaultConfig(tempFile.Name()), nil
 }
 
 // addUniqueAdditionalFile adds an additional file if it doesn't already exist (by Final path)
@@ -293,15 +303,34 @@ func generateAptPreferencesContent(origin string, priority int) string {
 
 // generatePreferencesFilename creates a filename for the preferences file
 func generatePreferencesFilename(repo PackageRepository) string {
-	// Use repository ID if available, otherwise use codename
-	name := repo.ID
-	if name == "" {
-		name = repo.Codename
+	// Use repository ID if available
+	if repo.ID != "" {
+		return sanitizeFilename(repo.ID)
 	}
 
-	// Sanitize filename (replace invalid characters)
+	// Create a unique name using codename and URL hash to avoid conflicts
+	name := repo.Codename
+	if name == "" {
+		name = "repository"
+	}
+
+	// Extract a unique identifier from the URL
+	urlPart := extractOriginFromURL(repo.URL)
+	if urlPart != "" && urlPart != name {
+		// Combine codename with URL part for uniqueness
+		name = fmt.Sprintf("%s-%s", name, urlPart)
+	}
+
+	return sanitizeFilename(name)
+}
+
+// sanitizeFilename removes invalid characters from a filename
+func sanitizeFilename(name string) string {
+	// Replace invalid characters
 	name = strings.ReplaceAll(name, " ", "-")
 	name = strings.ReplaceAll(name, "/", "-")
+	name = strings.ReplaceAll(name, ":", "-")
+	name = strings.ReplaceAll(name, ".", "-")
 	name = strings.ToLower(name)
 
 	// Ensure it's a valid filename
@@ -335,5 +364,133 @@ func createTempAptPreferencesFile(repo PackageRepository, content string) (strin
 		return "", fmt.Errorf("failed to write apt preferences file: %w", err)
 	}
 
-	return tempFile.Name(), nil
+	// Return relative path from default config location to tmp directory
+	return getRelativePathFromDefaultConfig(tempFile.Name()), nil
+}
+
+// downloadAndAddGPGKeys downloads GPG keys from repository URLs and adds them to additionalFiles
+func (t *ImageTemplate) downloadAndAddGPGKeys(repos []PackageRepository) error {
+	log := logger.Logger()
+
+	for _, repo := range repos {
+		// Skip if no GPG key URL is specified
+		if repo.PKey == "" {
+			log.Debugf("Repository %s has no GPG key URL, skipping", getRepositoryName(repo))
+			continue
+		}
+
+		// Skip placeholder URLs
+		if repo.PKey == "<PUBLIC_KEY_URL>" {
+			log.Debugf("Repository %s has placeholder GPG key URL, skipping", getRepositoryName(repo))
+			continue
+		}
+
+		log.Infof("Downloading GPG key for repository %s from %s", getRepositoryName(repo), repo.PKey)
+
+		// Download the GPG key
+		keyData, err := downloadGPGKey(repo.PKey)
+		if err != nil {
+			return fmt.Errorf("failed to download GPG key from %s: %w", repo.PKey, err)
+		}
+
+		// Create temporary file for the GPG key
+		tempKeyFile, err := createTempGPGKeyFile(repo.PKey, keyData)
+		if err != nil {
+			return fmt.Errorf("failed to create temp GPG key file: %w", err)
+		}
+
+		// Determine the final destination path in the image
+		keyFilename := extractGPGKeyFilename(repo.PKey)
+
+		// Add to additionalFiles
+		gpgKeyFile := AdditionalFileInfo{
+			Local: tempKeyFile,
+			Final: keyFilename,
+		}
+
+		t.addUniqueAdditionalFile(gpgKeyFile)
+
+		log.Infof("Added GPG key file to additionalFiles: %s -> %s", tempKeyFile, keyFilename)
+	}
+
+	return nil
+}
+
+// downloadGPGKey downloads a GPG key from the given URL
+func downloadGPGKey(keyURL string) ([]byte, error) {
+	log := logger.Logger()
+
+	client := network.NewSecureHTTPClient()
+
+	resp, err := client.Get(keyURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch GPG key from %s: %w", keyURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to download GPG key from %s: HTTP status %d", keyURL, resp.StatusCode)
+	}
+
+	keyData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read GPG key data from %s: %w", keyURL, err)
+	}
+
+	log.Infof("Successfully downloaded GPG key (%d bytes) from %s", len(keyData), keyURL)
+
+	return keyData, nil
+}
+
+// getRelativePathFromDefaultConfig converts an absolute temp file path to a relative path
+// from the default config directory (config/osv/{os}/{dist}/imageconfigs/defaultconfigs/)
+func getRelativePathFromDefaultConfig(absPath string) string {
+	// Get absolute path if not already absolute
+	if !filepath.IsAbs(absPath) {
+		var err error
+		absPath, err = filepath.Abs(absPath)
+		if err != nil {
+			// Fallback to returning the path as-is
+			return absPath
+		}
+	}
+
+	// Get the base filename from the absolute path
+	filename := filepath.Base(absPath)
+
+	// Default configs are at: config/osv/{os}/{dist}/imageconfigs/defaultconfigs/
+	// Tmp directory is at root: tmp/
+	// Relative path from defaultconfigs to tmp: ../../../../../../tmp/
+	return filepath.Join("..", "..", "..", "..", "..", "..", "tmp", filename)
+}
+
+// createTempGPGKeyFile creates a temporary file with the GPG key content
+func createTempGPGKeyFile(keyURL string, keyData []byte) (string, error) {
+	// Ensure temp directory exists
+	tempDir := TempDir()
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create temp directory %s: %w", tempDir, err)
+	}
+
+	// Extract key filename from URL for pattern
+	parts := strings.Split(keyURL, "/")
+	keyName := "gpg-key"
+	if len(parts) > 0 {
+		keyName = strings.ReplaceAll(parts[len(parts)-1], ".", "-")
+	}
+
+	// Create temporary file
+	tempFile, err := os.CreateTemp(tempDir, fmt.Sprintf("%s-*.gpg", keyName))
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary GPG key file: %w", err)
+	}
+	defer tempFile.Close()
+
+	// Write key data to temp file
+	if _, err := tempFile.Write(keyData); err != nil {
+		return "", fmt.Errorf("failed to write GPG key file: %w", err)
+	}
+
+	// Return relative path from default config location to tmp directory
+	return getRelativePathFromDefaultConfig(tempFile.Name()), nil
 }
