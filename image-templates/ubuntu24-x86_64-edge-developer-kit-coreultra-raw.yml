@@ -1,0 +1,275 @@
+# Edge Developer Kit - Intel Core Ultra Platform Variant
+# Ubuntu 24.04 with Intel GPU + NPU drivers for Core Ultra platforms
+# Based on: https://github.com/open-edge-platform/edge-developer-kit-reference-scripts
+#
+# This template is specifically for Intel Core Ultra platforms that include:
+# - Intel Arc GPU (integrated or discrete)
+# - Intel NPU (Neural Processing Unit)
+#
+# NPU drivers are downloaded from: https://github.com/intel/linux-npu-driver/releases
+#
+# System Requirements (from getting-started.md):
+#   - 16GB RAM minimum
+#   - 100GB free disk space recommended
+#   - BIOS: Enable "Resizable BAR" or "Above 4G Decoding" for Intel Arc GPUs
+#
+# Validated platforms:
+#   - Intel Core Ultra (Series 1) - Meteor Lake
+#   - Intel Core Ultra (Series 2) - Arrow Lake
+#
+# Validated kernel: 6.14.0-33-generic (Ubuntu 24.04 HWE stack)
+
+image:
+  name: edge-developer-kit-coreultra-ubuntu
+  version: "24.04"
+
+target:
+  os: ubuntu
+  dist: ubuntu24
+  arch: x86_64
+  imageType: raw
+
+# Disk layout for desktop image with extra space for AI workloads
+disk:
+  name: edge-developer-kit-coreultra-ubuntu
+  artifacts:
+    - type: raw
+      compression: gz
+  size: 24GiB
+  partitionTableType: gpt
+  partitions:
+    # EFI system partition
+    - id: EFI
+      name: EFI
+      type: esp
+      typeUUID: c12a7328-f81f-11d2-ba4b-00a0c93ec93b
+      fsType: vfat
+      start: 1MiB
+      end: 512MiB
+      mountPoint: /boot/efi
+      mountOptions: defaults
+      flags:
+        - boot
+        - esp
+    # Boot partition
+    - id: BOOT
+      name: BOOT
+      type: linux
+      typeUUID: bc13c2ff-59e6-4262-a352-b275fd6f7172
+      fsType: ext4
+      start: 512MiB
+      end: 1GiB
+      mountPoint: /boot
+      mountOptions: defaults
+      flags: []
+    # Root filesystem
+    - id: ROOT
+      name: ROOT
+      type: linux-root-amd64
+      typeUUID: 4f68bce3-e8cd-4db1-96e7-fbcaf984b709
+      fsType: ext4
+      start: 1GiB
+      end: "0"
+      mountPoint: /
+      mountOptions: defaults
+      flags: []
+
+# Package repositories for Intel drivers
+packageRepositories:
+  # Intel GPU drivers (Kobuk PPA)
+  - codename: "kobuk-intel-graphics"
+    url: "https://ppa.launchpadcontent.net/kobuk-team/intel-graphics/ubuntu"
+    pkey: "<PUBLIC_KEY_URL>"
+    component: "main"
+
+systemConfig:
+  name: edge-developer-kit-coreultra
+  description: Ubuntu Desktop with Intel GPU + NPU drivers for Core Ultra Edge Device Qualification
+
+  hostname: edge-dev-kit-coreultra
+
+  bootloader:
+    bootType: efi
+    provider: grub
+
+  immutability:
+    enabled: false
+
+  # User configuration with proper groups for GPU/NPU/Docker access
+  users:
+    - name: edgeuser
+      password: "edgeuser"
+      groups:
+        - video
+        - render
+        - sudo
+        - adm
+        - dialout
+        - plugdev
+        - docker
+      sudo: true
+      shell: /bin/bash
+      home: /home/edgeuser
+
+  packages:
+    # =========================================================================
+    # Base Ubuntu Desktop
+    # =========================================================================
+    - ubuntu-desktop-minimal
+    - ubuntu-minimal
+    - systemd
+    - openssh-server
+    - systemd-resolved
+    - util-linux
+    - udev
+    - linux-firmware
+    - initramfs-tools
+
+    # =========================================================================
+    # Build Essentials (from install_build_essentials in main_installer.sh)
+    # =========================================================================
+    - build-essential
+    - gcc
+    - g++
+    - make
+    - cmake
+    - pkg-config
+    - git
+    - curl
+    - wget
+
+    # =========================================================================
+    # System Utilities and Dependencies
+    # =========================================================================
+    - software-properties-common
+    - pciutils
+    - gpg-agent
+    - apt-transport-https
+    - ca-certificates
+    - gnupg
+
+    # =========================================================================
+    # Intel GPU Compute Packages (from gpu_installer.sh COMPUTE_PACKAGES)
+    # =========================================================================
+    - libze-intel-gpu1
+    - libze1
+    - intel-metrics-discovery
+    - intel-opencl-icd
+    - clinfo
+    - intel-gsc
+
+    # =========================================================================
+    # Intel GPU Media Packages (from gpu_installer.sh MEDIA_PACKAGES)
+    # =========================================================================
+    - intel-media-va-driver-non-free
+    - libmfx-gen1
+    - libvpl2
+    - libvpl-tools
+    - libva-glx2
+    - va-driver-all
+    - vainfo
+
+    # =========================================================================
+    # Intel GPU Optional Packages
+    # =========================================================================
+    - intel-ocloc
+    - libze-dev
+
+    # =========================================================================
+    # Intel VA-API Legacy Driver (shown in installation summary)
+    # =========================================================================
+    - i965-va-driver
+
+    # =========================================================================
+    # Docker (required for AI use cases like OpenWebUI/Ollama)
+    # From getting-started.md "Your First AI Application"
+    # =========================================================================
+    - docker.io
+    - docker-compose-v2
+    - containerd
+
+    # =========================================================================
+    # NPU Driver Dependencies (from npu_installer.sh)
+    # Note: NPU driver packages (intel-driver-compiler-npu, intel-fw-npu,
+    # intel-level-zero-npu) must be downloaded from GitHub releases and
+    # added to a local package repository or installed via firstboot script
+    # =========================================================================
+    - libtbb12
+
+    # =========================================================================
+    # OpenVINO Dependencies (for GPU + NPU inference)
+    # =========================================================================
+    - python3-pip
+    - python3-venv
+    - python3-dev
+
+    # =========================================================================
+    # Level Zero (oneAPI) - Required for NPU
+    # =========================================================================
+    - level-zero
+
+    # =========================================================================
+    # Bootloader and EFI Support
+    # =========================================================================
+    - shim-signed
+    - grub-pc-bin
+    - grub-efi-amd64-bin
+    - efibootmgr
+
+    # =========================================================================
+    # Core System Utilities
+    # =========================================================================
+    - bsdutils
+    - debianutils
+    - diffutils
+    - findutils
+    - grep
+    - gzip
+    - mawk
+    - ncurses-base
+    - ncurses-bin
+
+  # Post-installation configuration commands (executed in chroot)
+  configurations:
+    # Configure user groups for GPU/render access
+    - cmd: "usermod -aG video,render root"
+    # Ensure render group exists
+    - cmd: "getent group render || groupadd render"
+    # Ensure docker group exists
+    - cmd: "getent group docker || groupadd docker"
+    # Update ldconfig for Intel libraries
+    - cmd: "ldconfig"
+    # Create OpenVINO environment directory
+    - cmd: "mkdir -p /opt/intel"
+    # Make scripts executable
+    - cmd: "chmod +x /opt/intel/*.sh"
+    # Enable Docker service
+    - cmd: "systemctl enable docker.service || true"
+    - cmd: "systemctl enable containerd.service || true"
+    # Reload udev rules for NPU device
+    - cmd: "udevadm control --reload-rules || true"
+
+  # Additional configuration files to include in the image
+  additionalFiles:
+    # Intel GPU udev rules for render device permissions
+    - local: "edge-developer-kit/99-intel-gpu.rules"
+      final: "/etc/udev/rules.d/99-intel-gpu.rules"
+    # Intel NPU (VPU) udev rules for accelerator device permissions
+    - local: "edge-developer-kit/10-intel-vpu.rules"
+      final: "/etc/udev/rules.d/10-intel-vpu.rules"
+    # Firstboot script for NPU driver installation
+    - local: "edge-developer-kit/install-npu-drivers.sh"
+      final: "/opt/intel/install-npu-drivers.sh"
+    # OpenVINO installation script
+    - local: "edge-developer-kit/install-openvino.sh"
+      final: "/opt/intel/install-openvino.sh"
+    # Installation verification script
+    - local: "edge-developer-kit/verify-installation.sh"
+      final: "/opt/intel/verify-installation.sh"
+
+  kernel:
+    version: "6.14"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    packages:
+      - linux-image-generic-hwe-24.04
+      - linux-headers-generic-hwe-24.04

@@ -1,0 +1,13 @@
+# Intel GPU udev rules for render device permissions
+# This ensures users in the 'render' and 'video' groups can access GPU devices
+# Required for Intel OpenCL, Level Zero, and VA-API functionality
+
+# Intel integrated and discrete GPUs - DRM render nodes
+SUBSYSTEM=="drm", KERNEL=="renderD*", GROUP="render", MODE="0660"
+
+# Intel DRM card devices
+SUBSYSTEM=="drm", KERNEL=="card*", GROUP="video", MODE="0660"
+
+# Intel GPU PCI devices
+SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{class}=="0x030000", TAG+="uaccess"
+SUBSYSTEM=="pci", ATTR{vendor}=="0x8086", ATTR{class}=="0x038000", TAG+="uaccess"

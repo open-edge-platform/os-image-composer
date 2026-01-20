@@ -1,0 +1,6 @@
+# Intel NPU (VPU) udev rules for Neural Processing Unit
+# Required for Intel Core Ultra platforms with NPU support
+# From: npu_installer.sh setup_device_permissions()
+
+# Intel NPU accelerator devices - allow access to render group
+SUBSYSTEM=="accel", KERNEL=="accel*", GROUP="render", MODE="0660"
