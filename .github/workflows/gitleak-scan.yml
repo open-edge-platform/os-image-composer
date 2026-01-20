@@ -6,15 +6,17 @@ permissions:
   pull-requests: read
 
 jobs:
-  scan:
-    name: gitleaks
+  gitleaks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          persist-credentials: true
+      - name: Run Gitleaks scan
+        uses: ./.github/actions/security/gitleaks
+        with:
+          scan-scope: "all"
+          source: "./"
+          config_path: "./ci/gitleaks_baselines/os-image-composer-gitleaks.csv"
+          report_format: "csv"
+          redact: "true"
