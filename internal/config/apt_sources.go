@@ -385,6 +385,12 @@ func (t *ImageTemplate) downloadAndAddGPGKeys(repos []PackageRepository) error {
 			continue
 		}
 
+		// Skip [trusted=yes] marker - no key to download
+		if repo.PKey == "[trusted=yes]" {
+			log.Debugf("Repository %s marked as [trusted=yes], skipping GPG key download", getRepositoryName(repo))
+			continue
+		}
+
 		log.Infof("Downloading GPG key for repository %s from %s", getRepositoryName(repo), repo.PKey)
 
 		// Download the GPG key

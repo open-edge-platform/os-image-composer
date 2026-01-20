@@ -171,6 +171,8 @@ func ParseRepositoryMetadata(baseURL string, pkggz string, releaseFile string, r
 
 	// Determine if pbGPGKey is a URL or file path
 	pbkeyIsURL := false
+	isTrustedRepo := pbGPGKey == "[trusted=yes]"
+
 	if strings.HasPrefix(pbGPGKey, "http://") || strings.HasPrefix(pbGPGKey, "https://") {
 		pbkeyIsURL = true
 	} else {
@@ -178,11 +180,19 @@ func ParseRepositoryMetadata(baseURL string, pkggz string, releaseFile string, r
 	}
 
 	var localFiles []string
-	if pbkeyIsURL {
+	var urllist []string
+
+	if isTrustedRepo {
+		// For trusted repos, skip Release.gpg and GPG key download
+		localFiles = []string{localPkggzFile, localReleaseFile}
+		urllist = []string{pkggz, releaseFile}
+	} else if pbkeyIsURL {
 		// Remove any existing local files to ensure fresh downloads
 		localFiles = []string{localPkggzFile, localReleaseFile, localReleaseSign, localPBGPGKey}
+		urllist = []string{pkggz, releaseFile, releaseSign, pbGPGKey}
 	} else {
 		localFiles = []string{localPkggzFile, localReleaseFile, localReleaseSign}
+		urllist = []string{pkggz, releaseFile, releaseSign}
 	}
 
 	for _, f := range localFiles {
@@ -191,14 +201,6 @@ func ParseRepositoryMetadata(baseURL string, pkggz string, releaseFile string, r
 				return nil, fmt.Errorf("failed to remove old file %s: %w", f, remErr)
 			}
 		}
-	}
-
-	var urllist []string
-	if pbkeyIsURL {
-		// Remove any existing local files to ensure fresh downloads
-		urllist = []string{pkggz, releaseFile, releaseSign, pbGPGKey}
-	} else {
-		urllist = []string{pkggz, releaseFile, releaseSign}
 	}
 
 	// Download the debian repo files

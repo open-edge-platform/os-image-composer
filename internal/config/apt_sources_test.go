@@ -234,6 +234,68 @@ deb https://example.com stable main
 	}
 }
 
+// TestDownloadAndAddGPGKeys_TrustedYes verifies that [trusted=yes] is properly skipped
+func TestDownloadAndAddGPGKeys_TrustedYes(t *testing.T) {
+	template := &ImageTemplate{
+		Target: TargetInfo{
+			OS: "ubuntu",
+		},
+		PackageRepositories: []PackageRepository{
+			{
+				ID:       "trusted-repo",
+				Codename: "noble",
+				URL:      "https://example.com/repo",
+				PKey:     "[trusted=yes]",
+			},
+		},
+		SystemConfig: SystemConfig{
+			AdditionalFiles: []AdditionalFileInfo{},
+		},
+	}
+
+	// Should not attempt to download or add any GPG keys
+	err := template.downloadAndAddGPGKeys(template.PackageRepositories)
+	if err != nil {
+		t.Errorf("downloadAndAddGPGKeys should succeed with [trusted=yes], got error: %v", err)
+	}
+
+	// Verify no additional files were added (no GPG key downloaded)
+	if len(template.SystemConfig.AdditionalFiles) != 0 {
+		t.Errorf("Expected no additional files for [trusted=yes], got %d", len(template.SystemConfig.AdditionalFiles))
+	}
+}
+
+// TestDownloadAndAddGPGKeys_PlaceholderURL verifies that placeholder URLs are properly skipped
+func TestDownloadAndAddGPGKeys_PlaceholderURL(t *testing.T) {
+	template := &ImageTemplate{
+		Target: TargetInfo{
+			OS: "ubuntu",
+		},
+		PackageRepositories: []PackageRepository{
+			{
+				ID:       "placeholder-repo",
+				Codename: "noble",
+				URL:      "https://example.com/repo",
+				PKey:     "<PUBLIC_KEY_URL>",
+			},
+		},
+		SystemConfig: SystemConfig{
+			AdditionalFiles: []AdditionalFileInfo{},
+		},
+	}
+
+	// Should not attempt to download or add any GPG keys
+	err := template.downloadAndAddGPGKeys(template.PackageRepositories)
+	if err != nil {
+		t.Errorf("downloadAndAddGPGKeys should succeed with placeholder URL, got error: %v", err)
+	}
+
+	// Verify no additional files were added (no GPG key downloaded)
+	if len(template.SystemConfig.AdditionalFiles) != 0 {
+		t.Errorf("Expected no additional files for placeholder URL, got %d", len(template.SystemConfig.AdditionalFiles))
+	}
+}
+
 func TestGenerateAptSourcesFromRepositories(t *testing.T) {
 	// Create test template
 	template := &ImageTemplate{

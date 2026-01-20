@@ -82,6 +82,11 @@ packageRepositories:
     pkey: "https://af01p-png.devtools.intel.com/artifactory/hspe-edge-repos-png-local-png-local/ubuntu-ppa2/pub.gpg" # Uncomment and replace in real config
     priority: 1001 # Higher priority means preferred over other repos
 
+  - codename: "noble"
+    url: "https://ubit-artifactory-or.intel.com/artifactory/turtle-creek-debian-local"
+    pkey: "[trusted=yes]" # Uncomment and replace in real config
+    component: "universe"
+
 systemConfig:
   name: minimal
   description: Minimal desktop ubuntu image for PTL
@@ -309,15 +314,16 @@ systemConfig:
     - xserver-xorg-dev_2:21.1.12-1ppa1~noble3
     - xvfb_2:21.1.12-1ppa1~noble3
     # Manageability packages
-    # - inbc-program_4.2.8.8-1
-    # - inbm-cloudadapter-agent_4.2.8.8-1
-    # - inbm-configuration-agent_4.2.8.8-1
-    # - inbm-diagnostic-agent_4.2.8.8-1
-    # - inbm-dispatcher-agent_4.2.8.8-1
-    # - inbm-telemetry-agent_4.2.8.8-1
-    # - mqtt_4.2.8.8-1
-    # - tpm-provision_4.2.8.8-1
-    # - trtl_4.2.8.8-1
+    - apparmor
+    - inbc-program_4.2.8.8-1
+    - inbm-cloudadapter-agent_4.2.8.8-1
+    - inbm-configuration-agent_4.2.8.8-1
+    - inbm-diagnostic-agent_4.2.8.8-1
+    - inbm-dispatcher-agent_4.2.8.8-1
+    - inbm-telemetry-agent_4.2.8.8-1
+    - mqtt_4.2.8.8-1
+    - tpm-provision_4.2.8.8-1
+    - trtl_4.2.8.8-1
     
   kernel:
     version: "6.14"

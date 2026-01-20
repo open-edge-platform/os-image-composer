@@ -290,8 +290,21 @@
         },
         "pkey": {
           "type": "string",
-          "description": "Public GPG key URL for package verification",
-          "format": "uri"
+          "description": "Public GPG key URL for package verification or [trusted=yes] to skip verification",
+          "oneOf": [
+            {
+              "pattern": "^(https?|file)://",
+              "description": "URL to GPG key file (must start with http://, https://, or file://)"
+            },
+            {
+              "const": "[trusted=yes]",
+              "description": "Special value to mark repository as trusted and skip GPG verification"
+            },
+            {
+              "const": "<PUBLIC_KEY_URL>",
+              "description": "Placeholder value for template examples"
+            }
+          ]
         },
         "component": {
           "type": "string",
