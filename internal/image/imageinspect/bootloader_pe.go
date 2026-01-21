@@ -8,17 +8,15 @@ import (
 	"strings"
 )
 
-// ParsePEFromBytes parses a PE (Portable Executable) binary from the given byte slice
 func ParsePEFromBytes(p string, blob []byte) (EFIBinaryEvidence, error) {
 	ev := EFIBinaryEvidence{
 		Path:            p,
 		Size:            int64(len(blob)),
 		SectionSHA256:   map[string]string{},
 		OSReleaseSorted: []KeyValue{},
-		Kind:            classifyBootloaderKind(p, nil), // refine after we parse sections
+		Kind:            BootloaderUnknown, // set after we have more evidence
 	}
 
-	// whole-file hash
 	ev.SHA256 = sha256Hex(blob)
 
 	r := bytes.NewReader(blob)
@@ -30,13 +28,11 @@ func ParsePEFromBytes(p string, blob []byte) (EFIBinaryEvidence, error) {
 
 	ev.Arch = peMachineToArch(f.FileHeader.Machine)
 
-	// Sections
 	for _, s := range f.Sections {
 		name := strings.TrimRight(s.Name, "\x00")
 		ev.Sections = append(ev.Sections, name)
 	}
 
-	// Signed evidence: presence of Authenticode blob
 	signed, sigSize, sigNote := peSignatureInfo(f)
 	ev.Signed = signed
 	ev.SignatureSize = sigSize
@@ -44,18 +40,22 @@ func ParsePEFromBytes(p string, blob []byte) (EFIBinaryEvidence, error) {
 		ev.Notes = append(ev.Notes, sigNote)
 	}
 
-	// SBAT section presence
 	ev.HasSBAT = hasSection(ev.Sections, ".sbat")
 
-	// UKI detection: these sections are highly indicative
 	isUKI := hasSection(ev.Sections, ".linux") &&
 		(hasSection(ev.Sections, ".cmdline") || hasSection(ev.Sections, ".osrel") || hasSection(ev.Sections, ".uname"))
 	ev.IsUKI = isUKI
 	if isUKI {
 		ev.Kind = BootloaderUKI
 	} else {
-		// reclassify based on name/path/sections
-		ev.Kind = classifyBootloaderKind(p, ev.Sections)
+		// First pass: path/sections only
+		ev.Kind = classifyBootloaderKind(p, ev.Sections, nil, ev.HasSBAT)
+
+		// If still unknown, do lightweight strings pass
+		if ev.Kind == BootloaderUnknown {
+			ev.PEStrings = extractASCIIStrings(blob, 6, 400) // cap to keep memory sane
+			ev.Kind = classifyBootloaderKind(p, ev.Sections, ev.PEStrings, ev.HasSBAT)
+		}
 	}
 
 	// Hash & extract interesting sections
@@ -92,6 +92,40 @@ func ParsePEFromBytes(p string, blob []byte) (EFIBinaryEvidence, error) {
 	return ev, nil
 }
 
+func extractASCIIStrings(b []byte, minLen int, maxStrings int) []string {
+	out := make([]string, 0, 64)
+
+	start := -1
+	for i := 0; i < len(b); i++ {
+		c := b[i]
+		// printable ASCII range (space..~)
+		if c >= 0x20 && c <= 0x7e {
+			if start == -1 {
+				start = i
+			}
+			continue
+		}
+
+		if start != -1 {
+			if i-start >= minLen {
+				s := string(b[start:i])
+				out = append(out, s)
+				if maxStrings > 0 && len(out) >= maxStrings {
+					return out
+				}
+			}
+			start = -1
+		}
+	}
+
+	// tail
+	if start != -1 && len(b)-start >= minLen {
+		out = append(out, string(b[start:]))
+	}
+
+	return out
+}
+
 // peSignatureInfo checks for the presence of an Authenticode signature in the PE file
 func peSignatureInfo(f *pe.File) (signed bool, sigSize int, note string) {
 	// IMAGE_DIRECTORY_ENTRY_SECURITY = 4
@@ -121,18 +155,18 @@ func peSignatureInfo(f *pe.File) (signed bool, sigSize int, note string) {
 	return false, 0, ""
 }
 
-// classifyBootloaderKind classifies the bootloader kind based on path and sections
-func classifyBootloaderKind(p string, sections []string) BootloaderKind {
+func classifyBootloaderKind(p string, sections []string, peStrings []string, hasSBAT bool) BootloaderKind {
 	lp := strings.ToLower(p)
 
-	// Most deterministic first:
+	// Deterministic first:
 	if sections != nil && hasSection(sections, ".linux") {
-		// likely UKI; caller can override with stricter check
 		return BootloaderUKI
 	}
 
 	// Path / filename heuristics:
-	// shim often includes "shim" and/or has .sbat too
+	if strings.Contains(lp, "mmx64.efi") || strings.Contains(lp, "mmia32.efi") {
+		return BootloaderMokManager
+	}
 	if strings.Contains(lp, "shim") {
 		return BootloaderShim
 	}
@@ -142,11 +176,55 @@ func classifyBootloaderKind(p string, sections []string) BootloaderKind {
 	if strings.Contains(lp, "grub") {
 		return BootloaderGrub
 	}
-	if strings.Contains(lp, "mmx64.efi") || strings.Contains(lp, "mmia32.efi") {
-		return BootloaderMokManager
+
+	// Content / metadata hints (for BOOTX64.EFI etc.)
+	if hasSBAT {
+		// Many shim builds have .sbat; GRUB can too, so treat as weak signal unless strings confirm.
+		// We'll fall through to strings below.
 	}
-	// fallback
+
+	// String fingerprint fallback
+	// (Keep it conservative: only return a kind when we see strong markers.)
+	if len(peStrings) > 0 {
+		contains := func(needle string) bool {
+			needle = strings.ToLower(needle)
+			for _, s := range peStrings {
+				if strings.Contains(strings.ToLower(s), needle) {
+					return true
+				}
+			}
+			return false
+		}
+
+		// GRUB
+		if contains("grub") && (contains("normal.mod") || contains("grub.cfg") || contains("configfile")) {
+			return BootloaderGrub
+		}
+		// systemd-boot
+		if contains("systemd-boot") || contains("loaderimageidentifier") {
+			return BootloaderSystemdBoot
+		}
+		// shim / MokManager
+		if contains("mokmanager") || contains("machine owner key") {
+			return BootloaderMokManager
+		}
+		if contains("shim") || (hasSBAT && contains("sbat")) {
+			return BootloaderShim
+		}
+	}
+
 	return BootloaderUnknown
+}
+
+func containsAny(hay []string, needles ...string) bool {
+	for _, s := range hay {
+		for _, n := range needles {
+			if strings.Contains(s, n) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // hasSection checks if the given section name is present in the list (case-insensitive)
