@@ -195,6 +195,10 @@ func mergeSystemConfig(defaultConfig, userConfig SystemConfig) SystemConfig {
 		merged.HookScripts = mergeHookScripts(defaultConfig.HookScripts, userConfig.HookScripts)
 	}
 
+	if len(userConfig.Configurations) > 0 {
+		merged.Configurations = mergeConfigurations(defaultConfig.Configurations, userConfig.Configurations)
+	}
+
 	// Merge bootloader config
 	if !isEmptyBootloader(userConfig.Bootloader) {
 		merged.Bootloader = mergeBootloader(defaultConfig.Bootloader, userConfig.Bootloader)
@@ -277,6 +281,18 @@ func mergeAdditionalFiles(defaultFiles, userFiles []AdditionalFileInfo) []Additi
 	}
 
 	return mergedFiles
+}
+
+func mergeConfigurations(defaultConfigs, userConfigs []ConfigurationInfo) []ConfigurationInfo {
+	// Start with all default configurations
+	merged := make([]ConfigurationInfo, len(defaultConfigs))
+	copy(merged, defaultConfigs)
+
+	// Add all user configurations
+	// User configurations are appended to preserve intentional duplicates
+	merged = append(merged, userConfigs...)
+
+	return merged
 }
 
 // mergeUsers merges user configurations

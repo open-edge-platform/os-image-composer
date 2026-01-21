@@ -2,6 +2,7 @@ package emt
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/open-edge-platform/os-image-composer/internal/chroot"
@@ -76,6 +77,12 @@ func (p *Emt) Init(dist, arch string) error {
 	log.Infof("url=%s", cfg.URL)
 	log.Infof("primary.xml.zst=%s", p.zstHref)
 	log.Infof("using %d workers for downloads", config.Workers())
+
+	if err := os.MkdirAll(config.TempDir(), 0700); err != nil {
+		log.Errorf("Failed to create temp directory for EMT: %v", err)
+		return fmt.Errorf("failed to create temp directory for EMT: %w", err)
+	}
+
 	return nil
 }
 

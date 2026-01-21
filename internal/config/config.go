@@ -130,6 +130,7 @@ type SystemConfig struct {
 	Packages        []string             `yaml:"packages"`
 	AdditionalFiles []AdditionalFileInfo `yaml:"additionalFiles"`
 	HookScripts     []HookScriptInfo     `yaml:"hookScripts,omitempty"`
+	Configurations  []ConfigurationInfo  `yaml:"configurations"`
 	Kernel          KernelConfig         `yaml:"kernel"`
 }
 
@@ -145,6 +146,11 @@ type HookScriptInfo struct {
 	TargetPostRootfs           string `yaml:"target_post_rootfs,omitempty"`            // Target path in image for post-rootfs script
 	LocalPostDownloadPackages  string `yaml:"local_post_download_packages,omitempty"`  // For future post-download packages hooks
 	TargetPostDownloadPackages string `yaml:"target_post_download_packages,omitempty"` // For future post-download packages hooks
+}
+
+// ConfigurationInfo holds information about instructions to execute during system configuration
+type ConfigurationInfo struct {
+	Cmd string `yaml:"cmd"`
 }
 
 // KernelConfig holds the kernel configuration
@@ -476,6 +482,10 @@ func (t *ImageTemplate) GetHookScriptInfo() []HookScriptInfo {
 		}
 	}
 	return PathUpdatedList
+}
+
+func (t *ImageTemplate) GetConfigurationInfo() []ConfigurationInfo {
+	return t.SystemConfig.Configurations
 }
 
 // GetKernel returns the kernel configuration from the system configuration
