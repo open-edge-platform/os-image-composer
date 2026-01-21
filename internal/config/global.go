@@ -27,12 +27,53 @@ type GlobalConfig struct {
 
 	// Logging configuration
 	Logging LoggingConfig `yaml:"logging" json:"logging"` // Logging behavior settings
+
+	// AI configuration (optional)
+	AI AIConfig `yaml:"ai,omitempty" json:"ai,omitempty"` // AI-powered template generation settings
 }
 
 // LoggingConfig controls basic logging behavior
 type LoggingConfig struct {
 	Level string `yaml:"level" json:"level"`                   // Log verbosity level: debug (most verbose), info (default), warn (warnings only), error (errors only)
 	File  string `yaml:"file,omitempty" json:"file,omitempty"` // Optional log file path for teeing output to disk
+}
+
+// AIConfig holds AI-powered template generation settings
+type AIConfig struct {
+	Provider     string           `yaml:"provider,omitempty" json:"provider,omitempty"`           // AI provider: "ollama" (default) or "openai"
+	TemplatesDir string           `yaml:"templates_dir,omitempty" json:"templates_dir,omitempty"` // Directory containing template files for RAG
+	Ollama       OllamaConfig     `yaml:"ollama,omitempty" json:"ollama,omitempty"`               // Ollama-specific settings
+	OpenAI       OpenAIConfig     `yaml:"openai,omitempty" json:"openai,omitempty"`               // OpenAI-specific settings
+	Cache        AICacheConfig    `yaml:"cache,omitempty" json:"cache,omitempty"`                 // Embedding cache settings
+	Scoring      AIScoringConfig  `yaml:"scoring,omitempty" json:"scoring,omitempty"`             // Hybrid scoring weights
+}
+
+// OllamaConfig holds Ollama-specific AI settings
+type OllamaConfig struct {
+	BaseURL        string `yaml:"base_url,omitempty" json:"base_url,omitempty"`               // Ollama server URL (default: http://localhost:11434)
+	EmbeddingModel string `yaml:"embedding_model,omitempty" json:"embedding_model,omitempty"` // Model for embeddings (default: nomic-embed-text)
+	ChatModel      string `yaml:"chat_model,omitempty" json:"chat_model,omitempty"`           // Model for chat/generation (default: llama3.2)
+	Timeout        string `yaml:"timeout,omitempty" json:"timeout,omitempty"`                 // Request timeout (default: 120s)
+}
+
+// OpenAIConfig holds OpenAI-specific AI settings
+type OpenAIConfig struct {
+	EmbeddingModel string `yaml:"embedding_model,omitempty" json:"embedding_model,omitempty"` // Model for embeddings (default: text-embedding-3-small)
+	ChatModel      string `yaml:"chat_model,omitempty" json:"chat_model,omitempty"`           // Model for chat/generation (default: gpt-4o-mini)
+	Timeout        string `yaml:"timeout,omitempty" json:"timeout,omitempty"`                 // Request timeout (default: 60s)
+}
+
+// AICacheConfig holds embedding cache settings
+type AICacheConfig struct {
+	Enabled bool   `yaml:"enabled,omitempty" json:"enabled,omitempty"` // Enable caching (default: true)
+	Dir     string `yaml:"dir,omitempty" json:"dir,omitempty"`         // Cache directory (default: ./cache/ai-embeddings)
+}
+
+// AIScoringConfig holds hybrid scoring weights for template retrieval
+type AIScoringConfig struct {
+	SemanticWeight float64 `yaml:"semantic_weight,omitempty" json:"semantic_weight,omitempty"` // Embedding similarity weight (default: 0.70)
+	KeywordWeight  float64 `yaml:"keyword_weight,omitempty" json:"keyword_weight,omitempty"`   // Keyword matching weight (default: 0.20)
+	PackageWeight  float64 `yaml:"package_weight,omitempty" json:"package_weight,omitempty"`   // Package matching weight (default: 0.10)
 }
 
 // Global singleton variables
