@@ -821,8 +821,8 @@ func addImageConfigs(installRoot string, template *config.ImageTemplate) error {
 		// Use chroot to execute commands in the image context with proper shell
 		chrootCmd := fmt.Sprintf("chroot %s /bin/bash -c %s", installRoot, strconv.Quote(cmdStr))
 		if _, err := shell.ExecCmd(chrootCmd, true, shell.HostPath, nil); err != nil {
-			log.Errorf("Failed to execute custom configuration cmd %s: %v", configInfo.Cmd, err)
-			return fmt.Errorf("failed to execute custom configuration cmd %s: %w", configInfo.Cmd, err)
+			log.Warnf("Failed to execute custom configuration cmd %s: %v", configInfo.Cmd, err)
+			continue
 		}
 		log.Debugf("Successfully executed custom configuration cmd: %s", configInfo.Cmd)
 	}

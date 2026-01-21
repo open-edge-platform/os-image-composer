@@ -113,6 +113,7 @@ systemConfig:
     - shim-signed
     - ubuntu-minimal
     - ubuntu-desktop-minimal
+    - gdm3
     - systemd
     - openssh-server
     - systemd-resolved
@@ -122,6 +123,12 @@ systemConfig:
     - grub-pc-bin
     - grub-efi-amd64-bin
     - efibootmgr
+    # PTL network stack
+    - curl
+    - wget
+    - cron
+    - ethtool
+    - iproute2
     # PTL packages
     - vim
     - ocl-icd-libopencl1
@@ -331,4 +338,80 @@ systemConfig:
     packages:
       - linux-headers-6.17-intel_251118t134731z-r2
       - linux-image-6.17-intel_251118t134731z-r2
+
+  users:
+    - name: rbfadmin
+      password: "jaiZ6dai"
+      groups: ["sudo"] 
+    - name: sys_olvtelemetry
+
+  configurations:
+    - cmd: "touch /etc/dummytest.txt"
+    - cmd: "echo 'yockgn01 dlstreamer x86_64 ubuntu24 image' > /etc/yockgn01.txt"
+    # Set up APT proxies
+    - cmd: "echo 'Acquire::ftp::Proxy \"http://proxy-dmz.intel.com:911\";' > /etc/apt/apt.conf.d/99proxy.conf"
+    - cmd: "echo 'Acquire::http::Proxy \"http://proxy-dmz.intel.com:911\";' >> /etc/apt/apt.conf.d/99proxy.conf"
+    - cmd: "echo 'Acquire::https::Proxy \"http://proxy-dmz.intel.com:911\";' >> /etc/apt/apt.conf.d/99proxy.conf"
+    - cmd: "echo 'Acquire::https::proxy::af01p-png.devtools.intel.com \"DIRECT\";' >> /etc/apt/apt.conf.d/99proxy.conf"
+    - cmd: "echo 'Acquire::https::proxy::ubit-artifactory-or.intel.com \"DIRECT\";' >> /etc/apt/apt.conf.d/99proxy.conf"
+    - cmd: "echo 'Acquire::https::proxy::*.intel.com \"DIRECT\";' >> /etc/apt/apt.conf.d/99proxy.conf"
+    # Set environment proxies
+    - cmd: "echo 'http_proxy=http://proxy-dmz.intel.com:911' >> /etc/environment"
+    - cmd: "echo 'https_proxy=http://proxy-dmz.intel.com:912' >> /etc/environment"
+    - cmd: "echo 'ftp_proxy=http://proxy-dmz.intel.com:911' >> /etc/environment"
+    - cmd: "echo 'socks_server=http://proxy-dmz.intel.com:1080' >> /etc/environment"
+    - cmd: "echo 'no_proxy=localhost,127.0.0.1,127.0.1.1,127.0.0.0/8,172.16.0.0/20,192.168.0.0/16,10.0.0.0/8,10.1.0.0/16,10.152.183.0/24,devtools.intel.com,jf.intel.com,teamcity-or.intel.com,caas.intel.com,inn.intel.com,isscorp.intel.com,gfx-assets.fm.intel.com' >> /etc/environment"
+    # Change Ubuntu mirror
+    - cmd: "sed -e 's@archive.ubuntu.com@mirrors.gbnetwork.com@g' -i /etc/apt/sources.list.d/ubuntu-noble.list"
+    # Configure SSH keys for sys_olvtelemetry user
+    - cmd: "mkdir -m 700 -p ~sys_olvtelemetry/.ssh"
+    - cmd: "echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOPEVYF28+I92b3HFHOSlPQXt3kHXQ9IqtxFE4/0YkK5 swsbalabuser@BA02RNL99999' > ~sys_olvtelemetry/.ssh/authorized_keys"
+    - cmd: "echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDb2P8gBvsy9DkzC1WiXfvisMFf7PQvtdvVC4n22ot4D5KOVxgoaCnjZM6qAZ2AdWPBebxInnUeMvw0u6RjRnflpYtNPgN4qiE313j62CmD80f/N+jvIxmoGhgsGE4RAMFXQ6pNaB/8KblrpmWQ5VfEIt7JcSR3Qvnkl9I2bljJU9zrMieE+Nras7hstg8fVWtGNjQjJpMWmt1YGxVbQiea0jDBqpru6TqnOYGD48JdR8QzHq++xL82I3x8kPz6annAvCDSVmiw9Mz0YtAsPIDZj4ABm866a8/U2mKVUncXYrBG1/pHBJMDJeX3ggd/UK2NvU8uEDJmITXUZRP8kBaO7b2LnRO08+Pr+nvmwukCP/wXflfS59h7kXCo8+Xjx/PEMO4OyFYHQunOUf/XTC13iig/MLY0EbqU6D+Lg1N13eJocRSta50zV+m+/PG23Zd3/6UH0noxYezQV3dQmsstzKKXbm8vkBmdqCZEvEnFSgl0VmX5HpzZLYI3L3hBH8/wgiWinrs7K13pZ8+lXN0ZhhJhdo61juiYwy1gbHP0ihqGkePw7w0DSCu5s9fA7xDTy2YTjkMsKaT8rbTYG5hunokNswdOCNYJyiCF3zJ08Z5hlDqSJJOPRdjL3YTIr6QlWSea/pTjkWmmE7Mv8M15c4V8Y77x6DsTFWlmGQbf1Q== swsbalabuser@BA02RNL99999' >> ~sys_olvtelemetry/.ssh/authorized_keys"
+    - cmd: "chmod 600 ~sys_olvtelemetry/.ssh/authorized_keys"
+    - cmd: "chown sys_olvtelemetry:sys_olvtelemetry -R ~sys_olvtelemetry/.ssh"
+    # Configure GRUB settings
+    - cmd: "sed -i 's/GRUB_CMDLINE_LINUX=.*/GRUB_CMDLINE_LINUX=\"xe.max_vfs=7 xe.force_probe=* modprobe.blacklist=i915 udmabuf.list_limit=8192 console=tty0 console=ttyS0,115200n8\"/' /etc/default/grub"
+    - cmd: "sed -i 's/GRUB_DEFAULT=.*/GRUB_DEFAULT=\"Advanced options for Ubuntu>Ubuntu, with Linux 6.17-intel\"/' /etc/default/grub"
+    # Install NPU driver
+    - cmd: "mkdir -m 755 -pv /opt/vpu"
+    - cmd: "curl -s https://af01p-ir.devtools.intel.com/artifactory/drivers_vpu_linux_client-ir-local/engineering-drops/driver/main/release/25ww49.1.1/npu-linux-driver-ci-1.30.0.20251128-19767695845-ubuntu2404-release.tar.gz | tar -zxv --strip-components=1 -C /opt/vpu -f -"
+    # Install audio firmware
+    - cmd: "mkdir -pv /lib/firmware/intel/sof-ipc4/mtl/ /lib/firmware/intel/sof-ace-tplg/"
+    - cmd: "wget https://af01p-png.devtools.intel.com/artifactory/hspe-edge-png-local/ubuntu-mtl-audio-tplg-6/c0/intel/sof-ipc4/mtl/sof-mtl.ldc -O /lib/firmware/intel/sof-ipc4/mtl/sof-mtl.ldc"
+    - cmd: "wget https://af01p-png.devtools.intel.com/artifactory/hspe-edge-png-local/ubuntu-mtl-audio-tplg-6/c0/intel/sof-ipc4/mtl/sof-mtl.ri -O /lib/firmware/intel/sof-ipc4/mtl/sof-mtl.ri"
+    - cmd: "wget https://af01p-png.devtools.intel.com/artifactory/hspe-edge-png-local/ubuntu-mtl-audio-tplg-6/c0/intel/sof-ace-tplg/sof-mtl-rt711-4ch.tplg -O /lib/firmware/intel/sof-ace-tplg/sof-mtl-rt711-4ch.tplg"
+    - cmd: "wget https://af01p-png.devtools.intel.com/artifactory/hspe-edge-png-local/ubuntu-mtl-audio-tplg-6/c0/intel/sof-ace-tplg/sof-mtl-rt711.tplg -O /lib/firmware/intel/sof-ace-tplg/sof-mtl-rt711.tplg"
+    - cmd: "wget https://af01p-png.devtools.intel.com/artifactory/hspe-edge-png-local/ubuntu-mtl-audio-tplg-6/c0/intel/sof-ace-tplg/sof-hda-generic.tplg -O /lib/firmware/intel/sof-ace-tplg/sof-hda-generic.tplg"
+    - cmd: "wget https://af01p-png.devtools.intel.com/artifactory/hspe-edge-png-local/ubuntu-mtl-audio-tplg-6/c0/intel/sof-ace-tplg/sof-mtl-es83x6-ssp1-hdmi-ssp02.tplg -O /lib/firmware/intel/sof-ace-tplg/sof-mtl-es83x6-ssp1-hdmi-ssp02.tplg"
+    - cmd: "wget https://af01p-png.devtools.intel.com/artifactory/hspe-edge-png-local/ubuntu-mtl-audio-tplg-6/c0/intel/sof-ace-tplg/sof-mtl-hdmi-ssp02.tplg -O /lib/firmware/intel/sof-ace-tplg/sof-mtl-hdmi-ssp02.tplg"
+    # Configure GRUB timeout
+    - cmd: "sed -e 's@^GRUB_TIMEOUT_STYLE=hidden@# GRUB_TIMEOUT_STYLE=hidden@' -e 's@^GRUB_TIMEOUT=0@GRUB_TIMEOUT=5@g' -i /etc/default/grub"
+    # Configure Wayland
+    - cmd: "sed -i 's/#WaylandEnable=/WaylandEnable=/g' /etc/gdm3/custom.conf"
+    # Disable auto-updates
+    # - cmd: "sed -i 's/\"1\"/\"0\"/g' /etc/apt/apt.conf.d/20auto-upgrades"
+    # Configure bash environment
+    - cmd: "echo 'source /etc/profile.d/mesa_driver.sh' | tee -a /etc/bash.bashrc"
+    - cmd: "echo 'set enable-bracketed-paste off' >> /etc/inputrc"
+    # Configure automatic login
+    - cmd: "sed -i 's/.*AutomaticLoginEnable =.*/AutomaticLoginEnable = true/g' /etc/gdm3/custom.conf"
+    - cmd: "sed -i 's/.*AutomaticLogin = user1/AutomaticLogin = user/g' /etc/gdm3/custom.conf"
+    # Configure sudo permissions
+    - cmd: "echo 'sys_olvtelemetry ALL=(ALL) NOPASSWD: /usr/sbin/biosdecode, /usr/sbin/dmidecode, /usr/sbin/ownership, /usr/sbin/vpddecode' > /etc/sudoers.d/user-sudo"
+    - cmd: "echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers.d/user-sudo"
+    - cmd: "chmod 440 /etc/sudoers.d/user-sudo"
+    # Configure kernel messages
+    - cmd: "echo 'kernel.printk = 7 4 1 7' > /etc/sysctl.d/99-kernel-printk.conf"
+    - cmd: "echo 'kernel.dmesg_restrict = 0' >> /etc/sysctl.d/99-kernel-printk.conf"
+    # Set up snap proxy refresh
+    - cmd: "echo '#!/bin/bash' > /opt/snapd_refresh.sh"
+    - cmd: "echo 'snap set system proxy.http=http://proxy-dmz.intel.com:911' >> /opt/snapd_refresh.sh"
+    - cmd: "echo 'snap set system proxy.https=http://proxy-dmz.intel.com:912' >> /opt/snapd_refresh.sh"
+    - cmd: "echo 'sleep 60 && snap refresh snapd-desktop-integration' >> /opt/snapd_refresh.sh"
+    - cmd: "chmod +x /opt/snapd_refresh.sh"
+    - cmd: "(crontab -l 2>/dev/null; echo '@reboot sudo /opt/snapd_refresh.sh 2>&1 | tee /opt/snapd_refresh_logs.txt') | crontab -"
+    # Set build timestamp
+    - cmd: "echo \"BUILD_TIME=$(date +%Y%m%d-%H%M)\" > /opt/jenkins-build-timestamp"
+    - cmd: "echo 'PLATFORM=PTL' >> /opt/jenkins-build-timestamp"
+    - cmd: "echo 'PTL KERNEL=mainline-tracking-6.17' >> /opt/jenkins-build-timestamp"
 
