@@ -97,8 +97,7 @@ type EFIBinaryEvidence struct {
 	HasSBAT       bool `json:"hasSbat,omitempty" yaml:"hasSbat,omitempty"`
 
 	// PE section info
-	Sections  []string `json:"sections,omitempty" yaml:"sections,omitempty"`
-	PEStrings []string `json:"-"` // or omit tags; keep small, not huge
+	Sections []string `json:"sections,omitempty" yaml:"sections,omitempty"`
 
 	// UKI-specific evidence (if Kind == uki)
 	IsUKI           bool              `json:"isUki,omitempty" yaml:"isUki,omitempty"`

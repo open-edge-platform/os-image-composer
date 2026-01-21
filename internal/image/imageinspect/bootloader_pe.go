@@ -48,14 +48,7 @@ func ParsePEFromBytes(p string, blob []byte) (EFIBinaryEvidence, error) {
 	if isUKI {
 		ev.Kind = BootloaderUKI
 	} else {
-		// First pass: path/sections only
-		ev.Kind = classifyBootloaderKind(p, ev.Sections, nil, ev.HasSBAT)
-
-		// If still unknown, do lightweight strings pass
-		if ev.Kind == BootloaderUnknown {
-			ev.PEStrings = extractASCIIStrings(blob, 6, 400) // cap to keep memory sane
-			ev.Kind = classifyBootloaderKind(p, ev.Sections, ev.PEStrings, ev.HasSBAT)
-		}
+		ev.Kind = classifyBootloaderKind(p, ev.Sections)
 	}
 
 	// Hash & extract interesting sections
@@ -155,7 +148,10 @@ func peSignatureInfo(f *pe.File) (signed bool, sigSize int, note string) {
 	return false, 0, ""
 }
 
-func classifyBootloaderKind(p string, sections []string, peStrings []string, hasSBAT bool) BootloaderKind {
+// classifyBootloaderKind classifies the bootloader kind based on path and sections.
+// It intentionally avoids content-string heuristics for stability.
+// For BOOTX64.EFI copies/aliases, rely on SHA-inheritance post-pass.
+func classifyBootloaderKind(p string, sections []string) BootloaderKind {
 	lp := strings.ToLower(p)
 
 	// Deterministic first:
@@ -177,54 +173,7 @@ func classifyBootloaderKind(p string, sections []string, peStrings []string, has
 		return BootloaderGrub
 	}
 
-	// Content / metadata hints (for BOOTX64.EFI etc.)
-	if hasSBAT {
-		// Many shim builds have .sbat; GRUB can too, so treat as weak signal unless strings confirm.
-		// We'll fall through to strings below.
-	}
-
-	// String fingerprint fallback
-	// (Keep it conservative: only return a kind when we see strong markers.)
-	if len(peStrings) > 0 {
-		contains := func(needle string) bool {
-			needle = strings.ToLower(needle)
-			for _, s := range peStrings {
-				if strings.Contains(strings.ToLower(s), needle) {
-					return true
-				}
-			}
-			return false
-		}
-
-		// GRUB
-		if contains("grub") && (contains("normal.mod") || contains("grub.cfg") || contains("configfile")) {
-			return BootloaderGrub
-		}
-		// systemd-boot
-		if contains("systemd-boot") || contains("loaderimageidentifier") {
-			return BootloaderSystemdBoot
-		}
-		// shim / MokManager
-		if contains("mokmanager") || contains("machine owner key") {
-			return BootloaderMokManager
-		}
-		if contains("shim") || (hasSBAT && contains("sbat")) {
-			return BootloaderShim
-		}
-	}
-
 	return BootloaderUnknown
-}
-
-func containsAny(hay []string, needles ...string) bool {
-	for _, s := range hay {
-		for _, n := range needles {
-			if strings.Contains(s, n) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // hasSection checks if the given section name is present in the list (case-insensitive)
@@ -236,6 +185,34 @@ func hasSection(secs []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// inheritBootloaderKindBySHA assigns a kind to "unknown" EFI binaries when they
+// are byte-identical to another EFI binary already classified as a known kind.
+// This reliably handles fallback paths like EFI/BOOT/BOOTX64.EFI.
+func inheritBootloaderKindBySHA(evs []EFIBinaryEvidence) {
+	known := make(map[string]BootloaderKind) // sha256 -> kind
+
+	// First pass: record known kinds by hash.
+	for _, ev := range evs {
+		if ev.SHA256 == "" || ev.Kind == BootloaderUnknown {
+			continue
+		}
+		if _, ok := known[ev.SHA256]; !ok {
+			known[ev.SHA256] = ev.Kind
+		}
+	}
+
+	// Second pass: upgrade unknowns when a known hash exists.
+	for i := range evs {
+		if evs[i].Kind != BootloaderUnknown || evs[i].SHA256 == "" {
+			continue
+		}
+		if k, ok := known[evs[i].SHA256]; ok {
+			evs[i].Kind = k
+			evs[i].Notes = append(evs[i].Notes, "bootloader kind inherited from identical EFI binary (sha256 match)")
+		}
+	}
 }
 
 // peMachineToArch maps PE machine types to architecture strings
