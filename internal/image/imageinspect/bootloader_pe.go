@@ -85,40 +85,6 @@ func ParsePEFromBytes(p string, blob []byte) (EFIBinaryEvidence, error) {
 	return ev, nil
 }
 
-func extractASCIIStrings(b []byte, minLen int, maxStrings int) []string {
-	out := make([]string, 0, 64)
-
-	start := -1
-	for i := 0; i < len(b); i++ {
-		c := b[i]
-		// printable ASCII range (space..~)
-		if c >= 0x20 && c <= 0x7e {
-			if start == -1 {
-				start = i
-			}
-			continue
-		}
-
-		if start != -1 {
-			if i-start >= minLen {
-				s := string(b[start:i])
-				out = append(out, s)
-				if maxStrings > 0 && len(out) >= maxStrings {
-					return out
-				}
-			}
-			start = -1
-		}
-	}
-
-	// tail
-	if start != -1 && len(b)-start >= minLen {
-		out = append(out, string(b[start:]))
-	}
-
-	return out
-}
-
 // peSignatureInfo checks for the presence of an Authenticode signature in the PE file
 func peSignatureInfo(f *pe.File) (signed bool, sigSize int, note string) {
 	// IMAGE_DIRECTORY_ENTRY_SECURITY = 4
