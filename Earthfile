@@ -153,9 +153,13 @@ test:
     
     # Run the comprehensive coverage tests using our script
     # Args: COV_THRESHOLD PRINT_TS FAIL_ON_NO_TESTS DEBUG
-    # If COV_THRESHOLD not provided, read from .coverage-threshold file
+    # If COV_THRESHOLD not provided or empty, read from .coverage-threshold file
     RUN cd /work && \
-        THRESHOLD="${COV_THRESHOLD:-$(cat .coverage-threshold 2>/dev/null || echo 65.0)}" && \
+        FILE_THRESH=$(cat .coverage-threshold 2>/dev/null | tr -d '[:space:]') && \
+        FILE_THRESH="${FILE_THRESH:-65.0}" && \
+        THRESHOLD="${COV_THRESHOLD:-$FILE_THRESH}" && \
+        THRESHOLD="${THRESHOLD:-65.0}" && \
+        echo "Using coverage threshold: ${THRESHOLD}%" && \
         ./scripts/run_coverage_tests.sh "${THRESHOLD}" "${PRINT_TS}" "${FAIL_ON_NO_TESTS}"
     
     # Save coverage artifacts locally
@@ -176,9 +180,13 @@ test-debug:
     
     # Run the coverage tests with debug output (keeps temp files for inspection)
     # Args: COV_THRESHOLD PRINT_TS FAIL_ON_NO_TESTS DEBUG
-    # If COV_THRESHOLD not provided, read from .coverage-threshold file
+    # If COV_THRESHOLD not provided or empty, read from .coverage-threshold file
     RUN cd /work && \
-        THRESHOLD="${COV_THRESHOLD:-$(cat .coverage-threshold 2>/dev/null || echo 65.0)}" && \
+        FILE_THRESH=$(cat .coverage-threshold 2>/dev/null | tr -d '[:space:]') && \
+        FILE_THRESH="${FILE_THRESH:-65.0}" && \
+        THRESHOLD="${COV_THRESHOLD:-$FILE_THRESH}" && \
+        THRESHOLD="${THRESHOLD:-65.0}" && \
+        echo "Using coverage threshold: ${THRESHOLD}%" && \
         ./scripts/run_coverage_tests.sh "${THRESHOLD}" "${PRINT_TS}" "${FAIL_ON_NO_TESTS}" "true"
     
     # Save coverage artifacts locally
