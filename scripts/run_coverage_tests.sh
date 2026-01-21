@@ -2,20 +2,43 @@
 set -euo pipefail
 
 # Script to run Go tests with per-directory coverage reporting
-# Usage: ./run_coverage_tests.sh [COVERAGE_THRESHOLD] [PRINT_TS] [FAIL_ON_NO_TESTS] [DEBUG]
+# Usage: ./run_coverage_tests.sh [COV_THRESHOLD] [PRINT_TS] [FAIL_ON_NO_TESTS] [DEBUG]
+#
+# Arguments:
+#   COV_THRESHOLD    - Minimum coverage percentage required (default: 64.2)
+#   PRINT_TS         - Build ID/timestamp for reports (default: empty)
+#   FAIL_ON_NO_TESTS - Fail if directories have no tests (default: false)
+#   DEBUG            - Keep temp files for debugging (default: false)
 #
 # Behavior:
 # - Runs all tests in all directories, even if some fail (for complete visibility)
 # - Tracks all test failures and reports them at the end
 # - Exits with code 1 if ANY tests fail OR overall coverage is below threshold
 # - Generates coverage reports for all directories where tests ran successfully
+#
+# Output files (in current directory):
+# - coverage.out: Combined coverage profile for use with go tool cover
+# - coverage_report.txt: Human-readable coverage summary
 
-COV_THRESHOLD=64.2
-PRINT_TS=${1:-""}
-FAIL_ON_NO_TESTS=${2:-false}  # Set to true if directories without tests should fail the build
-DEBUG=${3:-false}  # Set to true for verbose debugging
+COV_THRESHOLD=${1:-64.2}
+PRINT_TS=${2:-""}
+FAIL_ON_NO_TESTS=${3:-false}  # Set to true if directories without tests should fail the build
+DEBUG=${4:-false}  # Set to true for verbose debugging
 OVERALL_EXIT_CODE=0
 FAILED_DIRS=""
+
+# Create temporary directory for intermediate files
+WORK_DIR=$(mktemp -d -t coverage-XXXXXX)
+
+# Cleanup function to remove temporary files on exit
+cleanup() {
+    if [[ "$DEBUG" != "true" ]]; then
+        rm -rf "$WORK_DIR"
+    else
+        echo "DEBUG: Keeping work directory: $WORK_DIR" >&2
+    fi
+}
+trap cleanup EXIT
 
 # Colors for output
 RED='\033[0;31m'
@@ -131,8 +154,8 @@ declare -a FAILED_TEST_DETAILS=()  # Initialize empty array
 # Run tests for each directory with Go files
 for GO_DIR in ${ALL_GO_DIRS}; do
     DIR_NAME=$(echo ${GO_DIR} | sed 's|^\./||')
-    COVERAGE_FILE="${DIR_NAME//\//_}_coverage.out"
-    TEST_LOG="${DIR_NAME//\//_}_test.log"
+    COVERAGE_FILE="${WORK_DIR}/${DIR_NAME//\//_}_coverage.out"
+    TEST_LOG="${WORK_DIR}/${DIR_NAME//\//_}_test.log"
 
     if [[ "$DEBUG" == "true" ]]; then
         echo "DEBUG: Processing directory: ${GO_DIR}" >&2
@@ -141,15 +164,6 @@ for GO_DIR in ${ALL_GO_DIRS}; do
         echo "DEBUG: TEST_LOG: ${TEST_LOG}" >&2
     fi
 
-    # Create directory structure for coverage file; fail with error if creation fails
-    if ! mkdir -p "$(dirname "${COVERAGE_FILE}")" 2>/dev/null; then
-        echo -e "${RED}ERROR: Failed to create directory for coverage file: $(dirname "${COVERAGE_FILE}")${NC}" >&2
-        exit 1
-    fi
-    if ! mkdir -p "$(dirname "${TEST_LOG}")" 2>/dev/null; then
-        echo -e "${RED}ERROR: Failed to create directory for test log: $(dirname "${TEST_LOG}")${NC}" >&2
-        exit 1
-    fi
     # Check if this directory has test files
     if echo "${TEST_DIRS}" | grep -q "^${GO_DIR}$"; then
         # Directory has tests - run them
@@ -295,13 +309,13 @@ echo ""
 echo -e "${BLUE}=== Generating Overall Coverage Report ===${NC}"
 
 # Calculate overall coverage by running tests on all packages at once
-OVERALL_COVERAGE_FILE="overall_coverage.out"
+OVERALL_COVERAGE_FILE="${WORK_DIR}/overall_coverage.out"
 
 echo "Calculating overall repository coverage..."
 
 # Method 1: Try to get overall coverage even if some tests fail
 echo "Attempting overall coverage calculation (Method 1)..."
-if $GO_BIN test -coverprofile="${OVERALL_COVERAGE_FILE}" ./... > overall_test.log 2>&1; then
+if $GO_BIN test -coverprofile="${OVERALL_COVERAGE_FILE}" ./... > "${WORK_DIR}/overall_test.log" 2>&1; then
     # All tests passed
     if [[ -f "${OVERALL_COVERAGE_FILE}" ]] && [[ -s "${OVERALL_COVERAGE_FILE}" ]]; then
         OVERALL_COVERAGE=$($GO_BIN tool cover -func="${OVERALL_COVERAGE_FILE}" | grep "total:" | awk '{print $3}' | sed 's/%//')
@@ -326,7 +340,7 @@ else
     echo "Some tests failed, attempting coverage with failures ignored..."
 
     # Method 1b: Try to get coverage despite test failures by continuing on failure
-    if $GO_BIN test -coverprofile="${OVERALL_COVERAGE_FILE}" -failfast=false ./... > overall_test_with_failures.log 2>&1 || true; then
+    if $GO_BIN test -coverprofile="${OVERALL_COVERAGE_FILE}" -failfast=false ./... > "${WORK_DIR}/overall_test_with_failures.log" 2>&1 || true; then
         if [[ -f "${OVERALL_COVERAGE_FILE}" ]] && [[ -s "${OVERALL_COVERAGE_FILE}" ]]; then
             OVERALL_COVERAGE=$($GO_BIN tool cover -func="${OVERALL_COVERAGE_FILE}" | grep "total:" | awk '{print $3}' | sed 's/%//')
 
@@ -344,7 +358,7 @@ else
             COVERAGE_METHOD="fallback to combined files"
 
             # Method 2: Combine individual coverage files from successful tests
-            COMBINED_COVERAGE="combined_coverage.out"
+            COMBINED_COVERAGE="${WORK_DIR}/combined_coverage.out"
             echo "mode: set" > "${COMBINED_COVERAGE}"
 
             SUCCESSFUL_DIRS=0
@@ -353,7 +367,7 @@ else
 
             for TEST_DIR in ${TEST_DIRS}; do
                 DIR_NAME=$(echo ${TEST_DIR} | sed 's|^\./||')
-                COVERAGE_FILE="${DIR_NAME//\//_}_coverage.out"
+                COVERAGE_FILE="${WORK_DIR}/${DIR_NAME//\//_}_coverage.out"
 
                 if [[ -f "${COVERAGE_FILE}" ]] && [[ -s "${COVERAGE_FILE}" ]]; then
                     # Skip the mode line and append
@@ -414,7 +428,12 @@ fi
 echo "Coverage threshold: ${COV_THRESHOLD}%"
 echo "Calculation method: ${COVERAGE_METHOD}"
 
-if (( $(echo "${OVERALL_COVERAGE} >= ${COV_THRESHOLD}" | bc -l) )); then
+# Normalize both values to 1 decimal place to avoid precision issues
+# (e.g., 64.29 displays as 64.3 but fails >= 64.3)
+COVERAGE_NORMALIZED=$(printf '%.1f' "${OVERALL_COVERAGE}")
+THRESHOLD_NORMALIZED=$(printf '%.1f' "${COV_THRESHOLD}")
+
+if (( $(echo "${COVERAGE_NORMALIZED} >= ${THRESHOLD_NORMALIZED}" | bc -l) )); then
     echo -e "${GREEN}✓ Overall coverage PASSED threshold${NC}"
 else
     echo -e "${RED}✗ Overall coverage FAILED threshold${NC}"
@@ -422,34 +441,34 @@ else
 fi
 
 # Generate coverage reports for saving
-echo "## Test Coverage Report" > coverage_total.txt
-echo "" >> coverage_total.txt
-echo "**Overall Coverage:** ${OVERALL_COVERAGE}%" >> coverage_total.txt
-echo "**Threshold:** ${COV_THRESHOLD}% (applies to overall coverage only)" >> coverage_total.txt
-echo "**Status:** $(if [[ ${OVERALL_EXIT_CODE} -eq 0 ]]; then echo "PASSED"; else echo "FAILED"; fi)" >> coverage_total.txt
-echo "" >> coverage_total.txt
+echo "## Test Coverage Report" > coverage_report.txt
+echo "" >> coverage_report.txt
+echo "**Overall Coverage:** ${COVERAGE_NORMALIZED}%" >> coverage_report.txt
+echo "**Threshold:** ${THRESHOLD_NORMALIZED}% (applies to overall coverage only)" >> coverage_report.txt
+echo "**Status:** $(if [[ ${OVERALL_EXIT_CODE} -eq 0 ]]; then echo "PASSED"; else echo "FAILED"; fi)" >> coverage_report.txt
+echo "" >> coverage_report.txt
 
 # FIXED: Use safer array check that works with set -u
 if [[ "${#FAILED_TEST_DETAILS[@]}" -gt 0 ]] 2>/dev/null; then
-    echo "**Failed Tests:**" >> coverage_total.txt
+    echo "**Failed Tests:**" >> coverage_report.txt
     for detail in "${FAILED_TEST_DETAILS[@]}"; do
-        echo "  • ${detail}" >> coverage_total.txt
+        echo "  • ${detail}" >> coverage_report.txt
     done
-    echo "" >> coverage_total.txt
+    echo "" >> coverage_report.txt
 fi
 
-echo "**Note:** Directory PASS/FAIL indicates test results only, not coverage." >> coverage_total.txt
-echo "**Note:** Coverage threshold applies to overall repository coverage only." >> coverage_total.txt
-echo "" >> coverage_total.txt
+echo "**Note:** Directory PASS/FAIL indicates test results only, not coverage." >> coverage_report.txt
+echo "**Note:** Coverage threshold applies to overall repository coverage only." >> coverage_report.txt
+echo "" >> coverage_report.txt
 
-echo "| Directory                           | Coverage | Result   |" >> coverage_total.txt
-echo "|-------------------------------------|----------|----------|" >> coverage_total.txt
+echo "| Directory                           | Coverage | Result   |" >> coverage_report.txt
+echo "|-------------------------------------|----------|----------|" >> coverage_report.txt
 
 # Recreate the table for the report
 for GO_DIR in ${ALL_GO_DIRS}; do
     DIR_NAME=$(echo ${GO_DIR} | sed 's|^\./||')
-    COVERAGE_FILE="${DIR_NAME//\//_}_coverage.out"
-    TEST_LOG="${DIR_NAME//\//_}_test.log"
+    COVERAGE_FILE="${WORK_DIR}/${DIR_NAME//\//_}_coverage.out"
+    TEST_LOG="${WORK_DIR}/${DIR_NAME//\//_}_test.log"
 
     # Check if this directory has test files
     if echo "${TEST_DIRS}" | grep -q "^${GO_DIR}$"; then
@@ -468,7 +487,7 @@ for GO_DIR in ${ALL_GO_DIRS}; do
             fi
 
             printf "| %-35s | %8s%% | %-8s |\n" \
-                "${DIR_NAME}" "${COVERAGE_PCT}" "${STATUS}" >> coverage_total.txt
+                "${DIR_NAME}" "${COVERAGE_PCT}" "${STATUS}" >> coverage_report.txt
         else
             # Tests failed or no coverage generated - check if any coverage was generated
             COVERAGE_DISPLAY="N/A"
@@ -480,58 +499,18 @@ for GO_DIR in ${ALL_GO_DIRS}; do
             fi
 
             printf "| %-35s | %8s | %-8s |\n" \
-                "${DIR_NAME}" "${COVERAGE_DISPLAY}" "FAIL" >> coverage_total.txt
+                "${DIR_NAME}" "${COVERAGE_DISPLAY}" "FAIL" >> coverage_report.txt
         fi
     else
         # Directory has no tests
         if [[ "${FAIL_ON_NO_TESTS}" == "true" ]]; then
             printf "| %-35s | %8s | %-8s |\n" \
-                "${DIR_NAME}" "N/A" "FAIL" >> coverage_total.txt
+                "${DIR_NAME}" "N/A" "FAIL" >> coverage_report.txt
         else
             printf "| %-35s | %8s | %-8s |\n" \
-                "${DIR_NAME}" "N/A" "NO-TESTS" >> coverage_total.txt
+                "${DIR_NAME}" "N/A" "NO-TESTS" >> coverage_report.txt
         fi
     fi
-done
-
-# Generate package-level coverage breakdown
-if [[ -f "overall_coverage.out" ]] && [[ -s "overall_coverage.out" ]]; then
-    echo "" > coverage_packages.txt
-    echo "Package Coverage Breakdown (sorted by coverage ascending):" >> coverage_packages.txt
-    echo "================================================================" >> coverage_packages.txt
-    $GO_BIN tool cover -func="overall_coverage.out" | grep -v "total:" | sort -k3 -n >> coverage_packages.txt
-elif [[ -f "coverage.out" ]] && [[ -s "coverage.out" ]]; then
-    echo "" > coverage_packages.txt
-    echo "Package Coverage Breakdown (sorted by coverage ascending):" >> coverage_packages.txt
-    echo "================================================================" >> coverage_packages.txt
-    $GO_BIN tool cover -func="coverage.out" | grep -v "total:" | sort -k3 -n >> coverage_packages.txt
-fi
-
-# Generate detailed test log
-echo "=== Detailed Test Results ===" > test_raw.log
-echo "Threshold: ${COV_THRESHOLD}%" >> test_raw.log
-echo "Overall Coverage: ${OVERALL_COVERAGE}%" >> test_raw.log
-echo "Status: $(if [[ ${OVERALL_EXIT_CODE} -eq 0 ]]; then echo "PASSED"; else echo "FAILED"; fi)" >> test_raw.log
-echo "" >> test_raw.log
-
-for GO_DIR in ${ALL_GO_DIRS}; do
-    DIR_NAME=$(echo ${GO_DIR} | sed 's|^\./||')
-    TEST_LOG="${DIR_NAME//\//_}_test.log"
-    echo "=== ${DIR_NAME} ===" >> test_raw.log
-
-    # Check if this directory has test files
-    if echo "${TEST_DIRS}" | grep -q "^${GO_DIR}$"; then
-        # Directory has tests - include test log
-        if [[ -f "${TEST_LOG}" ]]; then
-            cat "${TEST_LOG}" >> test_raw.log
-        else
-            echo "No test log found" >> test_raw.log
-        fi
-    else
-        # Directory has no tests
-        echo "No test files found in this directory" >> test_raw.log
-    fi
-    echo "" >> test_raw.log
 done
 
 echo ""
@@ -561,5 +540,9 @@ echo "Note: All tests are executed even if some fail (for complete visibility)"
 echo "Note: Directory PASS/FAIL is based on test results only, not coverage."
 echo "Note: Overall coverage threshold (${COV_THRESHOLD}%) applies to repository total."
 echo "Note: Directories without tests are marked as NO-TESTS and $(if [[ "${FAIL_ON_NO_TESTS}" == "true" ]]; then echo "DO"; else echo "DO NOT"; fi) cause build failure"
+echo ""
+echo "Generated files:"
+echo "  - coverage.out: Combined coverage profile (use with 'go tool cover')"
+echo "  - coverage_report.txt: Human-readable coverage summary"
 
 exit ${OVERALL_EXIT_CODE}
