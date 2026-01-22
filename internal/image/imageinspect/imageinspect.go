@@ -76,6 +76,12 @@ type FilesystemSummary struct {
 	EFIBinaries []EFIBinaryEvidence `json:"peEvidence,omitempty" yaml:"peEvidence,omitempty"`
 }
 
+// KeyValue represents a simple key-value pair.
+type KeyValue struct {
+	Key   string `json:"key" yaml:"key"`
+	Value string `json:"value" yaml:"value"`
+}
+
 // EFIBinaryEvidence holds evidence extracted from an EFI binary (PE format).
 type EFIBinaryEvidence struct {
 	Path   string `json:"path" yaml:"path"`
@@ -94,11 +100,12 @@ type EFIBinaryEvidence struct {
 	Sections []string `json:"sections,omitempty" yaml:"sections,omitempty"`
 
 	// UKI-specific evidence (if Kind == uki)
-	IsUKI        bool              `json:"isUki,omitempty" yaml:"isUki,omitempty"`
-	Cmdline      string            `json:"cmdline,omitempty" yaml:"cmdline,omitempty"`
-	Uname        string            `json:"uname,omitempty" yaml:"uname,omitempty"`
-	OSReleaseRaw string            `json:"osReleaseRaw,omitempty" yaml:"osReleaseRaw,omitempty"`
-	OSRelease    map[string]string `json:"osRelease,omitempty" yaml:"osRelease,omitempty"`
+	IsUKI           bool              `json:"isUki,omitempty" yaml:"isUki,omitempty"`
+	Cmdline         string            `json:"cmdline,omitempty" yaml:"cmdline,omitempty"`
+	Uname           string            `json:"uname,omitempty" yaml:"uname,omitempty"`
+	OSReleaseRaw    string            `json:"osReleaseRaw,omitempty" yaml:"osReleaseRaw,omitempty"`
+	OSRelease       map[string]string `json:"osRelease,omitempty" yaml:"osRelease,omitempty"`
+	OSReleaseSorted []KeyValue        `json:"osReleaseSorted,omitempty" yaml:"osReleaseSorted,omitempty"`
 
 	// Payload hashes (high value for diffs)
 	SectionSHA256 map[string]string `json:"sectionSha256,omitempty" yaml:"sectionSha256,omitempty"`
@@ -320,6 +327,6 @@ func diskfsPartitionNumberForSummary(d diskAccessorFS, ps PartitionSummary) (int
 	return 0, false
 }
 
-func (d *DiskfsInspector) DisplaySummary(summary *ImageSummary) {
-	PrintSummary(os.Stdout, summary)
+func (d *DiskfsInspector) DisplaySummary(ioWriter io.Writer, summary *ImageSummary) {
+	PrintSummary(ioWriter, summary)
 }

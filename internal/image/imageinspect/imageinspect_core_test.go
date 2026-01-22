@@ -165,7 +165,7 @@ SPACED = "hello world"
 QUOTED='x'
 BADLINE
 `
-	m := parseOSRelease(raw)
+	m, _ := parseOSRelease(raw)
 	if m["NAME"] != "Azure Linux" {
 		t.Fatalf("NAME=%q", m["NAME"])
 	}

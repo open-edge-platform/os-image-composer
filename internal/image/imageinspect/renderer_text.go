@@ -212,12 +212,18 @@ func PrintSummary(w io.Writer, summary *ImageSummary) {
 				if uki.InitrdSHA256 != "" {
 					fmt.Fprintf(kv2, "Initrd SHA256:\t%s\n", uki.InitrdSHA256)
 				}
-				if uki.OSReleaseRaw != "" {
-					// keep it readable: print raw block after flushing
+				if len(uki.OSReleaseSorted) > 0 {
+					_ = kv2.Flush()
+
+					printOSReleaseKV(w, "EFI OS release:", uki.OSReleaseSorted)
+
+				} else if uki.OSReleaseRaw != "" {
+					// fallback: raw only if we couldn't parse anything
 					_ = kv2.Flush()
 					fmt.Fprintln(w)
 					fmt.Fprintln(w, "EFI OS release:")
 					fmt.Fprintln(w, uki.OSReleaseRaw)
+
 				} else {
 					_ = kv2.Flush()
 				}
@@ -401,4 +407,19 @@ func firstUKI(arts []EFIBinaryEvidence) (EFIBinaryEvidence, bool) {
 		}
 	}
 	return EFIBinaryEvidence{}, false
+}
+
+func printOSReleaseKV(w io.Writer, title string, kvs []KeyValue) {
+	if len(kvs) == 0 {
+		return
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, title)
+
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	for _, kv := range kvs {
+		fmt.Fprintf(tw, "%s:\t%q\n", kv.Key, kv.Value)
+	}
+	_ = tw.Flush()
 }

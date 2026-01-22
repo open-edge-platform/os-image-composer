@@ -4,17 +4,18 @@ import (
 	"bytes"
 	"debug/pe"
 	"fmt"
+	"sort"
 	"strings"
 )
 
 // ParsePEFromBytes parses a PE (Portable Executable) binary from the given byte slice
 func ParsePEFromBytes(p string, blob []byte) (EFIBinaryEvidence, error) {
 	ev := EFIBinaryEvidence{
-		Path:          p,
-		Size:          int64(len(blob)),
-		SectionSHA256: map[string]string{},
-		OSRelease:     map[string]string{},
-		Kind:          classifyBootloaderKind(p, nil), // refine after we parse sections
+		Path:            p,
+		Size:            int64(len(blob)),
+		SectionSHA256:   map[string]string{},
+		OSReleaseSorted: []KeyValue{},
+		Kind:            classifyBootloaderKind(p, nil), // refine after we parse sections
 	}
 
 	// whole-file hash
@@ -84,7 +85,7 @@ func ParsePEFromBytes(p string, blob []byte) (EFIBinaryEvidence, error) {
 			ev.OSRelSHA256 = ev.SectionSHA256[name]
 			raw := strings.TrimSpace(string(bytes.Trim(data, "\x00")))
 			ev.OSReleaseRaw = raw
-			ev.OSRelease = parseOSRelease(raw)
+			ev.OSRelease, ev.OSReleaseSorted = parseOSRelease(raw)
 		}
 	}
 
@@ -175,24 +176,46 @@ func peMachineToArch(m uint16) string {
 	}
 }
 
-// parseOSRelease parses the contents of an os-release file into a map
-func parseOSRelease(raw string) map[string]string {
+// parseOSRelease parses os-release style key=value data.
+func parseOSRelease(raw string) (map[string]string, []KeyValue) {
 	m := map[string]string{}
+
 	for _, line := range strings.Split(raw, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+
 		k, v, ok := strings.Cut(line, "=")
 		if !ok {
 			continue
 		}
+
 		k = strings.TrimSpace(k)
 		v = strings.TrimSpace(v)
+
+		// os-release allows quoted values.
 		v = strings.Trim(v, `"'`)
+
 		if k != "" {
 			m[k] = v
 		}
 	}
-	return m
+
+	// deterministic ordering
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	sorted := make([]KeyValue, 0, len(keys))
+	for _, k := range keys {
+		sorted = append(sorted, KeyValue{
+			Key:   k,
+			Value: m[k],
+		})
+	}
+
+	return m, sorted
 }
