@@ -8,17 +8,15 @@ import (
 	"strings"
 )
 
-// ParsePEFromBytes parses a PE (Portable Executable) binary from the given byte slice
 func ParsePEFromBytes(p string, blob []byte) (EFIBinaryEvidence, error) {
 	ev := EFIBinaryEvidence{
 		Path:            p,
 		Size:            int64(len(blob)),
 		SectionSHA256:   map[string]string{},
 		OSReleaseSorted: []KeyValue{},
-		Kind:            classifyBootloaderKind(p, nil), // refine after we parse sections
+		Kind:            BootloaderUnknown, // set after we have more evidence
 	}
 
-	// whole-file hash
 	ev.SHA256 = sha256Hex(blob)
 
 	r := bytes.NewReader(blob)
@@ -30,13 +28,11 @@ func ParsePEFromBytes(p string, blob []byte) (EFIBinaryEvidence, error) {
 
 	ev.Arch = peMachineToArch(f.FileHeader.Machine)
 
-	// Sections
 	for _, s := range f.Sections {
 		name := strings.TrimRight(s.Name, "\x00")
 		ev.Sections = append(ev.Sections, name)
 	}
 
-	// Signed evidence: presence of Authenticode blob
 	signed, sigSize, sigNote := peSignatureInfo(f)
 	ev.Signed = signed
 	ev.SignatureSize = sigSize
@@ -44,17 +40,14 @@ func ParsePEFromBytes(p string, blob []byte) (EFIBinaryEvidence, error) {
 		ev.Notes = append(ev.Notes, sigNote)
 	}
 
-	// SBAT section presence
 	ev.HasSBAT = hasSection(ev.Sections, ".sbat")
 
-	// UKI detection: these sections are highly indicative
 	isUKI := hasSection(ev.Sections, ".linux") &&
 		(hasSection(ev.Sections, ".cmdline") || hasSection(ev.Sections, ".osrel") || hasSection(ev.Sections, ".uname"))
 	ev.IsUKI = isUKI
 	if isUKI {
 		ev.Kind = BootloaderUKI
 	} else {
-		// reclassify based on name/path/sections
 		ev.Kind = classifyBootloaderKind(p, ev.Sections)
 	}
 
@@ -121,18 +114,21 @@ func peSignatureInfo(f *pe.File) (signed bool, sigSize int, note string) {
 	return false, 0, ""
 }
 
-// classifyBootloaderKind classifies the bootloader kind based on path and sections
+// classifyBootloaderKind classifies the bootloader kind based on path and sections.
+// It intentionally avoids content-string heuristics for stability.
+// For BOOTX64.EFI copies/aliases, rely on SHA-inheritance post-pass.
 func classifyBootloaderKind(p string, sections []string) BootloaderKind {
 	lp := strings.ToLower(p)
 
-	// Most deterministic first:
+	// Deterministic first:
 	if sections != nil && hasSection(sections, ".linux") {
-		// likely UKI; caller can override with stricter check
 		return BootloaderUKI
 	}
 
 	// Path / filename heuristics:
-	// shim often includes "shim" and/or has .sbat too
+	if strings.Contains(lp, "mmx64.efi") || strings.Contains(lp, "mmia32.efi") {
+		return BootloaderMokManager
+	}
 	if strings.Contains(lp, "shim") {
 		return BootloaderShim
 	}
@@ -142,10 +138,7 @@ func classifyBootloaderKind(p string, sections []string) BootloaderKind {
 	if strings.Contains(lp, "grub") {
 		return BootloaderGrub
 	}
-	if strings.Contains(lp, "mmx64.efi") || strings.Contains(lp, "mmia32.efi") {
-		return BootloaderMokManager
-	}
-	// fallback
+
 	return BootloaderUnknown
 }
 
@@ -158,6 +151,34 @@ func hasSection(secs []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// inheritBootloaderKindBySHA assigns a kind to "unknown" EFI binaries when they
+// are byte-identical to another EFI binary already classified as a known kind.
+// This reliably handles fallback paths like EFI/BOOT/BOOTX64.EFI.
+func inheritBootloaderKindBySHA(evs []EFIBinaryEvidence) {
+	known := make(map[string]BootloaderKind) // sha256 -> kind
+
+	// First pass: record known kinds by hash.
+	for _, ev := range evs {
+		if ev.SHA256 == "" || ev.Kind == BootloaderUnknown {
+			continue
+		}
+		if _, ok := known[ev.SHA256]; !ok {
+			known[ev.SHA256] = ev.Kind
+		}
+	}
+
+	// Second pass: upgrade unknowns when a known hash exists.
+	for i := range evs {
+		if evs[i].Kind != BootloaderUnknown || evs[i].SHA256 == "" {
+			continue
+		}
+		if k, ok := known[evs[i].SHA256]; ok {
+			evs[i].Kind = k
+			evs[i].Notes = append(evs[i].Notes, "bootloader kind inherited from identical EFI binary (sha256 match)")
+		}
+	}
 }
 
 // peMachineToArch maps PE machine types to architecture strings
