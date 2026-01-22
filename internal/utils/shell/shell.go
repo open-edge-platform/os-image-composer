@@ -242,10 +242,6 @@ func extractSedPattern(command string) (string, error) {
 }
 
 func extractEchoString(command string) (string, error) {
-	// Match strings inside echo with single or double quotes
-	// Note: Ideally, the pattern should be `(?s)echo\s+(?:-e\s+)?(['"])(.*?)\1'`
-	// But the go built-in lib regexp doesn't support this backreferences.
-
 	// First try single quotes
 	singleRe := regexp.MustCompile(`(?s)echo\s+(?:-e\s+)?'(.*?)'`)
 	matches := singleRe.FindStringSubmatch(command)
@@ -261,7 +257,89 @@ func extractEchoString(command string) (string, error) {
 		return matches[1], nil
 	}
 
-	return "", fmt.Errorf("no quoted string found in echo command")
+	// Check with need manual parsing
+	// This handles cases like: echo 'hello "world" good morning'
+	return extractEchoStringManual(command)
+}
+
+// extractEchoStringManual uses manual parsing to ensure opening and closing quotes match
+// This handles cases like: echo 'hello "world" good morning'
+func extractEchoStringManual(command string) (string, error) {
+	// Find the echo command and optional -e flag
+	echoRe := regexp.MustCompile(`echo\s+(?:-e\s+)?`)
+	loc := echoRe.FindStringIndex(command)
+	if loc == nil {
+		return "", fmt.Errorf("no echo command found")
+	}
+
+	// Get the rest of the string after 'echo' and optional '-e'
+	rest := command[loc[1]:]
+	rest = strings.TrimSpace(rest)
+
+	if len(rest) == 0 {
+		return "", fmt.Errorf("no quoted string found in echo command")
+	}
+
+	// Check if it starts with a quote
+	if rest[0] != '\'' && rest[0] != '"' {
+		return "", fmt.Errorf("echo string must start with a quote")
+	}
+
+	quoteChar := rest[0]
+
+	// Find the matching closing quote (same type as opening)
+	escaped := false
+	for i := 1; i < len(rest); i++ {
+		if escaped {
+			escaped = false
+			continue
+		}
+		if rest[i] == '\\' {
+			escaped = true
+			continue
+		}
+		if rest[i] == quoteChar {
+			// Found the matching closing quote - return WITH quotes
+			return rest[0 : i+1], nil
+		}
+	}
+
+	return "", fmt.Errorf("no matching closing quote found")
+}
+
+// findSeparatorOutsideQuotes finds the index of a separator that is not within quotes
+func findSeparatorOutsideQuotes(cmd string, sep string) int {
+	inSingleQuote := false
+	inDoubleQuote := false
+	escaped := false
+
+	for i := 0; i < len(cmd); i++ {
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		if cmd[i] == '\\' {
+			escaped = true
+			continue
+		}
+
+		// Toggle quote states
+		if cmd[i] == '\'' && !inDoubleQuote {
+			inSingleQuote = !inSingleQuote
+		} else if cmd[i] == '"' && !inSingleQuote {
+			inDoubleQuote = !inDoubleQuote
+		}
+
+		// Check if we found the separator outside quotes
+		if !inSingleQuote && !inDoubleQuote {
+			if i+len(sep) <= len(cmd) && cmd[i:i+len(sep)] == sep {
+				return i
+			}
+		}
+	}
+
+	return -1
 }
 
 func verifyCmdWithFullPath(cmd, chrootPath string) (string, error) {
@@ -290,7 +368,7 @@ func verifyCmdWithFullPath(cmd, chrootPath string) (string, error) {
 	sepIdx := -1
 	sep := ""
 	for _, s := range separators {
-		if idx := strings.Index(cmd, s); idx != -1 && (sepIdx == -1 || idx < sepIdx) {
+		if idx := findSeparatorOutsideQuotes(cmd, s); idx != -1 && (sepIdx == -1 || idx < sepIdx) {
 			sepIdx = idx
 			sep = s
 		}

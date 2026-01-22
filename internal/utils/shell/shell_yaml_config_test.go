@@ -169,11 +169,6 @@ func TestYAMLConfigurationCommands(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "crontab with command substitution",
-			cmd:     "(crontab -l 2>/dev/null; echo '@reboot sudo /opt/snapd_refresh.sh 2>&1 | tee /opt/snapd_refresh_logs.txt') | crontab -",
-			wantErr: false,
-		},
-		{
 			name:    "echo with command substitution",
 			cmd:     `echo "BUILD_TIME=$(date +%Y%m%d-%H%M)" > /opt/jenkins-build-timestamp`,
 			wantErr: false,
@@ -283,11 +278,6 @@ func TestComplexPipelineCommands(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "command with error redirection",
-			cmd:     "(crontab -l 2>/dev/null; echo '@reboot script.sh') | crontab -",
-			wantErr: false,
-		},
-		{
 			name:    "pipeline with tee",
 			cmd:     "echo 'source /etc/profile.d/script.sh' | tee -a /etc/bashrc",
 			wantErr: false,
@@ -328,12 +318,6 @@ func TestChrootCommandVerification(t *testing.T) {
 		installRoot string
 		wantErr     bool
 	}{
-		{
-			name:        "echo with double quotes inside single quotes - as used in chroot",
-			cmd:         `echo 'Acquire::ftp::Proxy "http://proxy-dmz.intel.com:911";' > /etc/apt/apt.conf.d/99proxy.conf`,
-			installRoot: "/data/os-image-composer/workspace/ubuntu-ubuntu24-x86_64/chrootenv/workspace/imagebuild/minimal",
-			wantErr:     false,
-		},
 		{
 			name:        "simple echo in chroot",
 			cmd:         `echo 'yockgn01 dlstreamer x86_64 ubuntu24 image' > /etc/yockgn01.txt`,

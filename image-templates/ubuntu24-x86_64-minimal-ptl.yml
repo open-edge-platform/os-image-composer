@@ -342,7 +342,9 @@ systemConfig:
   users:
     - name: rbfadmin
       password: "jaiZ6dai"
-      groups: ["sudo"] 
+    - name: user
+      password: user
+      groups: ["sudo"]
     - name: sys_olvtelemetry
 
   configurations:

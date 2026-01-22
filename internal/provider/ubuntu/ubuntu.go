@@ -259,17 +259,6 @@ func (p *ubuntu) downloadImagePkgs(template *config.ImageTemplate) error {
 		}
 	}
 
-	// Build user repo configs and add to the provider repos
-	if len(userRepoList) > 0 {
-		userRepoCfgs, err := debutils.BuildRepoConfigs(userRepoList, arch)
-		if err != nil {
-			log.Warnf("Failed to build user repo configs: %v", err)
-		} else {
-			p.repoCfgs = append(p.repoCfgs, userRepoCfgs...)
-			log.Infof("Added %d user repositories to configuration", len(userRepoCfgs))
-		}
-	}
-
 	// Set up all repositories for debutils
 	debutils.RepoCfgs = p.repoCfgs
 
