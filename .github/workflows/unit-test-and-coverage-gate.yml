@@ -46,8 +46,15 @@ jobs:
           INPUT_COV_THRESHOLD: ${{ inputs.cov_threshold }}
         run: |
           # Read threshold from file, allow manual override
-          FILE_THRESHOLD=$(cat .coverage-threshold 2>/dev/null || echo "65.0")
+          # Use fallback 65.0 if file is missing, empty, or unreadable
+          FILE_THRESHOLD=$(cat .coverage-threshold 2>/dev/null | tr -d '[:space:]')
+          FILE_THRESHOLD="${FILE_THRESHOLD:-65.0}"
           COV_THRESHOLD="${INPUT_COV_THRESHOLD:-$FILE_THRESHOLD}"
+          # Validate it's a number, otherwise use fallback
+          if ! [[ "$COV_THRESHOLD" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+            echo "::warning::Invalid threshold '$COV_THRESHOLD', using 65.0"
+            COV_THRESHOLD="65.0"
+          fi
           echo "cov_threshold=${COV_THRESHOLD}" >> "$GITHUB_OUTPUT"
           echo "build_id=${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
           if [[ -n "${INPUT_COV_THRESHOLD}" ]]; then
@@ -89,7 +96,8 @@ jobs:
               # Extract numeric values using simpler patterns
               OVERALL=$(grep "Overall Coverage:" coverage_report.txt | sed 's/[^0-9.]*\([0-9.]\+\)%.*/\1/')%
               THRESHOLD=$(grep "Threshold:" coverage_report.txt | sed 's/[^0-9.]*\([0-9.]\+\)%.*/\1/')%
-              STATUS=$(grep "Status:" coverage_report.txt | sed 's/[^A-Z]*\([A-Z]\+\).*/\1/')
+              # Get last word on the Status line (PASSED or FAILED)
+              STATUS=$(grep "Status:" coverage_report.txt | awk '{print $NF}')
               
               # Status badge
               if [[ "$STATUS" == "PASSED" ]]; then

@@ -433,19 +433,23 @@ echo "Calculation method: ${COVERAGE_METHOD}"
 COVERAGE_NORMALIZED=$(printf '%.1f' "${OVERALL_COVERAGE}")
 THRESHOLD_NORMALIZED=$(printf '%.1f' "${COV_THRESHOLD}")
 
+# Track coverage status separately from test status
+COVERAGE_PASSED="true"
 if (( $(echo "${COVERAGE_NORMALIZED} >= ${THRESHOLD_NORMALIZED}" | bc -l) )); then
     echo -e "${GREEN}✓ Overall coverage PASSED threshold${NC}"
 else
     echo -e "${RED}✗ Overall coverage FAILED threshold${NC}"
+    COVERAGE_PASSED="false"
     OVERALL_EXIT_CODE=1
 fi
 
 # Generate coverage reports for saving
+# Note: Status reflects COVERAGE check only, not test failures
 echo "## Test Coverage Report" > coverage_report.txt
 echo "" >> coverage_report.txt
 echo "**Overall Coverage:** ${COVERAGE_NORMALIZED}%" >> coverage_report.txt
 echo "**Threshold:** ${THRESHOLD_NORMALIZED}% (applies to overall coverage only)" >> coverage_report.txt
-echo "**Status:** $(if [[ ${OVERALL_EXIT_CODE} -eq 0 ]]; then echo "PASSED"; else echo "FAILED"; fi)" >> coverage_report.txt
+echo "**Status:** $(if [[ "${COVERAGE_PASSED}" == "true" ]]; then echo "PASSED"; else echo "FAILED"; fi)" >> coverage_report.txt
 echo "" >> coverage_report.txt
 
 # FIXED: Use safer array check that works with set -u
