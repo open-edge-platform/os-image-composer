@@ -348,8 +348,6 @@ systemConfig:
     - name: sys_olvtelemetry
 
   configurations:
-    - cmd: "touch /etc/dummytest.txt"
-    - cmd: "echo 'yockgn01 dlstreamer x86_64 ubuntu24 image' > /etc/yockgn01.txt"
     # Set up APT proxies
     - cmd: "echo 'Acquire::ftp::Proxy \"http://proxy-dmz.intel.com:911\";' > /etc/apt/apt.conf.d/99proxy.conf"
     - cmd: "echo 'Acquire::http::Proxy \"http://proxy-dmz.intel.com:911\";' >> /etc/apt/apt.conf.d/99proxy.conf"
