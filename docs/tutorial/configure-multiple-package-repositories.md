@@ -186,14 +186,17 @@ systemConfig:
 ### Trusted Repository (No GPG Verification)
 
 ```yaml
+# WARNING: "[trusted=yes]" disables signature verification.
+# Only use this for repositories fully controlled by your organization,
+# typically in development or testing, and never for public or third-party repos.
 packageRepositories:
   - codename: "internal-repo"
     url: "https://internal.company.com/packages"
-    pkey: "[trusted=yes]"  # Bypasses GPG verification
+    pkey: "[trusted=yes]"  # Bypasses GPG verification; ONLY for internal, organization-controlled repos.
   
   - codename: "test-repo"
     url: "https://test.example.com/packages"
-    pkey: "[trusted=yes]"  # Use with caution - no signature verification
+    pkey: "[trusted=yes]"  # No signature verification; for internal dev/test only, not public/third-party repos.
 
 systemConfig:
   packages:
