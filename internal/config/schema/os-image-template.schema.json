@@ -314,7 +314,7 @@
         "priority": {
           "type": "integer",
           "description": "Repository priority (higher numbers = higher priority, like apt pinning)",
-          "minimum": 0,
+          "minimum": -9999,
           "maximum": 9999,
           "default": 0
         }

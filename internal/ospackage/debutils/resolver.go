@@ -1276,7 +1276,7 @@ func extractVersionRequirement(reqVers []string, depName string) ([]VersionConst
 					// Split into operator and version
 					parts := strings.Fields(constraintPart)
 
-					// Handle both ">>= 1.2.3" and ">>=1.2.3" formats
+					// Handle both ">> 1.2.3" and ">>1.2.3" formats
 					var op, ver string
 					if len(parts) == 2 {
 						op, ver = parts[0], parts[1]

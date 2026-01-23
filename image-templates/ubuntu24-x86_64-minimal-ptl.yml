@@ -410,7 +410,7 @@ systemConfig:
     - cmd: "echo 'sleep 60 && snap refresh snapd-desktop-integration' >> /opt/snapd_refresh.sh"
     - cmd: "chmod +x /opt/snapd_refresh.sh"
     - cmd: "(crontab -l 2>/dev/null; echo '@reboot sudo /opt/snapd_refresh.sh 2>&1 | tee /opt/snapd_refresh_logs.txt') | crontab -"
-    # Set build timestamp
+    # Set build timestamp. Note: BUILD_TIME is captured at image build time (image creation), not at deployment/runtime.
     - cmd: "echo \"BUILD_TIME=$(date +%Y%m%d-%H%M)\" > /opt/jenkins-build-timestamp"
     - cmd: "echo 'PLATFORM=PTL' >> /opt/jenkins-build-timestamp"
     - cmd: "echo 'PTL KERNEL=mainline-tracking-6.17' >> /opt/jenkins-build-timestamp"
