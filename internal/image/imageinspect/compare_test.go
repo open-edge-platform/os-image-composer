@@ -15,9 +15,9 @@ func TestCompareImages_Equal_NoChanges(t *testing.T) {
 			ProtectiveMBR:      true,
 			Partitions: []PartitionSummary{
 				{
-					Index:    1,
-					Name:     "ESP",
-					Type:     "efi",
+					Index:     1,
+					Name:      "ESP",
+					Type:      "efi",
 					StartLBA:  2048,
 					EndLBA:    4095,
 					SizeBytes: 1024,
@@ -34,8 +34,8 @@ func TestCompareImages_Equal_NoChanges(t *testing.T) {
 
 	// Deep copy-ish by constructing again (enough for this test)
 	b := &ImageSummary{
-		File:      "a.raw",
-		SizeBytes: 100,
+		File:           "a.raw",
+		SizeBytes:      100,
 		PartitionTable: a.PartitionTable,
 	}
 
@@ -111,9 +111,9 @@ func TestCompareImages_PartitionsAddedRemovedModified_ByFSUUIDKey(t *testing.T) 
 			LogicalSectorSize: 512,
 			Partitions: []PartitionSummary{
 				{
-					Index:    1,
-					Name:     "ESP",
-					Type:     "efi",
+					Index:     1,
+					Name:      "ESP",
+					Type:      "efi",
 					StartLBA:  2048,
 					EndLBA:    4095,
 					SizeBytes: 1024,
@@ -124,9 +124,9 @@ func TestCompareImages_PartitionsAddedRemovedModified_ByFSUUIDKey(t *testing.T) 
 					},
 				},
 				{
-					Index:    2,
-					Name:     "root",
-					Type:     "linux",
+					Index:     2,
+					Name:      "root",
+					Type:      "linux",
 					StartLBA:  4096,
 					EndLBA:    8191,
 					SizeBytes: 2048,
@@ -149,9 +149,9 @@ func TestCompareImages_PartitionsAddedRemovedModified_ByFSUUIDKey(t *testing.T) 
 			LogicalSectorSize: 512,
 			Partitions: []PartitionSummary{
 				{
-					Index:    1,
-					Name:     "ESP",
-					Type:     "efi",
+					Index:     1,
+					Name:      "ESP",
+					Type:      "efi",
 					StartLBA:  2048,
 					EndLBA:    4095,
 					SizeBytes: 1024,
@@ -162,9 +162,9 @@ func TestCompareImages_PartitionsAddedRemovedModified_ByFSUUIDKey(t *testing.T) 
 					},
 				},
 				{
-					Index:    3,
-					Name:     "data",
-					Type:     "linux",
+					Index:     3,
+					Name:      "data",
+					Type:      "linux",
 					StartLBA:  9000,
 					EndLBA:    9999,
 					SizeBytes: 4096,
@@ -213,9 +213,9 @@ func TestCompareImages_EFIBinaries_ModifiedAndUKIDiff(t *testing.T) {
 			LogicalSectorSize: 512,
 			Partitions: []PartitionSummary{
 				{
-					Index:    1,
-					Name:     "ESP",
-					Type:     "efi",
+					Index:     1,
+					Name:      "ESP",
+					Type:      "efi",
 					StartLBA:  2048,
 					EndLBA:    4095,
 					SizeBytes: 1024,
@@ -253,11 +253,11 @@ func TestCompareImages_EFIBinaries_ModifiedAndUKIDiff(t *testing.T) {
 		File:      "b.raw",
 		SizeBytes: a.SizeBytes,
 		PartitionTable: PartitionTableSummary{
-			Type:              a.PartitionTable.Type,
-			LogicalSectorSize: a.PartitionTable.LogicalSectorSize,
+			Type:               a.PartitionTable.Type,
+			LogicalSectorSize:  a.PartitionTable.LogicalSectorSize,
 			PhysicalSectorSize: a.PartitionTable.PhysicalSectorSize,
-			ProtectiveMBR:     a.PartitionTable.ProtectiveMBR,
-			Partitions:        make([]PartitionSummary, len(a.PartitionTable.Partitions)),
+			ProtectiveMBR:      a.PartitionTable.ProtectiveMBR,
+			Partitions:         make([]PartitionSummary, len(a.PartitionTable.Partitions)),
 		},
 	}
 
@@ -326,9 +326,9 @@ func TestCompareImages_EFIBinaries_AddedRemoved(t *testing.T) {
 			LogicalSectorSize: 512,
 			Partitions: []PartitionSummary{
 				{
-					Index:    1,
-					Name:     "ESP",
-					Type:     "efi",
+					Index: 1,
+					Name:  "ESP",
+					Type:  "efi",
 					Filesystem: &FilesystemSummary{
 						Type: "vfat",
 						UUID: "UUID-ESP",
@@ -348,9 +348,9 @@ func TestCompareImages_EFIBinaries_AddedRemoved(t *testing.T) {
 			LogicalSectorSize: 512,
 			Partitions: []PartitionSummary{
 				{
-					Index:    1,
-					Name:     "ESP",
-					Type:     "efi",
+					Index: 1,
+					Name:  "ESP",
+					Type:  "efi",
 					Filesystem: &FilesystemSummary{
 						Type: "vfat",
 						UUID: "UUID-ESP",

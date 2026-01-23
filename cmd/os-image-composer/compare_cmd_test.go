@@ -121,12 +121,17 @@ func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
 
 		// Validate it looks like ImageCompareResult (at least top-level fields).
 		var got struct {
-			Equal bool `json:"equal"`
-			From  any  `json:"from"`
-			To    any  `json:"to"`
-			Diff  any  `json:"diff"`
+			SchemaVersion string          `json:"schemaVersion"`
+			Equal         bool            `json:"equal"`
+			From          json.RawMessage `json:"from"`
+			To            json.RawMessage `json:"to"`
+			Summary       json.RawMessage `json:"summary"`
+			Diff          json.RawMessage `json:"diff"`
 		}
 		decodeJSON(t, s, &got)
+		if got.SchemaVersion == "" {
+			t.Fatalf("expected schemaVersion to be set")
+		}
 	})
 
 	t.Run("diff compact", func(t *testing.T) {

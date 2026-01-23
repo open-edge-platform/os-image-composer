@@ -83,7 +83,9 @@ func writeInspectionResult(cmd *cobra.Command, summary *imageinspect.ImageSummar
 
 	switch format {
 	case "text":
-		imageinspect.RenderSummaryText(out, summary, imageinspect.TextOptions{})
+		if err := imageinspect.RenderSummaryText(out, summary, imageinspect.TextOptions{}); err != nil {
+			return fmt.Errorf("render text: %w", err)
+		}
 		return nil
 
 	case "json":
