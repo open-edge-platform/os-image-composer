@@ -82,14 +82,12 @@ func RenderCompareText(w io.Writer, r *ImageCompareResult, opts CompareTextOptio
 			fmt.Fprintln(w, "  Added:")
 			for _, p := range pd.Added {
 				renderPartitionSummaryLine(w, "    +", p)
-				//renderFilesystemOneLiner(w, "      ", p.Filesystem)
 			}
 		}
 		if len(pd.Removed) > 0 {
 			fmt.Fprintln(w, "  Removed:")
 			for _, p := range pd.Removed {
 				renderPartitionSummaryLine(w, "    -", p)
-				//renderFilesystemOneLiner(w, "      ", p.Filesystem)
 			}
 		}
 		if len(pd.Modified) > 0 {
@@ -373,27 +371,12 @@ func renderPartitionTable(w io.Writer, pt PartitionTableSummary) {
 	_ = tw.Flush()
 }
 
-// func renderPartitionsTable(w io.Writer, ptType string, partitions []PartitionSummary) {
-	
-// 	for _, p := range partitions {
-// 		if p.Filesystem == nil {
-// 			continue
-// 		}
-// 		fs := p.Filesystem
-// 		if isFilesystemEmpty(fs) {
-// 			continue
-// 		}
-// 		fmt.Fprintln(w)
-// 		fmt.Fprintf(w, "Partition %d filesystem details\n", p.Index)
-// 		fmt.Fprintln(w, "------------------------------")
-// 		renderPartitionFilesystemDetails(w, p)
-// 	}
-// }
-
 func renderPartitionFilesystemDetails(w io.Writer, p PartitionSummary) {
 
 	fs := p.Filesystem
-	if fs == nil { return }
+	if fs == nil { 
+		return 
+	}
 
 	// Key/value lines
 	kv := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
