@@ -1,7 +1,7 @@
 # ignore everything under the downloads folder
 downloads/
 builds/  
-cache/
+/cache/
 tmp/ 
 # AI embedding cache
 .ai-cache/
