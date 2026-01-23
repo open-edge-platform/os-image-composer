@@ -326,7 +326,3 @@ func diskfsPartitionNumberForSummary(d diskAccessorFS, ps PartitionSummary) (int
 
 	return 0, false
 }
-
-func (d *DiskfsInspector) DisplaySummary(ioWriter io.Writer, summary *ImageSummary) {
-	PrintSummary(ioWriter, summary)
-}

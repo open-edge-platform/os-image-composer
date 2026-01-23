@@ -574,7 +574,7 @@ func TestPrintSummary_Smoke(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	PrintSummary(&buf, sum)
+	RenderSummaryText(&buf, sum, TextOptions{})
 
 	s := buf.String()
 	if !strings.Contains(s, "OS Image Summary") {

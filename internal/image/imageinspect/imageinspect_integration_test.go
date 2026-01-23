@@ -34,7 +34,8 @@ func TestInspectImage_Minimal(t *testing.T) {
 			if got.PartitionTable.PhysicalSectorSize == 0 {
 				t.Fatalf("PartitionTable.PhysicalSectorSize is 0")
 			}
-			PrintSummary(os.Stdout, got)
+			
+			RenderSummaryText(os.Stdout, got, TextOptions{})
 		})
 	}
 }
