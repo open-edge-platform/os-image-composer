@@ -305,8 +305,8 @@ func (t *ImageTemplate) GetInitramfsTemplate() (string, error) {
 	}
 	if filepath.IsAbs(t.SystemConfig.Initramfs.Template) {
 		initrdTemplateFilePath = t.SystemConfig.Initramfs.Template
-		if _, err := os.Stat(initrdTemplateFilePath); os.IsNotExist(err) {
-			return "", fmt.Errorf("initrd template file does not exist: %s", initrdTemplateFilePath)
+		if _, err := os.Stat(initrdTemplateFilePath); err != nil {
+			return "", fmt.Errorf("initrd template file does not exist or is not accessible: %s", initrdTemplateFilePath)
 		}
 	} else {
 		if len(t.PathList) == 0 {
