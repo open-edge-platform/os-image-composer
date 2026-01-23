@@ -574,7 +574,9 @@ func TestPrintSummary_Smoke(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	RenderSummaryText(&buf, sum, TextOptions{})
+	if err := RenderSummaryText(&buf, sum, TextOptions{}); err != nil {
+		t.Fatalf("RenderSummaryText error: %v", err)
+	}
 
 	s := buf.String()
 	if !strings.Contains(s, "OS Image Summary") {

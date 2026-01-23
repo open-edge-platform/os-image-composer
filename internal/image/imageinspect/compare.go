@@ -350,7 +350,7 @@ func partitionKey(ptType string, p PartitionSummary) string {
 
 // partitionsEqual checks if two PartitionSummary objects are equal.
 func partitionsEqual(a, b PartitionSummary) bool {
-	
+
 	if a.Index != b.Index ||
 		a.Name != b.Name ||
 		a.Type != b.Type ||
@@ -447,7 +447,7 @@ func efiEvidenceListEqual(a, b []EFIBinaryEvidence) bool {
 
 func efiEvidenceEqual(a, b EFIBinaryEvidence) bool {
 
-	// Compare high-value evidence. 
+	// Compare high-value evidence.
 	if a.Path != b.Path ||
 		a.Size != b.Size ||
 		a.SHA256 != b.SHA256 ||

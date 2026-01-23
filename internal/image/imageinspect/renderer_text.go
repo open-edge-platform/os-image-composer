@@ -24,7 +24,7 @@ func RenderCompareText(w io.Writer, r *ImageCompareResult, opts CompareTextOptio
 	}
 
 	mode := normalizeCompareMode(opts.Mode)
-	
+
 	// Header
 	fmt.Fprintf(w, "Equal: %v\n", r.Equal)
 
@@ -130,7 +130,6 @@ func RenderCompareText(w io.Writer, r *ImageCompareResult, opts CompareTextOptio
 	return nil
 }
 
-
 func RenderSummaryText(w io.Writer, summary *ImageSummary, opts TextOptions) error {
 	if summary == nil {
 		return fmt.Errorf("RenderSummaryText: summary is nil")
@@ -214,25 +213,6 @@ func renderFilesystemChangeText(w io.Writer, c *FilesystemChange) {
 	}
 }
 
-func renderFilesystemOneLiner(w io.Writer, indent string, fs *FilesystemSummary) {
-	if fs == nil || strings.TrimSpace(fs.Type) == "" {
-		return
-	}
-	lbl := strings.TrimSpace(fs.Label)
-	id := strings.TrimSpace(fs.UUID)
-	fmt.Fprintf(w, "%sFS: type=%s", indent, strings.TrimSpace(fs.Type))
-	if lbl != "" {
-		fmt.Fprintf(w, " label=%q", lbl)
-	}
-	if id != "" {
-		fmt.Fprintf(w, " uuid=%q", id)
-	}
-	if strings.EqualFold(fs.Type, "vfat") && strings.TrimSpace(fs.FATType) != "" {
-		fmt.Fprintf(w, " fat=%s", strings.TrimSpace(fs.FATType))
-	}
-	fmt.Fprintln(w)
-}
-
 func renderEFIBinaryDiffText(w io.Writer, d EFIBinaryDiff, indent string) {
 	if len(d.Added) > 0 {
 		fmt.Fprintf(w, "%sAdded:\n", indent)
@@ -308,7 +288,6 @@ func hasAnyEFIDiff(d EFIBinaryDiff) bool {
 	return len(d.Added) > 0 || len(d.Removed) > 0 || len(d.Modified) > 0
 }
 
-
 // renderPartitionTable prints a table of partitions in the partition table.
 func renderPartitionTable(w io.Writer, pt PartitionTableSummary) {
 
@@ -374,8 +353,8 @@ func renderPartitionTable(w io.Writer, pt PartitionTableSummary) {
 func renderPartitionFilesystemDetails(w io.Writer, p PartitionSummary) {
 
 	fs := p.Filesystem
-	if fs == nil { 
-		return 
+	if fs == nil {
+		return
 	}
 
 	// Key/value lines
@@ -431,7 +410,7 @@ func renderPartitionFilesystemDetails(w io.Writer, p PartitionSummary) {
 		// Sort by path for stable output
 		arts := append([]EFIBinaryEvidence(nil), fs.EFIBinaries...)
 		sort.Slice(arts, func(i, j int) bool { return arts[i].Path < arts[j].Path })
-		
+
 		// Print a focused UKI block for the first UKI found
 		if uki, ok := firstUKI(arts); ok {
 			renderUKIDetailsBlock(w, uki)
@@ -480,7 +459,7 @@ func renderPartitionTableHeader(w io.Writer, pt PartitionTableSummary) {
 }
 
 func renderEFIArtifactsTable(w io.Writer, arts []EFIBinaryEvidence) {
-	
+
 	fmt.Fprintln(w)
 	fmt.Fprintf(w, "EFI artifacts:\t%d\n", len(arts))
 
@@ -711,4 +690,3 @@ func printOSReleaseKV(w io.Writer, title string, kvs []KeyValue) {
 	}
 	_ = tw.Flush()
 }
-

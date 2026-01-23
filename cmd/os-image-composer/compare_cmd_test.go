@@ -18,13 +18,13 @@ type fakeCompareInspector struct {
 }
 
 func (f *fakeCompareInspector) Inspect(path string) (*imageinspect.ImageSummary, error) {
-    if err, ok := f.errByPath[path]; ok {
-        return nil, err
-    }
-    if img, ok := f.imgByPath[path]; ok {
-        return img, nil
-    }
-    return nil, errors.New("not found")
+	if err, ok := f.errByPath[path]; ok {
+		return nil, err
+	}
+	if img, ok := f.imgByPath[path]; ok {
+		return img, nil
+	}
+	return nil, errors.New("not found")
 }
 
 func minimalImage(file string, size int64) *imageinspect.ImageSummary {
@@ -144,7 +144,7 @@ func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
 		}
 
 		var got struct {
-			Equal bool               `json:"equal"`
+			Equal bool                   `json:"equal"`
 			Diff  imageinspect.ImageDiff `json:"diff"`
 		}
 		decodeJSON(t, s, &got)
@@ -164,7 +164,7 @@ func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
 		}
 
 		var got struct {
-			Equal   bool                         `json:"equal"`
+			Equal   bool                        `json:"equal"`
 			Summary imageinspect.CompareSummary `json:"summary"`
 		}
 		decodeJSON(t, s, &got)

@@ -101,8 +101,8 @@ func executeCompare(cmd *cobra.Command, args []string) error {
 		return writeCompareResult(cmd, payload, prettyDiffJSON)
 
 	case "text":
-	    return imageinspect.RenderCompareText(cmd.OutOrStdout(), &compareResult,
-    	    imageinspect.CompareTextOptions{Mode: mode})
+		return imageinspect.RenderCompareText(cmd.OutOrStdout(), &compareResult,
+			imageinspect.CompareTextOptions{Mode: mode})
 
 	default:
 		return fmt.Errorf("invalid --mode %q (expected text|json)", outMode)
@@ -127,4 +127,3 @@ func writeCompareResult(cmd *cobra.Command, v any, pretty bool) error {
 	_, _ = fmt.Fprintln(out, string(b))
 	return nil
 }
-

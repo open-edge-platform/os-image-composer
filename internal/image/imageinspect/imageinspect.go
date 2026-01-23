@@ -11,7 +11,6 @@ import (
 	"github.com/diskfs/go-diskfs/partition"
 	"github.com/diskfs/go-diskfs/partition/gpt"
 	"github.com/diskfs/go-diskfs/partition/mbr"
-	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 )
 
 // ImageSummary holds the summary information about an inspected disk image.
@@ -140,8 +139,6 @@ type diskAccessorFS interface {
 type DiskfsInspector struct{}
 
 func NewDiskfsInspector() *DiskfsInspector { return &DiskfsInspector{} }
-
-var log = logger.Logger()
 
 // Inspect inspects the disk image at the given path and returns an ImageSummary.
 func (d *DiskfsInspector) Inspect(imagePath string) (*ImageSummary, error) {
