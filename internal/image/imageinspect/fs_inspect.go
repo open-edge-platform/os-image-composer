@@ -181,7 +181,6 @@ func readExtSuperblock(r io.ReaderAt, partOff int64, out *FilesystemSummary) err
 	return nil
 }
 
-// readFATBootSector reads the FAT boot sector and fills in details.
 func readFATBootSector(r io.ReaderAt, partOff int64, out *FilesystemSummary) error {
 	bs := make([]byte, 512)
 	if _, err := r.ReadAt(bs, partOff); err != nil && err != io.EOF {
@@ -200,72 +199,86 @@ func readFATBootSector(r io.ReaderAt, partOff int64, out *FilesystemSummary) err
 	totSec16 := binary.LittleEndian.Uint16(bs[19:21])
 	fatSz16 := binary.LittleEndian.Uint16(bs[22:24])
 	totSec32 := binary.LittleEndian.Uint32(bs[32:36])
+	fatSz32 := binary.LittleEndian.Uint32(bs[36:40]) // BPB_FATSz32 (FAT32)
 
 	out.Type = "vfat"
 	out.BytesPerSector = bytesPerSec
 	out.SectorsPerCluster = secPerClus
+
+	// Basic sanity checks to avoid bogus classification
+	switch bytesPerSec {
+	case 512, 1024, 2048, 4096:
+		// ok
+	default:
+		return fmt.Errorf("invalid BPB: bytesPerSec=%d", bytesPerSec)
+	}
+	if secPerClus == 0 {
+		return fmt.Errorf("invalid BPB: sectorsPerCluster=0")
+	}
+	if numFATs == 0 {
+		return fmt.Errorf("invalid BPB: numFATs=0")
+	}
 
 	// Total sectors is either TotSec16 or TotSec32
 	totalSectors := uint32(totSec16)
 	if totalSectors == 0 {
 		totalSectors = totSec32
 	}
+	if totalSectors == 0 {
+		return fmt.Errorf("invalid BPB: totalSectors=0")
+	}
 
-	// FAT32 detection (canonical)
-	fatSz32 := binary.LittleEndian.Uint32(bs[36:40]) // only meaningful if FAT32
+	// Canonical FAT32 detection:
+	// - RootEntCnt must be 0 for FAT32
+	// - FATSz16 must be 0 for FAT32
+	// - FATSz32 should be non-zero for FAT32 (but we won't *require* it to avoid false negatives on odd images)
 	isFAT32 := (rootEntCnt == 0) && (fatSz16 == 0) && (fatSz32 != 0)
 
 	if isFAT32 {
 		out.FATType = "FAT32"
-
 		out.UUID = fmt.Sprintf("%08x", binary.LittleEndian.Uint32(bs[67:71]))
 		out.Label = strings.TrimRight(string(bs[71:82]), " \x00")
 
-		// cluster count for FAT32
+		// cluster count for FAT32 (root dir is in data area)
 		rootDirSectors := uint32(0)
 		fatSectors := fatSz32
 		dataSectors := totalSectors - (uint32(rsvdSecCnt) + (numFATs * fatSectors) + rootDirSectors)
-		if secPerClus == 0 {
-			return fmt.Errorf("invalid BPB: sectorsPerCluster=0")
-		}
 		out.ClusterCount = dataSectors / uint32(secPerClus)
-
 		return nil
 	}
 
 	// FAT12/16-style: classify via cluster count
-	// Root dir sectors:
 	rootDirSectors := ((uint32(rootEntCnt) * 32) + (uint32(bytesPerSec) - 1)) / uint32(bytesPerSec)
-
-	// FAT size sectors (FAT12/16 uses fatSz16)
 	fatSectors := uint32(fatSz16)
 
-	// Data sectors:
-	dataSectors := totalSectors - (uint32(rsvdSecCnt) + (numFATs * fatSectors) + rootDirSectors)
-
-	// Count of clusters:
-	if secPerClus == 0 {
-		return fmt.Errorf("invalid BPB: sectorsPerCluster=0")
+	// If FAT16 fields suggest nonsense, note it (helps debug wrong offsets/sector)
+	if fatSectors == 0 {
+		out.Notes = append(out.Notes, fmt.Sprintf("BPB_FATSz16=0 but not detected as FAT32 (RootEntCnt=%d FATSz32=%d)", rootEntCnt, fatSz32))
 	}
+
+	dataSectors := totalSectors - (uint32(rsvdSecCnt) + (numFATs * fatSectors) + rootDirSectors)
 	clusterCount := dataSectors / uint32(secPerClus)
 
-	// Standard FAT thresholds
+	out.ClusterCount = clusterCount
+
 	switch {
 	case clusterCount < 4085:
 		out.FATType = "FAT12"
-		out.ClusterCount = clusterCount
 	case clusterCount < 65525:
 		out.FATType = "FAT16"
-		out.ClusterCount = clusterCount
 	default:
-		// It’s possible to encounter FAT32-like cluster counts without the FAT32 BPB layout,
-		// but for an ESP this is unlikely. Still, classify as FAT32 if huge.
+		// If cluster count is huge, it's overwhelmingly likely FAT32.
 		out.FATType = "FAT32"
 	}
 
 	// FAT12/16 Extended BPB: VolID @ 39..43, Label @ 43..54
 	out.UUID = fmt.Sprintf("%08x", binary.LittleEndian.Uint32(bs[39:43]))
 	out.Label = strings.TrimRight(string(bs[43:54]), " \x00")
+
+	out.Notes = append(out.Notes, fmt.Sprintf(
+		"FAT BPB: BytsPerSec=%d SecPerClus=%d Rsvd=%d NumFATs=%d RootEntCnt=%d TotSec16=%d TotSec32=%d FATSz16=%d FATSz32=%d",
+		bytesPerSec, secPerClus, rsvdSecCnt, numFATs, rootEntCnt, totSec16, totSec32, fatSz16, fatSz32,
+	))
 
 	return nil
 }

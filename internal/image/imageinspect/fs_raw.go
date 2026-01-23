@@ -138,6 +138,7 @@ func scanAndHashEFIFromRawFAT(r io.ReaderAt, partOff int64, out *FilesystemSumma
 		}
 	}
 
+	inheritBootloaderKindBySHA(out.EFIBinaries)
 	sort.Slice(out.EFIBinaries, func(i, j int) bool { return out.EFIBinaries[i].Path < out.EFIBinaries[j].Path })
 
 	out.HasShim = out.HasShim || hasShim
