@@ -82,12 +82,14 @@ func RenderCompareText(w io.Writer, r *ImageCompareResult, opts CompareTextOptio
 			fmt.Fprintln(w, "  Added:")
 			for _, p := range pd.Added {
 				renderPartitionSummaryLine(w, "    +", p)
+				//renderFilesystemOneLiner(w, "      ", p.Filesystem)
 			}
 		}
 		if len(pd.Removed) > 0 {
 			fmt.Fprintln(w, "  Removed:")
 			for _, p := range pd.Removed {
 				renderPartitionSummaryLine(w, "    -", p)
+				//renderFilesystemOneLiner(w, "      ", p.Filesystem)
 			}
 		}
 		if len(pd.Modified) > 0 {
@@ -212,6 +214,25 @@ func renderFilesystemChangeText(w io.Writer, c *FilesystemChange) {
 			fmt.Fprintf(w, "        %s: %v -> %v\n", ch.Field, ch.From, ch.To)
 		}
 	}
+}
+
+func renderFilesystemOneLiner(w io.Writer, indent string, fs *FilesystemSummary) {
+	if fs == nil || strings.TrimSpace(fs.Type) == "" {
+		return
+	}
+	lbl := strings.TrimSpace(fs.Label)
+	id := strings.TrimSpace(fs.UUID)
+	fmt.Fprintf(w, "%sFS: type=%s", indent, strings.TrimSpace(fs.Type))
+	if lbl != "" {
+		fmt.Fprintf(w, " label=%q", lbl)
+	}
+	if id != "" {
+		fmt.Fprintf(w, " uuid=%q", id)
+	}
+	if strings.EqualFold(fs.Type, "vfat") && strings.TrimSpace(fs.FATType) != "" {
+		fmt.Fprintf(w, " fat=%s", strings.TrimSpace(fs.FATType))
+	}
+	fmt.Fprintln(w)
 }
 
 func renderEFIBinaryDiffText(w io.Writer, d EFIBinaryDiff, indent string) {

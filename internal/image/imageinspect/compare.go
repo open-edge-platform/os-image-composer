@@ -3,6 +3,7 @@ package imageinspect
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // ImageCompareResult represents the result of comparing two images.
@@ -292,32 +293,59 @@ func comparePartitions(fromPT, toPT PartitionTableSummary) PartitionDiff {
 }
 
 func indexPartitions(pt PartitionTableSummary) map[string]PartitionSummary {
-	m := make(map[string]PartitionSummary, len(pt.Partitions))
+	out := make(map[string]PartitionSummary, len(pt.Partitions))
+
 	for _, p := range pt.Partitions {
-		key := partitionKey(p)
-		// If a collision happens, disambiguate deterministically.
-		if _, exists := m[key]; exists {
-			key = fmt.Sprintf("%s#idx%d", key, p.Index)
+		key := partitionKey(pt.Type, p)
+
+		// Ensure uniqueness even if names collide (rare but possible)
+		if _, exists := out[key]; exists {
+			key = fmt.Sprintf("%s#idx=%d", key, p.Index)
+			if _, exists2 := out[key]; exists2 {
+				key = fmt.Sprintf("%s#lba=%d-%d", key, p.StartLBA, p.EndLBA)
+			}
 		}
-		m[key] = p
+
+		out[key] = p
 	}
-	return m
+	return out
 }
 
-func partitionKey(p PartitionSummary) string {
-	// Prefer filesystem UUID when present 
-	if p.Filesystem != nil && p.Filesystem.UUID != "" {
-		return "fs:" + p.Filesystem.UUID
+func partitionKey(ptType string, p PartitionSummary) string {
+	ptType = strings.ToLower(strings.TrimSpace(ptType))
+	name := strings.ToLower(strings.TrimSpace(p.Name))
+
+	// normalize empty-ish name
+	if name == "" {
+		name = "-"
 	}
-	if p.Name != "" {
-		return "name:" + p.Name
+
+	switch ptType {
+	case "gpt":
+		// GPT type GUID is the strongest “role identity”.
+		t := strings.ToUpper(strings.TrimSpace(p.Type))
+		if t != "" {
+			return fmt.Sprintf("gpt:%s:%s", t, name)
+		}
+		// fallback: name + index
+		return fmt.Sprintf("gpt:%s:idx=%d", name, p.Index)
+
+	case "mbr":
+		t := strings.ToLower(strings.TrimSpace(p.Type)) // like 0x0c, 0x83
+		if t == "" {
+			t = "unknown"
+		}
+		// MBR doesn’t have GUID roles; index + type is usually stable enough
+		return fmt.Sprintf("mbr:%s:%s:idx=%d", t, name, p.Index)
+
+	default:
+		// unknown PT: best effort
+		t := strings.ToLower(strings.TrimSpace(p.Type))
+		if t == "" {
+			t = "unknown"
+		}
+		return fmt.Sprintf("pt:%s:%s:idx=%d", t, name, p.Index)
 	}
-	// Otherwise, use LBA range 
-	if p.StartLBA != 0 || p.EndLBA != 0 {
-		return fmt.Sprintf("lba:%d-%d", p.StartLBA, p.EndLBA)
-	}
-	// Last resort.
-	return fmt.Sprintf("idx:%d", p.Index)
 }
 
 // partitionsEqual checks if two PartitionSummary objects are equal.

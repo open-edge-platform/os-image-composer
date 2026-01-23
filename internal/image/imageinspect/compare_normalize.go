@@ -3,13 +3,16 @@ package imageinspect
 import "sort"
 
 func normalizeCompareResult(r *ImageCompareResult) {
+
 	// Partitions
+	ptType := r.To.PartitionTable.Type
+
 	sort.Slice(r.Diff.Partitions.Added, func(i, j int) bool {
-		return partitionKey(r.Diff.Partitions.Added[i]) < partitionKey(r.Diff.Partitions.Added[j])
-	})
+	return partitionKey(ptType, r.Diff.Partitions.Added[i]) < partitionKey(ptType, r.Diff.Partitions.Added[j])})
+
 	sort.Slice(r.Diff.Partitions.Removed, func(i, j int) bool {
-		return partitionKey(r.Diff.Partitions.Removed[i]) < partitionKey(r.Diff.Partitions.Removed[j])
-	})
+	return partitionKey(ptType, r.Diff.Partitions.Removed[i]) < partitionKey(ptType, r.Diff.Partitions.Removed[j])})
+	
 	sort.Slice(r.Diff.Partitions.Modified, func(i, j int) bool {
 		return r.Diff.Partitions.Modified[i].Key < r.Diff.Partitions.Modified[j].Key
 	})
