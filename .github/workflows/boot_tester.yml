@@ -11,6 +11,46 @@ permissions:
 jobs:
   boot-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - distribution: "emt3"
+            image_type: "raw"
+            script: "scripts/build_emt3_raw.sh"
+          - distribution: "emt3"
+            image_type: "iso"
+            script: "scripts/build_emt3_iso.sh"
+          - distribution: "emt3"
+            image_type: "immutable"
+            script: "scripts/build_emt3_immutable.sh"
+          - distribution: "elxr12"
+            image_type: "raw"
+            script: "scripts/build_elxr12_raw.sh"
+          - distribution: "elxr12"
+            image_type: "iso"
+            script: "scripts/build_elxr12_iso.sh"
+          - distribution: "elxr12"
+            image_type: "immutable"
+            script: "scripts/build_elxr12_immutable.sh"
+          - distribution: "ubuntu24"
+            image_type: "raw"
+            script: "scripts/build_ubuntu24_raw.sh"
+          - distribution: "ubuntu24"
+            image_type: "iso"
+            script: "scripts/build_ubuntu24_iso.sh"
+          - distribution: "ubuntu24"
+            image_type: "immutable"
+            script: "scripts/build_ubuntu24_immutable.sh"
+          - distribution: "azl3"
+            image_type: "raw"
+            script: "scripts/build_azl3_raw.sh"
+          - distribution: "azl3"
+            image_type: "iso"
+            script: "scripts/build_azl3_iso.sh"
+          - distribution: "azl3"
+            image_type: "immutable"
+            script: "scripts/build_azl3_immutable.sh"
+      fail-fast: false  # Continue testing other images even if one fails
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,19 +76,19 @@ jobs:
         with:
           go-version: stable  # or a pinned version you know exists
 
-      - name: Copy tester script
+      - name: Prepare build script
         run: |
-          if [ ! -f validate.sh ]; then
-            echo "validate.sh not found!"
+          if [ ! -f "${{ matrix.script }}" ]; then
+            echo "${{ matrix.script }} not found!"
             exit 1
           fi
-          chmod +x validate.sh
+          chmod +x "${{ matrix.script }}"
 
-      - name: Run build-tester
+      - name: Run ${{ matrix.distribution }} ${{ matrix.image_type }} boot test
         run: |
-          echo "Starting validate.sh..."
+          echo "Starting ${{ matrix.distribution }} ${{ matrix.image_type }} image build and boot test..."
           # Ensure script has access to docker group for Earthly
           sudo usermod -aG docker $USER
-          # Run the validation script
-          ./validate.sh --qemu-test
-          echo "Build and tests completed."
+          # Run the specific build script with QEMU test
+          ./${{ matrix.script }} --qemu-test
+          echo "${{ matrix.distribution }} ${{ matrix.image_type }} build and boot test completed."
