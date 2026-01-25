@@ -1458,7 +1458,7 @@ func TestDetectOsDistribution_IDLikeFallback(t *testing.T) {
 	// by using known distributions that will match via ID_LIKE
 	tempDir := t.TempDir()
 	system.OsReleaseFile = filepath.Join(tempDir, "os-release")
-	
+
 	// Test with a known debian-based derivative
 	osReleaseContent := `NAME="Custom Debian Derivative"
 VERSION_ID="1.0"
@@ -1853,7 +1853,7 @@ func TestDetectOsDistribution_ScannerError(t *testing.T) {
 
 	tempDir := t.TempDir()
 	system.OsReleaseFile = filepath.Join(tempDir, "os-release")
-	
+
 	// Create a directory instead of a file to cause an error
 	err := os.Mkdir(system.OsReleaseFile, 0755)
 	if err != nil {
