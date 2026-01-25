@@ -1,0 +1,12 @@
+name: Building on ARM System 
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  hello:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Print Hello World
+        run: 'echo "Hello World"'
