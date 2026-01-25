@@ -1026,12 +1026,12 @@ func TestGetHostOsPkgManager_CaseVariations(t *testing.T) {
 
 	// Test exact matches - the function is case-sensitive
 	exactMatches := map[string]string{
-		"Ubuntu":                   "apt",
-		"Debian":                   "apt",
-		"Debian GNU/Linux":         "apt",
-		"Fedora":                   "yum",
-		"Microsoft Azure Linux":    "tdnf",
-		"Edge Microvisor Toolkit":  "tdnf",
+		"Ubuntu":                  "apt",
+		"Debian":                  "apt",
+		"Debian GNU/Linux":        "apt",
+		"Fedora":                  "yum",
+		"Microsoft Azure Linux":   "tdnf",
+		"Edge Microvisor Toolkit": "tdnf",
 	}
 
 	for osName, expectedPkgMgr := range exactMatches {
