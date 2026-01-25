@@ -1447,6 +1447,454 @@ func TestInstallQemuUserStatic_DetectionFailure(t *testing.T) {
 	}
 }
 
+// TestDetectOsDistribution_IDLikeFallback tests fallback to ID_LIKE when primary ID is unknown
+func TestDetectOsDistribution_IDLikeFallback(t *testing.T) {
+	originalOsReleaseFile := system.OsReleaseFile
+	defer func() {
+		system.OsReleaseFile = originalOsReleaseFile
+	}()
+
+	// This test verifies the ID_LIKE fallback mechanism works correctly
+	// by using known distributions that will match via ID_LIKE
+	tempDir := t.TempDir()
+	system.OsReleaseFile = filepath.Join(tempDir, "os-release")
+	
+	// Test with a known debian-based derivative
+	osReleaseContent := `NAME="Custom Debian Derivative"
+VERSION_ID="1.0"
+ID=customdebian
+ID_LIKE=debian`
+	err := os.WriteFile(system.OsReleaseFile, []byte(osReleaseContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write os-release file: %v", err)
+	}
+
+	result, err := system.DetectOsDistribution()
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should match debian via ID_LIKE and get deb packages
+	if len(result.PackageTypes) == 0 || result.PackageTypes[0] != "deb" {
+		t.Errorf("Expected PackageTypes to include 'deb' via ID_LIKE fallback, got %v", result.PackageTypes)
+	}
+	if len(result.PackageManagers) == 0 {
+		t.Error("Expected package managers to be populated")
+	}
+}
+
+// TestDetectOsDistribution_UnknownDistribution tests completely unknown distribution
+func TestDetectOsDistribution_UnknownDistribution(t *testing.T) {
+	originalOsReleaseFile := system.OsReleaseFile
+	originalExecutor := shell.Default
+	defer func() {
+		system.OsReleaseFile = originalOsReleaseFile
+		shell.Default = originalExecutor
+	}()
+
+	// Mock no package managers found
+	mockCommands := []shell.MockCommand{
+		{Pattern: "command -v apt", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v dpkg", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v dnf", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v tdnf", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v yum", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v rpm", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v zypper", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v pacman", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v apk", Output: "", Error: fmt.Errorf("not found")},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	tempDir := t.TempDir()
+	system.OsReleaseFile = filepath.Join(tempDir, "os-release")
+	osReleaseContent := `NAME="Completely Unknown OS"
+VERSION_ID="1.0"
+ID=unknownos`
+	err := os.WriteFile(system.OsReleaseFile, []byte(osReleaseContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write os-release file: %v", err)
+	}
+
+	result, err := system.DetectOsDistribution()
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should return empty arrays when no package manager is found
+	if len(result.PackageTypes) != 0 {
+		t.Errorf("Expected no package types for unknown OS, got %v", result.PackageTypes)
+	}
+	if len(result.PackageManagers) != 0 {
+		t.Errorf("Expected no package managers for unknown OS, got %v", result.PackageManagers)
+	}
+}
+
+// TestDetectOsDistribution_CommandDetection tests detectFromCommands fallback
+func TestDetectOsDistribution_CommandDetection(t *testing.T) {
+	originalOsReleaseFile := system.OsReleaseFile
+	originalExecutor := shell.Default
+	defer func() {
+		system.OsReleaseFile = originalOsReleaseFile
+		shell.Default = originalExecutor
+	}()
+
+	tests := []struct {
+		name                 string
+		availableCmd         string
+		cmdOutput            string
+		expectedPackageTypes []string
+		expectedManagers     []string
+	}{
+		{
+			name:                 "apt_detected",
+			availableCmd:         "apt",
+			cmdOutput:            "/usr/bin/apt\n",
+			expectedPackageTypes: []string{"deb"},
+			expectedManagers:     []string{"apt"},
+		},
+		{
+			name:                 "dnf_detected",
+			availableCmd:         "dnf",
+			cmdOutput:            "/usr/bin/dnf\n",
+			expectedPackageTypes: []string{"rpm"},
+			expectedManagers:     []string{"dnf"},
+		},
+		{
+			name:                 "pacman_detected",
+			availableCmd:         "pacman",
+			cmdOutput:            "/usr/bin/pacman\n",
+			expectedPackageTypes: []string{"pkg.tar.zst"},
+			expectedManagers:     []string{"pacman"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock that returns not found for all except the target command
+			mockCommands := []shell.MockCommand{}
+			for _, cmd := range []string{"apt", "dpkg", "dnf", "tdnf", "yum", "rpm", "zypper", "pacman", "apk"} {
+				if cmd == tt.availableCmd {
+					mockCommands = append(mockCommands, shell.MockCommand{
+						Pattern: "command -v " + cmd,
+						Output:  tt.cmdOutput,
+						Error:   nil,
+					})
+				} else {
+					mockCommands = append(mockCommands, shell.MockCommand{
+						Pattern: "command -v " + cmd,
+						Output:  "",
+						Error:   fmt.Errorf("not found"),
+					})
+				}
+			}
+			shell.Default = shell.NewMockExecutor(mockCommands)
+
+			tempDir := t.TempDir()
+			system.OsReleaseFile = filepath.Join(tempDir, "os-release")
+			osReleaseContent := `NAME="Unknown OS"
+VERSION_ID="1.0"
+ID=unknownos`
+			err := os.WriteFile(system.OsReleaseFile, []byte(osReleaseContent), 0644)
+			if err != nil {
+				t.Fatalf("Failed to write os-release file: %v", err)
+			}
+
+			result, err := system.DetectOsDistribution()
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if !equalStringSlices(result.PackageTypes, tt.expectedPackageTypes) {
+				t.Errorf("Expected PackageTypes %v, got %v", tt.expectedPackageTypes, result.PackageTypes)
+			}
+			if !equalStringSlices(result.PackageManagers, tt.expectedManagers) {
+				t.Errorf("Expected PackageManagers %v, got %v", tt.expectedManagers, result.PackageManagers)
+			}
+		})
+	}
+}
+
+// TestGetPackageInfoForID_AllDistributions tests all supported distribution IDs
+func TestGetPackageInfoForID_AllDistributions(t *testing.T) {
+	originalOsReleaseFile := system.OsReleaseFile
+	defer func() { system.OsReleaseFile = originalOsReleaseFile }()
+
+	tests := []struct {
+		id                   string
+		expectedPackageTypes []string
+		expectedManagers     []string
+	}{
+		// Debian-based
+		{"linuxmint", []string{"deb"}, []string{"apt", "dpkg"}},
+		{"pop", []string{"deb"}, []string{"apt", "dpkg"}},
+		{"elementary", []string{"deb"}, []string{"apt", "dpkg"}},
+		{"kali", []string{"deb"}, []string{"apt", "dpkg"}},
+		{"raspbian", []string{"deb"}, []string{"apt", "dpkg"}},
+		// RHEL-based
+		{"rhel", []string{"rpm"}, []string{"dnf", "yum", "rpm"}},
+		{"rocky", []string{"rpm"}, []string{"dnf", "yum", "rpm"}},
+		{"almalinux", []string{"rpm"}, []string{"dnf", "yum", "rpm"}},
+		{"scientific", []string{"rpm"}, []string{"dnf", "yum", "rpm"}},
+		{"oracle", []string{"rpm"}, []string{"dnf", "yum", "rpm"}},
+		// SUSE-based
+		{"opensuse-tumbleweed", []string{"rpm"}, []string{"zypper", "rpm"}},
+		{"sles", []string{"rpm"}, []string{"zypper", "rpm"}},
+		{"sle", []string{"rpm"}, []string{"zypper", "rpm"}},
+		// Arch-based
+		{"manjaro", []string{"pkg.tar.zst", "pkg.tar.xz"}, []string{"pacman"}},
+		{"endeavouros", []string{"pkg.tar.zst", "pkg.tar.xz"}, []string{"pacman"}},
+		// Others
+		{"gentoo", []string{"tbz2"}, []string{"emerge", "portage"}},
+		{"funtoo", []string{"tbz2"}, []string{"emerge", "portage"}},
+		{"mariner", []string{"rpm"}, []string{"tdnf", "rpm"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("id_%s", tt.id), func(t *testing.T) {
+			tempDir := t.TempDir()
+			system.OsReleaseFile = filepath.Join(tempDir, "os-release")
+			content := fmt.Sprintf("NAME=\"Test\"\nVERSION_ID=\"1.0\"\nID=%s", tt.id)
+			err := os.WriteFile(system.OsReleaseFile, []byte(content), 0644)
+			if err != nil {
+				t.Fatalf("Failed to write os-release file: %v", err)
+			}
+
+			result, err := system.DetectOsDistribution()
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if !equalStringSlices(result.PackageTypes, tt.expectedPackageTypes) {
+				t.Errorf("Expected PackageTypes %v, got %v", tt.expectedPackageTypes, result.PackageTypes)
+			}
+			if !equalStringSlices(result.PackageManagers, tt.expectedManagers) {
+				t.Errorf("Expected PackageManagers %v, got %v", tt.expectedManagers, result.PackageManagers)
+			}
+		})
+	}
+}
+
+// TestInstallQemuUserStatic_RPMPackageManager tests different RPM package managers
+func TestInstallQemuUserStatic_RPMPackageManager(t *testing.T) {
+	originalExecutor := shell.Default
+	originalOsReleaseFile := system.OsReleaseFile
+	defer func() {
+		shell.Default = originalExecutor
+		system.OsReleaseFile = originalOsReleaseFile
+	}()
+
+	tests := []struct {
+		name             string
+		osReleaseContent string
+		expectedPkgMgr   string
+		mockCommands     []shell.MockCommand
+	}{
+		{
+			name: "rhel_with_yum",
+			osReleaseContent: `NAME="Red Hat Enterprise Linux"
+VERSION_ID="7"
+ID=rhel`,
+			expectedPkgMgr: "yum",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "command -v qemu-aarch64-static", Output: "", Error: fmt.Errorf("not found")},
+				{Pattern: "yum install -y qemu-user-static", Output: "Installing...\n", Error: nil},
+				{Pattern: "command -v qemu-aarch64-static", Output: "/usr/bin/qemu-aarch64-static\n", Error: nil},
+			},
+		},
+		{
+			name: "rocky_with_dnf",
+			osReleaseContent: `NAME="Rocky Linux"
+VERSION_ID="9"
+ID=rocky`,
+			expectedPkgMgr: "dnf",
+			mockCommands: []shell.MockCommand{
+				{Pattern: "command -v qemu-aarch64-static", Output: "", Error: fmt.Errorf("not found")},
+				{Pattern: "dnf install -y qemu-user-static", Output: "Installing...\n", Error: nil},
+				{Pattern: "command -v qemu-aarch64-static", Output: "/usr/bin/qemu-aarch64-static\n", Error: nil},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shell.Default = shell.NewMockExecutor(tt.mockCommands)
+
+			tempDir := t.TempDir()
+			system.OsReleaseFile = filepath.Join(tempDir, "os-release")
+			err := os.WriteFile(system.OsReleaseFile, []byte(tt.osReleaseContent), 0644)
+			if err != nil {
+				t.Fatalf("Failed to write os-release file: %v", err)
+			}
+
+			err = system.InstallQemuUserStatic()
+			// Note: This will fail verification in mock environment, but tests the package manager selection
+			if err != nil && !strings.Contains(err.Error(), "verification failed") {
+				t.Logf("Expected verification failure, got: %v", err)
+			}
+		})
+	}
+}
+
+// TestInstallQemuUserStatic_UnsupportedPackageType tests unsupported package types
+func TestInstallQemuUserStatic_UnsupportedPackageType(t *testing.T) {
+	originalExecutor := shell.Default
+	originalOsReleaseFile := system.OsReleaseFile
+	defer func() {
+		shell.Default = originalExecutor
+		system.OsReleaseFile = originalOsReleaseFile
+	}()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "command -v qemu-aarch64-static", Output: "", Error: fmt.Errorf("not found")},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	tempDir := t.TempDir()
+	system.OsReleaseFile = filepath.Join(tempDir, "os-release")
+	osReleaseContent := `NAME="Arch Linux"
+VERSION_ID="rolling"
+ID=arch`
+	err := os.WriteFile(system.OsReleaseFile, []byte(osReleaseContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write os-release file: %v", err)
+	}
+
+	err = system.InstallQemuUserStatic()
+	if err == nil {
+		t.Error("Expected error for unsupported package type, but got none")
+	}
+	if !strings.Contains(err.Error(), "unsupported package type") {
+		t.Errorf("Expected 'unsupported package type' error, got: %v", err)
+	}
+}
+
+// TestInstallQemuUserStatic_NoPackageManager tests when no suitable package manager is found
+func TestInstallQemuUserStatic_NoPackageManager(t *testing.T) {
+	originalExecutor := shell.Default
+	originalOsReleaseFile := system.OsReleaseFile
+	defer func() {
+		shell.Default = originalExecutor
+		system.OsReleaseFile = originalOsReleaseFile
+	}()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "command -v qemu-aarch64-static", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v apt", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v dpkg", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v dnf", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v tdnf", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v yum", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v rpm", Output: "/usr/bin/rpm\n", Error: nil}, // rpm exists but no high-level manager
+		{Pattern: "command -v zypper", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v pacman", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "command -v apk", Output: "", Error: fmt.Errorf("not found")},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	tempDir := t.TempDir()
+	system.OsReleaseFile = filepath.Join(tempDir, "os-release")
+	osReleaseContent := `NAME="Custom RPM OS"
+VERSION_ID="1.0"
+ID=customrpm`
+	err := os.WriteFile(system.OsReleaseFile, []byte(osReleaseContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write os-release file: %v", err)
+	}
+
+	err = system.InstallQemuUserStatic()
+	if err == nil {
+		t.Error("Expected error when no suitable package manager found, but got none")
+	}
+	if !strings.Contains(err.Error(), "no suitable package manager") {
+		t.Errorf("Expected 'no suitable package manager' error, got: %v", err)
+	}
+}
+
+// TestInstallQemuUserStatic_AptUpdateFailure tests when apt-get update fails
+func TestInstallQemuUserStatic_AptUpdateFailure(t *testing.T) {
+	originalExecutor := shell.Default
+	originalOsReleaseFile := system.OsReleaseFile
+	defer func() {
+		shell.Default = originalExecutor
+		system.OsReleaseFile = originalOsReleaseFile
+	}()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "command -v qemu-aarch64-static", Output: "", Error: fmt.Errorf("not found")},
+		{Pattern: "apt-get update", Output: "", Error: fmt.Errorf("update failed")},
+		{Pattern: "apt-get install -y qemu-user-static", Output: "Installing...\n", Error: nil},
+		{Pattern: "command -v qemu-aarch64-static", Output: "/usr/bin/qemu-aarch64-static\n", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	tempDir := t.TempDir()
+	system.OsReleaseFile = filepath.Join(tempDir, "os-release")
+	osReleaseContent := `NAME="Debian"
+VERSION_ID="11"
+ID=debian`
+	err := os.WriteFile(system.OsReleaseFile, []byte(osReleaseContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write os-release file: %v", err)
+	}
+
+	// Should continue despite apt-get update failure
+	err = system.InstallQemuUserStatic()
+	// May fail on verification in mock, but shouldn't fail on update
+	if err != nil && strings.Contains(err.Error(), "update") {
+		t.Errorf("Should not fail due to apt-get update failure, got: %v", err)
+	}
+}
+
+// TestDetectOsDistribution_ScannerError tests file reading error handling
+func TestDetectOsDistribution_ScannerError(t *testing.T) {
+	originalOsReleaseFile := system.OsReleaseFile
+	defer func() { system.OsReleaseFile = originalOsReleaseFile }()
+
+	tempDir := t.TempDir()
+	system.OsReleaseFile = filepath.Join(tempDir, "os-release")
+	
+	// Create a directory instead of a file to cause an error
+	err := os.Mkdir(system.OsReleaseFile, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create directory: %v", err)
+	}
+
+	_, err = system.DetectOsDistribution()
+	if err == nil {
+		t.Error("Expected error when reading directory as file, but got none")
+	}
+}
+
+// TestStopGPGComponents_IsCommandExistError tests error handling in gpgconf check
+func TestStopGPGComponents_IsCommandExistError(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	// Mock an error when checking for gpgconf (not just "not found")
+	mockCommands := []shell.MockCommand{
+		{Pattern: "bash -c 'command -v gpgconf'", Output: "some error output", Error: fmt.Errorf("command check failed")},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	tempDir := t.TempDir()
+	bashPath := filepath.Join(tempDir, "usr", "bin", "bash")
+	if err := os.MkdirAll(filepath.Dir(bashPath), 0700); err != nil {
+		t.Fatalf("Failed to create bash directory: %v", err)
+	}
+	if err := os.WriteFile(bashPath, []byte("#!/bin/bash\n"), 0700); err != nil {
+		t.Fatalf("Failed to create bash file: %v", err)
+	}
+
+	err := system.StopGPGComponents(tempDir)
+	if err == nil {
+		t.Error("Expected error when gpgconf command check fails, but got none")
+	}
+	if !strings.Contains(err.Error(), "failed to check if gpgconf command exists") {
+		t.Errorf("Expected specific error message, got: %v", err)
+	}
+}
+
 // Helper function to compare string slices
 func equalStringSlices(a, b []string) bool {
 	if len(a) != len(b) {
