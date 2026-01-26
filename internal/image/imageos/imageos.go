@@ -570,8 +570,9 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 				// Always log the full output for debugging
 				log.Infof("apt-get install output for %s:\n%s", pkg, output)
 				if err != nil {
-					if strings.Contains(output, "Failed to write 'LoaderSystemToken' EFI variable") {
-						log.Debugf("Expected error: The EFI variable shouldn't be accessed in chroot.")
+					if strings.Contains(output, "Failed to write 'LoaderSystemToken' EFI variable") ||
+						strings.Contains(output, "Failed to create EFI Boot variable entry") {
+						log.Debugf("Expected error: EFI variables cannot be accessed in chroot environment.")
 					} else {
 						log.Errorf("Failed to install package %s: %v", pkg, err)
 						log.Errorf("Full apt-get output:\n%s", output)
