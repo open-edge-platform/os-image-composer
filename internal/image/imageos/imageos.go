@@ -913,13 +913,13 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 		dstBootloader := ""
 
 		switch template.Target.Arch {
-		case "amd64":
-			log.Debugf("Target architecture is x86_64, proceeding with bootloader copy")
+		case "x86_64":
+			log.Infof("Target architecture is x86_64, proceeding with bootloader copy")
 			// 3. Copy systemd-bootx64.efi to ESP/EFI/BOOT/BOOTX64.EFI
 			srcBootloader = filepath.Join("usr", "lib", "systemd", "boot", "efi", "systemd-bootx64.efi")
 			dstBootloader = filepath.Join(espDir, "EFI", "BOOT", "BOOTX64.EFI")
-		case "arm64":
-			log.Debugf("Target architecture is ARM64, proceeding with bootloader copy")
+		case "aarch64":
+			log.Infof("Target architecture is ARM64, proceeding with bootloader copy")
 			// 3. Copy systemd-bootx64.efi to ESP/EFI/BOOT/BOOT64.EFI
 			srcBootloader = filepath.Join("usr", "lib", "systemd", "boot", "efi", "systemd-bootaa64.efi")
 			dstBootloader = filepath.Join(espDir, "EFI", "BOOT", "BOOTAA64.EFI")
