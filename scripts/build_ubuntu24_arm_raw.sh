@@ -168,12 +168,12 @@ run_qemu_boot_test() {
     ORIGINAL_DIR=\"$ORIGINAL_DIR\"
        # -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \\
        # -drive if=pflash,format=raw,file=/usr/share/OVMF/OVMF_VARS_4M.fd \\
+       # -enable-kvm \\
     
     touch \"\$LOGFILE\" && chmod 666 \"\$LOGFILE\"    
     nohup qemu-system-aarch64 \\
         -m 2048 \\
         -machine virt \\
-        -enable-kvm \\
         -cpu host \\
         -drive if=none,file=\"\$IMAGE\",format=raw,id=nvme0 \\
         -device nvme,drive=nvme0,serial=deadbeef \\
