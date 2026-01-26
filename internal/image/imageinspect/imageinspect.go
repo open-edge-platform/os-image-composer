@@ -5,13 +5,13 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/diskfs/go-diskfs"
 	"github.com/diskfs/go-diskfs/filesystem"
 	"github.com/diskfs/go-diskfs/partition"
 	"github.com/diskfs/go-diskfs/partition/gpt"
 	"github.com/diskfs/go-diskfs/partition/mbr"
-	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 )
 
 // ImageSummary holds the summary information about an inspected disk image.
@@ -25,10 +25,21 @@ type ImageSummary struct {
 // PartitionTableSummary holds information about the partition table of the disk image.
 type PartitionTableSummary struct {
 	Type               string
+	DiskGUID           string `json:"diskGuid,omitempty" yaml:"diskGuid,omitempty"`
 	LogicalSectorSize  int64
 	PhysicalSectorSize int64
 	ProtectiveMBR      bool
 	Partitions         []PartitionSummary
+
+	LargestFreeSpan      *FreeSpanSummary `json:"largestFreeSpan,omitempty" yaml:"largestFreeSpan,omitempty"`
+	MisalignedPartitions []int            `json:"misalignedPartitions,omitempty" yaml:"misalignedPartitions,omitempty"`
+}
+
+// FreeSpanSummary captures the largest unallocated extent on disk (by LBA).
+type FreeSpanSummary struct {
+	StartLBA  uint64 `json:"startLba" yaml:"startLba"`
+	EndLBA    uint64 `json:"endLba" yaml:"endLba"`
+	SizeBytes uint64 `json:"sizeBytes" yaml:"sizeBytes"`
 }
 
 // PartitionSummary holds information about a single partition in the disk image.
@@ -36,10 +47,17 @@ type PartitionSummary struct {
 	Index     int
 	Name      string
 	Type      string
+	GUID      string `json:"guid,omitempty" yaml:"guid,omitempty"`
 	StartLBA  uint64
 	EndLBA    uint64
 	SizeBytes uint64
 	Flags     string
+
+	// Raw GPT attributes plus common decoded flags (best-effort).
+	AttrRaw                uint64 `json:"attrRaw,omitempty" yaml:"attrRaw,omitempty"`
+	AttrRequired           bool   `json:"attrRequired,omitempty" yaml:"attrRequired,omitempty"`
+	AttrLegacyBIOSBootable bool   `json:"attrLegacyBiosBootable,omitempty" yaml:"attrLegacyBiosBootable,omitempty"`
+	AttrReadOnly           bool   `json:"attrReadOnly,omitempty" yaml:"attrReadOnly,omitempty"`
 
 	// Needed for raw reads:
 	LogicalSectorSize int                `json:"logicalSectorSize,omitempty" yaml:"logicalSectorSize,omitempty"`
@@ -141,8 +159,6 @@ type DiskfsInspector struct{}
 
 func NewDiskfsInspector() *DiskfsInspector { return &DiskfsInspector{} }
 
-var log = logger.Logger()
-
 // Inspect inspects the disk image at the given path and returns an ImageSummary.
 func (d *DiskfsInspector) Inspect(imagePath string) (*ImageSummary, error) {
 	fi, err := os.Stat(imagePath)
@@ -178,7 +194,7 @@ func (d *DiskfsInspector) inspectCore(
 		return nil, fmt.Errorf("get partition table: %w", err)
 	}
 
-	ptSummary, err := summarizePartitionTable(pt, logicalBlockSize)
+	ptSummary, err := summarizePartitionTable(pt, logicalBlockSize, sizeBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +213,7 @@ func (d *DiskfsInspector) inspectCore(
 }
 
 // summarizePartitionTable creates a PartitionTableSummary from a diskfs partition.Table.
-func summarizePartitionTable(pt partition.Table, logicalBlockSize int64) (PartitionTableSummary, error) {
+func summarizePartitionTable(pt partition.Table, logicalBlockSize int64, totalSizeBytes int64) (PartitionTableSummary, error) {
 	ptSummary := PartitionTableSummary{
 		Partitions: make([]PartitionSummary, 0),
 	}
@@ -205,6 +221,7 @@ func summarizePartitionTable(pt partition.Table, logicalBlockSize int64) (Partit
 	switch t := pt.(type) {
 	case *gpt.Table:
 		ptSummary.Type = "gpt"
+		ptSummary.DiskGUID = strings.ToUpper(t.GUID)
 		ptSummary.PhysicalSectorSize = int64(t.PhysicalSectorSize)
 		ptSummary.LogicalSectorSize = int64(t.LogicalSectorSize)
 		ptSummary.ProtectiveMBR = t.ProtectiveMBR
@@ -219,11 +236,18 @@ func summarizePartitionTable(pt partition.Table, logicalBlockSize int64) (Partit
 				// Index will be assigned after sorting
 				Name:      p.Name,
 				Type:      string(p.Type),
+				GUID:      strings.ToUpper(p.GUID),
 				StartLBA:  p.Start,
 				EndLBA:    p.End,
 				SizeBytes: sizeBytes,
 				Flags:     fmt.Sprintf("%v", p.Attributes),
+				AttrRaw:   p.Attributes,
 			})
+
+			last := &ptSummary.Partitions[len(ptSummary.Partitions)-1]
+			last.AttrRequired = (p.Attributes & 0x1) != 0
+			last.AttrLegacyBIOSBootable = (p.Attributes & (1 << 2)) != 0
+			last.AttrReadOnly = (p.Attributes & (1 << 60)) != 0
 		}
 
 		sort.Slice(ptSummary.Partitions, func(i, j int) bool {
@@ -261,7 +285,97 @@ func summarizePartitionTable(pt partition.Table, logicalBlockSize int64) (Partit
 		return PartitionTableSummary{}, fmt.Errorf("unsupported partition table type: %T", t)
 	}
 
+	ptSummary.LargestFreeSpan = computeLargestFreeSpan(ptSummary.Partitions, logicalBlockSize, totalSizeBytes)
+	ptSummary.MisalignedPartitions = findMisalignedPartitions(ptSummary.Partitions, logicalBlockSize, ptSummary.PhysicalSectorSize)
+
 	return ptSummary, nil
+}
+
+// computeLargestFreeSpan returns the largest unallocated extent, if any, using LBAs.
+// If totalSizeBytes is zero or no gaps exist, it returns nil.
+func computeLargestFreeSpan(parts []PartitionSummary, logicalBlockSize int64, totalSizeBytes int64) *FreeSpanSummary {
+	if logicalBlockSize <= 0 || totalSizeBytes <= 0 {
+		return nil
+	}
+
+	totalSectors := uint64(totalSizeBytes / logicalBlockSize)
+	if totalSectors == 0 {
+		return nil
+	}
+
+	if len(parts) == 0 {
+		return &FreeSpanSummary{StartLBA: 0, EndLBA: totalSectors - 1, SizeBytes: uint64(totalSizeBytes)}
+	}
+
+	// Parts are already sorted by StartLBA.
+	var best *FreeSpanSummary
+	prevEnd := uint64(0)
+
+	for i, p := range parts {
+		if i == 0 {
+			if p.StartLBA > 0 {
+				gap := buildSpan(0, p.StartLBA-1, logicalBlockSize)
+				best = pickLarger(best, gap)
+			}
+		} else {
+			if p.StartLBA > prevEnd+1 {
+				gap := buildSpan(prevEnd+1, p.StartLBA-1, logicalBlockSize)
+				best = pickLarger(best, gap)
+			}
+		}
+		if p.EndLBA > prevEnd {
+			prevEnd = p.EndLBA
+		}
+	}
+
+	// Tail gap to end of disk
+	if prevEnd+1 < totalSectors {
+		gap := buildSpan(prevEnd+1, totalSectors-1, logicalBlockSize)
+		best = pickLarger(best, gap)
+	}
+
+	return best
+}
+
+func buildSpan(start, end uint64, logicalBlockSize int64) *FreeSpanSummary {
+	if end < start {
+		return nil
+	}
+	size := (end - start + 1) * uint64(logicalBlockSize)
+	return &FreeSpanSummary{StartLBA: start, EndLBA: end, SizeBytes: size}
+}
+
+func pickLarger(cur, cand *FreeSpanSummary) *FreeSpanSummary {
+	if cand == nil {
+		return cur
+	}
+	if cur == nil || cand.SizeBytes > cur.SizeBytes {
+		return cand
+	}
+	return cur
+}
+
+// findMisalignedPartitions returns partition indexes (1-based) that are not aligned
+// to the physical sector size or a 1MiB boundary (whichever is stricter).
+func findMisalignedPartitions(parts []PartitionSummary, logicalBlockSize int64, physicalSectorSize int64) []int {
+	if len(parts) == 0 || logicalBlockSize <= 0 {
+		return nil
+	}
+
+	alignBytes := physicalSectorSize
+	if alignBytes <= 0 {
+		alignBytes = 4096 // best-effort default
+	}
+
+	var out []int
+	for _, p := range parts {
+		startBytes := int64(p.StartLBA) * logicalBlockSize
+		misaligned := (startBytes%alignBytes != 0) || (startBytes%(1024*1024) != 0)
+		if misaligned {
+			out = append(out, p.Index)
+		}
+	}
+	return out
 }
 
 // diskfsPartitionNumberForSummary maps a PartitionSummary back to a diskfs partition number.
@@ -325,8 +439,4 @@ func diskfsPartitionNumberForSummary(d diskAccessorFS, ps PartitionSummary) (int
 	}
 
 	return 0, false
-}
-
-func (d *DiskfsInspector) DisplaySummary(ioWriter io.Writer, summary *ImageSummary) {
-	PrintSummary(ioWriter, summary)
 }
