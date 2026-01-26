@@ -78,7 +78,8 @@ systemConfig:
     - wireless-tools
     - wpasupplicant
     #cloud init
-    - cloud-init  
+    - cloud-init
+    - chrony  
 
   additionalFiles:
     - local: ../additionalfiles/dhcp.network
@@ -95,6 +96,8 @@ systemConfig:
       final: /opt/software/setup-wait-for-network.sh
     - local: ../additionalfiles/setup-ollama.sh
       final: /opt/software/setup-ollama.sh
+    - local: ../additionalfiles/setup-containers.sh
+      final: /opt/software/setup-containers.sh
                
   hookScripts:
     - local_post_download_packages: ../hookscripts/post_download.sh
