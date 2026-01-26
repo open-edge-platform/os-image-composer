@@ -240,3 +240,70 @@ func TestCompareCommand_InspectorError(t *testing.T) {
 		t.Fatalf("expected inspection error, got: %v", err)
 	}
 }
+
+func TestCompareCommand_InvalidModeErrors(t *testing.T) {
+	origNewInspector := newInspector
+	origOutFormat, origOutMode := outFormat, outMode
+	t.Cleanup(func() {
+		newInspector = origNewInspector
+		outFormat, outMode = origOutFormat, origOutMode
+	})
+
+	newInspector = func() inspector {
+		return &fakeCompareInspector{imgByPath: map[string]*imageinspect.ImageSummary{
+			"a.raw": minimalImage("a.raw", 1),
+			"b.raw": minimalImage("b.raw", 1),
+		}}
+	}
+
+	cmd := &cobra.Command{}
+	outFormat = "json"
+	outMode = "bogus"
+
+	_, err := runCompareExecute(t, cmd, []string{"a.raw", "b.raw"})
+	if err == nil || !strings.Contains(err.Error(), "invalid --mode") {
+		t.Fatalf("expected invalid mode error, got %v", err)
+	}
+}
+
+func TestCompareCommand_InvalidFormatErrors(t *testing.T) {
+	origNewInspector := newInspector
+	origOutFormat, origOutMode := outFormat, outMode
+	t.Cleanup(func() {
+		newInspector = origNewInspector
+		outFormat, outMode = origOutFormat, origOutMode
+	})
+
+	newInspector = func() inspector {
+		return &fakeCompareInspector{imgByPath: map[string]*imageinspect.ImageSummary{
+			"a.raw": minimalImage("a.raw", 1),
+			"b.raw": minimalImage("b.raw", 1),
+		}}
+	}
+
+	cmd := &cobra.Command{}
+	outFormat = "yaml" // unsupported
+	outMode = "diff"
+
+	_, err := runCompareExecute(t, cmd, []string{"a.raw", "b.raw"})
+	if err == nil {
+		t.Fatalf("expected error for invalid format")
+	}
+	if !strings.Contains(err.Error(), "text|json") {
+		t.Fatalf("expected error mentioning text|json, got %v", err)
+	}
+}
+
+func TestWriteCompareResult_MarshalError(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+
+	err := writeCompareResult(cmd, make(chan int), false)
+	if err == nil {
+		t.Fatalf("expected marshal error for unsupported type")
+	}
+	if !strings.Contains(err.Error(), "marshal json") {
+		t.Fatalf("expected marshal json error, got %v", err)
+	}
+}

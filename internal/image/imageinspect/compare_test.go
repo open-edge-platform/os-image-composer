@@ -378,3 +378,90 @@ func TestCompareImages_EFIBinaries_AddedRemoved(t *testing.T) {
 		t.Fatalf("unexpected removed path: %s", res.Diff.EFIBinaries.Removed[0].Path)
 	}
 }
+
+func TestDiffStringMap_NilSafeAndDiffs(t *testing.T) {
+	// Nil inputs should yield nil fields for omitempty friendliness.
+	empty := diffStringMap(nil, nil)
+	if empty.Added != nil || empty.Removed != nil || empty.Modified != nil {
+		t.Fatalf("expected all nil fields for nil inputs, got %+v", empty)
+	}
+
+	from := map[string]string{"a": "1", "b": "1"}
+	to := map[string]string{"b": "2", "c": "3"}
+
+	d := diffStringMap(from, to)
+	if len(d.Added) != 1 || d.Added["c"] != "3" {
+		t.Fatalf("expected added c=3, got %+v", d.Added)
+	}
+	if len(d.Removed) != 1 || d.Removed["a"] != "1" {
+		t.Fatalf("expected removed a=1, got %+v", d.Removed)
+	}
+	if len(d.Modified) != 1 || d.Modified["b"].From != "1" || d.Modified["b"].To != "2" {
+		t.Fatalf("expected modified b 1->2, got %+v", d.Modified)
+	}
+}
+
+func TestFlattenEFIBinaries_SortedAndCopied(t *testing.T) {
+	pt := PartitionTableSummary{
+		Partitions: []PartitionSummary{
+			{
+				Name: "p1",
+				Filesystem: &FilesystemSummary{EFIBinaries: []EFIBinaryEvidence{
+					{Path: "EFI/BOOT/b.efi", SHA256: "2"},
+					{Path: "EFI/BOOT/a.efi", SHA256: "1"},
+				}},
+			},
+			{
+				Name: "p2",
+				Filesystem: &FilesystemSummary{EFIBinaries: []EFIBinaryEvidence{
+					{Path: "EFI/BOOT/c.efi", SHA256: "3"},
+				}},
+			},
+		},
+	}
+
+	out := flattenEFIBinaries(pt)
+	if len(out) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(out))
+	}
+	if out[0].Path != "EFI/BOOT/a.efi" || out[1].Path != "EFI/BOOT/b.efi" || out[2].Path != "EFI/BOOT/c.efi" {
+		t.Fatalf("expected sorted paths, got %+v", out)
+	}
+
+	// Mutating the flattened slice must not affect the source summaries.
+	out[0].Path = "EFI/BOOT/z.efi"
+	if pt.Partitions[0].Filesystem.EFIBinaries[0].Path != "EFI/BOOT/b.efi" {
+		t.Fatalf("expected source slice untouched, got %s", pt.Partitions[0].Filesystem.EFIBinaries[0].Path)
+	}
+}
+
+func TestCompareEFIBinaries_SectionDiffsProduceUKIDiff(t *testing.T) {
+	from := []EFIBinaryEvidence{{
+		Path:          "EFI/BOOT/BOOTX64.EFI",
+		IsUKI:         true,
+		SectionSHA256: map[string]string{"linux": "a", "osrel": "o"},
+	}}
+	to := []EFIBinaryEvidence{{
+		Path:          "EFI/BOOT/BOOTX64.EFI",
+		IsUKI:         true,
+		SectionSHA256: map[string]string{"linux": "b", "cmdline": "c"},
+	}}
+
+	d := compareEFIBinaries(from, to)
+	if len(d.Modified) != 1 {
+		t.Fatalf("expected 1 modified entry, got %d", len(d.Modified))
+	}
+	uki := d.Modified[0].UKI
+	if uki == nil || !uki.Changed {
+		t.Fatalf("expected UKI diff with changed=true, got %+v", uki)
+	}
+	if uki.SectionSHA256.Added["cmdline"] != "c" {
+		t.Fatalf("expected added cmdline=c, got %+v", uki.SectionSHA256.Added)
+	}
+	if uki.SectionSHA256.Removed["osrel"] != "o" {
+		t.Fatalf("expected removed osrel=o, got %+v", uki.SectionSHA256.Removed)
+	}
+	if diff := uki.SectionSHA256.Modified["linux"]; diff.From != "a" || diff.To != "b" {
+		t.Fatalf("expected linux hash a->b, got %+v", diff)
+	}
+}
