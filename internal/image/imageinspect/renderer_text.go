@@ -58,6 +58,9 @@ func RenderCompareText(w io.Writer, r *ImageCompareResult, opts CompareTextOptio
 		pt := r.Diff.PartitionTable
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "Partition table:")
+		if pt.DiskGUID != nil {
+			fmt.Fprintf(w, "  Disk GUID: %q -> %q\n", pt.DiskGUID.From, pt.DiskGUID.To)
+		}
 		if pt.Type != nil {
 			fmt.Fprintf(w, "  Type: %q -> %q\n", pt.Type.From, pt.Type.To)
 		}
@@ -69,6 +72,12 @@ func RenderCompareText(w io.Writer, r *ImageCompareResult, opts CompareTextOptio
 		}
 		if pt.ProtectiveMBR != nil {
 			fmt.Fprintf(w, "  ProtectiveMBR: %v -> %v\n", pt.ProtectiveMBR.From, pt.ProtectiveMBR.To)
+		}
+		if pt.LargestFreeSpan != nil {
+			fmt.Fprintf(w, "  Largest free span: %s -> %s\n", freeSpanString(&pt.LargestFreeSpan.From), freeSpanString(&pt.LargestFreeSpan.To))
+		}
+		if pt.MisalignedParts != nil {
+			fmt.Fprintf(w, "  Misaligned partitions: %v -> %v\n", pt.MisalignedParts.From, pt.MisalignedParts.To)
 		}
 	}
 
@@ -447,6 +456,9 @@ func renderPartitionTableHeader(w io.Writer, pt PartitionTableSummary) {
 	fmt.Fprintln(w, "Partition Table")
 	fmt.Fprintln(w, "---------------")
 	fmt.Fprintf(w, "Type:\t%s\n", strings.ToUpper(emptyIfWhitespace(pt.Type)))
+	if strings.EqualFold(pt.Type, "gpt") && strings.TrimSpace(pt.DiskGUID) != "" {
+		fmt.Fprintf(w, "Disk GUID:\t%s\n", strings.ToUpper(strings.TrimSpace(pt.DiskGUID)))
+	}
 	if pt.LogicalSectorSize > 0 {
 		fmt.Fprintf(w, "Logical sector size:\t%d bytes\n", pt.LogicalSectorSize)
 	}
@@ -455,6 +467,12 @@ func renderPartitionTableHeader(w io.Writer, pt PartitionTableSummary) {
 	}
 	if strings.EqualFold(pt.Type, "gpt") {
 		fmt.Fprintf(w, "Protective MBR:\t%t\n", pt.ProtectiveMBR)
+	}
+	if pt.LargestFreeSpan != nil {
+		fmt.Fprintf(w, "Largest free span:\t%s\n", freeSpanString(pt.LargestFreeSpan))
+	}
+	if len(pt.MisalignedPartitions) > 0 {
+		fmt.Fprintf(w, "Misaligned partitions:\t%v\n", pt.MisalignedPartitions)
 	}
 }
 
@@ -539,6 +557,13 @@ func humanBytes(n int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
+}
+
+func freeSpanString(fs *FreeSpanSummary) string {
+	if fs == nil {
+		return "(none)"
+	}
+	return fmt.Sprintf("lba=%d-%d size=%s", fs.StartLBA, fs.EndLBA, humanBytes(int64(fs.SizeBytes)))
 }
 
 func partitionTypeName(ptType, pType string) string {

@@ -92,11 +92,11 @@ func TestInspectCore_GetFilesystem_Error_IsRecordedAsNote(t *testing.T) {
 func TestSummarizePartitionTable_LogicalBlockSizeAffectsSizeBytes(t *testing.T) {
 	pt := minimalGPTWithOnePartition()
 
-	a, err := summarizePartitionTable(pt, 512)
+	a, err := summarizePartitionTable(pt, 512, 8<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := summarizePartitionTable(pt, 4096)
+	b, err := summarizePartitionTable(pt, 4096, 8<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestSummarizePartitionTable_GPT(t *testing.T) {
 		},
 	}
 
-	sum, err := summarizePartitionTable(pt, 512)
+	sum, err := summarizePartitionTable(pt, 512, 16<<20)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestSummarizePartitionTable_MBR(t *testing.T) {
 			{Type: 0x83, Start: 2048, Size: 2048},
 		},
 	}
-	sum, err := summarizePartitionTable(pt, 512)
+	sum, err := summarizePartitionTable(pt, 512, 8<<20)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -782,7 +782,7 @@ func TestPeMachineToArch(t *testing.T) {
 }
 
 func TestInspectCore_PropagatesFilesystemError_WhenCalled(t *testing.T) {
-	// This is the same intent as your earlier test, but here we make sure
+	// This is the same intent as your earlier test, but modified to ensure
 	// we actually have a GPT partition in the table so FS probing is attempted.
 	d := &DiskfsInspector{}
 	img := sliceReaderAt{b: make([]byte, 4096)}
@@ -801,7 +801,7 @@ func TestInspectCore_PropagatesFilesystemError_WhenCalled(t *testing.T) {
 	}
 
 	_, err := d.inspectCore(img, disk, 512, "ignored", 8<<20)
-	// Your current InspectFileSystemsFromHandles DOES NOT return error on GetFilesystem failure;
+
 	if err != nil {
 		t.Fatalf("did not expect inspectCore error; GetFilesystem failures are captured as notes. err=%v", err)
 	}

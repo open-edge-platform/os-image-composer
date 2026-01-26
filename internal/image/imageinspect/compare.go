@@ -2,6 +2,7 @@ package imageinspect
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -49,10 +50,13 @@ type MetaDiff struct {
 
 // PartitionTableDiff represents differences in partition table-level fields.
 type PartitionTableDiff struct {
-	Type               *ValueDiff[string] `json:"type,omitempty"`
-	LogicalSectorSize  *ValueDiff[int64]  `json:"logicalSectorSize,omitempty"`
-	PhysicalSectorSize *ValueDiff[int64]  `json:"physicalSectorSize,omitempty"`
-	ProtectiveMBR      *ValueDiff[bool]   `json:"protectiveMbr,omitempty"`
+	DiskGUID           *ValueDiff[string]          `json:"diskGuid,omitempty"`
+	Type               *ValueDiff[string]          `json:"type,omitempty"`
+	LogicalSectorSize  *ValueDiff[int64]           `json:"logicalSectorSize,omitempty"`
+	PhysicalSectorSize *ValueDiff[int64]           `json:"physicalSectorSize,omitempty"`
+	ProtectiveMBR      *ValueDiff[bool]            `json:"protectiveMbr,omitempty"`
+	LargestFreeSpan    *ValueDiff[FreeSpanSummary] `json:"largestFreeSpan,omitempty"`
+	MisalignedParts    *ValueDiff[[]int]           `json:"misalignedPartitions,omitempty"`
 
 	Changed bool `json:"changed,omitempty"`
 }
@@ -209,6 +213,9 @@ func compareMeta(from, to ImageSummary) MetaDiff {
 func comparePartitionTable(from, to PartitionTableSummary) PartitionTableDiff {
 	var d PartitionTableDiff
 
+	if strings.TrimSpace(from.DiskGUID) != strings.TrimSpace(to.DiskGUID) {
+		d.DiskGUID = &ValueDiff[string]{From: from.DiskGUID, To: to.DiskGUID}
+	}
 	if from.Type != to.Type {
 		d.Type = &ValueDiff[string]{From: from.Type, To: to.Type}
 	}
@@ -222,7 +229,15 @@ func comparePartitionTable(from, to PartitionTableSummary) PartitionTableDiff {
 		d.ProtectiveMBR = &ValueDiff[bool]{From: from.ProtectiveMBR, To: to.ProtectiveMBR}
 	}
 
-	d.Changed = d.Type != nil || d.LogicalSectorSize != nil || d.PhysicalSectorSize != nil || d.ProtectiveMBR != nil
+	if !freeSpanEqual(from.LargestFreeSpan, to.LargestFreeSpan) {
+		d.LargestFreeSpan = &ValueDiff[FreeSpanSummary]{From: derefFreeSpan(from.LargestFreeSpan), To: derefFreeSpan(to.LargestFreeSpan)}
+	}
+
+	if !intSliceEqual(from.MisalignedPartitions, to.MisalignedPartitions) {
+		d.MisalignedParts = &ValueDiff[[]int]{From: from.MisalignedPartitions, To: to.MisalignedPartitions}
+	}
+
+	d.Changed = d.DiskGUID != nil || d.Type != nil || d.LogicalSectorSize != nil || d.PhysicalSectorSize != nil || d.ProtectiveMBR != nil || d.LargestFreeSpan != nil || d.MisalignedParts != nil
 	return d
 }
 
@@ -352,12 +367,14 @@ func partitionKey(ptType string, p PartitionSummary) string {
 func partitionsEqual(a, b PartitionSummary) bool {
 
 	if a.Index != b.Index ||
+		a.GUID != b.GUID ||
 		a.Name != b.Name ||
 		a.Type != b.Type ||
 		a.StartLBA != b.StartLBA ||
 		a.EndLBA != b.EndLBA ||
 		a.SizeBytes != b.SizeBytes ||
 		a.Flags != b.Flags ||
+		a.AttrRaw != b.AttrRaw ||
 		a.LogicalSectorSize != b.LogicalSectorSize {
 		return false
 	}
@@ -422,6 +439,30 @@ func stringSliceEqualSorted(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func intSliceEqual(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	return slices.Equal(a, b)
+}
+
+func freeSpanEqual(a, b *FreeSpanSummary) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return a.StartLBA == b.StartLBA && a.EndLBA == b.EndLBA && a.SizeBytes == b.SizeBytes
+}
+
+func derefFreeSpan(fs *FreeSpanSummary) FreeSpanSummary {
+	if fs == nil {
+		return FreeSpanSummary{}
+	}
+	return *fs
 }
 
 func efiEvidenceListEqual(a, b []EFIBinaryEvidence) bool {
@@ -504,6 +545,9 @@ func appendPartitionFieldChanges(dst []FieldChange, a, b PartitionSummary) []Fie
 		dst = append(dst, FieldChange{Field: field, From: from, To: to})
 	}
 
+	if a.GUID != b.GUID {
+		add("guid", a.GUID, b.GUID)
+	}
 	if a.Index != b.Index {
 		add("index", a.Index, b.Index)
 	}
@@ -524,6 +568,9 @@ func appendPartitionFieldChanges(dst []FieldChange, a, b PartitionSummary) []Fie
 	}
 	if a.Flags != b.Flags {
 		add("flags", a.Flags, b.Flags)
+	}
+	if a.AttrRaw != b.AttrRaw {
+		add("attrRaw", a.AttrRaw, b.AttrRaw)
 	}
 	if a.LogicalSectorSize != b.LogicalSectorSize {
 		add("logicalSectorSize", a.LogicalSectorSize, b.LogicalSectorSize)

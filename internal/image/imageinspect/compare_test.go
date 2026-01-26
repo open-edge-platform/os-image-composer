@@ -101,6 +101,44 @@ func TestCompareImages_PartitionTableChanged(t *testing.T) {
 	}
 }
 
+func TestCompareImages_PartitionTable_GuidAndFreeSpanAndMisaligned(t *testing.T) {
+	a := &ImageSummary{
+		File: "a.raw",
+		PartitionTable: PartitionTableSummary{
+			Type:                 "gpt",
+			DiskGUID:             "AAA",
+			LogicalSectorSize:    512,
+			PhysicalSectorSize:   4096,
+			ProtectiveMBR:        true,
+			LargestFreeSpan:      &FreeSpanSummary{StartLBA: 100, EndLBA: 199, SizeBytes: 100 * 512},
+			MisalignedPartitions: []int{2},
+		},
+	}
+	b := &ImageSummary{
+		File: "b.raw",
+		PartitionTable: PartitionTableSummary{
+			Type:                 "gpt",
+			DiskGUID:             "BBB",
+			LogicalSectorSize:    512,
+			PhysicalSectorSize:   4096,
+			ProtectiveMBR:        true,
+			LargestFreeSpan:      &FreeSpanSummary{StartLBA: 50, EndLBA: 149, SizeBytes: 100 * 512},
+			MisalignedPartitions: []int{1, 3},
+		},
+	}
+
+	res := CompareImages(a, b)
+	if res.Diff.PartitionTable.DiskGUID == nil || res.Diff.PartitionTable.DiskGUID.From != "AAA" || res.Diff.PartitionTable.DiskGUID.To != "BBB" {
+		t.Fatalf("expected disk guid diff, got %+v", res.Diff.PartitionTable.DiskGUID)
+	}
+	if res.Diff.PartitionTable.LargestFreeSpan == nil || res.Diff.PartitionTable.LargestFreeSpan.From.StartLBA != 100 || res.Diff.PartitionTable.LargestFreeSpan.To.StartLBA != 50 {
+		t.Fatalf("expected largest free span diff, got %+v", res.Diff.PartitionTable.LargestFreeSpan)
+	}
+	if res.Diff.PartitionTable.MisalignedParts == nil || len(res.Diff.PartitionTable.MisalignedParts.To) != 2 {
+		t.Fatalf("expected misaligned partitions diff, got %+v", res.Diff.PartitionTable.MisalignedParts)
+	}
+}
+
 func TestCompareImages_PartitionsAddedRemovedModified_ByFSUUIDKey(t *testing.T) {
 	// A has ESP + root
 	a := &ImageSummary{
