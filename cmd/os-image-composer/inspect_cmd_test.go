@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
-	"os"
 	"strings"
 	"testing"
 
@@ -34,9 +32,6 @@ func (f *fakeInspector) Inspect(imagePath string) (*imageinspect.ImageSummary, e
 		return nil, f.err
 	}
 	return f.summary, nil
-}
-func (f *fakeInspector) DisplaySummary(ioWriter io.Writer, summary *imageinspect.ImageSummary) {
-	_, _ = os.Stdout.Write([]byte("FAKE_SUMMARY\n"))
 }
 
 // helper: execute a cobra command and capture output.
@@ -172,8 +167,6 @@ func TestExecuteInspect_DirectCall(t *testing.T) {
 			}
 		}
 
-		defer resetInspectFlags()
-
 		cmd := createInspectCommand()
 		cmd.SetOut(&bytes.Buffer{})
 		cmd.SetErr(&bytes.Buffer{})
@@ -200,7 +193,6 @@ func TestExecuteInspect_DirectCall(t *testing.T) {
 		newInspector = func() inspector {
 			return &fakeInspector{err: errors.New("boom")}
 		}
-		defer resetInspectFlags()
 
 		cmd := createInspectCommand()
 		cmd.SetOut(&bytes.Buffer{})
