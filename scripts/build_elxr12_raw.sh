@@ -263,7 +263,7 @@ build_elxr12_raw_image() {
     exit 1
   fi
   
-  output=$( sudo -S ./os-image-composer build image-templates/elxr12-x86_64-minimal-raw.yml)
+  output=$( sudo -S ./os-image-composer build image-templates/elxr12-x86_64-minimal-raw.yml 2>&1)
   # Check for the success message in the output
   if echo "$output" | grep -q "image build completed successfully"; then
     echo "ELXR12 raw Image build passed."
