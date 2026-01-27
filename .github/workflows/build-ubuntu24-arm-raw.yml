@@ -15,7 +15,7 @@ on:
         - "false"
   push:
     branches:
-      - elvin_arm
+      - srmungar_armlocal_dev_branch
 
 permissions:
   contents: read
