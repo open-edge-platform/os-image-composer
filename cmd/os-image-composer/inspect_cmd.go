@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 
 	"github.com/open-edge-platform/os-image-composer/internal/image/imageinspect"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
@@ -14,7 +13,6 @@ import (
 // cmd needs only these two methods.
 type inspector interface {
 	Inspect(imagePath string) (*imageinspect.ImageSummary, error)
-	DisplaySummary(w io.Writer, summary *imageinspect.ImageSummary)
 }
 
 // Allow tests to inject a fake inspector.
@@ -30,7 +28,7 @@ var (
 
 // createInspectCommand creates the inspect subcommand
 func createInspectCommand() *cobra.Command {
-	validateCmd := &cobra.Command{
+	inspectCmd := &cobra.Command{
 		Use:   "inspect [flags] IMAGE_FILE",
 		Short: "inspects a RAW image file",
 		Long: `Inspect performs a deep inspection of a generated
@@ -51,13 +49,13 @@ func createInspectCommand() *cobra.Command {
 	}
 
 	// Add flags
-	validateCmd.Flags().StringVar(&outputFormat, "format", "text",
+	inspectCmd.Flags().StringVar(&outputFormat, "format", "text",
 		"Specify the output format for the inspection results")
 
-	validateCmd.Flags().BoolVar(&prettyJSON, "pretty", false,
+	inspectCmd.Flags().BoolVar(&prettyJSON, "pretty", false,
 		"Pretty-print JSON output (only for --format json)")
 
-	return validateCmd
+	return inspectCmd
 }
 
 // executeInspect handles the inspect command execution logic
@@ -85,7 +83,9 @@ func writeInspectionResult(cmd *cobra.Command, summary *imageinspect.ImageSummar
 
 	switch format {
 	case "text":
-		imageinspect.PrintSummary(out, summary)
+		if err := imageinspect.RenderSummaryText(out, summary, imageinspect.TextOptions{}); err != nil {
+			return fmt.Errorf("render text: %w", err)
+		}
 		return nil
 
 	case "json":

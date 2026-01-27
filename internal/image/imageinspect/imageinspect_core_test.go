@@ -92,11 +92,11 @@ func TestInspectCore_GetFilesystem_Error_IsRecordedAsNote(t *testing.T) {
 func TestSummarizePartitionTable_LogicalBlockSizeAffectsSizeBytes(t *testing.T) {
 	pt := minimalGPTWithOnePartition()
 
-	a, err := summarizePartitionTable(pt, 512)
+	a, err := summarizePartitionTable(pt, 512, 8<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := summarizePartitionTable(pt, 4096)
+	b, err := summarizePartitionTable(pt, 4096, 8<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestSummarizePartitionTable_GPT(t *testing.T) {
 		},
 	}
 
-	sum, err := summarizePartitionTable(pt, 512)
+	sum, err := summarizePartitionTable(pt, 512, 16<<20)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestSummarizePartitionTable_MBR(t *testing.T) {
 			{Type: 0x83, Start: 2048, Size: 2048},
 		},
 	}
-	sum, err := summarizePartitionTable(pt, 512)
+	sum, err := summarizePartitionTable(pt, 512, 8<<20)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}
@@ -574,7 +574,9 @@ func TestPrintSummary_Smoke(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	PrintSummary(&buf, sum)
+	if err := RenderSummaryText(&buf, sum, TextOptions{}); err != nil {
+		t.Fatalf("RenderSummaryText error: %v", err)
+	}
 
 	s := buf.String()
 	if !strings.Contains(s, "OS Image Summary") {
@@ -780,7 +782,7 @@ func TestPeMachineToArch(t *testing.T) {
 }
 
 func TestInspectCore_PropagatesFilesystemError_WhenCalled(t *testing.T) {
-	// This is the same intent as your earlier test, but here we make sure
+	// This is the same intent as your earlier test, but modified to ensure
 	// we actually have a GPT partition in the table so FS probing is attempted.
 	d := &DiskfsInspector{}
 	img := sliceReaderAt{b: make([]byte, 4096)}
@@ -799,11 +801,116 @@ func TestInspectCore_PropagatesFilesystemError_WhenCalled(t *testing.T) {
 	}
 
 	_, err := d.inspectCore(img, disk, 512, "ignored", 8<<20)
-	// Your current InspectFileSystemsFromHandles DOES NOT return error on GetFilesystem failure;
+
 	if err != nil {
 		t.Fatalf("did not expect inspectCore error; GetFilesystem failures are captured as notes. err=%v", err)
 	}
 	if len(disk.calls.getFS) == 0 {
 		t.Fatalf("expected GetFilesystem to be called at least once")
+	}
+}
+
+func TestInheritBootloaderKindBySHA_InheritsFromKnown(t *testing.T) {
+	evs := []EFIBinaryEvidence{
+		{Path: "/EFI/ubuntu/shimx64.efi", SHA256: "abc123def456", Kind: BootloaderShim},
+		{Path: "/EFI/BOOT/BOOTX64.EFI", SHA256: "abc123def456", Kind: BootloaderUnknown},
+	}
+
+	inheritBootloaderKindBySHA(evs)
+
+	if evs[1].Kind != BootloaderShim {
+		t.Errorf("expected BOOTX64.EFI to inherit kind=shim, got %q", evs[1].Kind)
+	}
+	if len(evs[1].Notes) == 0 || !strings.Contains(evs[1].Notes[0], "sha256 match") {
+		t.Errorf("expected note about sha256 inheritance, got %v", evs[1].Notes)
+	}
+	// Original should remain unchanged
+	if evs[0].Kind != BootloaderShim {
+		t.Errorf("original should stay shim, got %q", evs[0].Kind)
+	}
+}
+
+func TestInheritBootloaderKindBySHA_NoMatchLeavesUnknown(t *testing.T) {
+	evs := []EFIBinaryEvidence{
+		{Path: "/EFI/ubuntu/shimx64.efi", SHA256: "abc123", Kind: BootloaderShim},
+		{Path: "/EFI/BOOT/BOOTX64.EFI", SHA256: "different456", Kind: BootloaderUnknown},
+	}
+
+	inheritBootloaderKindBySHA(evs)
+
+	if evs[1].Kind != BootloaderUnknown {
+		t.Errorf("expected BOOTX64.EFI to remain unknown when hash differs, got %q", evs[1].Kind)
+	}
+	if len(evs[1].Notes) != 0 {
+		t.Errorf("expected no notes when no match, got %v", evs[1].Notes)
+	}
+}
+
+func TestInheritBootloaderKindBySHA_EmptySHA256Ignored(t *testing.T) {
+	evs := []EFIBinaryEvidence{
+		{Path: "/EFI/ubuntu/shimx64.efi", SHA256: "", Kind: BootloaderShim},
+		{Path: "/EFI/BOOT/BOOTX64.EFI", SHA256: "", Kind: BootloaderUnknown},
+	}
+
+	inheritBootloaderKindBySHA(evs)
+
+	// Both should remain unchanged - empty SHA256 entries are skipped
+	if evs[0].Kind != BootloaderShim {
+		t.Errorf("expected shim to remain shim, got %q", evs[0].Kind)
+	}
+	if evs[1].Kind != BootloaderUnknown {
+		t.Errorf("expected unknown to remain unknown when SHA256 empty, got %q", evs[1].Kind)
+	}
+}
+
+func TestInheritBootloaderKindBySHA_MultipleInheritances(t *testing.T) {
+	evs := []EFIBinaryEvidence{
+		{Path: "/EFI/ubuntu/shimx64.efi", SHA256: "shimhash", Kind: BootloaderShim},
+		{Path: "/EFI/fedora/grubx64.efi", SHA256: "grubhash", Kind: BootloaderGrub},
+		{Path: "/EFI/BOOT/BOOTX64.EFI", SHA256: "shimhash", Kind: BootloaderUnknown},
+		{Path: "/EFI/BOOT/grubx64.efi", SHA256: "grubhash", Kind: BootloaderUnknown},
+		{Path: "/EFI/unknown/mystery.efi", SHA256: "otherhash", Kind: BootloaderUnknown},
+	}
+
+	inheritBootloaderKindBySHA(evs)
+
+	if evs[2].Kind != BootloaderShim {
+		t.Errorf("BOOTX64.EFI should inherit shim, got %q", evs[2].Kind)
+	}
+	if evs[3].Kind != BootloaderGrub {
+		t.Errorf("grubx64.efi copy should inherit grub, got %q", evs[3].Kind)
+	}
+	if evs[4].Kind != BootloaderUnknown {
+		t.Errorf("mystery.efi should remain unknown, got %q", evs[4].Kind)
+	}
+}
+
+func TestInheritBootloaderKindBySHA_FirstKnownWins(t *testing.T) {
+	// If the same hash appears with different kinds, first one wins
+	evs := []EFIBinaryEvidence{
+		{Path: "/EFI/first/shimx64.efi", SHA256: "samehash", Kind: BootloaderShim},
+		{Path: "/EFI/second/grubx64.efi", SHA256: "samehash", Kind: BootloaderGrub},
+		{Path: "/EFI/BOOT/BOOTX64.EFI", SHA256: "samehash", Kind: BootloaderUnknown},
+	}
+
+	inheritBootloaderKindBySHA(evs)
+
+	// The unknown should inherit from the first known (shim)
+	if evs[2].Kind != BootloaderShim {
+		t.Errorf("expected first known kind (shim) to win, got %q", evs[2].Kind)
+	}
+}
+
+func TestInheritBootloaderKindBySHA_AlreadyClassifiedNotOverwritten(t *testing.T) {
+	evs := []EFIBinaryEvidence{
+		{Path: "/EFI/ubuntu/shimx64.efi", SHA256: "abc123", Kind: BootloaderShim},
+		{Path: "/EFI/BOOT/BOOTX64.EFI", SHA256: "abc123", Kind: BootloaderGrub}, // Already classified differently
+	}
+
+	inheritBootloaderKindBySHA(evs)
+
+	// Should NOT overwrite an already-classified binary
+	if evs[1].Kind != BootloaderGrub {
+		t.Errorf("already classified binary should not be overwritten, got %q", evs[1].Kind)
 	}
 }

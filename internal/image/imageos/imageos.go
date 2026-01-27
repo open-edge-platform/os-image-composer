@@ -568,8 +568,9 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 
 				output, err := shell.ExecCmdWithStream(installCmd, true, installRoot, envVars)
 				if err != nil {
-					if strings.Contains(output, "Failed to write 'LoaderSystemToken' EFI variable") {
-						log.Debugf("Expected error: The EFI variable shouldn't be accessed in chroot.")
+					if strings.Contains(output, "Failed to write 'LoaderSystemToken' EFI variable") ||
+						strings.Contains(output, "Failed to create EFI Boot variable entry") {
+						log.Debugf("Expected error: EFI variables cannot be accessed in chroot environment.")
 					} else {
 						log.Errorf("Failed to install package %s: %v", pkg, err)
 						return fmt.Errorf("failed to install package %s: %w", pkg, err)
