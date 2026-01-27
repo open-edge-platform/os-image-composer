@@ -11,6 +11,8 @@
   - [Commands](#commands)
     - [Build Command](#build-command)
     - [Validate Command](#validate-command)
+    - [Inspect Command](#inspect-command)
+    - [Compare Command](#compare-command)
     - [Cache Command](#cache-command)
       - [cache clean](#cache-clean)
     - [Config Command](#config-command)
@@ -22,6 +24,7 @@
     - [Building an Image](#building-an-image)
     - [Managing Configuration](#managing-configuration)
     - [Managing Cache](#managing-cache)
+    - [Inspecting and Comparing Images](#inspecting-and-comparing-images)
     - [Validating Templates](#validating-templates)
   - [Configuration Files](#configuration-files)
     - [Global Configuration File](#global-configuration-file)
@@ -111,7 +114,7 @@ The OS Image Composer command-line utility uses a layered configuration approach
 with command-line options taking priority over the configuration file settings:
 
 | Option | Description |
-|--------|-------------|
+| ------ | ----------- |
 | `--config FILE` | Global configuration file. This file contains system-wide settings that apply to all image builds. If not specified, the tool searches for configuration files in standard locations. |
 | `--log-level LEVEL` | Log level: debug, info, warn, error (overrides config). Use debug for troubleshooting build issues. |
 | `--log-file PATH` | Tee logs to a specific file path (overrides `logging.file` in the configuration). |
@@ -136,7 +139,7 @@ os-image-composer build [flags] TEMPLATE_FILE
 **Flags:**
 
 | Flag | Description |
-|------|-------------|
+| ---- | ----------- |
 | `--workers, -w INT` | Number of concurrent download workers (overrides config). |
 | `--cache-dir, -d DIR` | Package cache directory (overrides config). Proper caching significantly improves build times. |
 | `--work-dir DIR` | Working directory for builds (overrides config). This directory is where images are constructed before being finalized. |
@@ -206,6 +209,140 @@ See also:
 - [Validate Stage](./os-image-composer-build-process.md#1-validate-stage)
   for details on the validation process
 
+### Inspect Command
+
+Inspects a raw image and outputs comprehensive details about the image including partition
+table layout, partition identity and attributes, filesystem information, bootloader details, and layout diagnostics.
+
+```bash
+os-image-composer inspect [flags] IMAGE_FILE
+```
+
+**Arguments:**
+
+- `IMAGE_FILE` - Path to the RAW image file to inspect (required)
+
+**Flags:**
+
+| Flag | Description |
+| ---- | ----------- |
+| `--format STRING` | Output format: `text`, `json`, or `yaml` (default: `text`) |
+| `--pretty` | Pretty-print JSON output (only for `--format=json`; default: `false`) |
+
+**Description:**
+
+The inspect command extracts and analyzes the following from a disk image:
+
+**Partition Table:**
+
+- Type (GPT/MBR) and sector sizes
+- For GPT: disk GUID and protective MBR status
+- Layout diagnostics: largest unallocated free span and misaligned partitions (detected against physical sector size and 1 MiB alignment)
+
+**Partitions:**
+
+- Index, name, type/GUID, start/end LBA, and size
+- For GPT: partition GUID and decoded attribute bits (required, legacy BIOS bootable, read-only)
+- Filesystem type, label, and UUID
+- EFI/UKI evidence (if present on ESP/VFAT partitions)
+
+**Bootloader & Secure Boot:**
+
+- EFI binaries: kind, architecture, signature status, SBAT
+- UKI payloads: kernel/initrd/OS-release hashes and metadata
+
+**Output Formats:**
+
+- `text`: Human-readable summary with tables and structured sections
+- `json`: Complete structured data suitable for automation and comparison
+- `yaml`: YAML representation of the image summary
+
+**Example:**
+
+```bash
+# Inspect a raw image and output text (default)
+os-image-composer inspect my-image.raw
+
+# Inspect and output pretty JSON
+os-image-composer inspect --format=json --pretty my-image.raw
+
+# Inspect and output YAML
+os-image-composer inspect --format=yaml my-image.raw
+```
+
+### Compare Command
+
+Compares two disk images and outputs detailed differences in partition layout, filesystems, bootloaders, and EFI/UKI payloads.
+
+```bash
+os-image-composer compare [flags] IMAGE_FILE1 IMAGE_FILE2
+```
+
+**Arguments:**
+
+- `IMAGE_FILE1` - Path to the first RAW image file (required)
+- `IMAGE_FILE2` - Path to the second RAW image file (required)
+
+**Flags:**
+
+| Flag | Description |
+| ---- | ----------- |
+| `--format STRING` | Output format: `text` or `json` (default: `text`) |
+| `--mode STRING` | Compare mode: `diff` (partition/FS changes), `summary` (high-level counts), or `full` (complete image metadata). Default: `diff` for text, `full` for JSON |
+| `--pretty` | Pretty-print JSON output (only for `--format=json`; default: `false`) |
+
+**Description:**
+
+The compare command performs a deep structural comparison of two images and reports:
+
+**Partition Table Changes:**
+
+- Disk GUID changes (GPT)
+- Partition table type or sector size changes
+- Free space layout changes (largest unallocated extent)
+- Misaligned partition detection changes
+
+**Partition Changes:**
+
+- Added/removed partitions (detected by GUID for GPT, by LBA range for MBR)
+- Modified partitions: changes to name, GUID, LBA range, size, or GPT attribute bits
+- Filesystem changes: type, label, UUID modifications
+- Per-partition EFI binary changes (path, kind, architecture, signature status)
+
+**Global EFI/UKI Changes:**
+
+- Added/removed EFI binaries across all partitions
+- Modified EFI binaries: SHA256, signature status, bootloader kind
+- UKI payload changes: kernel, initrd, OS-release, and section SHA256s
+
+**Compare Modes:**
+
+- `diff`: Detailed changes (partitions, filesystems, EFI binaries)
+- `summary`: High-level counts (added, removed, modified counts)
+- `full`: Complete image metadata plus all diffs
+
+**Output:**
+
+- Text format provides human-readable sections with tables and field-by-field diffs
+- JSON format includes complete structured data for scripting and tooling
+- Exit code is 0 if images are equal, 1 if differences found
+
+**Example:**
+
+```bash
+# Compare two images and show detailed text diff
+os-image-composer compare image-v1.raw image-v2.raw
+
+# Show only a summary of changes
+os-image-composer compare --mode=summary image-v1.raw image-v2.raw
+
+# Compare and output pretty JSON with full metadata
+os-image-composer compare --format=json --mode=full --pretty image-v1.raw image-v2.raw
+
+# Compact JSON diff suitable for CI/CD automation
+os-image-composer compare --format=json --mode=diff image-v1.raw image-v2.raw
+```
+
 ### Cache Command
 
 Manage cached artifacts created during the build process.
@@ -225,7 +362,7 @@ os-image-composer cache clean [flags]
 **Flags:**
 
 | Flag | Description |
-|------|-------------|
+| ---- | ----------- |
 | `--packages` | Remove cached packages (default when no scope flags are provided). |
 | `--workspace` | Remove cached chroot environments and chroot tarballs under the workspace directory. |
 | `--all` | Enable both package and workspace cleanup in a single invocation. |
@@ -330,7 +467,7 @@ os-image-composer install-completion [flags]
 **Flags:**
 
 | Flag | Description |
-|------|-------------|
+| ---- | ----------- |
 | `--shell STRING` | Shell type (bash, zsh, fish, powershell). If not specified, auto-detects current shell. |
 | `--force` | Force overwrite existing completion files. |
 
@@ -419,6 +556,22 @@ os-image-composer cache clean --workspace --provider-id azure-linux-azl3-x86_64
 os-image-composer cache clean --all --dry-run
 ```
 
+### Inspecting and Comparing Images
+
+```bash
+# Inspect an image in text format
+os-image-composer inspect my-image.raw
+
+# Inspect and output JSON (suitable for tooling/CI)
+os-image-composer inspect --format=json --pretty my-image.raw
+
+# Compare two images with detailed diff
+os-image-composer compare image-v1.raw image-v2.raw
+
+# Compare with JSON output for parsing
+os-image-composer compare --format=json --mode=diff image-v1.raw image-v2.raw
+```
+
 ### Validating Templates
 
 ```bash
@@ -474,7 +627,7 @@ logging:
 **Configuration Fields:**
 
 | Field | Type | Description |
-|-------|------|-------------|
+| ----- | ---- | ----------- |
 | `workers` | integer | Number of concurrent download workers (1-100). Default: 8 |
 | `cache_dir` | string | Directory for package cache. Default: "./cache" |
 | `work_dir` | string | Working directory for builds. Default: "./workspace" |
@@ -535,7 +688,7 @@ The tool provides consistent exit codes that can be used in scripting and
 automation:
 
 | Code | Description |
-|------|-------------|
+| ---- | ----------- |
 | 0 | Success: The command completed successfully. |
 | 1 | General error: An unspecified error occurred during execution. |
 

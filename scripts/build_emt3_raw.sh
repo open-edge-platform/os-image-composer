@@ -232,9 +232,14 @@ build_emt3_raw_image() {
   cd "$WORKING_DIR"
   echo "Current working directory: $(pwd)"
   
+  # Temporarily disable exit on error for the build command to capture output
+  set +e
   output=$( sudo -S ./os-image-composer build image-templates/emt3-x86_64-minimal-raw.yml 2>&1)
+  build_exit_code=$?
+  set -e
+  
   # Check for the success message in the output
-  if echo "$output" | grep -q "image build completed successfully"; then
+  if [ $build_exit_code -eq 0 ] && echo "$output" | grep -q "image build completed successfully"; then
     echo "EMT3 raw Image build passed."
     if [ "$RUN_QEMU_TESTS" = true ]; then
       echo "Running QEMU boot test for EMT3 raw image..."
@@ -249,6 +254,8 @@ build_emt3_raw_image() {
     fi
   else
     echo "EMT3 raw Image build failed."
+    echo "Build output:"
+    echo "$output"
     exit 1 # Exit with error if build fails
   fi
 }
