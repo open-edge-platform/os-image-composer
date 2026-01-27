@@ -1231,7 +1231,7 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 		envVars := []string{"TMPDIR=/tmp"}
 		_, err = shell.ExecCmd(cmd, true, installRoot, envVars)
 		if err != nil {
-			log.Errorf("Failed to build UKI with veritysetup: %v", err)
+			log.Errorf("Failed to build UKI with veritysetup: %v failing command: %s", err,cmd)
 			err = fmt.Errorf("failed to build UKI with veritysetup: %w", err)
 		}
 		installRoot = backInstallRoot
