@@ -137,9 +137,14 @@ build_azl3_iso_image() {
   echo "Ensuring we're in the working directory before starting builds..."
   cd "$WORKING_DIR"
   echo "Current working directory: $(pwd)"
+  # Temporarily disable exit on error for the build command to capture output
+  set +e
   output=$( sudo -S ./build/os-image-composer build image-templates/azl3-x86_64-minimal-iso.yml 2>&1)
+  build_exit_code=$?
+  set -e
+  
   # Check for the success message in the output
-  if echo "$output" | grep -q "image build completed successfully"; then
+  if [ $build_exit_code -eq 0 ] && echo "$output" | grep -q "image build completed successfully"; then
     echo "AZL3 iso Image build passed."
     if [ "$RUN_QEMU_TESTS" = true ]; then
       echo "Running QEMU boot test for AZL3 ISO image..."
@@ -152,6 +157,8 @@ build_azl3_iso_image() {
     fi
   else
     echo "AZL3 iso Image build failed."
+    echo "Build output:"
+    echo "$output"
     exit 1 # Exit with error if build fails
   fi
 }
