@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 jobs:
-  build-ubuntu24-arm-raw:
+  build-azl3-arm-raw:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout code
@@ -56,12 +56,12 @@ jobs:
           fi
           chmod +x scripts/build_azl3_arm_raw.sh
 
-      - name: Run Ubuntu24 Raw Image Build
+      - name: Run azl3 Raw Image Build
         env:
           #RUN_QEMU_TEST: ${{ github.event.push }}
           RUN_QEMU_TEST: true
         run: |
-          echo "Starting Ubuntu24 raw image build..."
+          echo "Starting azl3 raw image build..."
           # Ensure script has access to docker group for Earthly
           sudo usermod -aG docker $USER
           
@@ -81,9 +81,9 @@ jobs:
               ;;
           esac
           
-          # Run the Ubuntu24 raw image build script
+          # Run the azl3 raw image build script
           ./scripts/build_azl3_arm_raw.sh $ARGS
-          echo "Ubuntu24 raw image build completed."
+          echo "azl3 raw image build completed."
 
       - name: Set file permissions for artifacts
         run: |
@@ -92,7 +92,7 @@ jobs:
       - name: GitHub Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ubuntu24-arm-raw-image
+          name: azl3-arm-raw-image
           path: |
-            workspace/*/imagebuild/minimal/*.raw*
+            workspace/*/imagebuild/*/*.raw*
           retention-days: 30
