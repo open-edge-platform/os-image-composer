@@ -174,7 +174,7 @@ func mergeSystemConfig(defaultConfig, userConfig SystemConfig) SystemConfig {
 	}
 
 	// Merge immutability config - only if user provided some immutability configuration
-	if userConfig.Immutability.wasProvided == false {
+	if !userConfig.Immutability.wasProvided {
 		// User didn't provide any immutability config, keep default
 		merged.Immutability = defaultConfig.Immutability
 	} else {
