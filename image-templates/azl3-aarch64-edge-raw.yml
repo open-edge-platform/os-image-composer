@@ -1,5 +1,5 @@
 image:
-  name: azl3-x86_64-edge
+  name: azl3-aarch64-edge
   version: "1.0.0"
 
 target:

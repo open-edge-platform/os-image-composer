@@ -1,5 +1,5 @@
 image:
-  name: azl3-default-x86_64
+  name: azl3-default-aarch64
   version: "1.0.0"
 
 target:
