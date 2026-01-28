@@ -433,7 +433,7 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 	urls := make([]string, len(sorted_pkgs))
 	for i, pkg := range sorted_pkgs {
 		urls[i] = pkg.URL
-		downloadPkgList = append(downloadPkgList, pkg.Name)
+		downloadPkgList = append(downloadPkgList, filepath.Base(pkg.URL))
 	}
 
 	// Ensure dest directory exists
