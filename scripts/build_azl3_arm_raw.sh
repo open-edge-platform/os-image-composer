@@ -234,7 +234,7 @@ build_azl3_raw_image() {
   
  # Temporarily disable exit on error for the build command to capture output
   set +e
-  output=$( sudo -S ./os-image-composer build image-templates/azl3-aarch64-edge-raw.yml 2>&1)
+  output=$( sudo -S ./os-image-composer --verbose build image-templates/azl3-aarch64-edge-raw.yml 2>&1)
   build_exit_code=$?
   set -e
 
