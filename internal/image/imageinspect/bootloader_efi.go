@@ -116,7 +116,7 @@ func peSignatureInfo(f *pe.File) (signed bool, sigSize int, note string) {
 
 // classifyBootloaderKind classifies the bootloader kind based on path and sections.
 // It intentionally avoids content-string heuristics for stability.
-// For BOOTX64.EFI copies/aliases, rely on SHA-inheritance post-pass.
+// For `EFI/BOOT/BOOTX64.EFI` copies/aliases, rely on SHA-inheritance post-pass.
 func classifyBootloaderKind(p string, sections []string) BootloaderKind {
 	lp := strings.ToLower(p)
 
@@ -155,7 +155,7 @@ func hasSection(secs []string, want string) bool {
 
 // inheritBootloaderKindBySHA assigns a kind to "unknown" EFI binaries when they
 // are byte-identical to another EFI binary already classified as a known kind.
-// This reliably handles fallback paths like EFI/BOOT/BOOTX64.EFI.
+// This reliably handles fallback paths like `EFI/BOOT/BOOTX64.EFI`.
 func inheritBootloaderKindBySHA(evs []EFIBinaryEvidence) {
 	known := make(map[string]BootloaderKind) // sha256 -> kind
 

@@ -1,6 +1,36 @@
 package imageinspect
 
-import "sort"
+import (
+	"regexp"
+	"sort"
+	"strings"
+)
+
+// Regular expressions for normalizing UUIDs in kernel cmdline
+var (
+	reKeyedUUID = regexp.MustCompile(
+		`(?i)(^|\s)([a-z0-9_.-]+)=([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})(\s|$)`)
+	reUUIDSpec = regexp.MustCompile(
+		`(?i)\b(UUID|PARTUUID)=([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\b`)
+)
+
+func normalizeKernelCmdline(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+
+	// Normalize whitespace
+	s = strings.Join(strings.Fields(s), " ")
+
+	// Normalize key=<uuid> tokens (boot_uuid, rd.luks.uuid, etc.)
+	s = reKeyedUUID.ReplaceAllString(s, `$1$2=<uuid>$4`)
+
+	// Normalize UUID= and PARTUUID= forms inside other values
+	s = reUUIDSpec.ReplaceAllString(s, `$1=<uuid>`)
+
+	return s
+}
 
 func flattenEFIBinaries(pt PartitionTableSummary) []EFIBinaryEvidence {
 	var out []EFIBinaryEvidence

@@ -12,9 +12,10 @@ import (
 
 // Output format command flags
 var (
-	prettyDiffJSON bool   = true // Pretty-print JSON output
-	outFormat      string        // "text" | "json"
-	outMode        string = ""   // "full" | "diff" | "summary"
+	prettyDiffJSON bool   = true  // Pretty-print JSON output
+	outFormat      string         // "text" | "json"
+	outMode        string = ""    // "full" | "diff" | "summary"
+	hashImages     bool   = false // Skip hashing during inspection
 )
 
 // createCompareCommand creates the compare subcommand
@@ -39,6 +40,8 @@ func createCompareCommand() *cobra.Command {
 		"Output format: text or json")
 	compareCmd.Flags().StringVar(&outMode, "mode", "",
 		"Output mode: full, diff, or summary (default: diff for text, full for json)")
+	compareCmd.Flags().BoolVar(&hashImages, "hash-images", false,
+		"Compute SHA256 hash of images during inspection (slower but enables binary identity verification")
 	return compareCmd
 }
 
@@ -62,9 +65,9 @@ func executeCompare(cmd *cobra.Command, args []string) error {
 	log := logger.Logger()
 	imageFile1 := args[0]
 	imageFile2 := args[1]
-	log.Infof("Comparing image files: %s and %s", imageFile1, imageFile2)
+	log.Infof("Comparing image files: (%s) & (%s)", imageFile1, imageFile2)
 
-	inspector := newInspector()
+	inspector := newInspector(hashImages)
 
 	image1, err1 := inspector.Inspect(imageFile1)
 	if err1 != nil {
@@ -87,16 +90,17 @@ func executeCompare(cmd *cobra.Command, args []string) error {
 			payload = &compareResult
 		case "diff":
 			payload = struct {
-				Equal bool                   `json:"equal"`
-				Diff  imageinspect.ImageDiff `json:"diff"`
-			}{Equal: compareResult.Equal, Diff: compareResult.Diff}
+				//				Equal         bool                   `json:"equal"`
+				EqualityClass string                 `json:"equalityClass"`
+				Diff          imageinspect.ImageDiff `json:"diff"`
+			}{EqualityClass: string(compareResult.Equality.Class), Diff: compareResult.Diff}
 		case "summary":
 			payload = struct {
-				Equal   bool                        `json:"equal"`
-				Summary imageinspect.CompareSummary `json:"summary"`
-			}{Equal: compareResult.Equal, Summary: compareResult.Summary}
+				EqualityClass string                      `json:"equalityClass"`
+				Summary       imageinspect.CompareSummary `json:"summary"`
+			}{EqualityClass: string(compareResult.Equality.Class), Summary: compareResult.Summary}
 		default:
-			return fmt.Errorf("invalid --mode %q (expected diff|summary|full)", mode)
+			return fmt.Errorf("invalid --mode or --format %q (expected --mode=diff|summary|full) and --format=text|json", mode)
 		}
 		return writeCompareResult(cmd, payload, prettyDiffJSON)
 
