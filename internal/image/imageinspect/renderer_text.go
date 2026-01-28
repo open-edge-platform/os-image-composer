@@ -838,9 +838,6 @@ func renderEqualityHeader(w io.Writer, r *ImageCompareResult) {
 		fmt.Fprintln(w, "Note: image SHA256 not available; enable --hash-images to prove binary identity.")
 	}
 
-	// Backward compatibility boolean
-	//fmt.Fprintf(w, "Equal: %v\n", r.Equal)
-
 	// Hint where to look when different
 	if r.Equality.Class == EqualityDifferent {
 		var areas []string
