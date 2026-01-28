@@ -705,7 +705,6 @@ func appendFilesystemFieldChanges(dst []FieldChange, a, b FilesystemSummary) []F
 func tallyDiffs(d ImageDiff) diffTally {
 	var t diffTally
 
-	// --- Meta ---
 	if d.Image.File != nil {
 		t.addVolatile(1, "image file changed")
 	}
@@ -713,7 +712,6 @@ func tallyDiffs(d ImageDiff) diffTally {
 		t.addMeaningful(1, "image size changed")
 	}
 
-	// --- Partition table (field-level) ---
 	if d.PartitionTable.DiskGUID != nil {
 		t.addVolatile(1, "PT DiskGUID")
 	}
@@ -736,7 +734,6 @@ func tallyDiffs(d ImageDiff) diffTally {
 		t.addMeaningful(1, "PT MisalignedParts")
 	}
 
-	// --- Partitions added/removed ---
 	if len(d.Partitions.Added) > 0 {
 		t.addMeaningful(len(d.Partitions.Added), "Partitions Added")
 	}
@@ -744,7 +741,6 @@ func tallyDiffs(d ImageDiff) diffTally {
 		t.addMeaningful(len(d.Partitions.Removed), "Partitions Removed")
 	}
 
-	// --- Partitions modified (deep) ---
 	for _, mp := range d.Partitions.Modified {
 		// Partition field changes
 		for _, ch := range mp.Changes {
@@ -755,12 +751,9 @@ func tallyDiffs(d ImageDiff) diffTally {
 			}
 		}
 
-		// Filesystem changes (added/removed/modified)
 		tallyFilesystemChange(&t, mp.Filesystem)
-
 	}
 
-	// --- Global EFI binaries diff ---
 	tallyEFIBinaryDiff(&t, d.EFIBinaries)
 
 	return t

@@ -61,8 +61,6 @@ func decodeJSON(t *testing.T, s string, v any) {
 	}
 }
 
-// ---- Tests ----
-
 func TestResolveDefaults(t *testing.T) {
 	t.Run("json defaults to full when mode empty", func(t *testing.T) {
 		format, mode := resolveDefaults("json", "")
@@ -100,7 +98,7 @@ func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
 	}
 	newInspector = func(hash bool) inspector { return fi }
 
-	// Make a command instance to provide OutOrStdout/flags context (executeCompare uses cmd for output).
+	// Make a command instance to provide OutOrStdout/flags context.
 	cmd := &cobra.Command{}
 	cmd.SetArgs([]string{})
 
