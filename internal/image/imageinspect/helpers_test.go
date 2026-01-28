@@ -2,6 +2,7 @@ package imageinspect
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
 
@@ -435,14 +436,14 @@ func TestHumanBytes_Zero(t *testing.T) {
 
 func TestHumanBytes_KiloBytes(t *testing.T) {
 	result := humanBytes(1024)
-	if !contains(result, "1") || !contains(result, "K") {
+	if !strings.Contains(result, "1") || !strings.Contains(result, "K") {
 		t.Fatalf("expected KB format, got %q", result)
 	}
 }
 
 func TestHumanBytes_MegaBytes(t *testing.T) {
 	result := humanBytes(1024 * 1024)
-	if !contains(result, "M") {
+	if !strings.Contains(result, "M") {
 		t.Fatalf("expected MB format, got %q", result)
 	}
 }
@@ -484,7 +485,7 @@ func TestFreeSpanString_Valid(t *testing.T) {
 	if result == "" {
 		t.Fatalf("expected non-empty freespan string")
 	}
-	if !contains(result, "2048") && !contains(result, "1") {
+	if !strings.Contains(result, "2048") && !strings.Contains(result, "1") {
 		t.Logf("freespan result: %s", result)
 	}
 }
@@ -562,24 +563,4 @@ func TestComparePartitionTable_DifferentTypes(t *testing.T) {
 	if !diff.Changed {
 		t.Fatalf("expected Changed=true")
 	}
-}
-
-// Helper function for string containment checks
-func contains(s, substr string) bool {
-	var search string
-	for i := 0; i < len(s); i++ {
-		if s[i:i+1] == substr[0:1] {
-			if len(s)-i >= len(substr) {
-				for j := 0; j < len(substr); j++ {
-					if s[i+j] != substr[j] {
-						break
-					}
-					if j == len(substr)-1 {
-						return true
-					}
-				}
-			}
-		}
-	}
-	return search != ""
 }
