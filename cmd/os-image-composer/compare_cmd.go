@@ -41,7 +41,7 @@ func createCompareCommand() *cobra.Command {
 	compareCmd.Flags().StringVar(&outMode, "mode", "",
 		"Output mode: full, diff, or summary (default: diff for text, full for json)")
 	compareCmd.Flags().BoolVar(&hashImages, "hash-images", false,
-		"Skip hashing of files during image inspection to speed up comparison")
+		"Compute SHA256 hash of images during inspection (slower but enables binary identity verification")
 	return compareCmd
 }
 
