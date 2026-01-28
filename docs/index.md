@@ -614,6 +614,9 @@ See [License](https://github.com/open-edge-platform/os-image-composer/blob/main/
 Architecture <architecture/architecture>
 Prerequisites <tutorial/prerequisite>
 Secure Boot Configuration <tutorial/configure-secure-boot>
+Configure Users <tutorial/configure-image-user>
+Customize Image Build <tutorial/configure-additional-actions-for-build>
+Configure Multiple Package Repositories <tutorial/configure-multiple-package-repositories>
 release-notes
 
 :::

@@ -125,6 +125,7 @@ func TestMergeSystemConfigWithSecureBoot(t *testing.T) {
 			Enabled:         true,
 			SecureBootDBKey: "/user/keys/custom.key",  // Override key
 			SecureBootDBCer: "/user/certs/custom.cer", // Add new cer
+			wasProvided:     true,                     // Mark as explicitly provided
 			// Don't override crt - should keep default
 		},
 		Packages: []string{"user-package"},
@@ -222,6 +223,7 @@ func TestMergeSystemConfigWithImmutability(t *testing.T) {
 		Immutability: ImmutabilityConfig{
 			Enabled:         false,
 			SecureBootDBKey: "/path/to/key", // This makes it clear user provided config
+			wasProvided:     true,           // Mark as explicitly provided
 		},
 		Packages: []string{"user-package"},
 	}
@@ -1284,6 +1286,7 @@ func TestComplexConfigurationMerging(t *testing.T) {
 			Immutability: ImmutabilityConfig{
 				Enabled:         false,
 				SecureBootDBCrt: "/user/certs/db.crt",
+				wasProvided:     true, // Mark as explicitly provided
 			},
 			Users: []UserConfig{
 				{Name: "user", Password: "userpass", HashAlgo: "sha512"},

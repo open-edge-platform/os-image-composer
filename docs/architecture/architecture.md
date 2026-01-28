@@ -198,6 +198,9 @@ Coding Style Guide <os-image-composer-coding-style.md>
 Caching in OS Image Composer <os-image-composer-caching.md>
 Multiple-package Repo Support <os-image-composer-multi-repo-support.md>
 Using Templates <os-image-composer-templates.md>
+Dependency Graph Analyzer <adr-dep-analyzer.md>
+Image Inspection and Comparison <adr-image-inspect.md>
+Template-Enriched RAG <adr-template-enriched-rag.md>
 
 :::
 hide_directive-->

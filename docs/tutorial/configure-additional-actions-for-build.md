@@ -1,4 +1,4 @@
-# Configuring Custom Commands During Image Build
+# Configure Custom Commands During Image Build
 
 ## Overview
 
@@ -16,7 +16,7 @@ The `configurations` section must be placed under `systemConfig` in your image t
 systemConfig:
   name: your-config-name
   description: "Your system configuration description"
-  
+
   # Package installation happens first
   packages:
     - ubuntu-minimal
@@ -24,7 +24,7 @@ systemConfig:
     - wget              # Required for download commands
     - curl              # Required for API calls
     # ... other packages
-  
+
   # Custom configurations execute after packages are installed
   configurations:
     - cmd: "touch /etc/dummy01.txt"
@@ -54,7 +54,7 @@ disk:
 systemConfig:
   name: your-system-config
   description: "Custom system configuration"
-  
+
   packages:
     - ubuntu-minimal
     - systemd-boot
@@ -63,11 +63,11 @@ systemConfig:
     - curl                    # For API interactions
     - systemd                 # For systemctl commands
     # ... other required packages
-  
+
   kernel:
     version: "6.12"
     # ... kernel configuration
-    
+
   # Custom configurations - executed after all packages are installed
   configurations:
     - cmd: "mkdir -p /opt/myapp"
@@ -84,11 +84,11 @@ From the [`ubuntu24-mah.yml`](../image-templates/ubuntu24-mah.yml) template:
 
 ```yaml
 systemConfig:
-  
+
   packages:
     ...
     - wget                    # Required for wget commands below
-      
+
   configurations:
     - cmd: "touch /etc/dummy01.txt"
     - cmd: "echo 'dlstreamer x86_64 ubuntu24 image' > /etc/dummy01.txt"
@@ -101,7 +101,7 @@ systemConfig:
 
 ```yaml
 systemConfig:
-  ...    
+  ...
   configurations:
     - cmd: "mkdir -p /opt/myapp/config"
     - cmd: "touch /etc/myconfig.conf"
@@ -117,7 +117,7 @@ systemConfig:
     ....
     - wget                 # Required for wget commands
     - curl                 # Required for curl commands
-    
+
   configurations:
     - cmd: "wget --no-check-certificate -O /tmp/setup.sh https://example.com/setup.sh"
     - cmd: "chmod +x /tmp/setup.sh"
@@ -154,11 +154,11 @@ Always include the tools your commands need in the `packages` section:
 systemConfig:
   packages:
     - wget              # For wget commands
-    - curl              # For curl commands  
+    - curl              # For curl commands
     - systemd           # For systemctl commands
     - coreutils         # For basic file operations
     - util-linux        # For system utilities
-    
+
   configurations:
     - cmd: "wget -O /opt/file.txt https://example.com/file.txt"
     - cmd: "systemctl enable myservice"
@@ -173,7 +173,7 @@ configurations:
   # Good - absolute paths
   - cmd: "echo 'config' > /etc/myapp.conf"
   - cmd: "mkdir -p /opt/myapp"
-  
+
   # Avoid - relative paths may not work as expected
   - cmd: "echo 'config' > myapp.conf"
 ```
@@ -198,7 +198,7 @@ systemConfig:
   packages:
     - wget
     - coreutils         # For sha256sum
-    
+
   configurations:
     - cmd: "wget --no-check-certificate -O /tmp/script.sh https://example.com/script.sh"
     - cmd: "echo 'expected-sha256 /tmp/script.sh' | sha256sum -c"

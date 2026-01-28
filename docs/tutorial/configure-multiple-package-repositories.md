@@ -1,4 +1,4 @@
-# Configuring Multiple Package Repositories
+# Configure Multiple Package Repositories
 
 ## Overview
 
@@ -69,7 +69,7 @@ packageRepositories:
   - codename: "EdgeAI"
     url: "https://yum.repos.intel.com/edgeai/"
     pkey: "https://yum.repos.intel.com/edgeai/GPG-PUB-KEY-INTEL-DLS.gpg"
-  
+
   - codename: "edge-base"
     url: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpms/3.0/base"
     pkey: "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY"
@@ -81,18 +81,18 @@ disk:
 systemConfig:
   name: ....
   description: ....
-  
+
   packages:
     - ubuntu-minimal
     - openvino-toolkit     # From OpenVINO repository
     - edge-ai-runtime      # From EdgeAI repository
     - microvisor-base      # From edge-base repository
     # .... other packages from various repositories
-  
+
   kernel:
     version: ....
     # .... kernel configuration
-    
+
   configurations:
     # .... custom configurations
 ```
@@ -129,7 +129,7 @@ packageRepositories:
   - codename: "EdgeAI"
     url: "https://yum.repos.intel.com/edgeai/"
     pkey: "https://yum.repos.intel.com/edgeai/GPG-PUB-KEY-INTEL-DLS.gpg"
-  
+
   - codename: "OpenVINO"
     url: "https://yum.repos.intel.com/openvino/"
     pkey: "https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
@@ -149,7 +149,7 @@ packageRepositories:
   - codename: "mariner"
     url: "https://packages.microsoft.com/yumrepos/cbl-mariner-2.0-prod-extended-x86_64/"
     pkey: "https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64/repodata/repomd.xml.key"
-  
+
   - codename: "edge-base"
     url: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpms/3.0/base"
     pkey: "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY"
@@ -169,7 +169,7 @@ packageRepositories:
   - codename: "docker-ce"
     url: "https://download.docker.com/linux/ubuntu"
     pkey: "https://download.docker.com/linux/ubuntu/gpg"
-  
+
   - codename: "nodejs"
     url: "https://deb.nodesource.com/node_18.x"
     pkey: "https://deb.nodesource.com/gpgkey/nodesource.gpg.key"
@@ -193,7 +193,7 @@ packageRepositories:
   - codename: "internal-repo"
     url: "https://internal.company.com/packages"
     pkey: "[trusted=yes]"  # Bypasses GPG verification; ONLY for internal, organization-controlled repos.
-  
+
   - codename: "test-repo"
     url: "https://test.example.com/packages"
     pkey: "[trusted=yes]"  # No signature verification; for internal dev/test only, not public/third-party repos.
@@ -236,12 +236,12 @@ packageRepositories:
   - codename: "secure-repo"
     url: "https://example.com/packages"
     pkey: "https://example.com/gpg-key.pub"
-  
+
   # Use trusted=yes only for internal/trusted repositories
   - codename: "internal-repo"
     url: "https://internal.company.com/packages"
     pkey: "[trusted=yes]"
-  
+
   # Avoid - missing pkey entirely reduces security
   - codename: "insecure-repo"
     url: "https://example.com/packages"
@@ -257,7 +257,7 @@ packageRepositories:
   - codename: "EdgeAI"
   - codename: "OpenVINO"
   - codename: "docker-ce"
-  
+
   # Avoid - unclear codenames
   - codename: "repo1"
   - codename: "custom"
@@ -285,7 +285,7 @@ packageRepositories:
   - codename: "EdgeAI"
     url: "https://yum.repos.intel.com/edgeai/"
     pkey: "https://yum.repos.intel.com/edgeai/GPG-PUB-KEY-INTEL-DLS.gpg"
-  
+
   # Microsoft CBL-Mariner extended packages
   - codename: "mariner"
     url: "https://packages.microsoft.com/yumrepos/cbl-mariner-2.0-prod-extended-x86_64/"

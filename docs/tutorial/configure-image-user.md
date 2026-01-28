@@ -1,4 +1,4 @@
-# Image User Configuration Tutorial
+# Configure Users
 
 This guide walks you through setting up login users for your target OS image using OS Image Composer.
 
@@ -45,12 +45,12 @@ systemConfig:
     - name: user
       password: "user"  # Do not commit real plaintext passwords
       groups: ["sudo"]
-      
+
     # Production user with hashed password
     - name: admin
       hash_algo: "sha512"
       password: "$6$qisZydr7DPWjCwDk$uiFDXvewTwAqs4H0gO7lRkmc5j2IUiuxSA8Yi.kjN9aLu4w3vysV80mD6C/0DvaBPLYCWU2fJwatYxVASJVL20"
-      groups: ["sudo"]  
+      groups: ["sudo"]
 ```
 
 ## Step 4: Common User Groups

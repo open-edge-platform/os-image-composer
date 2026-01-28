@@ -116,6 +116,7 @@ type ImmutabilityConfig struct {
 	SecureBootDBKey string `yaml:"secureBootDBKey,omitempty"` // SecureBootDBKey: The private key file used to sign the bootloader for UEFI Secure Boot
 	SecureBootDBCrt string `yaml:"secureBootDBCrt,omitempty"` // SecureBootDBCrt: The certificate file in PEM format, which corresponds to the private key for UEFI Secure Boot
 	SecureBootDBCer string `yaml:"secureBootDBCer,omitempty"` // SecureBootDBCer: The same certificate file, but provided in DER (binary) format specifically for UEFI firmware
+	wasProvided     bool   `yaml:"-"`                         // Internal flag to track if section was provided
 }
 
 // UserConfig holds the user configuration
@@ -722,4 +723,23 @@ func (t *ImageTemplate) GetRepositoryByCodename(codename string) *PackageReposit
 		}
 	}
 	return nil
+}
+
+// UnmarshalYAML implements yaml.Unmarshaler to track if immutability section was provided
+func (i *ImmutabilityConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// Use a type alias to avoid infinite recursion
+	type alias ImmutabilityConfig
+	temp := (*alias)(i)
+
+	if err := unmarshal(temp); err != nil {
+		return err
+	}
+
+	i.wasProvided = true // Mark that this section was explicitly provided in YAML
+	return nil
+}
+
+// WasProvided returns true if the immutability section was explicitly defined in YAML
+func (i *ImmutabilityConfig) WasProvided() bool {
+	return i.wasProvided
 }

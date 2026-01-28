@@ -1,4 +1,4 @@
-# Secure Boot Configuration Tutorial
+# Configure Secure Boot
 
 This guide walks you through setting up Secure Boot for your operating system
 images using the OS Image Composer tool. Follow each step carefully.
