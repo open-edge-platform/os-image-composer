@@ -711,7 +711,7 @@ func tallyDiffs(d ImageDiff) diffTally {
 		t.addVolatile(1, "image file changed")
 	}
 	if d.Image.SizeBytes != nil {
-		t.addMeaningful(1, "image size bytes nil")
+		t.addMeaningful(1, "image size changed")
 	}
 
 	// --- Partition table (field-level) ---
