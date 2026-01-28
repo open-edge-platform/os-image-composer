@@ -252,7 +252,7 @@ func TestParsePrimary(t *testing.T) {
 			filename:      "primary.xml.gz",
 			expectedError: false,
 			expectedCount: 2,
-			expectedNames: []string{"bash-5.1-8.el9.x86_64.rpm", "glibc-2.32-1.el9.x86_64.rpm"},
+			expectedNames: []string{"bash", "glibc"},
 		},
 		{
 			name:          "empty metadata",
@@ -330,13 +330,13 @@ func TestParsePrimary(t *testing.T) {
 				// Check bash package details
 				var bashPkg *ospackage.PackageInfo
 				for _, pkg := range packages {
-					if pkg.Name == "bash-5.1-8.el9.x86_64.rpm" {
+					if pkg.Name == "bash" {
 						bashPkg = &pkg
 						break
 					}
 				}
 				if bashPkg == nil {
-					t.Fatal("bash-5.1-8.el9.x86_64.rpm package not found")
+					t.Fatal("bash package not found")
 				}
 
 				if bashPkg.License != "GPLv3+" {
