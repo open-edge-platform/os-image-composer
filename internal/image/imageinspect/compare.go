@@ -14,7 +14,6 @@ type ImageCompareResult struct {
 	From ImageSummary `json:"from"`
 	To   ImageSummary `json:"to"`
 
-	//Equal    bool           `json:"equal"`
 	Equality Equality       `json:"equality" yaml:"equality"`
 	Summary  CompareSummary `json:"summary,omitempty"`
 	Diff     ImageDiff      `json:"diff,omitempty"`

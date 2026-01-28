@@ -120,7 +120,7 @@ func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
 		// Validate it looks like ImageCompareResult (at least top-level fields).
 		var got struct {
 			SchemaVersion string          `json:"schemaVersion"`
-			Equal         bool            `json:"equal"`
+			Equality      json.RawMessage `json:"equality"`
 			From          json.RawMessage `json:"from"`
 			To            json.RawMessage `json:"to"`
 			Summary       json.RawMessage `json:"summary"`
@@ -147,8 +147,8 @@ func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
 		}
 
 		var got struct {
-			Equal bool                   `json:"equal"`
-			Diff  imageinspect.ImageDiff `json:"diff"`
+			EqualityClass imageinspect.EqualityClass `json:"equalityClass"`
+			Diff          imageinspect.ImageDiff     `json:"diff"`
 		}
 		decodeJSON(t, s, &got)
 	})
@@ -167,8 +167,8 @@ func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
 		}
 
 		var got struct {
-			Equal   bool                        `json:"equal"`
-			Summary imageinspect.CompareSummary `json:"summary"`
+			EqualityClass imageinspect.EqualityClass  `json:"equalityClass"`
+			Summary       imageinspect.CompareSummary `json:"summary"`
 		}
 		decodeJSON(t, s, &got)
 	})
@@ -201,8 +201,8 @@ func TestCompareCommand_TextOutput(t *testing.T) {
 	}
 
 	// Basic structure checks (don’t overfit exact wording)
-	if !strings.Contains(s, "Equal:") {
-		t.Fatalf("expected 'Equal:' header, got:\n%s", s)
+	if !strings.Contains(s, "Equality:") {
+		t.Fatalf("expected 'Equality:' header, got:\n%s", s)
 	}
 	if !strings.Contains(s, "Partition table:") {
 		t.Fatalf("expected partition table section, got:\n%s", s)

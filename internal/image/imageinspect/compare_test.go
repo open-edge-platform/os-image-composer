@@ -501,3 +501,477 @@ func TestCompareEFIBinaries_SectionDiffsProduceUKIDiff(t *testing.T) {
 		t.Fatalf("expected linux hash a->b, got %+v", diff)
 	}
 }
+
+func TestCompareImages_EmptyPartitionLists(t *testing.T) {
+	a := &ImageSummary{
+		File:      "a.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions:        []PartitionSummary{}, // Empty
+		},
+	}
+	b := &ImageSummary{
+		File:      "b.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions:        []PartitionSummary{}, // Empty
+		},
+	}
+
+	res := CompareImages(a, b)
+	if res.Summary.Changed {
+		t.Fatalf("expected no changes for empty partition lists, got %+v", res.Summary)
+	}
+	if len(res.Diff.Partitions.Added) != 0 || len(res.Diff.Partitions.Removed) != 0 {
+		t.Fatalf("expected no partition diffs, got added=%d, removed=%d", len(res.Diff.Partitions.Added), len(res.Diff.Partitions.Removed))
+	}
+}
+
+func TestCompareImages_VeryLargeSizeChange(t *testing.T) {
+	a := &ImageSummary{
+		File:      "a.raw",
+		SizeBytes: 1, // 1 byte
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+		},
+	}
+	b := &ImageSummary{
+		File:      "b.raw",
+		SizeBytes: 1099511627776, // 1 TB
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+		},
+	}
+
+	res := CompareImages(a, b)
+	if res.Diff.Image.SizeBytes == nil {
+		t.Fatalf("expected size change detected")
+	}
+	if res.Diff.Image.SizeBytes.From != 1 || res.Diff.Image.SizeBytes.To != 1099511627776 {
+		t.Fatalf("expected size 1->1TB, got %+v", res.Diff.Image.SizeBytes)
+	}
+}
+
+func TestCompareImages_PartitionWithoutFilesystem_vs_WithFilesystem(t *testing.T) {
+	a := &ImageSummary{
+		File:      "a.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions: []PartitionSummary{
+				{
+					Index:      1,
+					Name:       "data",
+					Type:       "linux",
+					Filesystem: nil, // No filesystem
+				},
+			},
+		},
+	}
+	b := &ImageSummary{
+		File:      "b.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions: []PartitionSummary{
+				{
+					Index: 1,
+					Name:  "data",
+					Type:  "linux",
+					Filesystem: &FilesystemSummary{
+						Type:  "ext4",
+						UUID:  "UUID-DATA",
+						Label: "data",
+					},
+				},
+			},
+		},
+	}
+
+	res := CompareImages(a, b)
+	if res.Equality.Class != EqualityDifferent {
+		t.Fatalf("expected change when filesystem added, got %v", res.Equality.Class)
+	}
+	if len(res.Diff.Partitions.Modified) != 1 {
+		t.Fatalf("expected partition marked as modified, got %d", len(res.Diff.Partitions.Modified))
+	}
+	if res.Diff.Partitions.Modified[0].Filesystem == nil {
+		t.Fatalf("expected filesystem diff info")
+	}
+}
+
+func TestCompareImages_EmptyEFIBinariesList(t *testing.T) {
+	a := &ImageSummary{
+		File:      "a.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions: []PartitionSummary{
+				{
+					Index: 1,
+					Name:  "ESP",
+					Type:  "efi",
+					Filesystem: &FilesystemSummary{
+						Type:        "vfat",
+						UUID:        "UUID-ESP",
+						EFIBinaries: []EFIBinaryEvidence{}, // Empty
+					},
+				},
+			},
+		},
+	}
+	b := &ImageSummary{
+		File:      "b.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions: []PartitionSummary{
+				{
+					Index: 1,
+					Name:  "ESP",
+					Type:  "efi",
+					Filesystem: &FilesystemSummary{
+						Type:        "vfat",
+						UUID:        "UUID-ESP",
+						EFIBinaries: []EFIBinaryEvidence{}, // Empty
+					},
+				},
+			},
+		},
+	}
+
+	res := CompareImages(a, b)
+	if res.Summary.Changed {
+		t.Fatalf("expected no changes for empty EFI lists, got %+v", res.Summary)
+	}
+	if len(res.Diff.EFIBinaries.Added) != 0 || len(res.Diff.EFIBinaries.Removed) != 0 {
+		t.Fatalf("expected no EFI diffs for empty lists")
+	}
+}
+
+func TestCompareImages_EFIBinarySamePathDifferentHash(t *testing.T) {
+	a := &ImageSummary{
+		File:      "a.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions: []PartitionSummary{
+				{
+					Index: 1,
+					Name:  "ESP",
+					Type:  "efi",
+					Filesystem: &FilesystemSummary{
+						Type: "vfat",
+						UUID: "UUID-ESP",
+						EFIBinaries: []EFIBinaryEvidence{
+							{
+								Path:   "EFI/BOOT/BOOTX64.EFI",
+								SHA256: "hash_v1",
+								Kind:   BootloaderGrub,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	b := &ImageSummary{
+		File:      "b.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions: []PartitionSummary{
+				{
+					Index: 1,
+					Name:  "ESP",
+					Type:  "efi",
+					Filesystem: &FilesystemSummary{
+						Type: "vfat",
+						UUID: "UUID-ESP",
+						EFIBinaries: []EFIBinaryEvidence{
+							{
+								Path:   "EFI/BOOT/BOOTX64.EFI",
+								SHA256: "hash_v2",
+								Kind:   BootloaderGrub,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	res := CompareImages(a, b)
+	if res.Equality.Class != EqualityDifferent {
+		t.Fatalf("expected change for different hash on same path, got %v", res.Equality.Class)
+	}
+	if len(res.Diff.EFIBinaries.Modified) != 1 {
+		t.Fatalf("expected 1 modified EFI binary, got %d", len(res.Diff.EFIBinaries.Modified))
+	}
+	mod := res.Diff.EFIBinaries.Modified[0]
+	if mod.From.SHA256 != "hash_v1" || mod.To.SHA256 != "hash_v2" {
+		t.Fatalf("expected hash_v1->hash_v2, got %s->%s", mod.From.SHA256, mod.To.SHA256)
+	}
+}
+
+func TestCompareImages_UKISectionHashChangesComplex(t *testing.T) {
+	from := []EFIBinaryEvidence{{
+		Path:  "EFI/BOOT/BOOTX64.EFI",
+		IsUKI: true,
+		SectionSHA256: map[string]string{
+			"linux":   "old_linux",
+			"initrd":  "old_initrd",
+			"osrel":   "unchanged_osrel",
+			"cmdline": "old_cmdline",
+		},
+	}}
+	to := []EFIBinaryEvidence{{
+		Path:  "EFI/BOOT/BOOTX64.EFI",
+		IsUKI: true,
+		SectionSHA256: map[string]string{
+			"linux":  "new_linux",
+			"initrd": "new_initrd",
+			"osrel":  "unchanged_osrel",
+			"splash": "new_splash",
+		},
+	}}
+
+	d := compareEFIBinaries(from, to)
+	if len(d.Modified) != 1 {
+		t.Fatalf("expected 1 modified entry, got %d", len(d.Modified))
+	}
+	uki := d.Modified[0].UKI
+	if uki == nil {
+		t.Fatalf("expected UKI diff")
+	}
+
+	// Check added section
+	if uki.SectionSHA256.Added["splash"] != "new_splash" {
+		t.Fatalf("expected added splash section, got %+v", uki.SectionSHA256.Added)
+	}
+
+	// Check removed section
+	if uki.SectionSHA256.Removed["cmdline"] != "old_cmdline" {
+		t.Fatalf("expected removed cmdline section, got %+v", uki.SectionSHA256.Removed)
+	}
+
+	// Check modified sections
+	if len(uki.SectionSHA256.Modified) != 2 {
+		t.Fatalf("expected 2 modified sections, got %d", len(uki.SectionSHA256.Modified))
+	}
+	if uki.SectionSHA256.Modified["linux"].From != "old_linux" || uki.SectionSHA256.Modified["linux"].To != "new_linux" {
+		t.Fatalf("expected linux hash diff, got %+v", uki.SectionSHA256.Modified["linux"])
+	}
+}
+
+func TestCompareImages_BootloaderKindChanges(t *testing.T) {
+	a := &ImageSummary{
+		File:      "a.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions: []PartitionSummary{
+				{
+					Index: 1,
+					Name:  "ESP",
+					Type:  "efi",
+					Filesystem: &FilesystemSummary{
+						Type: "vfat",
+						UUID: "UUID-ESP",
+						EFIBinaries: []EFIBinaryEvidence{
+							{
+								Path: "EFI/BOOT/BOOTX64.EFI",
+								Kind: BootloaderGrub,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	b := &ImageSummary{
+		File:      "b.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions: []PartitionSummary{
+				{
+					Index: 1,
+					Name:  "ESP",
+					Type:  "efi",
+					Filesystem: &FilesystemSummary{
+						Type: "vfat",
+						UUID: "UUID-ESP",
+						EFIBinaries: []EFIBinaryEvidence{
+							{
+								Path: "EFI/BOOT/BOOTX64.EFI",
+								Kind: BootloaderSystemdBoot,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	res := CompareImages(a, b)
+	if res.Equality.Class != EqualityDifferent {
+		t.Fatalf("expected change for bootloader kind change, got %v", res.Equality.Class)
+	}
+	if len(res.Diff.EFIBinaries.Modified) != 1 {
+		t.Fatalf("expected 1 modified EFI binary, got %d", len(res.Diff.EFIBinaries.Modified))
+	}
+	if res.Diff.EFIBinaries.Modified[0].From.Kind != BootloaderGrub || res.Diff.EFIBinaries.Modified[0].To.Kind != BootloaderSystemdBoot {
+		t.Fatalf("expected kind grub->systemdboot, got %s->%s", res.Diff.EFIBinaries.Modified[0].From.Kind, res.Diff.EFIBinaries.Modified[0].To.Kind)
+	}
+}
+
+func TestCompareImages_EFIArchitectureChanges(t *testing.T) {
+	a := &ImageSummary{
+		File:      "a.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions: []PartitionSummary{
+				{
+					Index: 1,
+					Name:  "ESP",
+					Type:  "efi",
+					Filesystem: &FilesystemSummary{
+						Type: "vfat",
+						UUID: "UUID-ESP",
+						EFIBinaries: []EFIBinaryEvidence{
+							{
+								Path: "EFI/BOOT/BOOTX64.EFI",
+								Arch: "x86_64",
+								Kind: BootloaderGrub,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	b := &ImageSummary{
+		File:      "b.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions: []PartitionSummary{
+				{
+					Index: 1,
+					Name:  "ESP",
+					Type:  "efi",
+					Filesystem: &FilesystemSummary{
+						Type: "vfat",
+						UUID: "UUID-ESP",
+						EFIBinaries: []EFIBinaryEvidence{
+							{
+								Path: "EFI/BOOT/BOOTX64.EFI",
+								Arch: "arm64",
+								Kind: BootloaderGrub,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	res := CompareImages(a, b)
+	if res.Equality.Class != EqualityDifferent {
+		t.Fatalf("expected change for arch change, got %v", res.Equality.Class)
+	}
+	if len(res.Diff.EFIBinaries.Modified) != 1 {
+		t.Fatalf("expected 1 modified EFI binary, got %d", len(res.Diff.EFIBinaries.Modified))
+	}
+	if res.Diff.EFIBinaries.Modified[0].From.Arch == res.Diff.EFIBinaries.Modified[0].To.Arch {
+		t.Fatalf("expected architecture diff")
+	}
+	if res.Diff.EFIBinaries.Modified[0].From.Arch != "x86_64" || res.Diff.EFIBinaries.Modified[0].To.Arch != "arm64" {
+		t.Fatalf("expected arch x86_64->arm64, got %s->%s", res.Diff.EFIBinaries.Modified[0].From.Arch, res.Diff.EFIBinaries.Modified[0].To.Arch)
+	}
+}
+
+func TestCompareImages_EFISigningStatusChanges(t *testing.T) {
+	a := &ImageSummary{
+		File:      "a.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions: []PartitionSummary{
+				{
+					Index: 1,
+					Name:  "ESP",
+					Type:  "efi",
+					Filesystem: &FilesystemSummary{
+						Type: "vfat",
+						UUID: "UUID-ESP",
+						EFIBinaries: []EFIBinaryEvidence{
+							{
+								Path:   "EFI/BOOT/BOOTX64.EFI",
+								Signed: false,
+								Kind:   BootloaderGrub,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	b := &ImageSummary{
+		File:      "b.raw",
+		SizeBytes: 100,
+		PartitionTable: PartitionTableSummary{
+			Type:              "gpt",
+			LogicalSectorSize: 512,
+			Partitions: []PartitionSummary{
+				{
+					Index: 1,
+					Name:  "ESP",
+					Type:  "efi",
+					Filesystem: &FilesystemSummary{
+						Type: "vfat",
+						UUID: "UUID-ESP",
+						EFIBinaries: []EFIBinaryEvidence{
+							{
+								Path:   "EFI/BOOT/BOOTX64.EFI",
+								Signed: true,
+								Kind:   BootloaderGrub,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	res := CompareImages(a, b)
+	if res.Equality.Class != EqualityUnverified {
+		t.Fatalf("expected change for signing status change, got %v", res.Equality.Class)
+	}
+	if len(res.Diff.EFIBinaries.Modified) != 1 {
+		t.Fatalf("expected 1 modified EFI binary, got %d", len(res.Diff.EFIBinaries.Modified))
+	}
+
+	if res.Diff.EFIBinaries.Modified[0].From.Signed || !res.Diff.EFIBinaries.Modified[0].To.Signed {
+		t.Fatalf("expected signed false->true, got %v->%v", res.Diff.EFIBinaries.Modified[0].From.Signed, res.Diff.EFIBinaries.Modified[0].To.Signed)
+	}
+}

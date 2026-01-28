@@ -290,6 +290,7 @@ os-image-composer compare [flags] IMAGE_FILE1 IMAGE_FILE2
 | `--format STRING` | Output format: `text` or `json` (default: `text`) |
 | `--mode STRING` | Compare mode: `diff` (partition/FS changes), `summary` (high-level counts), or `full` (complete image metadata). Default: `diff` for text, `full` for JSON |
 | `--pretty` | Pretty-print JSON output (only for `--format=json`; default: `false`) |
+| `--hash-images` | Perform image hashing for verifying binary identical image (default `false`) |
 
 **Description:**
 
@@ -341,6 +342,9 @@ os-image-composer compare --format=json --mode=full --pretty image-v1.raw image-
 
 # Compact JSON diff suitable for CI/CD automation
 os-image-composer compare --format=json --mode=diff image-v1.raw image-v2.raw
+
+# Perform comparison with image hashing enabled with details text diff
+os-image-composer compare --hash-images=true image-v1.raw image-v2.raw
 ```
 
 ### Cache Command
