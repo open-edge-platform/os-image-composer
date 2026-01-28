@@ -87,8 +87,6 @@ func TestResolveDefaults(t *testing.T) {
 }
 
 func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
-	// IMPORTANT: these tests assume newInspector is a package-level var func you can override.
-	// If it’s a normal function, change code to allow injection or adapt these tests.
 
 	origNewInspector := newInspector
 	t.Cleanup(func() { newInspector = origNewInspector })
@@ -100,7 +98,7 @@ func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
 		},
 		errByPath: map[string]error{},
 	}
-	newInspector = func() inspector { return fi }
+	newInspector = func(hash bool) inspector { return fi }
 
 	// Make a command instance to provide OutOrStdout/flags context (executeCompare uses cmd for output).
 	cmd := &cobra.Command{}
@@ -191,7 +189,7 @@ func TestCompareCommand_TextOutput(t *testing.T) {
 			"b.raw": img2,
 		},
 	}
-	newInspector = func() inspector { return fi }
+	newInspector = func(hash bool) inspector { return fi }
 
 	cmd := &cobra.Command{}
 	outFormat = "text"
@@ -226,7 +224,7 @@ func TestCompareCommand_InspectorError(t *testing.T) {
 			"b.raw": errors.New("boom"),
 		},
 	}
-	newInspector = func() inspector { return fi }
+	newInspector = func(hash bool) inspector { return fi }
 
 	cmd := &cobra.Command{}
 	outFormat = "json"
@@ -249,7 +247,7 @@ func TestCompareCommand_InvalidModeErrors(t *testing.T) {
 		outFormat, outMode = origOutFormat, origOutMode
 	})
 
-	newInspector = func() inspector {
+	newInspector = func(hash bool) inspector {
 		return &fakeCompareInspector{imgByPath: map[string]*imageinspect.ImageSummary{
 			"a.raw": minimalImage("a.raw", 1),
 			"b.raw": minimalImage("b.raw", 1),
@@ -274,7 +272,7 @@ func TestCompareCommand_InvalidFormatErrors(t *testing.T) {
 		outFormat, outMode = origOutFormat, origOutMode
 	})
 
-	newInspector = func() inspector {
+	newInspector = func(hash bool) inspector {
 		return &fakeCompareInspector{imgByPath: map[string]*imageinspect.ImageSummary{
 			"a.raw": minimalImage("a.raw", 1),
 			"b.raw": minimalImage("b.raw", 1),

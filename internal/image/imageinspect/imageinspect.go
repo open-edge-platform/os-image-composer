@@ -1,6 +1,8 @@
 package imageinspect
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -12,14 +14,17 @@ import (
 	"github.com/diskfs/go-diskfs/partition"
 	"github.com/diskfs/go-diskfs/partition/gpt"
 	"github.com/diskfs/go-diskfs/partition/mbr"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
+	"go.uber.org/zap"
 )
 
 // ImageSummary holds the summary information about an inspected disk image.
 type ImageSummary struct {
-	File           string
-	SizeBytes      int64
-	PartitionTable PartitionTableSummary
-	// SBOM           SBOMSummary
+	File           string                `json:"file,omitempty"`
+	SHA256         string                `json:"sha256,omitempty"`
+	SizeBytes      int64                 `json:"sizeBytes,omitempty"`
+	PartitionTable PartitionTableSummary `json:"partitionTable,omitempty"`
+	// SBOM           SBOMSummary 		   `json:"sbom,omitempty"`
 }
 
 // PartitionTableSummary holds information about the partition table of the disk image.
@@ -71,7 +76,7 @@ type FilesystemSummary struct {
 	Label string `json:"label,omitempty" yaml:"label,omitempty"`
 	UUID  string `json:"uuid,omitempty" yaml:"uuid,omitempty"` // ext4 UUID, VFAT volume ID normalized, etc.
 
-	// Common “evidence” (optional):
+	// Common “evidence” fields
 	BlockSize uint32   `json:"blockSize,omitempty" yaml:"blockSize,omitempty"`
 	Features  []string `json:"features,omitempty" yaml:"features,omitempty"`
 	Notes     []string `json:"notes,omitempty" yaml:"notes,omitempty"`
@@ -88,10 +93,9 @@ type FilesystemSummary struct {
 	FsFlags     []string `json:"fsFlags,omitempty" yaml:"fsFlags,omitempty"`
 
 	// EFI/UKI evidence (VFAT/ESP)
-	//	EFIBinaries  []EFIBinarySummary  `json:"efiBinaries,omitempty" yaml:"efiBinaries,omitempty"`
 	HasShim     bool                `json:"hasShim,omitempty" yaml:"hasShim,omitempty"`
 	HasUKI      bool                `json:"hasUki,omitempty" yaml:"hasUki,omitempty"`
-	EFIBinaries []EFIBinaryEvidence `json:"peEvidence,omitempty" yaml:"peEvidence,omitempty"`
+	EFIBinaries []EFIBinaryEvidence `json:"efiBinaries,omitempty" yaml:"efiBinaries,omitempty"`
 }
 
 // KeyValue represents a simple key-value pair.
@@ -118,12 +122,13 @@ type EFIBinaryEvidence struct {
 	Sections []string `json:"sections,omitempty" yaml:"sections,omitempty"`
 
 	// UKI-specific evidence (if Kind == uki)
-	IsUKI           bool              `json:"isUki,omitempty" yaml:"isUki,omitempty"`
-	Cmdline         string            `json:"cmdline,omitempty" yaml:"cmdline,omitempty"`
-	Uname           string            `json:"uname,omitempty" yaml:"uname,omitempty"`
-	OSReleaseRaw    string            `json:"osReleaseRaw,omitempty" yaml:"osReleaseRaw,omitempty"`
-	OSRelease       map[string]string `json:"osRelease,omitempty" yaml:"osRelease,omitempty"`
-	OSReleaseSorted []KeyValue        `json:"osReleaseSorted,omitempty" yaml:"osReleaseSorted,omitempty"`
+	IsUKI                   bool              `json:"isUki,omitempty" yaml:"isUki,omitempty"`
+	Cmdline                 string            `json:"cmdline,omitempty" yaml:"cmdline,omitempty"`
+	CmdlineNormalizedSHA256 string            `json:"cmdlineNormalizedSha256,omitempty" yaml:"cmdlineNormalizedSha256,omitempty"`
+	Uname                   string            `json:"uname,omitempty" yaml:"uname,omitempty"`
+	OSReleaseRaw            string            `json:"osReleaseRaw,omitempty" yaml:"osReleaseRaw,omitempty"`
+	OSRelease               map[string]string `json:"osRelease,omitempty" yaml:"osRelease,omitempty"`
+	OSReleaseSorted         []KeyValue        `json:"osReleaseSorted,omitempty" yaml:"osReleaseSorted,omitempty"`
 
 	// Payload hashes (high value for diffs)
 	SectionSHA256 map[string]string `json:"sectionSha256,omitempty" yaml:"sectionSha256,omitempty"`
@@ -155,12 +160,18 @@ type diskAccessorFS interface {
 	GetFilesystem(partitionNumber int) (filesystem.FileSystem, error)
 }
 
-type DiskfsInspector struct{}
+type DiskfsInspector struct {
+	HashImages bool
+	logger     *zap.SugaredLogger
+}
 
-func NewDiskfsInspector() *DiskfsInspector { return &DiskfsInspector{} }
+func NewDiskfsInspector(hash bool) *DiskfsInspector {
+	return &DiskfsInspector{HashImages: hash, logger: logger.Logger()}
+}
 
-// Inspect inspects the disk image at the given path and returns an ImageSummary.
 func (d *DiskfsInspector) Inspect(imagePath string) (*ImageSummary, error) {
+	d.logger.Infof("Inspecting image: %s, hashImages=%v", imagePath, d.HashImages)
+
 	fi, err := os.Stat(imagePath)
 	if err != nil {
 		return nil, fmt.Errorf("stat image: %w", err)
@@ -172,13 +183,34 @@ func (d *DiskfsInspector) Inspect(imagePath string) (*ImageSummary, error) {
 	}
 	defer img.Close()
 
+	sha := ""
+	// Optional SHA256 hash computation
+	if d.HashImages {
+		d.logger.Infof("Computing SHA256 for image: %s", imagePath)
+		sha, err = computeFileSHA256(img)
+		if err != nil {
+			return nil, fmt.Errorf("sha256 image: %w", err)
+		}
+	}
+
 	disk, err := diskfs.Open(imagePath)
 	if err != nil {
 		return nil, fmt.Errorf("open disk image: %w", err)
 	}
 	defer disk.Close()
 
-	return d.inspectCore(img, disk, disk.LogicalBlocksize, imagePath, fi.Size())
+	return d.inspectCore(img, disk, disk.LogicalBlocksize, imagePath, fi.Size(), sha)
+}
+
+// inspectCoreNoHash is a helper that calls inspectCore without SHA256 computation.
+func (d *DiskfsInspector) inspectCoreNoHash(
+	img io.ReaderAt,
+	disk diskAccessorFS,
+	logicalBlockSize int64,
+	imagePath string,
+	sizeBytes int64,
+) (*ImageSummary, error) {
+	return d.inspectCore(img, disk, logicalBlockSize, imagePath, sizeBytes, "")
 }
 
 // inspectCore performs the core inspection logic given a disk accessor.
@@ -188,6 +220,7 @@ func (d *DiskfsInspector) inspectCore(
 	logicalBlockSize int64,
 	imagePath string,
 	sizeBytes int64,
+	sha256sum string,
 ) (*ImageSummary, error) {
 	pt, err := disk.GetPartitionTable()
 	if err != nil {
@@ -209,6 +242,7 @@ func (d *DiskfsInspector) inspectCore(
 		File:           imagePath,
 		SizeBytes:      sizeBytes,
 		PartitionTable: ptSummary,
+		SHA256:         sha256sum,
 	}, nil
 }
 
@@ -439,4 +473,23 @@ func diskfsPartitionNumberForSummary(d diskAccessorFS, ps PartitionSummary) (int
 	}
 
 	return 0, false
+}
+
+func computeFileSHA256(f *os.File) (string, error) {
+	// Ensure we start from the beginning
+	if _, err := f.Seek(0, 0); err != nil {
+		return "", err
+	}
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+
+	// Restore position (optional; but nice hygiene)
+	if _, err := f.Seek(0, 0); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

@@ -41,11 +41,9 @@ func TestCompareImages_Equal_NoChanges(t *testing.T) {
 
 	res := CompareImages(a, b)
 
-	// Depending on your policy, Equal might ignore filename differences.
-	// If your CompareImages treats File diff as non-semantic, Equal should be true.
-	// If it treats it as semantic, update this assertion.
-	if res.Equal != true {
-		t.Fatalf("expected Equal=true, got %v", res.Equal)
+	// We expect EqualityUnverified because we are not hashing images
+	if res.Equality.Class != EqualityUnverified {
+		t.Fatalf("expected Equality.Class=EqualitySemantic, got %v", res.Equality.Class)
 	}
 	if res.Summary.Changed {
 		t.Fatalf("expected Summary.Changed=false, got true")
@@ -84,8 +82,8 @@ func TestCompareImages_PartitionTableChanged(t *testing.T) {
 	}
 
 	res := CompareImages(a, b)
-	if res.Equal {
-		t.Fatalf("expected Equal=false")
+	if res.Equality.Class != EqualityDifferent {
+		t.Fatalf("expected Equality.Class=EqualityDifferent, got %v", res.Equality.Class)
 	}
 	if !res.Diff.PartitionTable.Changed {
 		t.Fatalf("expected partition table changed")
@@ -218,8 +216,8 @@ func TestCompareImages_PartitionsAddedRemovedModified_ByFSUUIDKey(t *testing.T) 
 
 	res := CompareImages(a, b)
 
-	if res.Equal {
-		t.Fatalf("expected Equal=false")
+	if res.Equality.Class != EqualityDifferent {
+		t.Fatalf("expected Equality.Class=EqualityDifferent, got %v", res.Equality.Class)
 	}
 	// Added: data
 	if len(res.Diff.Partitions.Added) != 1 {
@@ -333,8 +331,8 @@ func TestCompareImages_EFIBinaries_ModifiedAndUKIDiff(t *testing.T) {
 
 	res := CompareImages(a, b)
 
-	if res.Equal {
-		t.Fatalf("expected Equal=false")
+	if res.Equality.Class != EqualityDifferent {
+		t.Fatalf("expected Equality.Class=EqualityDifferent, got %v", res.Equality.Class)
 	}
 
 	efi := res.Diff.EFIBinaries

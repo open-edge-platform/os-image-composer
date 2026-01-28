@@ -19,7 +19,7 @@ func TestInspectCore_Propagates_GetPartitionTable_Error(t *testing.T) {
 	want := errors.New("pt boom")
 	disk := &fakeDiskAccessor{ptErr: want}
 
-	_, err := d.inspectCore(img, disk, 512, "ignored", 1<<20)
+	_, err := d.inspectCoreNoHash(img, disk, 512, "ignored", 1<<20)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -37,7 +37,7 @@ func TestInspectCore_GPT_Table_SetsTypeAndBasics(t *testing.T) {
 
 	disk := &fakeDiskAccessor{pt: minimalGPTWithOnePartition()}
 
-	got, err := d.inspectCore(img, disk, 512, "ignored", 8<<20)
+	got, err := d.inspectCoreNoHash(img, disk, 512, "ignored", 8<<20)
 	if err != nil {
 		t.Fatalf("inspectCore: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestInspectCore_MBR_Table_SetsTypeAndBasics(t *testing.T) {
 
 	disk := &fakeDiskAccessor{pt: minimalMBRWithOnePartition()}
 
-	got, err := d.inspectCore(img, disk, 512, "ignored", 8<<20)
+	got, err := d.inspectCoreNoHash(img, disk, 512, "ignored", 8<<20)
 	if err != nil {
 		t.Fatalf("inspectCore: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestInspectCore_GetFilesystem_Error_IsRecordedAsNote(t *testing.T) {
 		fsErrAny: want, // any filesystem open fails
 	}
 
-	got, err := d.inspectCore(img, disk, 512, "ignored", 8<<20)
+	got, err := d.inspectCoreNoHash(img, disk, 512, "ignored", 8<<20)
 	if err != nil {
 		t.Fatalf("inspectCore should not fail on GetFilesystem error; got: %v", err)
 	}
@@ -800,7 +800,7 @@ func TestInspectCore_PropagatesFilesystemError_WhenCalled(t *testing.T) {
 		fsErrAny: want,
 	}
 
-	_, err := d.inspectCore(img, disk, 512, "ignored", 8<<20)
+	_, err := d.inspectCoreNoHash(img, disk, 512, "ignored", 8<<20)
 
 	if err != nil {
 		t.Fatalf("did not expect inspectCore error; GetFilesystem failures are captured as notes. err=%v", err)
