@@ -47,6 +47,7 @@ type PackageRepository struct {
 	URL       string `yaml:"url"`                 // Repository base URL
 	PKey      string `yaml:"pkey"`                // Public GPG key URL for verification
 	Component string `yaml:"component,omitempty"` // Repository component (e.g., "main", "restricted")
+	Priority  int    `yaml:"priority,omitempty"`  // Repository priority (higher numbers = higher priority)
 }
 
 // ProviderRepoConfig represents the repository configuration for a provider

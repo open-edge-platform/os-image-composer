@@ -530,3 +530,87 @@ func TestValidateConfigJSON_DelegatesToValidateAgainstSchema(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+// TestPackageRepositoryTrustedYes validates that [trusted=yes] is accepted as a valid pkey value
+func TestPackageRepositoryTrustedYes(t *testing.T) {
+	templateYAML := `image:
+  name: test-trusted-repo
+  version: "1.0.0"
+
+target:
+  os: ubuntu
+  dist: ubuntu24
+  arch: x86_64
+  imageType: raw
+
+packageRepositories:
+  - codename: "noble"
+    url: "https://example.com/repo"
+    pkey: "[trusted=yes]"
+    component: "main"
+
+systemConfig:
+  name: test
+  packages:
+    - test-package
+  kernel:
+    version: "6.14"
+`
+
+	var raw interface{}
+	if err := yaml.Unmarshal([]byte(templateYAML), &raw); err != nil {
+		t.Fatalf("YAML parsing error: %v", err)
+	}
+
+	dataJSON, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatalf("JSON marshaling error: %v", err)
+	}
+
+	// This should pass validation with [trusted=yes] as a valid pkey value
+	if err := ValidateImageTemplateJSON(dataJSON); err != nil {
+		t.Errorf("expected template with [trusted=yes] pkey to pass validation, but got: %v", err)
+	}
+}
+
+// TestPackageRepositoryWithURL validates that a normal URL pkey is still accepted
+func TestPackageRepositoryWithURL(t *testing.T) {
+	templateYAML := `image:
+  name: test-url-repo
+  version: "1.0.0"
+
+target:
+  os: ubuntu
+  dist: ubuntu24
+  arch: x86_64
+  imageType: raw
+
+packageRepositories:
+  - codename: "noble"
+    url: "https://example.com/repo"
+    pkey: "https://example.com/key.gpg"
+    component: "main"
+
+systemConfig:
+  name: test
+  packages:
+    - test-package
+  kernel:
+    version: "6.14"
+`
+
+	var raw interface{}
+	if err := yaml.Unmarshal([]byte(templateYAML), &raw); err != nil {
+		t.Fatalf("YAML parsing error: %v", err)
+	}
+
+	dataJSON, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatalf("JSON marshaling error: %v", err)
+	}
+
+	// This should pass validation with a normal URL
+	if err := ValidateImageTemplateJSON(dataJSON); err != nil {
+		t.Errorf("expected template with URL pkey to pass validation, but got: %v", err)
+	}
+}

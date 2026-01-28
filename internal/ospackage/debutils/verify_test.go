@@ -251,6 +251,24 @@ func TestVerifyRelease(t *testing.T) {
 			expectError:   true,
 			errorContains: "failed to parse public key",
 		},
+		{
+			name: "trusted=yes skips verification",
+			setupFiles: func(tempDir string) (string, string, string) {
+				relPath := filepath.Join(tempDir, "Release")
+				sigPath := filepath.Join(tempDir, "Release.gpg")
+
+				err := os.WriteFile(relPath, []byte("test release content"), 0644)
+				if err != nil {
+					t.Fatalf("Failed to create Release file: %v", err)
+				}
+
+				// Signature file doesn't need to exist when using [trusted=yes]
+
+				return relPath, sigPath, "[trusted=yes]"
+			},
+			expectOK:    true,
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {
