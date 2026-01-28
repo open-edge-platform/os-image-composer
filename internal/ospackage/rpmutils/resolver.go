@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -254,11 +253,11 @@ func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, e
 				}
 
 			case "location":
-				// read the href and build full URL + infer Name (filename)
+				// read the href and build full URL
 				for _, a := range elem.Attr {
 					if a.Name.Local == "href" {
 						curInfo.URL = strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(a.Value, "/")
-						curInfo.Name = path.Base(a.Value)
+						// Note: Don't set Name from location href - it should come from <name> element
 						break
 					}
 				}
