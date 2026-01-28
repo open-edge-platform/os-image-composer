@@ -155,6 +155,11 @@ const (
 	BootloaderLinuxEFIStub BootloaderKind = "linux-efi-stub" // optional
 )
 
+// File system constants
+const (
+	unrealisticSectorSize = 65535
+)
+
 type diskAccessorFS interface {
 	GetPartitionTable() (partition.Table, error)
 	GetFilesystem(partitionNumber int) (filesystem.FileSystem, error)
@@ -222,6 +227,10 @@ func (d *DiskfsInspector) inspectCore(
 	sizeBytes int64,
 	sha256sum string,
 ) (*ImageSummary, error) {
+
+	if logicalBlockSize <= 0 || sizeBytes <= 0 || logicalBlockSize > unrealisticSectorSize {
+		return nil, fmt.Errorf("invalid block or image size: logicalBlockSize=%d, sizeBytes=%d", logicalBlockSize, sizeBytes)
+	}
 	pt, err := disk.GetPartitionTable()
 	if err != nil {
 		return nil, fmt.Errorf("get partition table: %w", err)
