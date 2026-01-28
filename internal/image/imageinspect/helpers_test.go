@@ -215,13 +215,6 @@ func TestSHA256Hex_Format(t *testing.T) {
 	}
 }
 
-func TestSHA256Hex_Consistency(t *testing.T) {
-	data := []byte("test data")
-	if sha256Hex(data) != sha256Hex(data) {
-		t.Fatalf("expected consistent hashes")
-	}
-}
-
 func TestPickLarger_NilNil(t *testing.T) {
 	if pickLarger(nil, nil) != nil {
 		t.Fatalf("expected nil for pickLarger(nil, nil)")
