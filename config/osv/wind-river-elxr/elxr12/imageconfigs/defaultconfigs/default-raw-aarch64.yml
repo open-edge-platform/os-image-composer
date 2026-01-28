@@ -92,4 +92,4 @@ systemConfig:
     cmdline: "quiet splash console=ttyS0,115200 console=tty0 loglevel=7"
     uki: true
     packages:
-     - linux-arm64
+     - linux-image-arm64-signed-template
