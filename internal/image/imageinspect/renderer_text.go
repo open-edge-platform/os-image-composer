@@ -141,7 +141,7 @@ func RenderCompareText(w io.Writer, r *ImageCompareResult, opts CompareTextOptio
 		renderEFIBinaryDiffText(w, r.Diff.EFIBinaries, "  ")
 	}
 
-	// Full mode: image metadata & volatile / meningful remove reasons
+	// Full mode: image metadata & volatile / meaningful remove reasons
 	if mode == "full" {
 		renderImagesBlock(w, r.From, r.To)
 		renderEqualityReasonsBlock(w, r)
