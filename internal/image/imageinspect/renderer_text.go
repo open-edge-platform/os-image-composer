@@ -41,7 +41,7 @@ func RenderCompareText(w io.Writer, r *ImageCompareResult, opts CompareTextOptio
 		obj := computeObjectCountsFromDiff(r.Diff)
 		fmt.Fprintf(w, "Counts (objects): +%d -%d ~%d\n", obj.added, obj.removed, obj.modified)
 
-		if mode == "full" || r.Equality.Class == EqualityDifferent {
+		if r.Equality.Class == EqualityDifferent {
 			if r.Equality.VolatileDiffs > 0 || r.Equality.MeaningfulDiffs > 0 {
 				fmt.Fprintf(w, "Counts (fields):  volatile=%d meaningful=%d\n",
 					r.Equality.VolatileDiffs, r.Equality.MeaningfulDiffs)
