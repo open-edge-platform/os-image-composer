@@ -43,8 +43,7 @@ type ImageDiff struct {
 
 // MetaDiff represents differences in image-level metadata.
 type MetaDiff struct {
-	File      *ValueDiff[string] `json:"file,omitempty"`
-	SizeBytes *ValueDiff[int64]  `json:"sizeBytes,omitempty"`
+	SizeBytes *ValueDiff[int64] `json:"sizeBytes,omitempty"`
 }
 
 // PartitionTableDiff represents differences in partition table-level fields.
@@ -194,8 +193,7 @@ func CompareImages(from, to *ImageSummary) ImageCompareResult {
 	if from == nil || to == nil {
 		return ImageCompareResult{
 			SchemaVersion: "1",
-			//			Equal:         false,
-			Equality: Equality{Class: EqualityDifferent},
+			Equality:      Equality{Class: EqualityDifferent},
 		}
 	}
 
@@ -207,7 +205,7 @@ func CompareImages(from, to *ImageSummary) ImageCompareResult {
 
 	// --- image meta ---
 	res.Diff.Image = compareMeta(*from, *to)
-	if res.Diff.Image.File != nil || res.Diff.Image.SizeBytes != nil {
+	if res.Diff.Image.SizeBytes != nil {
 		res.Summary.ModifiedCount++
 		res.Summary.Changed = true
 	}
@@ -705,9 +703,6 @@ func appendFilesystemFieldChanges(dst []FieldChange, a, b FilesystemSummary) []F
 func tallyDiffs(d ImageDiff) diffTally {
 	var t diffTally
 
-	if d.Image.File != nil {
-		t.addVolatile(1, "image file changed")
-	}
 	if d.Image.SizeBytes != nil {
 		t.addMeaningful(1, "image size changed")
 	}
