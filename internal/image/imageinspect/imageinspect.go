@@ -8,7 +8,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"syscall"
 
 	"github.com/diskfs/go-diskfs"
 	"github.com/diskfs/go-diskfs/filesystem"
@@ -17,6 +16,7 @@ import (
 	"github.com/diskfs/go-diskfs/partition/mbr"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imageconvert"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/file"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"go.uber.org/zap"
 )
@@ -212,7 +212,7 @@ func (d *DiskfsInspector) Inspect(imagePath string) (*ImageSummary, error) {
 		}
 
 		// Check available disk space before conversion
-		if err := checkDiskSpace(tmpDir, fi.Size()); err != nil {
+		if err := file.CheckDiskSpace(tmpDir, fi.Size(), 0.20); err != nil {
 			return nil, fmt.Errorf("insufficient disk space for image conversion: %w", err)
 		}
 
@@ -553,27 +553,4 @@ func computeFileSHA256(f *os.File) (string, error) {
 	}
 
 	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// checkDiskSpace checks if there is sufficient disk space available in the given directory
-// to accommodate an image of the specified size (with a safety margin).
-func checkDiskSpace(dir string, requiredBytes int64) error {
-	var stat syscall.Statfs_t
-	if err := syscall.Statfs(dir, &stat); err != nil {
-		return fmt.Errorf("failed to check disk space: %w", err)
-	}
-
-	// Calculate available space
-	availableBytes := int64(stat.Bavail) * int64(stat.Bsize)
-
-	// Add 20% safety margin for overhead, temporary files, etc.
-	safetyMargin := int64(float64(requiredBytes) * 0.2)
-	requiredWithMargin := requiredBytes + safetyMargin
-
-	if availableBytes < requiredWithMargin {
-		return fmt.Errorf("insufficient disk space: need %d bytes (including 20%% margin), have %d bytes available",
-			requiredWithMargin, availableBytes)
-	}
-
-	return nil
 }
