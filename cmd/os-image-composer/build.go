@@ -10,7 +10,7 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/provider/azl"
 	"github.com/open-edge-platform/os-image-composer/internal/provider/elxr"
 	"github.com/open-edge-platform/os-image-composer/internal/provider/emt"
-	"github.com/open-edge-platform/os-image-composer/internal/provider/rhel"
+	"github.com/open-edge-platform/os-image-composer/internal/provider/rcd"
 	"github.com/open-edge-platform/os-image-composer/internal/provider/ubuntu"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/system"
@@ -152,9 +152,9 @@ func InitProvider(os, dist, arch string) (provider.Provider, error) {
 		if err := ubuntu.Register(os, dist, arch); err != nil {
 			return nil, fmt.Errorf("registering ubuntu provider failed: %v", err)
 		}
-	case rhel.OsName:
-		if err := rhel.Register(os, dist, arch); err != nil {
-			return nil, fmt.Errorf("registering rhel provider failed: %v", err)
+	case rcd.OsName:
+		if err := rcd.Register(os, dist, arch); err != nil {
+			return nil, fmt.Errorf("registering rcd provider failed: %v", err)
 		}
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", os)

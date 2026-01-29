@@ -1,4 +1,4 @@
-package rhel
+package rcd
 
 import (
 	"fmt"
@@ -19,14 +19,14 @@ import (
 )
 
 const (
-	OsName   = "rhel"
+	OsName   = "redhat-compatible-distro"
 	repodata = "repodata/repomd.xml"
 )
 
 var log = logger.Logger()
 
-// RHEL implements provider.Provider
-type RHEL struct {
+// RCD implements provider.Provider
+type RCD struct {
 	repoCfg   rpmutils.RepoConfig
 	gzHref    string
 	chrootEnv chroot.ChrootEnvInterface
@@ -38,7 +38,7 @@ func Register(targetOs, targetDist, targetArch string) error {
 		return fmt.Errorf("failed to inject chroot dependency: %w", err)
 	}
 
-	provider.Register(&RHEL{
+	provider.Register(&RCD{
 		chrootEnv: chrootEnv,
 	}, targetDist, targetArch)
 
@@ -46,12 +46,12 @@ func Register(targetOs, targetDist, targetArch string) error {
 }
 
 // Name returns the unique name of the provider
-func (p *RHEL) Name(dist, arch string) string {
+func (p *RCD) Name(dist, arch string) string {
 	return system.GetProviderId(OsName, dist, arch)
 }
 
 // Init will initialize the provider, using centralized config with secure HTTP
-func (p *RHEL) Init(dist, arch string) error {
+func (p *RCD) Init(dist, arch string) error {
 	// Load centralized YAML configuration first
 	cfg, err := loadRepoConfigFromYAML(dist, arch)
 	if err != nil {
@@ -71,20 +71,20 @@ func (p *RHEL) Init(dist, arch string) error {
 	p.repoCfg = cfg
 	p.gzHref = href
 
-	log.Infof("Azure Linux provider initialized for dist=%s, arch=%s", dist, arch)
+	log.Infof("redhat-compatible-distro provider initialized for dist=%s, arch=%s", dist, arch)
 	log.Infof("repo section=%s", cfg.Section)
 	log.Infof("name=%s", cfg.Name)
 	log.Infof("url=%s", cfg.URL)
 	log.Infof("primary.xml.gz=%s", p.gzHref)
 	log.Infof("using %d workers for downloads", config.Workers())
 	if err := os.MkdirAll(config.TempDir(), 0700); err != nil {
-		log.Errorf("Failed to create temp directory for AZL: %v", err)
-		return fmt.Errorf("failed to create temp directory for AZL: %w", err)
+		log.Errorf("Failed to create temp directory for RCD: %v", err)
+		return fmt.Errorf("failed to create temp directory for RCD: %w", err)
 	}
 	return nil
 }
 
-func (p *RHEL) PreProcess(template *config.ImageTemplate) error {
+func (p *RCD) PreProcess(template *config.ImageTemplate) error {
 	if err := p.installHostDependency(); err != nil {
 		return fmt.Errorf("failed to install host dependencies: %w", err)
 	}
@@ -100,7 +100,7 @@ func (p *RHEL) PreProcess(template *config.ImageTemplate) error {
 	return nil
 }
 
-func (p *RHEL) BuildImage(template *config.ImageTemplate) error {
+func (p *RCD) BuildImage(template *config.ImageTemplate) error {
 	if template == nil {
 		return fmt.Errorf("template cannot be nil")
 	}
@@ -120,7 +120,7 @@ func (p *RHEL) BuildImage(template *config.ImageTemplate) error {
 	}
 }
 
-func (p *RHEL) buildRawImage(template *config.ImageTemplate) error {
+func (p *RCD) buildRawImage(template *config.ImageTemplate) error {
 	// Create RawMaker with template (dependency injection)
 	rawMaker, err := rawmaker.NewRawMaker(p.chrootEnv, template)
 	if err != nil {
@@ -150,7 +150,7 @@ func (p *RHEL) buildRawImage(template *config.ImageTemplate) error {
 	return nil
 }
 
-func (p *RHEL) buildInitrdImage(template *config.ImageTemplate) error {
+func (p *RCD) buildInitrdImage(template *config.ImageTemplate) error {
 	// Create InitrdMaker with template (dependency injection)
 	initrdMaker, err := initrdmaker.NewInitrdMaker(p.chrootEnv, template)
 	if err != nil {
@@ -171,7 +171,7 @@ func (p *RHEL) buildInitrdImage(template *config.ImageTemplate) error {
 	return nil
 }
 
-func (p *RHEL) buildIsoImage(template *config.ImageTemplate) error {
+func (p *RCD) buildIsoImage(template *config.ImageTemplate) error {
 	// Create IsoMaker with template (dependency injection)
 	isoMaker, err := isomaker.NewIsoMaker(p.chrootEnv, template)
 	if err != nil {
@@ -201,7 +201,7 @@ func (p *RHEL) buildIsoImage(template *config.ImageTemplate) error {
 	return nil
 }
 
-func (p *RHEL) PostProcess(template *config.ImageTemplate, err error) error {
+func (p *RCD) PostProcess(template *config.ImageTemplate, err error) error {
 	if err := p.chrootEnv.CleanupChrootEnv(template.Target.OS,
 		template.Target.Dist, template.Target.Arch); err != nil {
 		return fmt.Errorf("failed to cleanup chroot environment: %w", err)
@@ -209,7 +209,7 @@ func (p *RHEL) PostProcess(template *config.ImageTemplate, err error) error {
 	return err
 }
 
-func (p *RHEL) installHostDependency() error {
+func (p *RCD) installHostDependency() error {
 	var dependencyInfo = map[string]string{
 		"rpm":          "rpm",         // For the chroot env build RPM pkg installation
 		"mkfs.fat":     "dosfstools",  // For the FAT32 boot partition creation
@@ -242,7 +242,7 @@ func (p *RHEL) installHostDependency() error {
 	return nil
 }
 
-func (p *RHEL) downloadImagePkgs(template *config.ImageTemplate) error {
+func (p *RCD) downloadImagePkgs(template *config.ImageTemplate) error {
 	if err := p.chrootEnv.UpdateSystemPkgs(template); err != nil {
 		return fmt.Errorf("failed to update system packages: %w", err)
 	}

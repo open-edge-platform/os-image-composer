@@ -1,5 +1,5 @@
-# Azure Linux 3.0 Repository Configuration
-name: "Azure Linux 3.0"
+# RCD 10.0 Repository Configuration
+name: "RCD 10.0 Repository"
 type: "rpm"  # Repository type: rpm or deb
 baseURL: "https://packages.microsoft.com/azurelinux/3.0/prod/base/{arch}"
 component: "azl3.0-base"  # Repository component/section identifier
@@ -10,4 +10,4 @@ gpgKey: "repodata/repomd.xml.key"  # Relative path from resolved repository URL
 # For RPM-based repositories, we use the baseURL pattern
 # The actual repository URL is constructed as: {baseURL}/{arch}/
 # Repodata is accessed at: {baseURL}/{arch}/repodata/repomd.xml
-buildPath: "./builds/rhel10"  # Will be replaced with temp_dir/builds/rhel10 at runtime
+buildPath: "./builds/rcd10"  # Will be replaced with temp_dir/builds/rcd10 at runtime

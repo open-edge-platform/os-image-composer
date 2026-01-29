@@ -173,7 +173,7 @@ func importGpgKeys(targetOs string, chrootEnvBuildPath string) error {
 	switch targetOs {
 	case "edge-microvisor-toolkit":
 		cmdStr = "rpm -q -l edge-repos-shared | grep 'rpm-gpg'"
-	case "azure-linux", "rhel":
+	case "azure-linux", "redhat-compatible-distro":
 		cmdStr = "rpm -q -l azurelinux-repos-shared | grep 'rpm-gpg'"
 	}
 

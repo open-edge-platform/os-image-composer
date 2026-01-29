@@ -1,10 +1,10 @@
 image:
-  name: rhel10-default-x86_64
+  name: rcd10-default-x86_64
   version: "1.0.0"
 
 target:
-  os: rhel # Target OS name
-  dist: rhel10 # Target OS distribution
+  os: redhat-compatible-distro # Target OS name
+  dist: rcd10 # Target OS distribution
   arch: x86_64 # Target OS architecture
   imageType: img # Image type, valid value: [raw, iso, img].
 
