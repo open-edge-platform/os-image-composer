@@ -1,7 +1,6 @@
 name: Build ELXR12 Raw Image - ARM
 on:
   workflow_dispatch:             # Manual runs
-    push:
     inputs:
       ref:
         description: "Branch or SHA to test (e.g. feature/x or a1b2c3)"
@@ -16,7 +15,10 @@ on:
         - "false"
   push:
     branches:
-      - srmungar_armlocal_dev_branch 
+      - main  
+  pull_request:
+    branches:
+      - main  
 
 permissions:
   contents: read

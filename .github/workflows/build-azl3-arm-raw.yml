@@ -1,7 +1,6 @@
 name: Build Azure Linux Raw Image - ARM 
 on:
   workflow_dispatch:             # Manual runs
-    push:
     inputs:
       ref:
         description: "Branch or SHA to test (e.g. feature/x or a1b2c3)"
@@ -14,9 +13,13 @@ on:
         options:
         - "true"
         - "false"
-  push:
-    branches:
-      - srmungar_armlocal_dev_branch
+
+    push:
+      branches:
+        - main
+    pull_request:
+      branches:
+        - main
 
 permissions:
   contents: read
