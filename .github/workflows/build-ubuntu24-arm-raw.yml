@@ -1,4 +1,4 @@
-name: ARM - Build Ubuntu24 Raw Image 
+name: Build Ubuntu24 Raw Image - ARM
 on:
   workflow_dispatch:             # Manual runs
     push:

@@ -1,4 +1,4 @@
-name: ARM - Build Azure Linux Raw Image 
+name: Build Azure Linux Raw Image - ARM 
 on:
   workflow_dispatch:             # Manual runs
     push:

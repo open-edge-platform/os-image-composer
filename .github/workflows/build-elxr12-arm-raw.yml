@@ -1,4 +1,4 @@
-name: ARM Build ELXR12 Raw Image
+name: Build ELXR12 Raw Image - ARM
 on:
   workflow_dispatch:             # Manual runs
     push:
