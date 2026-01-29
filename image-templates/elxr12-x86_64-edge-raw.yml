@@ -1,3 +1,20 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: ELXR 12 edge-optimized image with container runtime and edge computing packages
+  use_cases:
+    - Edge computing deployments
+    - Container workloads at the edge
+    - IoT gateway systems
+    - Industrial edge nodes
+  keywords:
+    - edge
+    - container
+    - docker
+    - iot
+    - gateway
+    - industrial
+    - elxr
+
 image:
   name: minimal-os-image-elxr
   version: "12.0.0"

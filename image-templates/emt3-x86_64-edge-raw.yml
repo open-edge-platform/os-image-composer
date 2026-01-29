@@ -1,3 +1,20 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Edge Microvisor Toolkit 3 edge-optimized raw disk image with container runtime and edge computing packages"
+  use_cases:
+    - "edge computing"
+    - "container workloads"
+    - "IoT gateway"
+    - "microvisor edge node"
+  keywords:
+    - edge
+    - container
+    - docker
+    - microvisor
+    - emt3
+    - iot
+    - gateway
+
 image:
   name: emt3-x86_64-edge
   version: "1.0.0"

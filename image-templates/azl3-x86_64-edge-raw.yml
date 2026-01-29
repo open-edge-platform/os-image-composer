@@ -1,3 +1,20 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Azure Linux 3 edge-optimized raw disk image with container runtime and Azure IoT edge packages"
+  use_cases:
+    - "Azure IoT Edge"
+    - "edge computing"
+    - "container workloads"
+    - "cloud-connected edge"
+  keywords:
+    - edge
+    - container
+    - docker
+    - azure
+    - azl3
+    - iot
+    - cloud
+
 image:
   name: azl3-x86_64-edge
   version: "1.0.0"

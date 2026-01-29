@@ -1,3 +1,18 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: Minimal ELXR 12 image with essential packages for lightweight deployments
+  use_cases:
+    - Lightweight edge device base image
+    - Starting point for custom ELXR deployments
+    - Embedded systems with minimal footprint
+  keywords:
+    - minimal
+    - lightweight
+    - base
+    - elxr
+    - edge
+    - embedded
+
 image:
   name: elxr12-x86_64-minimal
   version: "1.0.0"

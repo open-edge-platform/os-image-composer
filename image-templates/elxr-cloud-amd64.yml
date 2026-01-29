@@ -1,3 +1,22 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Wind River ELXR 12 cloud image for virtual machine and cloud deployments with enterprise Linux features"
+  use_cases:
+    - "cloud deployment"
+    - "virtual machine"
+    - "enterprise edge"
+    - "cloud-init"
+    - "Wind River cloud"
+  keywords:
+    - cloud
+    - qcow2
+    - virtual
+    - vm
+    - elxr
+    - enterprise
+    - wind-river
+    - cloud-init
+
 # Image metadata describing template identity
 image:
   # Unique template name used for builds and artifact naming

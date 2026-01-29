@@ -1,3 +1,20 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: Ubuntu 24.04 minimal desktop image with GUI for workstation deployments
+  use_cases:
+    - Desktop workstations
+    - Kiosk systems
+    - Development machines with GUI
+    - Graphical edge displays
+  keywords:
+    - desktop
+    - gui
+    - workstation
+    - kiosk
+    - display
+    - graphical
+    - ubuntu
+
 image:
   name: minimal-desktop-ubuntu
   version: "24.04"

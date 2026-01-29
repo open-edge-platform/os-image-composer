@@ -1,3 +1,20 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Azure Linux 3 minimal ISO installer image for bootable installation media"
+  use_cases:
+    - "system installation"
+    - "bootable media"
+    - "USB installer"
+    - "bare metal Azure Linux"
+  keywords:
+    - iso
+    - installer
+    - bootable
+    - minimal
+    - azure
+    - azl3
+    - usb
+
 image:
   name: azl3-x86_64-minimal
   version: "1.0.0"

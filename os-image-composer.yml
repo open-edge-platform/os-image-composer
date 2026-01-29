@@ -39,3 +39,41 @@ logging:
   # - error: Only errors, very quiet operation
   file: "os-image-composer.log"
   # Tee logs to this file in addition to stdout/stderr (overwritten on each run)
+
+# AI-powered template generation configuration (optional)
+# All settings have sensible defaults - this section can be omitted entirely
+ai:
+  # Provider for embeddings and chat completions
+  provider: "ollama"
+  # - ollama: Local inference (default, requires Ollama running on localhost:11434)
+  # - openai: Cloud inference (requires OPENAI_API_KEY environment variable)
+
+  # Directory containing template files for RAG knowledge base
+  templates_dir: "./image-templates"
+
+  # Ollama-specific settings (used when provider: ollama)
+  ollama:
+    base_url: "http://localhost:11434"
+    embedding_model: "nomic-embed-text"
+    # Embedding models: nomic-embed-text (768 dims), mxbai-embed-large (1024 dims)
+    chat_model: "llama3.2"
+    # Chat models: llama3.2, mistral, codellama, etc.
+    timeout: "120s"
+
+  # OpenAI-specific settings (used when provider: openai)
+  # openai:
+  #   embedding_model: "text-embedding-3-small"
+  #   chat_model: "gpt-4o-mini"
+  #   timeout: "60s"
+
+  # Embedding cache configuration
+  cache:
+    enabled: true
+    dir: "./cache/ai-embeddings"
+    # Cache stores embeddings to avoid re-computing on each run
+
+  # Hybrid scoring weights for template retrieval
+  # scoring:
+  #   semantic_weight: 0.70   # Embedding similarity (0.0-1.0)
+  #   keyword_weight: 0.20    # Keyword matching (0.0-1.0)
+  #   package_weight: 0.10    # Package matching (0.0-1.0)

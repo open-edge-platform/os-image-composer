@@ -1,3 +1,21 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Edge Microvisor Toolkit 3 minimal initrd image for network boot and PXE deployments"
+  use_cases:
+    - "network boot"
+    - "PXE deployment"
+    - "diskless boot"
+    - "embedded boot"
+  keywords:
+    - initrd
+    - pxe
+    - netboot
+    - network
+    - minimal
+    - emt3
+    - microvisor
+    - diskless
+
 image:
   name: emt3-x86_64-minimal
   version: "1.0.0"

@@ -3510,8 +3510,8 @@ func TestGetInitramfsTemplate(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for nonexistent absolute path")
 	}
-	if !strings.Contains(err.Error(), "initrd template file does not exist") {
-		t.Errorf("Expected 'initrd template file does not exist' error, got %s", err.Error())
+	if err != nil && !strings.Contains(err.Error(), "initrd template file does not exist or is not accessible") {
+		t.Errorf("Expected 'initrd template file does not exist or is not accessible' error, got %s", err.Error())
 	}
 
 	// Test with relative path but no PathList

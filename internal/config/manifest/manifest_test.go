@@ -3,6 +3,7 @@ package manifest
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -349,6 +350,13 @@ func TestCopySBOMToChroot_InvalidChrootPath(t *testing.T) {
 	// because root can write to read-only directories
 	if os.Geteuid() == 0 {
 		t.Skip("Skipping test when running as root (permission checks don't apply)")
+	}
+
+	// Skip this test if user has passwordless sudo capabilities
+	// because CopySBOMToChroot uses sudo for file operations
+	cmd := exec.Command("sudo", "-n", "true")
+	if err := cmd.Run(); err == nil {
+		t.Skip("Skipping test when user has passwordless sudo (permission checks don't apply)")
 	}
 
 	// Create a directory and make it read-only to simulate permission issues

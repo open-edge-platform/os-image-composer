@@ -1,3 +1,22 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Ubuntu 24.04 minimal cloud image in qcow2 format for virtual machine and cloud deployments"
+  use_cases:
+    - "cloud deployment"
+    - "virtual machine"
+    - "OpenStack"
+    - "cloud-init"
+    - "qcow2 image"
+  keywords:
+    - cloud
+    - qcow2
+    - virtual
+    - vm
+    - ubuntu
+    - openstack
+    - cloud-init
+    - minimal
+
 # Image metadata describing template identity
 # this template attempt to create ubuntu cloud minimal in qcow2 
 # based on https://cloud-images.ubuntu.com/minimal/releases/noble/release-20250429/ubuntu-24.04-minimal-cloudimg-amd64.img

@@ -1,3 +1,20 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Edge Microvisor Toolkit 3 Edge Multifunction (EMF) raw image for edge multifunction deployments without real-time requirements"
+  use_cases:
+    - "edge multifunction"
+    - "industrial edge"
+    - "non-realtime edge"
+    - "edge workloads"
+  keywords:
+    - emf
+    - edge
+    - multifunction
+    - industrial
+    - emt3
+    - microvisor
+    - raw
+
 image:
   name: emt3-x86_64-minimal-emf
   version: "1.0.0"

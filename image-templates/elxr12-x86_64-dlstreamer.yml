@@ -1,3 +1,24 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: ELXR 12 image with Intel DL Streamer for video analytics and AI inference
+  use_cases:
+    - Video analytics pipelines
+    - AI inference at the edge
+    - Computer vision applications
+    - Media processing workloads
+    - Deep learning inference
+  keywords:
+    - dlstreamer
+    - video
+    - analytics
+    - ai
+    - inference
+    - computer-vision
+    - media
+    - deep-learning
+    - intel
+    - elxr
+
 image:
   name: elxr12-dlstreamer-x86_64
   version: "12.0.0"

@@ -1,3 +1,21 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Azure Linux 3 minimal initrd image for network boot and PXE deployments"
+  use_cases:
+    - "network boot"
+    - "PXE deployment"
+    - "diskless boot"
+    - "Azure network install"
+  keywords:
+    - initrd
+    - pxe
+    - netboot
+    - network
+    - minimal
+    - azure
+    - azl3
+    - diskless
+
 image:
   name: azl3-x86_64-minimal
   version: "1.0.0"
