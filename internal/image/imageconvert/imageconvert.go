@@ -123,25 +123,25 @@ func ConvertImageToRaw(filePath, outputDir string) (string, error) {
 
 	// If already raw, just return the path
 	if sourceFormat == "raw" {
-		log.Debugf("Image is already in RAW format: %s", filePath)
+		log.Debugf("Image is already in raw format: %s", filePath)
 		return filePath, nil
 	}
 
-	log.Infof("Converting %s image to RAW format: %s", sourceFormat, filePath)
+	log.Infof("Converting %s image to raw format: %s", sourceFormat, filePath)
 
 	fileName := filepath.Base(filePath)
 	fileNameWithoutExt := strings.TrimSuffix(fileName, filepath.Ext(fileName))
 	outputFilePath := filepath.Join(outputDir, fileNameWithoutExt+".raw")
 
-	// Convert to RAW using qemu-img
+	// Convert to raw using qemu-img
 	cmdStr := fmt.Sprintf("qemu-img convert -O raw %s %s", filePath, outputFilePath)
 	_, err = shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
 	if err != nil {
-		log.Errorf("Failed to convert %s to RAW: %v", sourceFormat, err)
-		return "", fmt.Errorf("failed to convert %s to RAW: %w", sourceFormat, err)
+		log.Errorf("Failed to convert %s to raw: %v", sourceFormat, err)
+		return "", fmt.Errorf("failed to convert %s to raw: %w", sourceFormat, err)
 	}
 
-	log.Infof("Successfully converted to RAW: %s", outputFilePath)
+	log.Infof("Successfully converted to raw: %s", outputFilePath)
 	return outputFilePath, nil
 }
 
