@@ -60,7 +60,7 @@ jobs:
 
       - name: Run ARM ELXR12 Raw Image Build
         env:
-          RUN_QEMU_TEST: ${{ github.event.inputs.run_qemu_test }}
+          #RUN_QEMU_TEST: ${{ github.event.inputs.run_qemu_test }}
           RUN_QEMU_TEST: false 
         run: |
           echo "Starting ARM ELXR12 raw image build..."

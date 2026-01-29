@@ -59,7 +59,7 @@ jobs:
 
       - name: Run Ubuntu24 Raw Image Build
         env:
-          RUN_QEMU_TEST: ${{ github.event.push }}
+          #RUN_QEMU_TEST: ${{ github.event.push }}
           RUN_QEMU_TEST: false
         run: |
           echo "Starting Ubuntu24 raw image build..."
