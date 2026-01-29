@@ -71,6 +71,80 @@ func (imageConvert *ImageConvert) ConvertImageFile(filePath string, template *co
 	return nil
 }
 
+// DetectImageFormat detects the format of an image file using qemu-img
+func DetectImageFormat(filePath string) (string, error) {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return "", fmt.Errorf("image file does not exist: %s", filePath)
+	}
+
+	cmdStr := fmt.Sprintf("qemu-img info --output=json %s", filePath)
+	output, err := shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to detect image format: %w", err)
+	}
+
+	// Parse JSON output to extract format
+	// Simple string search for format field
+	outputStr := strings.TrimSpace(output)
+	if strings.Contains(outputStr, `"format"`) {
+		// Extract format value
+		for _, line := range strings.Split(outputStr, "\n") {
+			if strings.Contains(line, `"format"`) {
+				// Parse: "format": "raw",
+				parts := strings.Split(line, `"`)
+				if len(parts) >= 4 {
+					format := strings.TrimSpace(parts[3])
+					log.Debugf("Detected image format: %s", format)
+					return format, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("failed to parse image format from qemu-img output")
+}
+
+// ConvertImageToRaw converts any qemu-img supported format to RAW format
+// This is useful for normalizing images before comparison or inspection
+func ConvertImageToRaw(filePath, outputDir string) (string, error) {
+	if outputDir == "" {
+		outputDir = filepath.Dir(filePath)
+	}
+
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Detect source format
+	sourceFormat, err := DetectImageFormat(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to detect source format: %w", err)
+	}
+
+	// If already raw, just return the path
+	if sourceFormat == "raw" {
+		log.Debugf("Image is already in RAW format: %s", filePath)
+		return filePath, nil
+	}
+
+	log.Infof("Converting %s image to RAW format: %s", sourceFormat, filePath)
+
+	fileName := filepath.Base(filePath)
+	fileNameWithoutExt := strings.TrimSuffix(fileName, filepath.Ext(fileName))
+	outputFilePath := filepath.Join(outputDir, fileNameWithoutExt+".raw")
+
+	// Convert to RAW using qemu-img
+	cmdStr := fmt.Sprintf("qemu-img convert -O raw %s %s", filePath, outputFilePath)
+	_, err = shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
+	if err != nil {
+		log.Errorf("Failed to convert %s to RAW: %v", sourceFormat, err)
+		return "", fmt.Errorf("failed to convert %s to RAW: %w", sourceFormat, err)
+	}
+
+	log.Infof("Successfully converted to RAW: %s", outputFilePath)
+	return outputFilePath, nil
+}
+
 func convertImageFile(filePath, imageType string) (string, error) {
 	var cmdStr string
 
@@ -82,6 +156,19 @@ func convertImageFile(filePath, imageType string) (string, error) {
 
 	log.Infof("Converting image file %s to type %s", filePath, imageType)
 
+	// Detect source format for better conversion handling
+	sourceFormat, err := DetectImageFormat(filePath)
+	if err != nil {
+		log.Warnf("Failed to detect source format, assuming raw: %v", err)
+		sourceFormat = "raw"
+	}
+
+	// If source is already the target format, skip conversion
+	if sourceFormat == imageType {
+		log.Infof("Image is already in %s format, skipping conversion", imageType)
+		return filePath, nil
+	}
+
 	// Skip trimming for now to avoid file locking conflicts
 	// The -S 4k flag in qemu-img convert will handle sparse optimization
 	log.Debugf("Skipping pre-conversion trimming to avoid file lock conflicts")
@@ -91,6 +178,8 @@ func convertImageFile(filePath, imageType string) (string, error) {
 	outputFilePath := filepath.Join(fileDir, fileNameWithoutExt+"."+imageType)
 
 	switch imageType {
+	case "raw":
+		cmdStr = fmt.Sprintf("qemu-img convert -O raw %s %s", filePath, outputFilePath)
 	case "vhd":
 		cmdStr = fmt.Sprintf("qemu-img convert -O vpc %s %s", filePath, outputFilePath)
 	case "vhdx":
@@ -106,7 +195,7 @@ func convertImageFile(filePath, imageType string) (string, error) {
 		return outputFilePath, fmt.Errorf("unsupported image type: %s", imageType)
 	}
 
-	_, err := shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
+	_, err = shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
 	if err != nil {
 		log.Errorf("Failed to convert image file to %s: %v", imageType, err)
 		return outputFilePath, fmt.Errorf("failed to convert image file to %s: %w", imageType, err)

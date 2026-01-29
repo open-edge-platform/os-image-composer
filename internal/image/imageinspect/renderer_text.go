@@ -522,25 +522,28 @@ func renderPartitionTableHeader(w io.Writer, pt PartitionTableSummary) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Partition Table")
 	fmt.Fprintln(w, "---------------")
-	fmt.Fprintf(w, "Type:\t%s\n", strings.ToUpper(emptyIfWhitespace(pt.Type)))
+
+	tw := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
+	fmt.Fprintf(tw, "Type:\t%s\n", strings.ToUpper(emptyIfWhitespace(pt.Type)))
 	if strings.EqualFold(pt.Type, "gpt") && strings.TrimSpace(pt.DiskGUID) != "" {
-		fmt.Fprintf(w, "Disk GUID:\t%s\n", strings.ToUpper(strings.TrimSpace(pt.DiskGUID)))
+		fmt.Fprintf(tw, "Disk GUID:\t%s\n", strings.ToUpper(strings.TrimSpace(pt.DiskGUID)))
 	}
 	if pt.LogicalSectorSize > 0 {
-		fmt.Fprintf(w, "Logical sector size:\t%d bytes\n", pt.LogicalSectorSize)
+		fmt.Fprintf(tw, "Logical sector size:\t%d bytes\n", pt.LogicalSectorSize)
 	}
 	if pt.PhysicalSectorSize > 0 {
-		fmt.Fprintf(w, "Physical sector size:\t%d bytes\n", pt.PhysicalSectorSize)
+		fmt.Fprintf(tw, "Physical sector size:\t%d bytes\n", pt.PhysicalSectorSize)
 	}
 	if strings.EqualFold(pt.Type, "gpt") {
-		fmt.Fprintf(w, "Protective MBR:\t%t\n", pt.ProtectiveMBR)
+		fmt.Fprintf(tw, "Protective MBR:\t%t\n", pt.ProtectiveMBR)
 	}
 	if pt.LargestFreeSpan != nil {
-		fmt.Fprintf(w, "Largest free span:\t%s\n", freeSpanString(pt.LargestFreeSpan))
+		fmt.Fprintf(tw, "Largest free span:\t%s\n", freeSpanString(pt.LargestFreeSpan))
 	}
 	if len(pt.MisalignedPartitions) > 0 {
-		fmt.Fprintf(w, "Misaligned partitions:\t%v\n", pt.MisalignedPartitions)
+		fmt.Fprintf(tw, "Misaligned partitions:\t%v\n", pt.MisalignedPartitions)
 	}
+	_ = tw.Flush()
 }
 
 func renderEFIArtifactsTable(w io.Writer, arts []EFIBinaryEvidence) {
