@@ -369,7 +369,9 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 
 		fullCmdStr = "sudo " + envValStr + "chroot " + chrootPath + " " + fullPathCmdStr
 		chrootDir := filepath.Base(chrootPath)
-		log.Debugf("Chroot " + chrootDir + " Exec: [" + fullPathCmdStr + "]")
+		//log.Debugf("Chroot " + chrootDir + " Exec: [" + fullPathCmdStr + "]")
+		// Avoid logging full command to prevent leaking sensitive data
+		log.Debugf("Executing command in chroot %s with sudo and %d environment variables", chrootDir, len(proxyEnv))
 
 	} else {
 		if sudo {
@@ -380,10 +382,14 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 			}
 
 			fullCmdStr = "sudo " + envValStr + fullPathCmdStr
-			log.Debugf("Exec: [sudo " + fullPathCmdStr + "]")
+			//log.Debugf("Exec: [sudo " + fullPathCmdStr + "]")
+			// Avoid logging full command to prevent leaking sensitive data
+			log.Debugf("Executing command with sudo and %d environment variables", len(proxyEnv))
 		} else {
 			fullCmdStr = fullPathCmdStr
-			log.Debugf("Exec: [" + fullPathCmdStr + "]")
+			//log.Debugf("Exec: [" + fullPathCmdStr + "]")
+			// Avoid logging full command to prevent leaking sensitive data
+			log.Debugf("Executing command without sudo")
 		}
 	}
 
