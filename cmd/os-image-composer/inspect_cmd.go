@@ -16,8 +16,8 @@ type inspector interface {
 }
 
 // Allow tests to inject a fake inspector.
-var newInspector = func() inspector {
-	return imageinspect.NewDiskfsInspector() // returns *DiskfsInspector which satisfies inspector
+var newInspector = func(hash bool) inspector {
+	return imageinspect.NewDiskfsInspector(hash) // returns *DiskfsInspector which satisfies inspector
 }
 
 // Output format command flags
@@ -64,7 +64,7 @@ func executeInspect(cmd *cobra.Command, args []string) error {
 	imageFile := args[0]
 	log.Infof("Inspecting image file: %s", imageFile)
 
-	inspector := newInspector()
+	inspector := newInspector(false)
 
 	inspectionResults, err := inspector.Inspect(imageFile)
 	if err != nil {

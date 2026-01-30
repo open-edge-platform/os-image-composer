@@ -274,6 +274,27 @@
       },
       "additionalProperties": false
     },
+    "Metadata": {
+      "type": "object",
+      "description": "AI-searchable metadata for template discovery",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the template"
+        },
+        "use_cases": {
+          "type": "array",
+          "description": "List of use cases this template is designed for",
+          "items": { "type": "string" }
+        },
+        "keywords": {
+          "type": "array",
+          "description": "Keywords for template discovery and search",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
     "PackageRepository": {
       "type": "object",
       "description": "Additional package repository configuration",
@@ -306,6 +327,7 @@
     "FullTemplate": {
       "type": "object",
       "properties": {
+        "metadata": { "$ref": "#/$defs/Metadata" },
         "image": { "$ref": "#/$defs/Image" },
         "target": { "$ref": "#/$defs/Target" },
         "disk": { "$ref": "#/$defs/Disk" },
@@ -323,6 +345,7 @@
     "UserTemplate": {
       "type": "object",
       "properties": {
+        "metadata": { "$ref": "#/$defs/Metadata" },
         "image": { "$ref": "#/$defs/Image" },
         "target": { "$ref": "#/$defs/Target" },
         "disk": { "$ref": "#/$defs/Disk" },

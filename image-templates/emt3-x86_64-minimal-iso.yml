@@ -1,3 +1,20 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Edge Microvisor Toolkit 3 minimal ISO installer image for bootable installation media"
+  use_cases:
+    - "system installation"
+    - "bootable media"
+    - "USB installer"
+    - "bare metal deployment"
+  keywords:
+    - iso
+    - installer
+    - bootable
+    - minimal
+    - emt3
+    - microvisor
+    - usb
+
 image:
   name: emt3-x86_64-minimal
   version: "1.0.0"

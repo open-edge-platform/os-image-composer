@@ -1,0 +1,6 @@
+2026-01-28T11:58:35.261-0800	INFO	os-image-composer/main.go:184	Using configuration from: os-image-composer.yml
+2026-01-28T11:58:35.261-0800	INFO	os-image-composer/compare_cmd.go:68	Comparing image files: (/home/magersta/azl2.raw) & (/home/magersta/azl3.raw)
+2026-01-28T11:58:35.261-0800	INFO	imageinspect/imageinspect.go:178	Inspecting image: /home/magersta/azl2.raw, hashImages=true
+2026-01-28T11:58:35.261-0800	INFO	imageinspect/imageinspect.go:194	Computing SHA256 for image: /home/magersta/azl2.raw
+2026-01-28T11:58:46.518-0800	INFO	imageinspect/imageinspect.go:178	Inspecting image: /home/magersta/azl3.raw, hashImages=true
+2026-01-28T11:58:46.518-0800	INFO	imageinspect/imageinspect.go:194	Computing SHA256 for image: /home/magersta/azl3.raw

@@ -19,7 +19,7 @@ func TestInspectImage_Minimal(t *testing.T) {
 			if _, err := os.Stat(filename); os.IsNotExist(err) {
 				t.Skipf("testdata not found: %s (run 'make testdata' to generate)", filename)
 			}
-			is := NewDiskfsInspector()
+			is := NewDiskfsInspector(false)
 			got, err := is.Inspect(filename)
 			if err != nil {
 				t.Fatalf("inspect: %v", err)
@@ -51,7 +51,7 @@ func TestInspect_Image_SanityAndInvariants(t *testing.T) {
 		{name: "gpt", img: "gpt_disk.img", wantType: "gpt"},
 	}
 
-	is := NewDiskfsInspector()
+	is := NewDiskfsInspector(false)
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

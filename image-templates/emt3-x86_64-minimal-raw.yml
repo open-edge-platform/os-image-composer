@@ -1,3 +1,20 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Edge Microvisor Toolkit 3 minimal raw disk image with essential packages for lightweight edge deployments"
+  use_cases:
+    - "lightweight edge node"
+    - "minimal footprint"
+    - "embedded systems"
+    - "microvisor-based edge"
+  keywords:
+    - minimal
+    - raw
+    - edge
+    - microvisor
+    - emt3
+    - lightweight
+    - embedded
+
 image:
   name: emt3-x86_64-minimal
   version: "1.0.0"

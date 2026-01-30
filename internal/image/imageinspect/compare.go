@@ -14,10 +14,9 @@ type ImageCompareResult struct {
 	From ImageSummary `json:"from"`
 	To   ImageSummary `json:"to"`
 
-	Equal bool `json:"equal"`
-
-	Summary CompareSummary `json:"summary,omitempty"`
-	Diff    ImageDiff      `json:"diff,omitempty"`
+	Equality Equality       `json:"equality" yaml:"equality"`
+	Summary  CompareSummary `json:"summary,omitempty"`
+	Diff     ImageDiff      `json:"diff,omitempty"`
 }
 
 // CompareSummary provides a high-level summary of differences between two images.
@@ -44,8 +43,7 @@ type ImageDiff struct {
 
 // MetaDiff represents differences in image-level metadata.
 type MetaDiff struct {
-	File      *ValueDiff[string] `json:"file,omitempty"`
-	SizeBytes *ValueDiff[int64]  `json:"sizeBytes,omitempty"`
+	SizeBytes *ValueDiff[int64] `json:"sizeBytes,omitempty"`
 }
 
 // PartitionTableDiff represents differences in partition table-level fields.
@@ -61,9 +59,57 @@ type PartitionTableDiff struct {
 	Changed bool `json:"changed,omitempty"`
 }
 
+// EqualityClass represents the class of equality between two images.
+type EqualityClass string
+
+// Possible values for EqualityClass
+const (
+	EqualityBinary     EqualityClass = "binary_identical"
+	EqualitySemantic   EqualityClass = "semantically_identical"
+	EqualityUnverified EqualityClass = "semantically_identical_unverified"
+	EqualityDifferent  EqualityClass = "different"
+)
+
+// Equality represents the equality assessment between two images.
+type Equality struct {
+	Class EqualityClass `json:"class" yaml:"class"`
+
+	VolatileDiffs     int      `json:"volatileDiffs,omitempty" yaml:"volatileDiffs,omitempty"`
+	MeaningfulDiffs   int      `json:"meaningfulDiffs,omitempty" yaml:"meaningfulDiffs,omitempty"`
+	VolatileReasons   []string `json:"volatileReasons,omitempty" yaml:"volatileReasons,omitempty"`
+	MeaningfulReasons []string `json:"meaningfulReasons,omitempty" yaml:"meaningfulReasons,omitempty"`
+}
+
+// ValueDiff represents a difference in a single value between two objects.
 type ValueDiff[T any] struct {
 	From T `json:"from"`
 	To   T `json:"to"`
+}
+
+// diffTally helps tally volatile vs meaningful diffs.
+type diffTally struct {
+	volatile   int
+	meaningful int
+
+	// debug: record reasons
+	vReasons []string
+	mReasons []string
+}
+
+// Helper methods to add to the tally (volatile)
+func (t *diffTally) addVolatile(n int, reason string) {
+	t.volatile += n
+	if reason != "" {
+		t.vReasons = append(t.vReasons, fmt.Sprintf("+%d %s", n, reason))
+	}
+}
+
+// Helper methods to add to the tally (meaningful)
+func (t *diffTally) addMeaningful(n int, reason string) {
+	t.meaningful += n
+	if reason != "" {
+		t.mReasons = append(t.mReasons, fmt.Sprintf("+%d %s", n, reason))
+	}
 }
 
 // FieldChange represents a change in a single field between two objects.
@@ -143,66 +189,95 @@ type SectionMapDiff struct {
 }
 
 // CompareImages compares two ImageSummary objects and returns a structured diff.
-// The caller can JSON-marshal the returned result.
 func CompareImages(from, to *ImageSummary) ImageCompareResult {
-
 	if from == nil || to == nil {
-		return ImageCompareResult{Equal: false}
+		return ImageCompareResult{
+			SchemaVersion: "1",
+			Equality:      Equality{Class: EqualityDifferent},
+		}
 	}
+
 	res := ImageCompareResult{
 		SchemaVersion: "1",
 		From:          *from,
 		To:            *to,
-		Equal:         true,
 	}
 
 	// --- image meta ---
 	res.Diff.Image = compareMeta(*from, *to)
-	if res.Diff.Image.File != nil || res.Diff.Image.SizeBytes != nil {
+	if res.Diff.Image.SizeBytes != nil {
 		res.Summary.ModifiedCount++
 		res.Summary.Changed = true
-		// NOTE: we may choose NOT to treat filename changes as "unequal".
-		res.Equal = false
 	}
 
-	// --- partition table (table-level fields) ---
+	// --- partition table ---
 	res.Diff.PartitionTable = comparePartitionTable(from.PartitionTable, to.PartitionTable)
 	if res.Diff.PartitionTable.Changed {
 		res.Summary.PartitionTableChanged = true
 		res.Summary.Changed = true
-		res.Equal = false
 	}
 
-	// --- partitions (including filesystem changes and per-partition EFI evidence diffs) ---
+	// --- partitions ---
 	res.Diff.Partitions = comparePartitions(from.PartitionTable, to.PartitionTable)
 	if len(res.Diff.Partitions.Added) > 0 || len(res.Diff.Partitions.Removed) > 0 || len(res.Diff.Partitions.Modified) > 0 {
 		res.Summary.PartitionsChanged = true
 		res.Summary.Changed = true
-		res.Equal = false
 		res.Summary.AddedCount += len(res.Diff.Partitions.Added)
 		res.Summary.RemovedCount += len(res.Diff.Partitions.Removed)
 		res.Summary.ModifiedCount += len(res.Diff.Partitions.Modified)
 	}
 
-	// --- global roll-up of EFI evidence across all partitions/filesystems ---
+	// --- EFI roll-up ---
 	res.Diff.EFIBinaries = compareEFIBinaries(flattenEFIBinaries(from.PartitionTable), flattenEFIBinaries(to.PartitionTable))
 	if len(res.Diff.EFIBinaries.Added) > 0 || len(res.Diff.EFIBinaries.Removed) > 0 || len(res.Diff.EFIBinaries.Modified) > 0 {
 		res.Summary.EFIBinariesChanged = true
 		res.Summary.Changed = true
-		res.Equal = false
 	}
 
 	// Deterministic ordering for stable JSON
 	normalizeCompareResult(&res)
 
+	// Compute Equality (+ Equal for compatibility) as the *last* step
+	res.Equality = computeEquality(from, to, res.Diff)
+
 	return res
+}
+
+func computeEquality(from, to *ImageSummary, d ImageDiff) Equality {
+	t := tallyDiffs(d)
+
+	hashAvailable := from != nil && to != nil &&
+		strings.TrimSpace(from.SHA256) != "" &&
+		strings.TrimSpace(to.SHA256) != ""
+
+	binaryIdentical := hashAvailable && from.SHA256 == to.SHA256
+
+	eq := Equality{
+		VolatileDiffs:     t.volatile,
+		MeaningfulDiffs:   t.meaningful,
+		MeaningfulReasons: t.mReasons,
+		VolatileReasons:   t.vReasons,
+	}
+
+	switch {
+	case binaryIdentical:
+		eq.Class = EqualityBinary
+	case t.meaningful == 0:
+		if hashAvailable {
+			eq.Class = EqualitySemantic // “semantic” but hash proved they differ (or hash differs)
+		} else {
+			eq.Class = EqualityUnverified // cannot prove binary identity
+		}
+	default:
+		eq.Class = EqualityDifferent
+	}
+
+	return eq //, (eq.Class != EqualityDifferent)
 }
 
 func compareMeta(from, to ImageSummary) MetaDiff {
 	var out MetaDiff
-	if from.File != to.File {
-		out.File = &ValueDiff[string]{From: from.File, To: to.File}
-	}
+
 	if from.SizeBytes != to.SizeBytes {
 		out.SizeBytes = &ValueDiff[int64]{From: from.SizeBytes, To: to.SizeBytes}
 	}
@@ -623,4 +698,222 @@ func appendFilesystemFieldChanges(dst []FieldChange, a, b FilesystemSummary) []F
 		add("hasUki", a.HasUKI, b.HasUKI)
 	}
 	return dst
+}
+
+func tallyDiffs(d ImageDiff) diffTally {
+	var t diffTally
+
+	if d.Image.SizeBytes != nil {
+		t.addMeaningful(1, "image size changed")
+	}
+
+	if d.PartitionTable.DiskGUID != nil {
+		t.addVolatile(1, "PT DiskGUID")
+	}
+	if d.PartitionTable.Type != nil {
+		t.addMeaningful(1, "PT Type")
+	}
+	if d.PartitionTable.LogicalSectorSize != nil {
+		t.addMeaningful(1, "PT LogicalSectorSize")
+	}
+	if d.PartitionTable.PhysicalSectorSize != nil {
+		t.addMeaningful(1, "PT PhysicalSectorSize")
+	}
+	if d.PartitionTable.ProtectiveMBR != nil {
+		t.addMeaningful(1, "PT ProtectiveMBR")
+	}
+	if d.PartitionTable.LargestFreeSpan != nil {
+		t.addMeaningful(1, "PT LargestFreeSpan")
+	}
+	if d.PartitionTable.MisalignedParts != nil {
+		t.addMeaningful(1, "PT MisalignedParts")
+	}
+
+	if len(d.Partitions.Added) > 0 {
+		t.addMeaningful(len(d.Partitions.Added), "Partitions Added")
+	}
+	if len(d.Partitions.Removed) > 0 {
+		t.addMeaningful(len(d.Partitions.Removed), "Partitions Removed")
+	}
+
+	for _, mp := range d.Partitions.Modified {
+		// Partition field changes
+		for _, ch := range mp.Changes {
+			if isVolatilePartitionField(ch.Field) {
+				t.addVolatile(1, "Partition "+mp.Key+" field "+ch.Field)
+			} else {
+				t.addMeaningful(1, "Partition "+mp.Key+" field "+ch.Field)
+			}
+		}
+
+		tallyFilesystemChange(&t, mp.Filesystem)
+	}
+
+	tallyEFIBinaryDiff(&t, d.EFIBinaries)
+
+	return t
+}
+
+func isVolatilePartitionField(field string) bool {
+	switch field {
+	case "guid": // GPT partition GUID
+		return true
+	default:
+		return false
+	}
+}
+
+func isVolatileFilesystemField(field string) bool {
+	switch field {
+	case "uuid": // ext4 UUID or VFAT volume ID
+		return true
+	default:
+		return false
+	}
+}
+
+func isVolatileEFIBinaryField(field string) bool {
+	switch field {
+	case "signed", "signatureSize":
+		return true
+	default:
+		return false
+	}
+}
+
+func tallyEFIBinaryDiff(t *diffTally, d EFIBinaryDiff) {
+	if len(d.Added) > 0 {
+		t.addMeaningful(len(d.Added), "EFI Binaries Added")
+	}
+	if len(d.Removed) > 0 {
+		t.addMeaningful(len(d.Removed), "EFI Binaries Removed")
+	}
+
+	for _, m := range d.Modified {
+		equalCmdLine := normalizeKernelCmdline(m.From.Cmdline) == normalizeKernelCmdline(m.To.Cmdline)
+
+		// Count field changes on the EFI evidence object
+		for _, ch := range m.Changes {
+			switch ch.Field {
+			case "cmdline", "cmdlineSha256":
+				if equalCmdLine {
+					t.addVolatile(1, "EFI "+m.Key+" field "+ch.Field)
+				} else {
+					t.addMeaningful(1, "EFI "+m.Key+" field "+ch.Field)
+				}
+
+			case "sha256":
+				v := false
+				if m.From.IsUKI || m.To.IsUKI || m.From.Kind == BootloaderUKI || m.To.Kind == BootloaderUKI {
+					v = ukiOnlyVolatile(m)
+					if v {
+						t.addVolatile(1, "EFI "+m.Key+" field "+ch.Field)
+					} else {
+						t.addMeaningful(1, "EFI "+m.Key+" field "+ch.Field)
+					}
+				} else {
+					t.addMeaningful(1, "EFI "+m.Key+" field "+ch.Field)
+				}
+			case "size":
+				if m.From.IsUKI || m.To.IsUKI || m.From.Kind == BootloaderUKI || m.To.Kind == BootloaderUKI {
+					// If UKI differences are only volatile, treat size as volatile too.
+					if ukiOnlyVolatile(m) {
+						t.addVolatile(1, "EFI "+m.Key+" field "+ch.Field)
+					} else {
+						t.addMeaningful(1, "EFI "+m.Key+" field "+ch.Field)
+					}
+				} else {
+					// Non-UKI: size change is meaningful.
+					t.addMeaningful(1, "EFI "+m.Key+" field "+ch.Field)
+				}
+			case "initrdSha256":
+				t.addVolatile(1, "EFI "+m.Key+" field "+ch.Field)
+			default:
+				if isVolatileEFIBinaryField(ch.Field) {
+					t.addVolatile(1, "EFI "+m.Key+" field "+ch.Field)
+				} else {
+					t.addMeaningful(1, "EFI "+m.Key+" field "+ch.Field)
+				}
+			}
+		}
+
+		// UKI diffs
+		if m.UKI == nil || !m.UKI.Changed {
+			continue
+		}
+
+		if m.UKI.KernelSHA256 != nil {
+			t.addMeaningful(1, "EFI "+m.Key+" UKI KernelSHA")
+		}
+		if m.UKI.OSRelSHA256 != nil {
+			t.addMeaningful(1, "EFI "+m.Key+" UKI OSRelSHA")
+		}
+		if m.UKI.UnameSHA256 != nil {
+			t.addMeaningful(1, "EFI "+m.Key+" UKI UnameSHA")
+		}
+
+		otherSectionChanged := false
+		for sec := range m.UKI.SectionSHA256.Modified {
+			secL := strings.ToLower(strings.TrimSpace(sec))
+			if secL == ".cmdline" || secL == "cmdline" ||
+				secL == ".initrd" || secL == "initrd" {
+				continue
+			}
+			otherSectionChanged = true
+			break
+		}
+		if otherSectionChanged {
+			t.addMeaningful(1, "EFI "+m.Key+" UKI otherSectionChanged")
+		}
+	}
+}
+
+func ukiOnlyVolatile(m ModifiedEFIBinaryEvidence) bool {
+	// If kernel changed -> meaningful
+	if m.UKI != nil && m.UKI.KernelSHA256 != nil {
+		return false
+	}
+	if m.UKI != nil && m.UKI.UnameSHA256 != nil {
+		return false
+	}
+
+	// cmdline: meaningful only if normalized differs
+	if m.UKI != nil && m.UKI.CmdlineSHA256 != nil {
+		if normalizeKernelCmdline(m.From.Cmdline) != normalizeKernelCmdline(m.To.Cmdline) {
+			return false
+		}
+	}
+
+	// initrd: this is a TODO
+	// If initrd hash changes every build due to timestamps/UUID baked-in, treat volatile.
+	return true
+}
+
+func tallyFilesystemChange(t *diffTally, fs *FilesystemChange) {
+	if fs == nil {
+		return
+	}
+
+	// Added/removed filesystems -> meaningful
+	if fs.Added != nil {
+		t.addMeaningful(1, "Filesystem added")
+		return
+	}
+	if fs.Removed != nil {
+		t.addMeaningful(1, "Filesystem removed")
+		return
+	}
+
+	if fs.Modified == nil {
+		return
+	}
+
+	// Field-level classification: only count meaningful fields as meaningful.
+	for _, ch := range fs.Modified.Changes {
+		if isVolatileFilesystemField(ch.Field) {
+			t.addVolatile(1, "Filesystem field "+ch.Field)
+		} else {
+			t.addMeaningful(1, "Filesystem field "+ch.Field)
+		}
+	}
 }

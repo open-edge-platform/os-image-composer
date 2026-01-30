@@ -1,3 +1,19 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: Ubuntu 24.04 edge-optimized image with container runtime and edge computing packages
+  use_cases:
+    - Edge computing deployments
+    - Container workloads at the edge
+    - IoT gateway systems
+    - Ubuntu-based edge nodes
+  keywords:
+    - edge
+    - container
+    - docker
+    - iot
+    - gateway
+    - ubuntu
+
 image:
   name: edge-os-image-ubuntu
   version: "24.04"

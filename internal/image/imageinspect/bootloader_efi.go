@@ -115,17 +115,15 @@ func peSignatureInfo(f *pe.File) (signed bool, sigSize int, note string) {
 }
 
 // classifyBootloaderKind classifies the bootloader kind based on path and sections.
-// It intentionally avoids content-string heuristics for stability.
-// For BOOTX64.EFI copies/aliases, rely on SHA-inheritance post-pass.
+// It uses PE section analysis for robust detection, even for generic paths like BOOTX64.EFI.
+// For byte-identical copies, SHA-inheritance (inheritBootloaderKindBySHA) provides additional coverage.
 func classifyBootloaderKind(p string, sections []string) BootloaderKind {
 	lp := strings.ToLower(p)
 
-	// Deterministic first:
-	if sections != nil && hasSection(sections, ".linux") {
-		return BootloaderUKI
+	// Path / filename heuristics first:
+	if strings.Contains(lp, "grub") {
+		return BootloaderGrub
 	}
-
-	// Path / filename heuristics:
 	if strings.Contains(lp, "mmx64.efi") || strings.Contains(lp, "mmia32.efi") {
 		return BootloaderMokManager
 	}
@@ -135,8 +133,29 @@ func classifyBootloaderKind(p string, sections []string) BootloaderKind {
 	if strings.Contains(lp, "systemd") && strings.Contains(lp, "boot") {
 		return BootloaderSystemdBoot
 	}
-	if strings.Contains(lp, "grub") {
-		return BootloaderGrub
+
+	// Section-based detection (deal with ambiguous filenames like BOOTX64.EFI):
+	if sections != nil {
+		// UKI has .linux section
+		if hasSection(sections, ".linux") {
+			return BootloaderUKI
+		}
+
+		// GRUB has .mods section or multiple .module* sections
+		if hasSection(sections, ".mods") || hasSectionPrefix(sections, ".module") {
+			return BootloaderGrub
+		}
+
+		// systemd-boot has .sdmagic section
+		if hasSection(sections, ".sdmagic") {
+			return BootloaderSystemdBoot
+		}
+
+		// Shim has .sbat section
+		// This only helps for truly ambiguous cases after other checks fail
+		if hasSection(sections, ".sbat") {
+			return BootloaderShim
+		}
 	}
 
 	return BootloaderUnknown
@@ -153,9 +172,20 @@ func hasSection(secs []string, want string) bool {
 	return false
 }
 
+// hasSectionPrefix checks if any section starts with the given prefix (case-insensitive)
+func hasSectionPrefix(secs []string, prefix string) bool {
+	prefix = strings.ToLower(prefix)
+	for _, s := range secs {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(s)), prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // inheritBootloaderKindBySHA assigns a kind to "unknown" EFI binaries when they
 // are byte-identical to another EFI binary already classified as a known kind.
-// This reliably handles fallback paths like EFI/BOOT/BOOTX64.EFI.
+// This reliably handles fallback paths like `EFI/BOOT/BOOTX64.EFI`.
 func inheritBootloaderKindBySHA(evs []EFIBinaryEvidence) {
 	known := make(map[string]BootloaderKind) // sha256 -> kind
 

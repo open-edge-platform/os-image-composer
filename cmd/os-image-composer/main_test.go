@@ -177,10 +177,10 @@ workers: 4
 			configContent: `
 logging:
   level: "info"
-  file: "/default/path.log"
+  file: "/tmp/default/path.log"
 workers: 4
 `,
-			setLogFilePath: "/custom/path.log",
+			setLogFilePath: "/tmp/custom/path.log",
 			validateFunc: func(t *testing.T) {
 				// Note: Current implementation has a bug where log file override
 				// is set but then config gets reset. This test documents actual behavior.
