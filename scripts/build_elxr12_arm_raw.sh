@@ -274,7 +274,7 @@ build_elxr12_arm_raw_image() {
     echo "ELXR12 raw Image build passed."
     if [ "$RUN_QEMU_TESTS" = true ]; then
       echo "Running QEMU boot test for ARM ELXR12 raw image..."
-      if run_qemu_boot_test "elxr12-x86_64-minimal"; then
+      if run_qemu_boot_test "elxr12-aarch64-minimal"; then
         echo "QEMU boot test PASSED for ELXR12 raw image"
       else
         echo "QEMU boot test FAILED for ELXR12 raw image"
