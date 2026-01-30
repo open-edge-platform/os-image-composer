@@ -336,6 +336,18 @@ func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospac
 		}
 	}
 
+	// If no candidates found, check Provides field
+	if len(candidates) == 0 {
+		for _, pi := range all {
+			for _, provided := range pi.Provides {
+				if provided == want {
+					candidates = append(candidates, pi)
+					break
+				}
+			}
+		}
+	}
+
 	if len(candidates) == 0 {
 		return ospackage.PackageInfo{}, false
 	}
