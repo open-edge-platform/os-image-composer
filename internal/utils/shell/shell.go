@@ -206,52 +206,6 @@ func IsCommandExist(cmd string, chrootPath string) (bool, error) {
 	return strings.TrimSpace(output) != "", nil
 }
 
-// sanitizeCommandForLogging removes sensitive information from commands before logging
-func sanitizeCommandForLogging(cmdStr string) string {
-	// Common patterns that might contain sensitive information
-	sensitivePatterns := []struct {
-		pattern     *regexp.Regexp
-		replacement string
-	}{
-		// More comprehensive password patterns
-		{regexp.MustCompile(`(?i)password[=\s]+["']?[^\s"']+["']?`), "password=***"},
-		{regexp.MustCompile(`(?i)passwd[=\s]+["']?[^\s"']+["']?`), "passwd=***"},
-		{regexp.MustCompile(`(?i)--password[=\s]+["']?[^\s"']+["']?`), "--password=***"},
-		{regexp.MustCompile(`(?i)-p[=\s]+["']?[^\s"']+["']?`), "-p ***"},
-		// Specific usermod patterns - more comprehensive
-		{regexp.MustCompile(`(?i)usermod\s+[^-]*-p\s+['"][^'"]+['"]`), "usermod [args] -p '***'"},
-		{regexp.MustCompile(`(?i)usermod\s+[^-]*-p\s+[^\s]+`), "usermod [args] -p ***"},
-		{regexp.MustCompile(`(?i)usermod\s+.*--password[=\s]+["']?[^\s"']+["']?`), "usermod [args] --password=***"},
-		// Echo with password content
-		{regexp.MustCompile(`(?i)echo\s+["']?[^"']*password[^"']*["']?`), "echo '***'"},
-		// General catch-all for any quoted strings that might contain passwords
-		{regexp.MustCompile(`(?i)['"][^'"]*\$[^'"]*['"]`), "'***'"},
-	}
-
-	sanitized := cmdStr
-	for _, pattern := range sensitivePatterns {
-		sanitized = pattern.pattern.ReplaceAllString(sanitized, pattern.replacement)
-	}
-
-	return sanitized
-}
-
-// containsSensitiveInfo checks if a command string contains sensitive information
-func containsSensitiveInfo(cmdStr string) bool {
-	sensitiveKeywords := []string{
-		"password", "passwd", "-p ", "--password", "usermod", 
-		"'$", "\"$", // Variables that might contain sensitive data
-	}
-	
-	cmdLower := strings.ToLower(cmdStr)
-	for _, keyword := range sensitiveKeywords {
-		if strings.Contains(cmdLower, keyword) {
-			return true
-		}
-	}
-	return false
-}
-
 func extractSedPattern(command string) (string, error) {
 	// This regex handles common sed patterns:
 	// - sed -i 's/pattern/replacement/'
@@ -415,11 +369,7 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 
 		fullCmdStr = "sudo " + envValStr + "chroot " + chrootPath + " " + fullPathCmdStr
 		chrootDir := filepath.Base(chrootPath)
-		if containsSensitiveInfo(fullPathCmdStr) {
-			log.Debugf("Chroot " + chrootDir + " Exec: [command contains sensitive information - not logged]")
-		} else {
-			log.Debugf("Chroot " + chrootDir + " Exec: [" + sanitizeCommandForLogging(fullPathCmdStr) + "]")
-		}
+		log.Debugf("Chroot " + chrootDir + " Exec: [" + fullPathCmdStr + "]")
 
 	} else {
 		if sudo {
@@ -430,19 +380,10 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 			}
 
 			fullCmdStr = "sudo " + envValStr + fullPathCmdStr
-			if containsSensitiveInfo(fullPathCmdStr) {
-				log.Debugf("Exec: [sudo command contains sensitive information - not logged]")
-			} else {
-				log.Debugf("Exec: [sudo " + sanitizeCommandForLogging(fullPathCmdStr) + "]")
-			}
+			log.Debugf("Exec: [sudo " + fullPathCmdStr + "]")
 		} else {
 			fullCmdStr = fullPathCmdStr
-			// Check if command contains sensitive information before logging
-			if containsSensitiveInfo(fullPathCmdStr) {
-				log.Debugf("Exec: [command contains sensitive information - not logged]")
-			} else {
-				log.Debugf("Exec: [" + sanitizeCommandForLogging(fullPathCmdStr) + "]")
-			}
+			log.Debugf("Exec: [" + fullPathCmdStr + "]")
 		}
 	}
 
@@ -462,9 +403,9 @@ func (d *DefaultExecutor) ExecCmd(cmdStr string, sudo bool, chrootPath string, e
 
 	if err != nil {
 		if outputStr != "" {
-			return outputStr, fmt.Errorf("failed to exec %s: output %s, err %w", sanitizeCommandForLogging(fullCmdStr), outputStr, err)
+			return outputStr, fmt.Errorf("failed to exec %s: output %s, err %w", fullCmdStr, outputStr, err)
 		} else {
-			return outputStr, fmt.Errorf("failed to exec %s: %w", sanitizeCommandForLogging(fullCmdStr), err)
+			return outputStr, fmt.Errorf("failed to exec %s: %w", fullCmdStr, err)
 		}
 	} else {
 		if outputStr != "" {
@@ -495,15 +436,15 @@ func (d *DefaultExecutor) ExecCmdWithStream(cmdStr string, sudo bool, chrootPath
 	cmd := exec.Command("bash", "-c", fullCmdStr)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", fmt.Errorf("failed to get stdout pipe for command %s: %w", sanitizeCommandForLogging(fullCmdStr), err)
+		return "", fmt.Errorf("failed to get stdout pipe for command %s: %w", fullCmdStr, err)
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		return "", fmt.Errorf("failed to get stderr pipe for command %s: %w", sanitizeCommandForLogging(fullCmdStr), err)
+		return "", fmt.Errorf("failed to get stderr pipe for command %s: %w", fullCmdStr, err)
 	}
 
 	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("failed to start command %s: %w", sanitizeCommandForLogging(fullCmdStr), err)
+		return "", fmt.Errorf("failed to start command %s: %w", fullCmdStr, err)
 	}
 
 	// Use channels to collect output safely
@@ -548,7 +489,7 @@ func (d *DefaultExecutor) ExecCmdWithStream(cmdStr string, sudo bool, chrootPath
 	wg.Wait()
 
 	if err := cmd.Wait(); err != nil {
-		return outputStr.String(), fmt.Errorf("failed to wait for command %s: %w", sanitizeCommandForLogging(fullCmdStr), err)
+		return outputStr.String(), fmt.Errorf("failed to wait for command %s: %w", fullCmdStr, err)
 	}
 
 	return outputStr.String(), nil
@@ -571,7 +512,7 @@ func (d *DefaultExecutor) ExecCmdWithInput(inputStr string, cmdStr string, sudo 
 		if outputStr != "" {
 			log.Infof(outputStr)
 		}
-		return outputStr, fmt.Errorf("failed to exec %s with input %s: %w", sanitizeCommandForLogging(fullCmdStr), inputStr, err)
+		return outputStr, fmt.Errorf("failed to exec %s with input %s: %w", fullCmdStr, inputStr, err)
 	} else {
 		if outputStr != "" {
 			log.Debugf(outputStr)
