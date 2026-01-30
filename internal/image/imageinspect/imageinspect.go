@@ -14,6 +14,9 @@ import (
 	"github.com/diskfs/go-diskfs/partition"
 	"github.com/diskfs/go-diskfs/partition/gpt"
 	"github.com/diskfs/go-diskfs/partition/mbr"
+	"github.com/open-edge-platform/os-image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/image/imageconvert"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/file"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"go.uber.org/zap"
 )
@@ -182,7 +185,55 @@ func (d *DiskfsInspector) Inspect(imagePath string) (*ImageSummary, error) {
 		return nil, fmt.Errorf("stat image: %w", err)
 	}
 
-	img, err := os.Open(imagePath)
+	// Detect image format and convert to RAW if needed
+	format, err := imageconvert.DetectImageFormat(imagePath)
+	if err != nil {
+		d.logger.Warnf("Failed to detect image format, assuming raw: %v", err)
+		format = "raw"
+	}
+
+	actualImagePath := imagePath
+	var cleanupPath string
+	defer func() {
+		if cleanupPath != "" {
+			if err := os.Remove(cleanupPath); err != nil {
+				d.logger.Warnf("Failed to cleanup temporary converted image: %v", err)
+			}
+		}
+	}()
+
+	if format != "raw" {
+		d.logger.Infof("Image format is %s, converting to RAW for inspection", format)
+
+		// Get temp directory from config
+		tmpDir, err := config.EnsureTempDir("image-inspect")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create temp directory: %w", err)
+		}
+
+		// Check available disk space before conversion
+		if err := file.CheckDiskSpace(tmpDir, fi.Size(), 0.20); err != nil {
+			return nil, fmt.Errorf("insufficient disk space for image conversion: %w", err)
+		}
+
+		// Convert image to RAW format
+		convertedPath, err := imageconvert.ConvertImageToRaw(imagePath, tmpDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert image to RAW format: %w", err)
+		}
+
+		// Mark for cleanup if we created a new file
+		if convertedPath != imagePath {
+			cleanupPath = convertedPath
+			actualImagePath = convertedPath
+			fi, err = os.Stat(actualImagePath)
+			if err != nil {
+				return nil, fmt.Errorf("stat converted image: %w", err)
+			}
+		}
+	}
+
+	img, err := os.Open(actualImagePath)
 	if err != nil {
 		return nil, fmt.Errorf("open image file: %w", err)
 	}
@@ -191,19 +242,20 @@ func (d *DiskfsInspector) Inspect(imagePath string) (*ImageSummary, error) {
 	sha := ""
 	// Optional SHA256 hash computation
 	if d.HashImages {
-		d.logger.Infof("Computing SHA256 for image: %s", imagePath)
+		d.logger.Infof("Computing SHA256 for image: %s", actualImagePath)
 		sha, err = computeFileSHA256(img)
 		if err != nil {
 			return nil, fmt.Errorf("sha256 image: %w", err)
 		}
 	}
 
-	disk, err := diskfs.Open(imagePath)
+	disk, err := diskfs.Open(actualImagePath)
 	if err != nil {
 		return nil, fmt.Errorf("open disk image: %w", err)
 	}
 	defer disk.Close()
 
+	// Use original path in the summary, not the temporary converted path
 	return d.inspectCore(img, disk, disk.LogicalBlocksize, imagePath, fi.Size(), sha)
 }
 
