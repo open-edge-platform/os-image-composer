@@ -379,7 +379,7 @@ func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, e
 				// canonical package name
 				if tok2, err2 := dec.Token(); err2 == nil {
 					if cd, ok := tok2.(xml.CharData); ok && curInfo != nil {
-						curInfo.Name = string(cd)
+						curInfo.Name = strings.TrimSpace(string(cd))
 					}
 				}
 
