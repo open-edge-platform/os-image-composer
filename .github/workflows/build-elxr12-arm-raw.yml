@@ -96,7 +96,7 @@ jobs:
       - name: GitHub Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ubuntu24-arm-raw-image
+          name: elxr12-arm-raw-image
           path: |
             workspace/*/imagebuild/*/*.raw*
           retention-days: 30
