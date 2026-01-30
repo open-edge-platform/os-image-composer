@@ -29,7 +29,7 @@ disk:
       mountOptions: umask=0077
 
     - id: rootfs
-      type: linux-root-amd64
+      type: linux-root-arm64
       start: 513MiB
       end: 4557MiB  # 513MiB + 4044MiB (4238528512 bytes) = 4557MiB
       fsType: ext4
