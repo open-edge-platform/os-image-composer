@@ -948,3 +948,184 @@ func TestConvertImageFileWithTrimming(t *testing.T) {
 		t.Log("Raw file still exists (which is expected in mock test)")
 	}
 }
+
+func TestDetectImageFormat_SingleLineJSON(t *testing.T) {
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test-image.raw")
+
+	if err := os.WriteFile(filePath, []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "qemu-img info --output=json", Output: `{"format":"raw","virtual-size":123}`, Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	format, err := DetectImageFormat(filePath)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if format != "raw" {
+		t.Fatalf("Expected format raw, got %s", format)
+	}
+}
+
+func TestDetectImageFormat_MultiLineJSON(t *testing.T) {
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test-image.qcow2")
+
+	if err := os.WriteFile(filePath, []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	jsonOut := "{\n  \"format\": \"qcow2\",\n  \"virtual-size\": 123\n}"
+	mockCommands := []shell.MockCommand{
+		{Pattern: "qemu-img info --output=json", Output: jsonOut, Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	format, err := DetectImageFormat(filePath)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if format != "qcow2" {
+		t.Fatalf("Expected format qcow2, got %s", format)
+	}
+}
+
+func TestDetectImageFormat_MissingFormat(t *testing.T) {
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test-image.raw")
+
+	if err := os.WriteFile(filePath, []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "qemu-img info --output=json", Output: `{}`, Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	_, err := DetectImageFormat(filePath)
+	if err == nil {
+		t.Fatalf("Expected error for missing format")
+	}
+}
+
+func TestConvertImageToRaw_AlreadyRaw(t *testing.T) {
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test-image.raw")
+
+	if err := os.WriteFile(filePath, []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "qemu-img info --output=json", Output: `{"format":"raw"}`, Error: nil},
+		{Pattern: "qemu-img convert -O raw", Output: "", Error: fmt.Errorf("unexpected convert")},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	convertedPath, err := ConvertImageToRaw(filePath, tempDir)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if convertedPath != filePath {
+		t.Fatalf("Expected same path for raw image, got %s", convertedPath)
+	}
+}
+
+func TestConvertImageToRaw_ConvertsNonRaw(t *testing.T) {
+	tempDir := t.TempDir()
+	outputDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test-image.qcow2")
+
+	if err := os.WriteFile(filePath, []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "qemu-img info --output=json", Output: `{"format":"qcow2"}`, Error: nil},
+		{Pattern: "qemu-img convert -O raw", Output: "", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	convertedPath, err := ConvertImageToRaw(filePath, outputDir)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if !strings.HasSuffix(convertedPath, ".raw") {
+		t.Fatalf("Expected .raw output path, got %s", convertedPath)
+	}
+	if !strings.HasPrefix(convertedPath, outputDir) {
+		t.Fatalf("Expected output in %s, got %s", outputDir, convertedPath)
+	}
+}
+
+func TestConvertImageFile_SkipWhenAlreadyTargetFormat(t *testing.T) {
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test-image.qcow2")
+
+	if err := os.WriteFile(filePath, []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "qemu-img info --output=json", Output: `{"format":"qcow2"}`, Error: nil},
+		{Pattern: "qemu-img convert -O qcow2", Output: "", Error: fmt.Errorf("unexpected convert")},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	outputPath, err := convertImageFile(filePath, "qcow2")
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if outputPath != filePath {
+		t.Fatalf("Expected same path for already matching format, got %s", outputPath)
+	}
+}
+
+func TestConvertImageFile_ToRaw(t *testing.T) {
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test-image.vhd")
+
+	if err := os.WriteFile(filePath, []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	mockCommands := []shell.MockCommand{
+		{Pattern: "qemu-img info --output=json", Output: `{"format":"vpc"}`, Error: nil},
+		{Pattern: "qemu-img convert -O raw", Output: "", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	outputPath, err := convertImageFile(filePath, "raw")
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if !strings.HasSuffix(outputPath, ".raw") {
+		t.Fatalf("Expected .raw output path, got %s", outputPath)
+	}
+}

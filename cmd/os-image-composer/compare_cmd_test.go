@@ -61,8 +61,6 @@ func decodeJSON(t *testing.T, s string, v any) {
 	}
 }
 
-// ---- Tests ----
-
 func TestResolveDefaults(t *testing.T) {
 	t.Run("json defaults to full when mode empty", func(t *testing.T) {
 		format, mode := resolveDefaults("json", "")
@@ -87,8 +85,6 @@ func TestResolveDefaults(t *testing.T) {
 }
 
 func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
-	// IMPORTANT: these tests assume newInspector is a package-level var func you can override.
-	// If it’s a normal function, change code to allow injection or adapt these tests.
 
 	origNewInspector := newInspector
 	t.Cleanup(func() { newInspector = origNewInspector })
@@ -100,9 +96,9 @@ func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
 		},
 		errByPath: map[string]error{},
 	}
-	newInspector = func() inspector { return fi }
+	newInspector = func(hash bool) inspector { return fi }
 
-	// Make a command instance to provide OutOrStdout/flags context (executeCompare uses cmd for output).
+	// Make a command instance to provide OutOrStdout/flags context.
 	cmd := &cobra.Command{}
 	cmd.SetArgs([]string{})
 
@@ -122,7 +118,7 @@ func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
 		// Validate it looks like ImageCompareResult (at least top-level fields).
 		var got struct {
 			SchemaVersion string          `json:"schemaVersion"`
-			Equal         bool            `json:"equal"`
+			Equality      json.RawMessage `json:"equality"`
 			From          json.RawMessage `json:"from"`
 			To            json.RawMessage `json:"to"`
 			Summary       json.RawMessage `json:"summary"`
@@ -149,8 +145,8 @@ func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
 		}
 
 		var got struct {
-			Equal bool                   `json:"equal"`
-			Diff  imageinspect.ImageDiff `json:"diff"`
+			EqualityClass imageinspect.EqualityClass `json:"equalityClass"`
+			Diff          imageinspect.ImageDiff     `json:"diff"`
 		}
 		decodeJSON(t, s, &got)
 	})
@@ -169,8 +165,8 @@ func TestCompareCommand_JSONModes_PrettyAndCompact(t *testing.T) {
 		}
 
 		var got struct {
-			Equal   bool                        `json:"equal"`
-			Summary imageinspect.CompareSummary `json:"summary"`
+			EqualityClass imageinspect.EqualityClass  `json:"equalityClass"`
+			Summary       imageinspect.CompareSummary `json:"summary"`
 		}
 		decodeJSON(t, s, &got)
 	})
@@ -191,7 +187,7 @@ func TestCompareCommand_TextOutput(t *testing.T) {
 			"b.raw": img2,
 		},
 	}
-	newInspector = func() inspector { return fi }
+	newInspector = func(hash bool) inspector { return fi }
 
 	cmd := &cobra.Command{}
 	outFormat = "text"
@@ -203,8 +199,8 @@ func TestCompareCommand_TextOutput(t *testing.T) {
 	}
 
 	// Basic structure checks (don’t overfit exact wording)
-	if !strings.Contains(s, "Equal:") {
-		t.Fatalf("expected 'Equal:' header, got:\n%s", s)
+	if !strings.Contains(s, "Equality:") {
+		t.Fatalf("expected 'Equality:' header, got:\n%s", s)
 	}
 	if !strings.Contains(s, "Partition table:") {
 		t.Fatalf("expected partition table section, got:\n%s", s)
@@ -226,7 +222,7 @@ func TestCompareCommand_InspectorError(t *testing.T) {
 			"b.raw": errors.New("boom"),
 		},
 	}
-	newInspector = func() inspector { return fi }
+	newInspector = func(hash bool) inspector { return fi }
 
 	cmd := &cobra.Command{}
 	outFormat = "json"
@@ -249,7 +245,7 @@ func TestCompareCommand_InvalidModeErrors(t *testing.T) {
 		outFormat, outMode = origOutFormat, origOutMode
 	})
 
-	newInspector = func() inspector {
+	newInspector = func(hash bool) inspector {
 		return &fakeCompareInspector{imgByPath: map[string]*imageinspect.ImageSummary{
 			"a.raw": minimalImage("a.raw", 1),
 			"b.raw": minimalImage("b.raw", 1),
@@ -274,7 +270,7 @@ func TestCompareCommand_InvalidFormatErrors(t *testing.T) {
 		outFormat, outMode = origOutFormat, origOutMode
 	})
 
-	newInspector = func() inspector {
+	newInspector = func(hash bool) inspector {
 		return &fakeCompareInspector{imgByPath: map[string]*imageinspect.ImageSummary{
 			"a.raw": minimalImage("a.raw", 1),
 			"b.raw": minimalImage("b.raw", 1),
