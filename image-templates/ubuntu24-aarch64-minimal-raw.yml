@@ -38,7 +38,7 @@ disk:
       flags:
         - esp
         - boot
-      start: 1MiB
+      start:  1MiB
       end: 100MiB
       fsType: fat32
       mountPoint: /efi
