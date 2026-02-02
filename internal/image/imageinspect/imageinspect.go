@@ -569,7 +569,7 @@ func computeFileSHA256(f *os.File) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// detectVerity inspects the partition table and UKI cmdline to detect dm-verity configuration.
+// detectVerity inspects the partition table and UKI cmdline to detect dm-verity configuration
 func detectVerity(pt PartitionTableSummary) *VerityInfo {
 	info := &VerityInfo{}
 
@@ -610,7 +610,6 @@ func detectVerity(pt PartitionTableSummary) *VerityInfo {
 		return nil
 	}
 
-	// Check for dm-verity indicators in cmdline
 	// 1. systemd.verity_* parameters (standard systemd-verity)
 	if strings.Contains(cmdline, "systemd.verity_name=") ||
 		strings.Contains(cmdline, "systemd.verity_root_data=") ||
