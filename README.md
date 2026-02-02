@@ -1,48 +1,212 @@
 # Madani OS Builder
 
-***This is a fork of upstream/project.
-It contains custom changes for Madani OS use and is not intended for upstream contribution.***
+> **Note:** This is a fork of upstream/project. It contains custom changes for Madani OS use and is not intended for upstream contribution.
 
-___
+---
 
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Go Lint Check](https://github.com/open-edge-platform/os-image-composer/actions/workflows/go-lint.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/go-lint.yml) [![Unit and Coverage](https://github.com/open-edge-platform/os-image-composer/actions/workflows/unit-test-and-coverage-gate.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/unit-test-and-coverage-gate.yml) [![Security zizmor 🌈](https://github.com/open-edge-platform/os-image-composer/actions/workflows/zizmor.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/zizmor.yml) [![Fuzz test](https://github.com/open-edge-platform/os-image-composer/actions/workflows/fuzz-test.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/fuzz-test.yml) [![Trivy scan](https://github.com/open-edge-platform/os-image-composer/actions/workflows/trivy-scan.yml/badge.svg)](https://github.com/open-edge-platform/os-image-composer/actions/workflows/trivy-scan.yml)
+## Overview
 
 Madani OS Builder is a specialized command-line tool designed to build lightweight Linux distributions optimized for low-end machines with pre-built AI stack capabilities. Using a simple toolchain, it creates mutable or immutable Madani OS images from pre-built packages sourced from various OS distribution repositories.
-Developed in the Go programming language, the tool primarily focuses on building custom Madani OS images that provide efficient AI workload support on resource-constrained hardware, while maintaining compatibility with [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit), [Linux OS for Azure 1P services and edge appliances (azurelinux)](https://github.com/microsoft/azurelinux), [Wind River eLxr Linux distribution](https://www.windriver.com/blog/Introducing-eLxr), and Ubuntu.
 
-## Get Started
+Developed in Go, the tool specializes in building custom Madani OS images optimized for efficient AI workload execution on resource-constrained hardware. The tool's versatile architecture also supports building images for other Linux distributions including Ubuntu, Wind River eLxr, Azure Linux, and Intel EMT.
 
-Madani Team has validated and recommends using Ubuntu OS version 24.04 to work with the initial release of the Madani OS Builder tool. Madani Team has not validated other Linux distributions. The plan for later releases is to include a containerized version to support portability across operating systems and enhanced support for AI workloads on low-end devices.
+---
 
-* Download the tool by cloning and checking out the latest tagged release on the [GitHub repository](https://github.com/open-edge-platform/os-image-composer/). Alternatively, you can download the [latest tagged release](https://github.com/open-edge-platform/os-image-composer/releases) of the ZIP archive.
+## Table of Contents
 
-* Install Go programming language version 1.22.12 or later before building the tool; see the [Go programming language installation instructions](https://go.dev/doc/manage-install) for your Linux distribution.
+- [Overview](#overview)
+- [System Requirements](#system-requirements)
+  - [Windows WSL Setup (Automated)](#windows-wsl-setup-automated)
+- [Quick Start Guide](#quick-start-guide)
+- [Testing with the OS Raw Image](#testing-with-the-os-raw-image)
+  - [Usage Examples](#usage-examples)
+- [Advanced Topics](#advanced-topics)
+  - [Build Options](#build-options)
+  - [Debian Package Installation](#debian-package-installation)
+- [Configuration](#configuration)
+- [Operations Requiring Sudo Access](#operations-requiring-sudo-access)
+- [Usage](#usage)
+- [Image Template Format](#image-template-format)
+- [Template Examples](#template-examples)
+- [Resources](#resources)
+- [Legal](#legal)
 
-## How It Works
+---
 
-### Build the Tool
+## System Requirements
 
-Build the OS Image Composer command-line utility by using Go programming language directly or by using the Earthly framework:
+**Recommended Operating System:** Ubuntu 24.04
+
+> **Note:** Madani Team has validated and recommends using Ubuntu OS version 24.04. Other Linux distributions have not been validated. Future releases will include a containerized version for enhanced portability.
+
+### Windows WSL Setup (Automated)
+
+**For Windows users who want to run Madani OS Builder in WSL:**
+
+Use the provided automated setup script to configure Ubuntu 24.04 in WSL with all required dependencies:
+
+```cmd
+# Download and run the setup script
+setup-wsl.bat
+```
+
+**What the script does:**
+- Installs Ubuntu 24.04 in WSL (if not already installed)
+- Sets up Go programming language (v1.25.5)
+- Creates `/data` directory for the project
+- Clones the repository to `/data/madani-os-builder`
+- Configures proper permissions and PATH variables
+
+**After running the script:**
+1. The script will automatically launch WSL
+2. Navigate to the project directory: `cd /data/madani-os-builder`
+3. Continue with [step 3 of the Quick Start Guide](#3-build-the-tool)
+
+> **Note:** If prompted to create a username/password during Ubuntu installation, complete the setup and return to the batch script window.
+
+---
+
+## Quick Start Guide
+
+### 1. Download the Tool
+
+```bash
+git clone https://github.com/yockgen/madani-os-builder/
+cd madani-os-builder
+git checkout $(git describe --tags --abbrev=0)
+```
+
+### 2. Install Prerequisites
+
+Install Go programming language version 1.22.12 or later. See the [Go installation instructions](https://go.dev/doc/manage-install) for your Linux distribution.
+
+### 3. Build the Tool
+
+```bash
+sudo go build -buildmode=pie -ldflags "-s -w" ./cmd/os-image-composer
+```
+
+### 4. Build a Madani OS Image
+
+```bash
+sudo -E ./os-image-composer build --cache-dir ./cache/ -v image-templates/madani24-x86_64-minimal-raw.yml 2>&1 | tee yockgen-madani.txt
+```
+
+### 5. Locate the Output Image
+
+```bash
+ls ./workspace/madani-madani24-x86_64/imagebuild/minimal/minimal-os-image-madani-24.04.raw.gz
+```
+
+> **Note:** The `minimal-os-image-madani-24.04.raw.gz` file is a compressed raw disk image containing the complete Madani OS.
+
+### 6. Cleanup (Optional)
+
+> **⚠️ Warning:** Copy the raw image to another location before running this command if you need to preserve it.
+
+```bash
+sudo rm -rf ./tmp/ ./build ./cache/ ./workspace/
+```
+
+---
+
+## Testing with the OS Raw Image
+
+The raw image file can be deployed on various platforms:
+
+- **Physical machines:** Flash directly to a disk or USB drive for bare-metal installation
+- **Virtual Machines:** Import into virtualization platforms (VirtualBox, VMware, etc.)
+- **QEMU:** Boot directly using QEMU emulator
+- **Cloud instances:** Deploy to cloud providers that support raw disk images
+
+### Usage Examples
+
+#### Extract the Compressed File
+
+```bash
+gzip -dc ./workspace/madani-madani24-x86_64/imagebuild/minimal/minimal-os-image-madani-24.04.raw.gz > /data/raw/test-madani-final.raw
+```
+
+#### Run with QEMU (No GUI)
+
+```bash
+sudo qemu-system-x86_64 \
+  -machine q35 \
+  -m 2048 \
+  -cpu max \
+  -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+  -drive if=pflash,format=raw,file=/usr/share/OVMF/OVMF_VARS_4M.fd \
+  -device virtio-scsi-pci \
+  -drive if=none,id=drive0,file=test-madani-final.raw,format=raw \
+  -device scsi-hd,drive=drive0 \
+  -netdev user,id=net0,hostfwd=tcp::2223-:22,hostfwd=tcp::8081-:80 \
+  -device virtio-net-pci,netdev=net0 \
+  -nographic \
+  -serial mon:stdio
+```
+
+#### Run with QEMU (with GUI)
+
+**For Windows WSL users:**
+
+```bash
+# Install QEMU and setup permissions
+sudo apt install qemu-system-x86 ovmf
+sudo usermod -aG kvm $USER && newgrp kvm
+sudo chmod 666 /dev/kvm
+
+# Prepare VM files
+cd /data/raw
+chmod 777 test-madani-final.raw
+cp /usr/share/OVMF/OVMF_VARS_4M.fd ./my_vars.fd
+chmod 644 ./my_vars.fd
+
+# Run QEMU with GUI
+qemu-system-x86_64 \
+  -machine q35 \
+  -m 4G \
+  -smp 4,cores=4,threads=1 \
+  -cpu host,migratable=no,+invtsc \
+  -accel kvm \
+  -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
+  -drive if=pflash,format=raw,file=./my_vars.fd \
+  -device virtio-scsi-pci \
+  -drive if=none,id=drive0,file=test-madani-final.raw,format=raw,cache=none,aio=native \
+  -device scsi-hd,drive=drive0 \
+  -netdev user,id=net0,hostfwd=tcp::2223-:22,hostfwd=tcp::8081-:80 \
+  -device virtio-net-pci,netdev=net0 \
+  -vga virtio \
+  -display gtk,gl=on
+```
+
+**Troubleshooting:** If no GUI appears, ensure X11 server is running on Windows or use WSLg (Windows 11 22H2+).
+
+> **⚠️ Warning:** Flashing this image will overwrite all existing data on the target device. Ensure you have selected the correct destination and have backed up any important data.
+
+---
+
+## Advanced Topics
+
+### Build Options
 
 #### Development Build (Go Programming Language)
 
-For development and testing purposes, you can use Go programming language directly:
+For development and testing purposes:
 
 ```bash
-# Build the tool:
+# Build the tool
 go build -buildmode=pie -ldflags "-s -w" ./cmd/os-image-composer
 
-# Build the live-installer (Required for ISO image):
+# Build the live-installer (Required for ISO image)
 go build -buildmode=pie -o ./build/live-installer -ldflags "-s -w" ./cmd/live-installer
 
-# Or run it directly:
+# Or run it directly
 go run ./cmd/os-image-composer --help
 ```
 
-> Note: Development builds using `go build` shows default version information (e.g., `Version: 0.1.0`, `Build Date: unknown`). This is expected during development.
+> **Note:** Development builds using `go build` show default version information (e.g., `Version: 0.1.0`, `Build Date: unknown`). This is expected during development.
 
-To include version information in a development build, use ldflags with Git commands:
+#### Development Build with Version Information
 
 ```bash
 VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -72,7 +236,7 @@ go build -buildmode=pie \
 
 #### Production Build (Earthly Framework)
 
-For production and release builds, use the Earthly framework to produce a reproducible build that automatically includes the version number (from Git tags), the build date (the current UTC date), and the Git commit Secure Hash Algorithm (SHA):
+For production and release builds with reproducible builds:
 
 ```bash
 # Default build (uses latest Git tag for version)
@@ -80,14 +244,11 @@ earthly +build
 
 # Build with custom version metadata
 earthly +build --VERSION=1.2.0
+```
 
-### Install via Debian Package (Ubuntu or Debian Systems)
-
-For Ubuntu and Debian systems, you can build and install OS Image Composer as a Debian package. This method provides a cleaner installation with proper package management.
+### Debian Package Installation
 
 #### Build the Debian Package
-
-Use the Earthly `+deb` target to create a `.deb` package:
 
 ```bash
 # Build with default parameters (latest git tag, amd64)
@@ -100,25 +261,21 @@ earthly +deb --VERSION=1.2.0 --ARCH=amd64
 earthly +deb --VERSION=1.0.0 --ARCH=arm64
 ```
 
-The package is created in the `dist/` directory as `os-image-composer_<VERSION>_<ARCH>.deb`. A companion file `dist/os-image-composer.version` captures the resolved version when the package was built.
+The package is created in the `dist/` directory as `os-image-composer_<VERSION>_<ARCH>.deb`.
 
 #### Install the Package
 
 ```bash
-# Install using apt (recommended - automatically resolves and installs dependencies)
+# Install using apt (recommended - automatically resolves dependencies)
 sudo apt install <PATH TO FILE>/os-image-composer_1.0.0_amd64.deb
 
 # Or using dpkg (requires manual dependency installation)
-# First install required dependencies:
 sudo apt-get update
 sudo apt-get install -y bash coreutils unzip dosfstools xorriso grub-common
-# Then install the package:
 sudo dpkg -i dist/os-image-composer_1.0.0_amd64.deb
 # Optionally install bootstrap tools:
 sudo apt-get install -y mmdebstrap || sudo apt-get install -y debootstrap
 ```
-
-> Note: Madani Team recommends using `apt install` for automatic handling of dependencies. If you use `dpkg -i` and encounter dependency errors, run `sudo apt-get install -f` to fix them.
 
 #### Verify Installation
 
@@ -135,68 +292,60 @@ os-image-composer version
 
 #### Package Contents
 
-The Debian package installs the following files:
+The Debian package installs:
 
-* **Binary:** `/usr/local/bin/os-image-composer` - Main executable file
-* **Configuration:** `/etc/os-image-composer/` - Default configuration and OS variant configurations
+- **Binary:** `/usr/local/bin/os-image-composer` - Main executable file
+- **Configuration:** `/etc/os-image-composer/` - Default configuration and OS variant configurations
   - `/etc/os-image-composer/config.yml` - Global configuration with system paths
   - `/etc/os-image-composer/config/` - OS variant configuration files
-* **Examples:** `/usr/share/os-image-composer/examples/` - Sample image templates
-* **Documentation:** `/usr/share/doc/os-image-composer/` - README, LICENSE, and CLI specification
-* **Cache Directory:** `/var/cache/os-image-composer/` - Package cache storage
-
-After installation via the Debian package, you can use `os-image-composer` directly from any directory. The configuration is pre-set to use system paths. You can reference the example templates from `/usr/share/os-image-composer/examples/`.
+- **Examples:** `/usr/share/os-image-composer/examples/` - Sample image templates
+- **Documentation:** `/usr/share/doc/os-image-composer/` - README, LICENSE, and CLI specification
+- **Cache Directory:** `/var/cache/os-image-composer/` - Package cache storage
 
 #### Package Dependencies
 
-The Debian package installs the following runtime dependencies automatically:
-
 **Required Dependencies:**
-* `bash` - Shell for script execution
-* `coreutils` - Core GNU utilities
-* `unzip` - Archive extraction utility
-* `dosfstools` - FAT filesystem utilities
-* `xorriso` - ISO image creation tool
-* `grub-common` - Bootloader utilities
+- `bash` - Shell for script execution
+- `coreutils` - Core GNU utilities
+- `unzip` - Archive extraction utility
+- `dosfstools` - FAT filesystem utilities
+- `xorriso` - ISO image creation tool
+- `grub-common` - Bootloader utilities
 
-**Recommended Dependencies (installed if available):**
-* `mmdebstrap` - Debian bootstrap tool (preferred, version 1.4.3+ required)
-* `debootstrap` - Alternative Debian bootstrap tool
+**Recommended Dependencies:**
+- `mmdebstrap` - Debian bootstrap tool (preferred, version 1.4.3+ required)
+- `debootstrap` - Alternative Debian bootstrap tool
 
-**Important:** `mmdebstrap` version 0.8.x (included in Ubuntu OS version 22.04) has known issues. For Ubuntu OS version 22.04 users, you must install `mmdebstrap` version 1.4.3+ manually as described in the [prerequisite documentation](./docs/tutorial/prerequisite.md#mmdebstrap).
+> **Important:** `mmdebstrap` version 0.8.x (included in Ubuntu 22.04) has known issues. For Ubuntu 22.04 users, you must install `mmdebstrap` version 1.4.3+ manually.
 
 #### Uninstall the Package
 
 ```bash
-# Remove the package but keep the configuration files
+# Remove the package but keep configuration files
 sudo dpkg -r os-image-composer
 
-# Remove the package and the configuration files
+# Remove the package and configuration files
 sudo dpkg --purge os-image-composer
 ```
 
-### Install the Prerequisites for Composing an Image
+### Prerequisites for Image Composition
 
-Before you compose an OS image with the OS Image Composer tool, install additional prerequisites:
+Before composing an OS image, install additional prerequisites:
 
 **Required Tools:**
 
-* **`ukify`** - Combines kernel, initrd, and UEFI boot stub to create signed Unified Kernel Images (UKI)
-  * **Ubuntu 23.04+**: Available via `sudo apt install systemd-ukify`
-  * **Ubuntu 22.04 and earlier**: Must be installed manually from systemd source
-  * See [detailed ukify installation instructions](./docs/tutorial/prerequisite.md#ukify)
+- **`ukify`** - Combines kernel, initrd, and UEFI boot stub to create signed Unified Kernel Images (UKI)
+  - **Ubuntu 23.04+**: `sudo apt install systemd-ukify`
+  - **Ubuntu 22.04 and earlier**: Must be installed manually from systemd source
+  - See [detailed ukify installation instructions](./docs/tutorial/prerequisite.md#ukify)
 
-* **`mmdebstrap`** - Downloads and installs Debian packages to initialize a chroot
-  * **Ubuntu 23.04+**: Automatically installed with the Debian package (version 1.4.3+)
-  * **Ubuntu 22.04**: The version in Ubuntu OS version 22.04 repositories (0.8.x) has known bugs and will not work
-    * **Required:** Manually install version 1.4.3+. See [mmdebstrap installation instructions](./docs/tutorial/prerequisite.md#mmdebstrap)
-  * **Alternative**: Can use `debootstrap` for Debian-based images
-
-> Note: If you have installed os-image-composer via the Debian package, `mmdebstrap` may already be installed. You would still need to install `ukify` separately by following the instructions above.
+- **`mmdebstrap`** - Downloads and installs Debian packages to initialize a chroot
+  - **Ubuntu 23.04+**: Automatically installed with the Debian package (version 1.4.3+)
+  - **Ubuntu 22.04**: The version in repositories (0.8.x) has known bugs
+    - **Required:** Manually install version 1.4.3+. See [mmdebstrap installation instructions](./docs/tutorial/prerequisite.md#mmdebstrap)
+  - **Alternative**: Can use `debootstrap` for Debian-based images
 
 ### Compose or Validate an Image
-
-Now you are ready to compose an image from a built-in template, or validate a template.
 
 ```bash
 # Build an image from template
@@ -205,28 +354,25 @@ sudo -E ./os-image-composer build image-templates/azl3-x86_64-edge-raw.yml
 # If installed via Debian package, use system paths:
 sudo os-image-composer build /usr/share/os-image-composer/examples/azl3-x86_64-edge-raw.yml
 
-> Note: The default configuration at `/etc/os-image-composer/config.yml` is discovered automatically; no extra flags are required.
-
 # Validate a template:
 ./os-image-composer validate image-templates/azl3-x86_64-edge-raw.yml
 ```
 
-After the image is built, check your output directory. The exact name of the output directory varies by environment and image but looks similar to the following:
+After the image is built, check your output directory:
 
 ```
 /os-image-composer/tmp/os-image-composer/azl3-x86_64-edge-raw/imagebuild/Minimal_Raw
 ```
 
-To build an image from your own template, see [Creating and Reusing Image Templates](./docs/architecture/os-image-composer-templates.md). For complete usage instructions, see the [Command-Line Reference](./docs/architecture/os-image-composer-cli-specification.md).
+---
 
 ## Configuration
 
 ### Global Configuration
 
-The OS Image Composer tool supports global configuration files for setting tool-level parameters that apply across all image builds. Image-specific parameters are defined in YAML image template files. See [Understanding the OS Image Build Process](./docs/architecture/os-image-composer-build-process.md).
+The OS Image Composer tool supports global configuration files for setting tool-level parameters that apply across all image builds.
 
-
-### Configuration File Locations
+#### Configuration File Locations
 
 The tool searches for configuration files in the following order:
 
@@ -237,24 +383,21 @@ The tool searches for configuration files in the following order:
 5. `~/.config/os-image-composer/config.yaml` (XDG config directory)
 6. `/etc/os-image-composer/config.yaml` (system-wide)
 
-> Note: When installed via the Debian package, the default configuration is located at `/etc/os-image-composer/config.yml` and is pre-configured with system paths.
-
-
-### Configuration Parameters
+#### Configuration Parameters
 
 ```yaml
 # Core tool settings
-workers: 12                              # Number of concurrent download workers (1-100, default: 8)
+workers: 12                                 # Number of concurrent download workers (1-100, default: 8)
 cache_dir: "/var/cache/os-image-composer"   # Package cache directory (default: ./cache)
 work_dir: "/tmp/os-image-composer"          # Working directory for builds (default: ./workspace)
-temp_dir: ""                             # Temporary directory (empty = system default)
+temp_dir: ""                               # Temporary directory (empty = system default)
 
 # Logging configuration
 logging:
-  level: "info"                          # Log level: debug, info, warn, error (default: info)
+  level: "info"                            # Log level: debug, info, warn, error (default: info)
 ```
 
-### Configuration Management Commands
+#### Configuration Management Commands
 
 ```bash
 # Create a new configuration file
@@ -269,6 +412,8 @@ logging:
 # Use specific configuration file
 ./os-image-composer --config /path/to/config.yaml build template.yml
 ```
+
+---
 
 ## Operations Requiring Sudo Access
 
@@ -297,9 +442,11 @@ OS Image Composer typically requires sudo access for:
 - **Boot configuration**: Installing bootloaders and managing EFI settings
 - **Security operations**: Secure boot signing and cryptographic operations
 
+---
+
 ## Usage
 
-The OS Image Composer tool uses a command-line interface with various commands. Some examples:
+### Basic Commands
 
 ```bash
 # Show help
@@ -321,11 +468,9 @@ sudo -E ./os-image-composer build --workers 16 --cache-dir /tmp/cache image-temp
 ./os-image-composer completion install
 ```
 
-### Commands
+### Commands Reference
 
-The OS Image Composer tool provides the following commands.
-
-#### build
+#### `build`
 
 Builds a Linux distribution image based on the specified image template file:
 
@@ -333,8 +478,7 @@ Builds a Linux distribution image based on the specified image template file:
 sudo -E ./os-image-composer build [flags] TEMPLATE_FILE
 ```
 
-Flags:
-
+**Flags:**
 - `--workers, -w`: Number of concurrent download workers (overrides the configuration file)
 - `--cache-dir, -d`: Package cache directory (overrides the configuration file)
 - `--work-dir`: Working directory for builds (overrides the configuration file)
@@ -343,13 +487,12 @@ Flags:
 - `--log-level`: Log level (debug, info, warn, and error)
 - `--log-file`: Override the log file path defined in the configuration
 
-Example:
-
+**Example:**
 ```bash
 sudo -E ./os-image-composer build --workers 12 --cache-dir ./package-cache image-templates/azl3-x86_64-edge-raw.yml
 ```
 
-#### config
+#### `config`
 
 Manages the global configuration:
 
@@ -361,7 +504,7 @@ Manages the global configuration:
 ./os-image-composer config init [config-file]
 ```
 
-#### validate
+#### `validate`
 
 Validates a YAML template file against the schema without building an image:
 
@@ -369,9 +512,7 @@ Validates a YAML template file against the schema without building an image:
 ./os-image-composer validate TEMPLATE_FILE
 ```
 
-The `os-image-composer validate` command is useful for verifying template configurations before starting the potentially time-consuming build process.
-
-#### version
+#### `version`
 
 Displays the tool's version number, build date, and Git commit SHA:
 
@@ -379,22 +520,11 @@ Displays the tool's version number, build date, and Git commit SHA:
 ./os-image-composer version
 ```
 
-> Note: The version information depends on how the binary was built:
-- **Earthly build** (`earthly +build`): Shows actual version from Git tags, build date, and commit SHA
-- **Simple Go build** (`go build`): Shows default development values unless ldflags are used
-- For production releases, always use the Earthly build or equivalent build systems that inject version information
-
-#### completion
+#### `completion`
 
 Generates and installs shell completion scripts for various shells.
 
-**Prerequisites:** For shell completion to work, the `os-image-composer` binary must be accessible in your system's `$PATH`. This is automatically satisfied when:
-
-* Installing via the Debian package (installs to `/usr/local/bin/`)
-* Manually copying the binary to a standard location like `/usr/local/bin/` or `~/bin/`
-* Adding the binary's directory to your `$PATH` environment variable
-
-> Note: The completion is registered for the command name `os-image-composer`, not for relative or absolute paths like `./os-image-composer`.
+**Prerequisites:** The `os-image-composer` binary must be accessible in your system's `$PATH`.
 
 ##### Generate Completion Scripts
 
@@ -424,59 +554,45 @@ os-image-composer completion install --shell powershell
 os-image-composer completion install --force
 ```
 
-**Important**: The command creates completion files but additional activation steps are required:
+##### Shell-Specific Activation
 
-Bash:
-
+**Bash:**
 ```bash
 # Add to your ~/.bashrc
 echo "source ~/.bash_completion.d/os-image-composer.bash" >> ~/.bashrc
 source ~/.bashrc
 ```
 
-Reload your shell configuration based on the shell that you are using:
-
-Bash:
-
-```bash
-source ~/.bashrc
-```
-
-Zsh (May need fpath setup):
-
+**Zsh:**
 ```zsh
 # Ensure completion directory is in fpath (add to ~/.zshrc if needed)
 echo 'fpath=(~/.zsh/completion $fpath)' >> ~/.zshrc
 source ~/.zshrc
 ```
 
-Fish (Works automatically):
+**Fish:** (Works automatically after restart)
 
-```fish
-# Just restart your terminal
-```
-
-PowerShell (May need execution policy):
-
+**PowerShell:**
 ```powershell
 # May need to allow script execution
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 . $PROFILE
 ```
 
-Test the completion:
-
+**Test the completion:**
 ```bash
 os-image-composer [TAB]
 os-image-composer b[TAB]
 os-image-composer build --[TAB]
 ```
 
-### Image Template Format
+---
 
-Written in the YAML format, templates define the requirements for building an OS image. The template structure enables you to define key parameters, such as the OS distribution, version, architecture, software packages, output format, and kernel configuration. The image template format is validated against a JSON schema to check syntax and semantics before building the image.
+## Image Template Format
 
-If you are an entry-level user or have straightforward requirements, you can reuse the basic template and add the rquired packages. If you are addressing an advanced use case with, for instance, robust security requirements, you can edit the template to define disk and partition layouts, and other settings for security.
+Written in YAML format, templates define the requirements for building an OS image. The template structure enables you to define key parameters, such as the OS distribution, version, architecture, software packages, output format, and kernel configuration.
+
+### Basic Template Structure
 
 ```yaml
 image:
@@ -508,33 +624,28 @@ systemConfigs:
       cmdline: "quiet splash"
 ```
 
-#### Key Components
+### Key Components
 
-The following are the key components of an image template.
-
-##### 1. `image`
-
+#### 1. `image`
 Basic image identification and metadata:
 - `name`: Name of the resulting image
 - `version`: Version for tracking and naming
 
-##### 2. `target`
-
+#### 2. `target`
 Defines the target OS and image configuration:
 - `os`: Target OS (`azure-linux`, `emt`, and `elxr`)
 - `dist`: Distribution identifier (`azl3`, `emt3`, and `elxr12`)
 - `arch`: Target architecture (`x86_64` and `aarch64`)
 - `imageType`: Output format (`raw` and `iso`)
 
-##### 3. `systemConfigs`
-
+#### 3. `systemConfigs`
 Array of system configurations that define what goes into the image:
 - `name`: Configuration name
 - `description`: Human-readable description
 - `packages`: List of packages to include in the OS build
 - `kernel`: Kernel configuration with version and command-line parameters
 
-#### Supported Distributions
+### Supported Distributions
 
 | OS | Distribution | Version | Provider |
 |----|-------------|---------|----------|
@@ -544,96 +655,17 @@ Array of system configurations that define what goes into the image:
 | ubuntu | ubuntu24 | | ubuntu24 |
 | madani | madani24 | | madani24 |
 
-#### Package Examples
+### Common Packages
 
-You can include common packages:
 - `cloud-init`: For initializing cloud instances
 - `python3`: The Python 3 programming language interpreter
 - `rsyslog`: A logging system for Linux OS
 - `openssh-server`: SSH server for remote access
 - `docker-ce`: Docker container runtime
 
-### Shell Completion Feature
-
-The OS Image Composer CLI supports shell auto-completion for the Bash, Zsh, Fish, and PowerShell command-line shells. This feature helps users discover and use commands and flags more efficiently.
-
-#### Generate Completion Scripts
-
-> Note: These examples assume the binary is in your PATH. If running from a local build, use the full path, for example `./build/os-image-composer`).
-
-```bash
-# Bash
-os-image-composer completion bash > os-image-composer_completion.bash
-
-# Zsh
-os-image-composer completion zsh > os-image-composer_completion.zsh
-
-# Fish
-os-image-composer completion fish > os-image-composer_completion.fish
-
-# PowerShell
-os-image-composer completion powershell > os-image-composer_completion.ps1
-```
-
-#### Install Completion Scripts
-
-After you have installed the completion script for your command-line shell, you can use tab completion to navigate through commands, flags, and arguments.
-
-**Bash**:
-
-```bash
-# Temporary use
-source os-image-composer_completion.bash
-
-# Permanent installation (Linux)
-sudo cp os-image-composer_completion.bash /etc/bash_completion.d/
-# or add to your ~/.bashrc
-echo "source /path/to/os-image-composer_completion.bash" >> ~/.bashrc
-```
-
-**Zsh**:
-
-```bash
-# Add to your .zshrc
-echo "source /path/to/os-image-composer_completion.zsh" >> ~/.zshrc
-# Or copy to a directory in your fpath
-cp os-image-composer_completion.zsh ~/.zfunc/_os-image-composer
-```
-
-**Fish**:
-
-```bash
-cp os-image-composer_completion.fish ~/.config/fish/completions/os-image-composer.fish
-```
-
-**PowerShell**:
-
-```powershell
-# Add to your PowerShell profile
-echo ". /path/to/os-image-composer_completion.ps1" >> $PROFILE
-```
-
-#### Examples of Completion in Action
-
-After the completion script is installed and the binary is in your PATH, the tool is configured to suggest YAML files when completing the template file argument for the build and validate commands, and you can see that in action:
-
-```bash
-# Tab-complete commands
-os-image-composer <TAB>
-build      completion  config     help       validate    version
-
-# Tab-complete flags
-sudo -E os-image-composer build --<TAB>
---cache-dir  --config    --help       --log-level  --verbose    --work-dir   --workers
-
-# Tab-complete YAML files for template file argument
-sudo -E os-image-composer build <TAB>
-# Will show YAML files in the current directory
-```
+---
 
 ## Template Examples
-
-The following are examples of YAML template files. You can use YAML image templates to reproduce custom, verified, and inventoried operating systems rapidly; see [Creating and Reusing Image Templates](./docs/architecture/os-image-composer-templates.md).
 
 ### Minimal Edge Device
 
@@ -714,22 +746,31 @@ systemConfigs:
       cmdline: "quiet splash systemd.unified_cgroup_hierarchy=0"
 ```
 
-## Learn More
+---
 
-* Run `./os-image-composer --help` in the command-line tool to see all commands and options. 
-* See [CLI Specification and Reference](./docs/architecture/os-image-composer-cli-specification.md).
-* See the [documentation](https://github.com/open-edge-platform/os-image-composer/tree/main/docs).
-* To troubleshoot, see [Build Process documentation](./docs/architecture/os-image-composer-build-process.md#troubleshooting-build-issues).
-* [Participate in discussions](https://github.com/open-edge-platform/os-image-composer/discussions).
+## Resources
 
-## Contribute
+### Documentation
 
-* [Open an issue](https://github.com/open-edge-platform/os-image-composer/issues).
-* [Report a security vulnerability](./SECURITY.md).
-* [Submit a pull request](https://github.com/open-edge-platform/os-image-composer/pulls).
+- Run `./os-image-composer --help` for all commands and options
+- [CLI Specification and Reference](./docs/architecture/os-image-composer-cli-specification.md)
+- [Complete Documentation](https://github.com/open-edge-platform/os-image-composer/tree/main/docs)
+- [Build Process Documentation](./docs/architecture/os-image-composer-build-process.md#troubleshooting-build-issues)
+- [Creating and Reusing Image Templates](./docs/architecture/os-image-composer-templates.md)
 
+### Community
 
-## Notices
+- [Participate in Discussions](https://github.com/open-edge-platform/os-image-composer/discussions)
+- [Open an Issue](https://github.com/open-edge-platform/os-image-composer/issues)
+- [Submit a Pull Request](https://github.com/open-edge-platform/os-image-composer/pulls)
+
+### Security
+
+- [Report a Security Vulnerability](./SECURITY.md)
+
+---
+
+## Legal
 
 ### License Information
 

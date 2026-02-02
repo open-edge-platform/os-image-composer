@@ -31,24 +31,10 @@ disk:
     - id: rootfs
       type: linux-root-amd64
       start: 513MiB
-      end: 4557MiB  # 513MiB + 4044MiB (4238528512 bytes) = 4557MiB
+      end: "0"
       fsType: ext4
       mountPoint: /
       mountOptions: defaults
-
-    - id: roothashmap
-      type: linux
-      start: 4557MiB
-      end: 5057MiB  # 4557MiB + 500MiB = 5057MiB
-      fsType: ext4
-      mountPoint: none
-
-    - id: userdata
-      type: linux
-      start: 5057MiB
-      end: "0"  # Uses remaining space until end of disk
-      fsType: ext4
-      mountPoint: /opt
 
 systemConfig:
   name: Default_Raw
@@ -70,6 +56,7 @@ systemConfig:
     - cryptsetup-bin
     - openssh-server
     - systemd-resolved
+    - curl
     # GUI packages
     - xfce4 
     - xfce4-goodies    
@@ -90,16 +77,35 @@ systemConfig:
     - linux-firmware
     - wireless-tools
     - wpasupplicant
+    #cloud init
+    - cloud-init
+    - chrony  
 
   additionalFiles:
     - local: ../additionalfiles/dhcp.network
       final: /etc/systemd/network/dhcp.network
     - local: ../additionalfiles/ubuntu-noble.list
       final: /etc/apt/sources.list.d/ubuntu-noble.list
-  
+    - local: ../additionalfiles/mos-wallpaper.png
+      final: /usr/share/backgrounds/mos-wallpaper.png
+    - local: ../additionalfiles/mos-wallpaper.png
+      final: /usr/share/backgrounds/warty-final-ubuntu.png
+    - local: ../additionalfiles/xfce4-desktop.xml
+      final: /etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml
+    - local: ../additionalfiles/setup-wait-for-network.sh
+      final: /opt/software/setup-wait-for-network.sh
+    - local: ../additionalfiles/setup-ollama.sh
+      final: /opt/software/setup-ollama.sh
+    - local: ../additionalfiles/setup-containers.sh
+      final: /opt/software/setup-containers.sh
+               
   hookScripts:
-    - local_post_rootfs: ../hookscripts/post_rootfs.sh
-      target_post_rootfs: /etc/hooks/post_rootfs.sh
+    - local_post_download_packages: ../hookscripts/post_download.sh
+      target_post_download_packages: /hooks/post_download.sh
+    - local_post_rootfs: ../hookscripts/rebranding.sh
+      target_post_rootfs: /etc/hooks/rebranding.sh
+    - local_post_rootfs: ../hookscripts/cloudinit.sh
+      target_post_rootfs: /etc/hooks/cloudinit.sh
   
   kernel:
     version: "6.14"

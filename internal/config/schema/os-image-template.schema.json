@@ -275,6 +275,11 @@
           "description": "Hook scripts to include in the system",
           "items": { "type": "object", "additionalProperties": true }
         },
+        "configurations": {
+          "type": "array",
+          "description": "Array of shell commands to execute during system configuration",
+          "items": { "type": "object", "additionalProperties": true }
+        },
         "kernel": { "$ref": "#/$defs/Kernel" }
       },
       "additionalProperties": false

@@ -4,12 +4,13 @@ import (
 	"fmt"
 
 	"github.com/open-edge-platform/os-image-composer/internal/config"
+	"github.com/open-edge-platform/os-image-composer/internal/hook"
 	"github.com/open-edge-platform/os-image-composer/internal/provider"
 	"github.com/open-edge-platform/os-image-composer/internal/provider/azl"
 	"github.com/open-edge-platform/os-image-composer/internal/provider/elxr"
 	"github.com/open-edge-platform/os-image-composer/internal/provider/emt"
-	"github.com/open-edge-platform/os-image-composer/internal/provider/ubuntu"
 	"github.com/open-edge-platform/os-image-composer/internal/provider/madani"
+	"github.com/open-edge-platform/os-image-composer/internal/provider/ubuntu"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/system"
 	"github.com/spf13/cobra"
@@ -80,6 +81,8 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading and merging template: %v", err)
 	}
 
+	var cacheDirPath string
+
 	p, err := InitProvider(template.Target.OS, template.Target.Dist, template.Target.Arch)
 	if err != nil {
 		buildErr = fmt.Errorf("initializing provider failed: %v", err)
@@ -88,6 +91,19 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 
 	if err := p.PreProcess(template); err != nil {
 		buildErr = fmt.Errorf("pre-processing failed: %v", err)
+		goto post
+	}
+
+	// Add post package downloaded hook call here
+	log.Infof("Post packages downloaded hook execution...")
+	// Get the cache directory
+	cacheDirPath, err = config.CacheDir()
+	if err != nil {
+		buildErr = fmt.Errorf("failed to get cache directory: %v", err)
+		goto post
+	}
+	if err = hook.HookPostDownloadedPkgs(cacheDirPath, template); err != nil {
+		buildErr = fmt.Errorf("Hook post-downloaded packages failed: %v", err)
 		goto post
 	}
 
@@ -135,7 +151,7 @@ func InitProvider(os, dist, arch string) (provider.Provider, error) {
 	case madani.OsName:
 		if err := madani.Register(os, dist, arch); err != nil {
 			return nil, fmt.Errorf("registering madani provider failed: %v", err)
-		}	
+		}
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", os)
 	}
