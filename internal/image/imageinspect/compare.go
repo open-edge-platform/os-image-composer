@@ -39,11 +39,24 @@ type ImageDiff struct {
 	PartitionTable PartitionTableDiff `json:"partitionTable,omitempty"`
 	Partitions     PartitionDiff      `json:"partitions,omitempty"`
 	EFIBinaries    EFIBinaryDiff      `json:"efiBinaries,omitempty"`
+	Verity         *VerityDiff        `json:"verity,omitempty" yaml:"verity,omitempty"`
 }
 
 // MetaDiff represents differences in image-level metadata.
 type MetaDiff struct {
 	SizeBytes *ValueDiff[int64] `json:"sizeBytes,omitempty"`
+}
+
+// VerityDiff represents differences in dm-verity configuration.
+type VerityDiff struct {
+	Added   *VerityInfo `json:"added,omitempty" yaml:"added,omitempty"`
+	Removed *VerityInfo `json:"removed,omitempty" yaml:"removed,omitempty"`
+	Changed bool        `json:"changed,omitempty" yaml:"changed,omitempty"`
+
+	Enabled       *ValueDiff[bool]   `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	Method        *ValueDiff[string] `json:"method,omitempty" yaml:"method,omitempty"`
+	RootDevice    *ValueDiff[string] `json:"rootDevice,omitempty" yaml:"rootDevice,omitempty"`
+	HashPartition *ValueDiff[int]    `json:"hashPartition,omitempty" yaml:"hashPartition,omitempty"`
 }
 
 // PartitionTableDiff represents differences in partition table-level fields.
@@ -234,6 +247,12 @@ func CompareImages(from, to *ImageSummary) ImageCompareResult {
 		res.Summary.Changed = true
 	}
 
+	// --- dm-verity ---
+	res.Diff.Verity = compareVerity(from.Verity, to.Verity)
+	if res.Diff.Verity != nil && res.Diff.Verity.Changed {
+		res.Summary.Changed = true
+	}
+
 	// Deterministic ordering for stable JSON
 	normalizeCompareResult(&res)
 
@@ -282,6 +301,56 @@ func compareMeta(from, to ImageSummary) MetaDiff {
 		out.SizeBytes = &ValueDiff[int64]{From: from.SizeBytes, To: to.SizeBytes}
 	}
 	return out
+}
+
+func compareVerity(from, to *VerityInfo) *VerityDiff {
+	// Both nil = no difference
+	if from == nil && to == nil {
+		return nil
+	}
+
+	diff := &VerityDiff{}
+
+	// Added (to has verity, from doesn't)
+	if from == nil && to != nil {
+		diff.Added = to
+		diff.Changed = true
+		return diff
+	}
+
+	// Removed (from has verity, to doesn't)
+	if from != nil && to == nil {
+		diff.Removed = from
+		diff.Changed = true
+		return diff
+	}
+
+	// Both present
+	if from.Enabled != to.Enabled {
+		diff.Enabled = &ValueDiff[bool]{From: from.Enabled, To: to.Enabled}
+		diff.Changed = true
+	}
+
+	if from.Method != to.Method {
+		diff.Method = &ValueDiff[string]{From: from.Method, To: to.Method}
+		diff.Changed = true
+	}
+
+	if from.RootDevice != to.RootDevice {
+		diff.RootDevice = &ValueDiff[string]{From: from.RootDevice, To: to.RootDevice}
+		diff.Changed = true
+	}
+
+	if from.HashPartition != to.HashPartition {
+		diff.HashPartition = &ValueDiff[int]{From: from.HashPartition, To: to.HashPartition}
+		diff.Changed = true
+	}
+
+	if !diff.Changed {
+		return nil
+	}
+
+	return diff
 }
 
 // comparePartitionTable compares two PartitionTableSummary objects and returns a PartitionTableDiff.
@@ -750,6 +819,29 @@ func tallyDiffs(d ImageDiff) diffTally {
 	}
 
 	tallyEFIBinaryDiff(&t, d.EFIBinaries)
+
+	// dm-verity changes are meaningful (security-critical)
+	if d.Verity != nil && d.Verity.Changed {
+		if d.Verity.Added != nil {
+			t.addMeaningful(1, "dm-verity enabled")
+		} else if d.Verity.Removed != nil {
+			t.addMeaningful(1, "dm-verity disabled")
+		} else {
+			// Field changes
+			if d.Verity.Enabled != nil {
+				t.addMeaningful(1, "dm-verity enabled status changed")
+			}
+			if d.Verity.Method != nil {
+				t.addMeaningful(1, "dm-verity method changed")
+			}
+			if d.Verity.RootDevice != nil {
+				t.addMeaningful(1, "dm-verity root device changed")
+			}
+			if d.Verity.HashPartition != nil {
+				t.addMeaningful(1, "dm-verity hash partition changed")
+			}
+		}
+	}
 
 	return t
 }
