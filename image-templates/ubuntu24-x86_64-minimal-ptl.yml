@@ -16,7 +16,7 @@ disk:
     # Request conversion to raw
     - type: raw
       compression: gz
-  size: 8GiB
+  size: 16GiB
   # GPT partition table per installer spec
   partitionTableType: gpt
   partitions:
