@@ -1065,3 +1065,298 @@ func TestInspectCore_PhysicalSectorSize_VersusLogicalSectorSize(t *testing.T) {
 		t.Fatalf("expected LogicalSectorSize=512, got %d", got.PartitionTable.LogicalSectorSize)
 	}
 }
+
+func TestDetectVerity_SystemdVerity_WithHashPartition(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "root=/dev/sda2 systemd.verity_name=rootfs systemd.verity_root_data=/dev/sda2 systemd.verity_root_hash=/dev/sda3",
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+			{Index: 3, Name: "roothash"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info == nil {
+		t.Fatal("expected dm-verity to be detected")
+	}
+	if !info.Enabled {
+		t.Fatalf("expected Enabled=true, got false")
+	}
+	if info.Method != "systemd-verity" {
+		t.Fatalf("expected Method=systemd-verity, got %q", info.Method)
+	}
+	if info.RootDevice != "/dev/sda2" {
+		t.Fatalf("expected RootDevice=/dev/sda2, got %q", info.RootDevice)
+	}
+	if info.HashPartition != 3 {
+		t.Fatalf("expected HashPartition=3, got %d", info.HashPartition)
+	}
+	if len(info.Notes) == 0 {
+		t.Fatal("expected notes to be populated")
+	}
+	// Check for expected notes
+	notesStr := strings.Join(info.Notes, "\n")
+	if !strings.Contains(notesStr, "systemd.verity_*") {
+		t.Errorf("expected systemd.verity_* note, got: %s", notesStr)
+	}
+	if !strings.Contains(notesStr, "Hash partition") {
+		t.Errorf("expected hash partition note, got: %s", notesStr)
+	}
+}
+
+func TestDetectVerity_CustomInitramfs_NoHashPartition(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "console=ttyS0 root=/dev/mapper/rootfs_verity rw quiet splash",
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info == nil {
+		t.Fatal("expected dm-verity to be detected")
+	}
+	if !info.Enabled {
+		t.Fatalf("expected Enabled=true, got false")
+	}
+	if info.Method != "custom-initramfs" {
+		t.Fatalf("expected Method=custom-initramfs, got %q", info.Method)
+	}
+	if info.RootDevice != "/dev/mapper/rootfs_verity" {
+		t.Fatalf("expected RootDevice=/dev/mapper/rootfs_verity, got %q", info.RootDevice)
+	}
+	if info.HashPartition != 0 {
+		t.Fatalf("expected HashPartition=0 (none), got %d", info.HashPartition)
+	}
+	// Check for expected notes
+	notesStr := strings.Join(info.Notes, "\n")
+	if !strings.Contains(notesStr, "root=/dev/mapper/*verity*") {
+		t.Errorf("expected root=/dev/mapper/*verity* note, got: %s", notesStr)
+	}
+	if !strings.Contains(notesStr, "No separate hash partition") {
+		t.Errorf("expected 'No separate hash partition' note, got: %s", notesStr)
+	}
+	if !strings.Contains(notesStr, "custom initramfs") {
+		t.Errorf("expected 'custom initramfs' note, got: %s", notesStr)
+	}
+}
+
+func TestDetectVerity_RoothashParameter(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "root=/dev/sda2 roothash=abcdef1234567890 rd.dm.verity=1",
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info == nil {
+		t.Fatal("expected dm-verity to be detected")
+	}
+	if !info.Enabled {
+		t.Fatalf("expected Enabled=true, got false")
+	}
+	if info.Method != "roothash-parameter" {
+		t.Fatalf("expected Method=roothash-parameter, got %q", info.Method)
+	}
+	if info.RootDevice != "/dev/sda2" {
+		t.Fatalf("expected RootDevice=/dev/sda2, got %q", info.RootDevice)
+	}
+	notesStr := strings.Join(info.Notes, "\n")
+	if !strings.Contains(notesStr, "roothash=") {
+		t.Errorf("expected roothash= note, got: %s", notesStr)
+	}
+}
+
+func TestDetectVerity_NoUKI_ReturnsNil(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: false,
+				},
+			},
+			{Index: 2, Name: "root"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info != nil {
+		t.Fatalf("expected nil when no UKI present, got: %+v", info)
+	}
+}
+
+func TestDetectVerity_NoCmdline_ReturnsNil(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "", // Empty cmdline
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info != nil {
+		t.Fatalf("expected nil when cmdline is empty, got: %+v", info)
+	}
+}
+
+func TestDetectVerity_NoVerityParameters_ReturnsNil(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "root=/dev/sda2 quiet splash", // No verity params
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info != nil {
+		t.Fatalf("expected nil when no verity params, got: %+v", info)
+	}
+}
+
+func TestDetectVerity_HashPartitionOnly_WithoutVerity_AddsNote(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "root=/dev/sda2 quiet",
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+			{Index: 3, Name: "roothash"},
+		},
+	}
+
+	info := detectVerity(pt)
+	// Should return nil since no verity params in cmdline
+	if info != nil {
+		t.Fatalf("expected nil when hash partition exists but no verity params, got: %+v", info)
+	}
+}
+
+func TestDetectVerity_MultipleUKIs_UsesFirst(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "root=/dev/mapper/test_verity",
+						},
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "root=/dev/sda2", // This should be ignored
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info == nil {
+		t.Fatal("expected dm-verity to be detected")
+	}
+	if info.RootDevice != "/dev/mapper/test_verity" {
+		t.Fatalf("expected first UKI cmdline to be used, got RootDevice=%q", info.RootDevice)
+	}
+}

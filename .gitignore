@@ -1,7 +1,8 @@
-# ignore everything under the downloads folder
-downloads/
-builds/  
+# ignore build artifacts, cache files, and temporary files 
+/downloads/
+/builds/  
 /cache/
-tmp/ 
+/tmp/ 
+/workspace/
 # AI embedding cache
 .ai-cache/
