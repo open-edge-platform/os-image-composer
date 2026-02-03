@@ -1,0 +1,4 @@
+2026-02-03T07:45:49.744-0800	INFO	os-image-composer/main.go:185	Using configuration from: os-image-composer.yml
+2026-02-03T07:45:49.745-0800	INFO	os-image-composer/inspect_cmd.go:65	Inspecting image file: /home/magersta/emt-emf.raw
+2026-02-03T07:45:49.745-0800	INFO	imageinspect/imageinspect.go:191	Inspecting image: /home/magersta/emt-emf.raw, hashImages=false
+2026-02-03T07:45:49.751-0800	INFO	imageinspect/imageinspect.go:216	Image format is file, converting to RAW for inspection

@@ -1,8 +1,8 @@
 # ignore build artifacts, cache files, and temporary files 
-/downloads/
-/builds/  
-/cache/
-/tmp/ 
-/workspace/
+downloads/
+builds/  
+cache/
+tmp/ 
+workspace/
 # AI embedding cache
 .ai-cache/
