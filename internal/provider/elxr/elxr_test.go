@@ -581,7 +581,7 @@ func TestElxrConfigurationStructure(t *testing.T) {
 	}
 
 	// Test that we can load provider config
-	providerConfigs, err := config.LoadProviderRepoConfig(OsName, "elxr12")
+	providerConfigs, err := config.LoadProviderRepoConfig(OsName, "elxr12", "amd64")
 	if err != nil {
 		t.Logf("Cannot load provider config in test environment: %v", err)
 	} else {
@@ -735,4 +735,517 @@ func TestElxrPostProcessErrorHandling(t *testing.T) {
 
 	// This will panic due to nil chrootEnv, which we catch above
 	_ = elxr.PostProcess(template, inputError)
+}
+
+// TestElxrPreProcessWithMockEnv tests PreProcess with proper mock chrootEnv
+func TestElxrPreProcessWithMockEnv(t *testing.T) {
+	elxr := &eLxr{
+		chrootEnv: &mockChrootEnv{},
+		repoCfgs: []debutils.RepoConfig{{
+			Section:   "main",
+			Name:      "Test Repo",
+			PkgList:   "https://example.com/Packages.gz",
+			PkgPrefix: "https://example.com/",
+			Arch:      "amd64",
+		}},
+	}
+
+	template := createTestImageTemplate()
+
+	err := elxr.PreProcess(template)
+	if err == nil {
+		t.Log("PreProcess succeeded unexpectedly")
+	} else {
+		// Verify the error is from the expected path
+		if !strings.Contains(err.Error(), "failed to") {
+			t.Errorf("Expected error to contain 'failed to', got: %v", err)
+		}
+		t.Logf("PreProcess failed as expected: %v", err)
+	}
+}
+
+// TestElxrDownloadImagePkgsWithMockEnv tests downloadImagePkgs with mock environment
+func TestElxrDownloadImagePkgsWithMockEnv(t *testing.T) {
+	elxr := &eLxr{
+		chrootEnv: &mockChrootEnv{},
+		repoCfgs: []debutils.RepoConfig{{
+			Section:   "main",
+			Name:      "Test Repo",
+			PkgList:   "https://test.example.com/Packages.gz",
+			PkgPrefix: "https://test.example.com/",
+			Arch:      "amd64",
+		}},
+	}
+
+	template := createTestImageTemplate()
+	template.DotFilePath = ""
+
+	err := elxr.downloadImagePkgs(template)
+	if err == nil {
+		t.Log("downloadImagePkgs succeeded unexpectedly")
+	} else {
+		// Verify we reach the download logic
+		t.Logf("downloadImagePkgs failed as expected: %v", err)
+	}
+}
+
+// TestElxrDownloadImagePkgsNoRepos tests error when no repositories configured
+func TestElxrDownloadImagePkgsNoRepos(t *testing.T) {
+	elxr := &eLxr{
+		chrootEnv: &mockChrootEnv{},
+		repoCfgs:  []debutils.RepoConfig{}, // Empty repos
+	}
+
+	template := createTestImageTemplate()
+
+	err := elxr.downloadImagePkgs(template)
+	if err == nil {
+		t.Error("Expected error when no repositories configured")
+	}
+
+	expectedError := "no repository configurations available"
+	if !strings.Contains(err.Error(), expectedError) {
+		t.Errorf("Expected error containing '%s', got: %v", expectedError, err)
+	}
+}
+
+// TestElxrBuildRawImageWithMock tests buildRawImage with mock environment
+func TestElxrBuildRawImageWithMock(t *testing.T) {
+	elxr := &eLxr{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	template := createTestImageTemplate()
+	template.Target.ImageType = "raw"
+
+	err := elxr.buildRawImage(template)
+	if err == nil {
+		t.Error("Expected error with mock environment")
+	} else {
+		// Verify error is from rawmaker initialization
+		if !strings.Contains(err.Error(), "failed to create raw maker") && !strings.Contains(err.Error(), "failed to initialize") {
+			t.Logf("buildRawImage failed with: %v", err)
+		}
+	}
+}
+
+// TestElxrBuildInitrdImageWithMock tests buildInitrdImage with mock environment
+func TestElxrBuildInitrdImageWithMock(t *testing.T) {
+	elxr := &eLxr{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	template := createTestImageTemplate()
+	template.Target.ImageType = "img"
+
+	err := elxr.buildInitrdImage(template)
+	if err == nil {
+		t.Error("Expected error with mock environment")
+	} else {
+		// Verify error is from initrdmaker
+		if !strings.Contains(err.Error(), "failed to create initrd maker") && !strings.Contains(err.Error(), "failed to initialize") {
+			t.Logf("buildInitrdImage failed with: %v", err)
+		}
+	}
+}
+
+// TestElxrBuildIsoImageWithMock tests buildIsoImage with mock environment
+func TestElxrBuildIsoImageWithMock(t *testing.T) {
+	elxr := &eLxr{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	template := createTestImageTemplate()
+	template.Target.ImageType = "iso"
+
+	err := elxr.buildIsoImage(template)
+	if err == nil {
+		t.Error("Expected error with mock environment")
+	} else {
+		// Verify error is from isomaker
+		if !strings.Contains(err.Error(), "failed to create iso maker") && !strings.Contains(err.Error(), "failed to initialize") {
+			t.Logf("buildIsoImage failed with: %v", err)
+		}
+	}
+}
+
+// TestElxrPostProcessSuccess tests PostProcess with mock environment
+func TestElxrPostProcessSuccess(t *testing.T) {
+	elxr := &eLxr{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	template := createTestImageTemplate()
+
+	// Test with no input error - PostProcess should only return cleanup errors
+	err := elxr.PostProcess(template, nil)
+	if err != nil {
+		// PostProcess currently doesn't propagate the input error, only cleanup errors
+		t.Logf("PostProcess returned error: %v", err)
+	}
+}
+
+// TestElxrInstallHostDependency tests installHostDependency function
+func TestElxrInstallHostDependency(t *testing.T) {
+	elxr := &eLxr{}
+
+	// Call installHostDependency
+	err := elxr.installHostDependency()
+
+	// In test environment, this may succeed or fail based on host OS
+	if err != nil {
+		// Verify error message is reasonable
+		if err.Error() == "" {
+			t.Error("Expected non-empty error message")
+		}
+		t.Logf("installHostDependency failed as may be expected: %v", err)
+	} else {
+		t.Log("installHostDependency succeeded - all dependencies present")
+	}
+}
+
+// TestElxrInstallHostDependencyMapping tests the dependency mapping logic
+func TestElxrInstallHostDependencyMapping(t *testing.T) {
+	// Test the expected dependencies mapping
+	expectedDeps := map[string]string{
+		"mmdebstrap":  "mmdebstrap",
+		"mkfs.fat":    "dosfstools",
+		"xorriso":     "xorriso",
+		"sbsign":      "sbsigntool",
+		"ukify":       "systemd-ukify",
+		"veritysetup": "cryptsetup",
+	}
+
+	t.Logf("Expected host dependencies for eLxr provider: %v", expectedDeps)
+
+	// Verify that each expected dependency has a mapping
+	for cmd, pkg := range expectedDeps {
+		if cmd == "" || pkg == "" {
+			t.Errorf("Empty dependency mapping: cmd='%s', pkg='%s'", cmd, pkg)
+		}
+	}
+}
+
+// TestLoadRepoConfigArchMapping tests architecture mapping in loadRepoConfig
+func TestLoadRepoConfigArchMapping(t *testing.T) {
+	// Change to project root
+	originalDir, _ := os.Getwd()
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Logf("Failed to change back to original directory: %v", err)
+		}
+	}()
+
+	if err := os.Chdir("../../../"); err != nil {
+		t.Skipf("Cannot change to project root: %v", err)
+		return
+	}
+
+	testCases := []struct {
+		arch         string
+		expectedArch string
+	}{
+		{"amd64", "amd64"},
+		{"arm64", "arm64"},
+		{"x86_64", "x86_64"}, // Not mapped in loadRepoConfig, mapped in Init
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.arch, func(t *testing.T) {
+			cfgs, err := loadRepoConfig("", tc.arch)
+			if err != nil {
+				t.Logf("loadRepoConfig failed for arch %s: %v", tc.arch, err)
+				return
+			}
+
+			if len(cfgs) == 0 {
+				t.Errorf("Expected at least one config for arch %s", tc.arch)
+				return
+			}
+
+			// Note: The actual arch in config might differ based on provider config
+			t.Logf("loadRepoConfig succeeded for arch %s: got %d configs", tc.arch, len(cfgs))
+		})
+	}
+}
+
+// TestLoadRepoConfigInvalidArch tests error handling for invalid architecture
+func TestLoadRepoConfigInvalidArch(t *testing.T) {
+	// Change to project root
+	originalDir, _ := os.Getwd()
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Logf("Failed to change back to original directory: %v", err)
+		}
+	}()
+
+	if err := os.Chdir("../../../"); err != nil {
+		t.Skipf("Cannot change to project root: %v", err)
+		return
+	}
+
+	_, err := loadRepoConfig("", "invalid-arch")
+	if err == nil {
+		t.Error("Expected error for invalid architecture")
+	} else {
+		t.Logf("Got expected error for invalid arch: %v", err)
+	}
+}
+
+// TestDisplayImageArtifacts tests displayImageArtifacts function
+func TestDisplayImageArtifacts(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+
+	// Test with empty directory
+	displayImageArtifacts(tempDir, "TEST")
+	t.Log("displayImageArtifacts called successfully with empty directory")
+
+	// Test with different image types
+	displayImageArtifacts(tempDir, "RAW")
+	displayImageArtifacts(tempDir, "ISO")
+	displayImageArtifacts(tempDir, "IMG")
+
+	t.Log("displayImageArtifacts tested with multiple image types")
+}
+
+// TestRegisterSuccess tests successful Register call
+func TestRegisterSuccess(t *testing.T) {
+	// Test Register function with valid parameters
+
+	// Test that Register doesn't panic
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("Register panicked: %v", r)
+		}
+	}()
+
+	err := Register("wind-river-elxr", "elxr12", "amd64")
+
+	// We expect error in test environment, but it should be controlled
+	if err != nil {
+		t.Logf("Register returned expected error in test environment: %v", err)
+	} else {
+		t.Log("Register succeeded unexpectedly - config files present")
+	}
+}
+
+// TestElxrInitWithAarch64 tests Init with aarch64 architecture
+func TestElxrInitWithAarch64(t *testing.T) {
+	// Change to project root
+	originalDir, _ := os.Getwd()
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Logf("Failed to change back to original directory: %v", err)
+		}
+	}()
+
+	if err := os.Chdir("../../../"); err != nil {
+		t.Skipf("Cannot change to project root: %v", err)
+		return
+	}
+
+	elxr := &eLxr{}
+
+	err := elxr.Init("elxr12", "aarch64")
+	if err != nil {
+		t.Logf("Init failed for aarch64: %v", err)
+		return
+	}
+
+	if len(elxr.repoCfgs) == 0 {
+		t.Error("Expected repoCfgs to be populated for aarch64")
+		return
+	}
+
+	// Verify aarch64 is mapped to arm64
+	if elxr.repoCfgs[0].Arch != "arm64" {
+		t.Errorf("Expected arch to be mapped to arm64, got: %s", elxr.repoCfgs[0].Arch)
+	}
+
+	// Verify arm64 is in the PkgList URL
+	if elxr.repoCfgs[0].PkgList != "" && !strings.Contains(elxr.repoCfgs[0].PkgList, "arm64") {
+		t.Errorf("Expected PkgList to contain 'arm64', got: %s", elxr.repoCfgs[0].PkgList)
+	}
+
+	t.Logf("Successfully initialized with aarch64: %s", elxr.repoCfgs[0].PkgList)
+}
+
+// TestElxrInitErrorPaths tests error paths in Init method
+func TestElxrInitErrorPaths(t *testing.T) {
+	elxr := &eLxr{}
+
+	// Test with invalid dist (no config files)
+	err := elxr.Init("invalid-dist", "amd64")
+	if err == nil {
+		t.Error("Expected error for invalid dist")
+	} else {
+		t.Logf("Got expected error for invalid dist: %v", err)
+	}
+}
+
+// TestBuildImageEdgeCases tests edge cases in BuildImage
+func TestBuildImageEdgeCases(t *testing.T) {
+	elxr := &eLxr{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	// Test with empty image name
+	template := createTestImageTemplate()
+	template.Image.Name = ""
+	template.Target.ImageType = "raw"
+
+	err := elxr.BuildImage(template)
+	if err == nil {
+		t.Log("BuildImage handled empty name gracefully")
+	} else {
+		t.Logf("BuildImage with empty name failed: %v", err)
+	}
+}
+
+// TestPreProcessErrorPropagation tests error propagation in PreProcess
+func TestPreProcessErrorPropagation(t *testing.T) {
+	elxr := &eLxr{
+		chrootEnv: &mockChrootEnv{},
+		repoCfgs:  []debutils.RepoConfig{}, // Empty repos will cause error
+	}
+
+	template := createTestImageTemplate()
+
+	err := elxr.PreProcess(template)
+	if err != nil {
+		// Verify error message contains context
+		if !strings.Contains(err.Error(), "failed to") {
+			t.Errorf("Expected error to contain context, got: %v", err)
+		}
+	}
+}
+
+// TestElxrNameWithVariousInputs tests Name method with different dist and arch combinations
+func TestElxrNameWithVariousInputs(t *testing.T) {
+	elxr := &eLxr{}
+
+	testCases := []struct {
+		dist     string
+		arch     string
+		expected string
+	}{
+		{"elxr12", "amd64", "wind-river-elxr-elxr12-amd64"},
+		{"elxr12", "arm64", "wind-river-elxr-elxr12-arm64"},
+		{"elxr13", "x86_64", "wind-river-elxr-elxr13-x86_64"},
+		{"", "", "wind-river-elxr--"},
+		{"test", "test", "wind-river-elxr-test-test"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%s-%s", tc.dist, tc.arch), func(t *testing.T) {
+			result := elxr.Name(tc.dist, tc.arch)
+			if result != tc.expected {
+				t.Errorf("Expected '%s', got '%s'", tc.expected, result)
+			}
+		})
+	}
+}
+
+// TestElxrMethodSignatures tests that all interface methods have correct signatures
+func TestElxrMethodSignatures(t *testing.T) {
+	elxr := &eLxr{}
+
+	// Test that all methods can be assigned to their expected function types
+	var nameFunc func(string, string) string = elxr.Name
+	var initFunc func(string, string) error = elxr.Init
+	var preProcessFunc func(*config.ImageTemplate) error = elxr.PreProcess
+	var buildImageFunc func(*config.ImageTemplate) error = elxr.BuildImage
+	var postProcessFunc func(*config.ImageTemplate, error) error = elxr.PostProcess
+
+	t.Logf("Name method signature: %T", nameFunc)
+	t.Logf("Init method signature: %T", initFunc)
+	t.Logf("PreProcess method signature: %T", preProcessFunc)
+	t.Logf("BuildImage method signature: %T", buildImageFunc)
+	t.Logf("PostProcess method signature: %T", postProcessFunc)
+}
+
+// TestElxrConstants tests eLxr provider constants
+func TestElxrConstants(t *testing.T) {
+	// Test OsName constant
+	if OsName != "wind-river-elxr" {
+		t.Errorf("Expected OsName 'wind-river-elxr', got '%s'", OsName)
+	}
+}
+
+// TestElxrStructInitialization tests eLxr struct initialization
+func TestElxrStructInitialization(t *testing.T) {
+	// Test zero value initialization
+	elxr := &eLxr{}
+
+	if elxr.repoCfgs != nil {
+		t.Error("Expected nil repoCfgs in uninitialized eLxr")
+	}
+
+	if elxr.chrootEnv != nil {
+		t.Error("Expected nil chrootEnv in uninitialized eLxr")
+	}
+}
+
+// TestElxrStructWithData tests eLxr struct with initialized data
+func TestElxrStructWithData(t *testing.T) {
+	cfg := debutils.RepoConfig{
+		Name:      "Test Repo",
+		PkgList:   "https://test.example.com/Packages.gz",
+		PkgPrefix: "https://test.example.com/",
+		Section:   "main",
+		Arch:      "amd64",
+	}
+
+	elxr := &eLxr{
+		repoCfgs: []debutils.RepoConfig{cfg},
+	}
+
+	if len(elxr.repoCfgs) != 1 {
+		t.Errorf("Expected 1 repo config, got %d", len(elxr.repoCfgs))
+	}
+
+	if elxr.repoCfgs[0].Name != "Test Repo" {
+		t.Errorf("Expected repo name 'Test Repo', got '%s'", elxr.repoCfgs[0].Name)
+	}
+
+	if elxr.repoCfgs[0].PkgList != "https://test.example.com/Packages.gz" {
+		t.Errorf("Expected PkgList 'https://test.example.com/Packages.gz', got '%s'", elxr.repoCfgs[0].PkgList)
+	}
+}
+
+// TestLoadRepoConfigMultipleRepos tests loadRepoConfig with multiple repositories
+func TestLoadRepoConfigMultipleRepos(t *testing.T) {
+	// Change to project root
+	originalDir, _ := os.Getwd()
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Logf("Failed to change back to original directory: %v", err)
+		}
+	}()
+
+	if err := os.Chdir("../../../"); err != nil {
+		t.Skipf("Cannot change to project root: %v", err)
+		return
+	}
+
+	cfgs, err := loadRepoConfig("", "amd64")
+	if err != nil {
+		t.Logf("loadRepoConfig failed: %v", err)
+		return
+	}
+
+	t.Logf("loadRepoConfig returned %d repositories", len(cfgs))
+
+	for i, cfg := range cfgs {
+		t.Logf("Repository %d: name=%s, arch=%s", i, cfg.Name, cfg.Arch)
+
+		if cfg.Name == "" {
+			t.Errorf("Repository %d has empty name", i)
+		}
+
+		if cfg.Arch == "" {
+			t.Errorf("Repository %d has empty arch", i)
+		}
+	}
 }

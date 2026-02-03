@@ -166,11 +166,11 @@ run_qemu_boot_test() {
     IMAGE=\"$IMAGE\"
     RAW_IMAGE=\"$RAW_IMAGE\"
     ORIGINAL_DIR=\"$ORIGINAL_DIR\"
+        #-enable-kvm \\
     
     touch \"\$LOGFILE\" && chmod 666 \"\$LOGFILE\"    
-    nohup qemu-system-x86_64 \\
+    nohup qemu-system-aarch64 \\
         -m 2048 \\
-        -enable-kvm \\
         -cpu host \\
         -drive if=none,file=\"\$IMAGE\",format=raw,id=nvme0 \\
         -device nvme,drive=nvme0,serial=deadbeef \\
@@ -219,72 +219,41 @@ run_qemu_boot_test() {
   return $qemu_result     
 }
 
-check_disk_space() {
-  local min_required_gb=${1:-10}  # Default 10GB minimum
-  local available_kb=$(df . | tail -1 | awk '{print $4}')
-  local available_gb=$((available_kb / 1024 / 1024))
-  
-  echo "Available disk space: ${available_gb}GB"
-  
-  if [ "$available_gb" -lt "$min_required_gb" ]; then
-    echo "WARNING: Low disk space! Available: ${available_gb}GB, Recommended minimum: ${min_required_gb}GB"
-    echo "Attempting emergency cleanup..."
-    cleanup_image_files all
-    
-    # Recheck after cleanup
-    available_kb=$(df . | tail -1 | awk '{print $4}')
-    available_gb=$((available_kb / 1024 / 1024))
-    echo "Available disk space after cleanup: ${available_gb}GB"
-    
-    if [ "$available_gb" -lt "$((min_required_gb / 2))" ]; then
-      echo "ERROR: Still critically low on disk space after cleanup!"
-      return 1
-    fi
-  fi
-  return 0
-}
-
 git branch
 #Build the OS Image Composer
 echo "Building the OS Image Composer..."
 echo "Generating binary with go build..."
 go build ./cmd/os-image-composer
 
-build_ubuntu24_raw_image() {
-  echo "Building Ubuntu 24 raw Image. (using os-image-composer binary)"
+build_azl3_raw_image() {
+  echo "Building AZL3 raw Image for ARM64. (using os-image-composer binary)"
   # Ensure we're in the working directory before starting builds
   echo "Ensuring we're in the working directory before starting builds..."
   cd "$WORKING_DIR"
   echo "Current working directory: $(pwd)"
-
-  # Check disk space before building (require at least 12GB for Ubuntu 24 images)
-  if ! check_disk_space 12; then
-    echo "Insufficient disk space for Ubuntu 24 raw image build"
-    exit 1
-  fi
-
-  # Temporarily disable exit on error for the build command to capture output
+  
+ # Temporarily disable exit on error for the build command to capture output
   set +e
-  output=$( sudo -S ./os-image-composer build image-templates/ubuntu24-x86_64-minimal-raw.yml 2>&1)
+  output=$( sudo -S ./os-image-composer --verbose build image-templates/azl3-aarch64-edge-raw.yml 2>&1)
   build_exit_code=$?
   set -e
-  
+
   # Check for the success message in the output
   if [ $build_exit_code -eq 0 ] && echo "$output" | grep -q "image build completed successfully"; then
-    echo "Ubuntu 24 raw Image build passed."
+    echo "AZL3 raw Image build passed."
     if [ "$RUN_QEMU_TESTS" = true ]; then
-      echo "Running QEMU boot test for Ubuntu 24 raw image..."
-      if run_qemu_boot_test "minimal-os-image-ubuntu-24.04"; then
-        echo "QEMU boot test PASSED for Ubuntu 24 raw image"
+      echo "Running QEMU boot test for AZL3 raw image..."
+      if run_qemu_boot_test "azl3-aarch64-edge"; then
+        echo "QEMU boot test PASSED for AZL3 raw image"
       else
-        echo "QEMU boot test FAILED for Ubuntu 24 raw image"
+        echo "QEMU boot test FAILED for AZL3 raw image"
         exit 1
       fi
       # Clean up after QEMU test to free space
       cleanup_image_files raw
     fi
   else
-    echo "Ubuntu 24 raw Image build failed."
+    echo "AZL3 raw Image build failed."
     echo "Build output:"
     echo "$output"
     exit 1 # Exit with error if build fails
@@ -292,4 +261,4 @@ build_ubuntu24_raw_image() {
 }
 
 # Run the main function
-build_ubuntu24_raw_image
+build_azl3_raw_image

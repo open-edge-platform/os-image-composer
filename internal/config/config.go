@@ -612,7 +612,7 @@ func (t *ImageTemplate) GetPackageRepositories() []PackageRepository {
 
 // LoadProviderRepoConfig loads provider repository configuration from YAML file
 // Returns a slice of ProviderRepoConfig to support multiple repositories
-func LoadProviderRepoConfig(targetOS, targetDist string) ([]ProviderRepoConfig, error) {
+func LoadProviderRepoConfig(targetOS, targetDist string, arch string) ([]ProviderRepoConfig, error) {
 	// Get the target OS config directory
 	targetOsConfigDir, err := GetTargetOsConfigDir(targetOS, targetDist)
 	if err != nil {
@@ -620,7 +620,7 @@ func LoadProviderRepoConfig(targetOS, targetDist string) ([]ProviderRepoConfig, 
 	}
 
 	// Construct path to repo.yml
-	repoConfigPath := filepath.Join(targetOsConfigDir, "providerconfigs", "repo.yml")
+	repoConfigPath := filepath.Join(targetOsConfigDir, "providerconfigs", arch+"_repo.yml")
 
 	// Read the YAML file
 	yamlData, err := security.SafeReadFile(repoConfigPath, security.RejectSymlinks)

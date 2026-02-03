@@ -272,7 +272,7 @@ func (p *AzureLinux) downloadImagePkgs(template *config.ImageTemplate) error {
 // loadRepoConfigFromYAML loads repository configuration from centralized YAML config
 func loadRepoConfigFromYAML(dist, arch string) (rpmutils.RepoConfig, error) {
 	// Load the centralized provider config
-	providerConfigs, err := config.LoadProviderRepoConfig(OsName, dist)
+	providerConfigs, err := config.LoadProviderRepoConfig(OsName, dist, arch)
 	if err != nil {
 		return rpmutils.RepoConfig{}, fmt.Errorf("failed to load provider repo config: %w", err)
 	}

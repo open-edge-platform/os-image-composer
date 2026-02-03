@@ -1,11 +1,11 @@
 image:
-  name: azl3-default-x86_64
-  version: "1.0.0"
+  name: minimal-os-image-elxr
+  version: "12.0.0"
 
 target:
-  os: azure-linux # Target OS name
-  dist: azl3 # Target OS distribution
-  arch: x86_64 # Target OS architecture
+  os: wind-river-elxr # Target OS name
+  dist: elxr12 # Target OS distribution
+  arch: aarch64 # Target OS architecture
   imageType: raw # Image type, valid value: [raw, iso].
 
 disk:
@@ -29,7 +29,7 @@ disk:
       mountOptions: umask=0077
 
     - id: rootfs
-      type: linux-root-amd64
+      type: linux-root-arm64
       start: 513MiB
       end: 2561MiB  # 513MiB + 2GiB (2048MiB) = 2561MiB
       fsType: ext4
@@ -59,45 +59,37 @@ systemConfig:
     provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
 
   immutability:
-    enabled: false # default is true
+    enabled: true # default is true
 
   packages:
-    - filesystem
-    - kernel
-    - azurelinux-release
-    # hyperv packages
-    - dracut-hyperv
-    - hyperv-daemons
-    # core image packages
-    - shim
-    - systemd-boot
-    - systemd-ukify
     - ca-certificates
-    - cronie-anacron
-    - logrotate
-    - core-packages-base-image
-    - dracut-hostonly
-    - dracut-vrf
-    - initramfs
-    - shadow-utils
-    # ssh-server
+    - vim
+    - sudo
+    - net-tools
+    - openssh-client
     - openssh-server
-    # cloud-init packages
-    - cloud-init
-    - cloud-utils-growpart
-    # virt guest packages
-    - dracut-virtio
-    - dracut-xen
-    - veritysetup
+    - procps
+    - less
+    - dbus
+    - policykit-1
+    - curl
+    - wget
+    - uefi-ext4
+    - systemd-resolved
+    - cloud-guest-utils
+    - dracut
+    - systemd-boot
+    - elxr-archive-keyring
 
   additionalFiles:
-    - local: ../additionalfiles/99-dhcp-en.network
-      final: /etc/systemd/network/99-dhcp-en.network
+    - local: ../additionalfiles/dhcp.network
+      final: /etc/systemd/network/dhcp.network
+    - local: ../additionalfiles/elxr-aria.list
+      final: /etc/apt/sources.list.d/elxr-aria.list
 
   kernel:
     name: kernel
-    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
-    enableExtraModules: "usbcore usb-common"
-    packages:
-     - kernel
+    cmdline: "quiet splash console=ttyS0,115200 console=tty0 loglevel=7"
     uki: true
+    packages:
+     - linux-image-cloud-arm64 

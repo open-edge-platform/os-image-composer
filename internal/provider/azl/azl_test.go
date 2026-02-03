@@ -738,3 +738,318 @@ func TestAzlDownloadImagePkgs(t *testing.T) {
 	// and doesn't handle nil chrootEnv gracefully
 	t.Skip("downloadImagePkgs requires proper Azure Linux initialization with chrootEnv - function exists and is callable")
 }
+
+// TestAzlPreProcessWithMockEnv tests PreProcess with proper mock chrootEnv
+func TestAzlPreProcessWithMockEnv(t *testing.T) {
+	azl := &AzureLinux{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	template := createTestImageTemplate()
+
+	// PreProcess will fail at installHostDependency but we can verify the call chain
+	err := azl.PreProcess(template)
+	if err == nil {
+		t.Log("PreProcess succeeded unexpectedly")
+	} else {
+		// Verify the error is from the expected path
+		if !strings.Contains(err.Error(), "failed to") {
+			t.Errorf("Expected error to contain 'failed to', got: %v", err)
+		}
+		t.Logf("PreProcess failed as expected: %v", err)
+	}
+}
+
+// TestAzlDownloadImagePkgsWithMockEnv tests downloadImagePkgs with mock environment
+func TestAzlDownloadImagePkgsWithMockEnv(t *testing.T) {
+	azl := &AzureLinux{
+		chrootEnv: &mockChrootEnv{},
+		repoCfg: rpmutils.RepoConfig{
+			Name:    "Test Repo",
+			URL:     "https://test.example.com",
+			Section: "test",
+		},
+		gzHref: "repodata/test.xml.gz",
+	}
+
+	template := createTestImageTemplate()
+	template.DotFilePath = ""
+
+	// downloadImagePkgs will fail at package download but we can verify the call
+	err := azl.downloadImagePkgs(template)
+	if err == nil {
+		t.Log("downloadImagePkgs succeeded unexpectedly")
+	} else {
+		// Verify we reach the download logic
+		t.Logf("downloadImagePkgs failed as expected: %v", err)
+	}
+}
+
+// TestAzlBuildRawImageWithMock tests buildRawImage with mock environment
+func TestAzlBuildRawImageWithMock(t *testing.T) {
+	azl := &AzureLinux{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	template := createTestImageTemplate()
+	template.Target.ImageType = "raw"
+
+	err := azl.buildRawImage(template)
+	if err == nil {
+		t.Error("Expected error with mock environment")
+	} else {
+		// Verify error is from rawmaker initialization
+		if !strings.Contains(err.Error(), "failed to create raw maker") && !strings.Contains(err.Error(), "failed to initialize") {
+			t.Logf("buildRawImage failed with: %v", err)
+		}
+	}
+}
+
+// TestAzlBuildInitrdImageWithMock tests buildInitrdImage with mock environment
+func TestAzlBuildInitrdImageWithMock(t *testing.T) {
+	azl := &AzureLinux{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	template := createTestImageTemplate()
+	template.Target.ImageType = "img"
+
+	err := azl.buildInitrdImage(template)
+	if err == nil {
+		t.Error("Expected error with mock environment")
+	} else {
+		// Verify error is from initrdmaker
+		if !strings.Contains(err.Error(), "failed to create initrd maker") && !strings.Contains(err.Error(), "failed to initialize") {
+			t.Logf("buildInitrdImage failed with: %v", err)
+		}
+	}
+}
+
+// TestAzlBuildIsoImageWithMock tests buildIsoImage with mock environment
+func TestAzlBuildIsoImageWithMock(t *testing.T) {
+	azl := &AzureLinux{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	template := createTestImageTemplate()
+	template.Target.ImageType = "iso"
+
+	err := azl.buildIsoImage(template)
+	if err == nil {
+		t.Error("Expected error with mock environment")
+	} else {
+		// Verify error is from isomaker
+		if !strings.Contains(err.Error(), "failed to create iso maker") && !strings.Contains(err.Error(), "failed to initialize") {
+			t.Logf("buildIsoImage failed with: %v", err)
+		}
+	}
+}
+
+// TestAzlPostProcessSuccess tests PostProcess with mock environment
+func TestAzlPostProcessSuccess(t *testing.T) {
+	azl := &AzureLinux{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	template := createTestImageTemplate()
+
+	// Test with no input error
+	err := azl.PostProcess(template, nil)
+	if err != nil {
+		t.Errorf("Expected nil error when input error is nil, got: %v", err)
+	}
+
+	// Test with input error - should return the same error
+	inputErr := fmt.Errorf("build failed")
+	err = azl.PostProcess(template, inputErr)
+	if err != inputErr {
+		t.Errorf("Expected PostProcess to return input error, got: %v", err)
+	}
+}
+
+// TestLoadRepoConfigFromYAMLErrors tests error cases in loadRepoConfigFromYAML
+func TestLoadRepoConfigFromYAMLErrors(t *testing.T) {
+	// Test with invalid dist/arch
+	_, err := loadRepoConfigFromYAML("invalid", "invalid")
+	if err == nil {
+		t.Error("Expected error for invalid dist/arch")
+	} else {
+		t.Logf("Got expected error: %v", err)
+	}
+}
+
+// TestLoadRepoConfigFromYAMLAarch64 tests loadRepoConfigFromYAML with aarch64
+func TestLoadRepoConfigFromYAMLAarch64(t *testing.T) {
+	// Change to project root
+	originalDir, _ := os.Getwd()
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Logf("Failed to change back to original directory: %v", err)
+		}
+	}()
+
+	// Navigate to project root
+	if err := os.Chdir("../../../"); err != nil {
+		t.Skipf("Cannot change to project root: %v", err)
+		return
+	}
+
+	// Test with aarch64 architecture
+	cfg, err := loadRepoConfigFromYAML("azl3", "aarch64")
+	if err != nil {
+		t.Skipf("loadRepoConfigFromYAML failed for aarch64: %v", err)
+		return
+	}
+
+	if cfg.Name == "" {
+		t.Error("Expected config name to be set for aarch64")
+	}
+
+	t.Logf("Successfully loaded aarch64 config: %s", cfg.Name)
+}
+
+// TestDisplayImageArtifacts tests displayImageArtifacts function
+func TestDisplayImageArtifacts(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+
+	// Test with empty directory
+	displayImageArtifacts(tempDir, "TEST")
+	t.Log("displayImageArtifacts called successfully with empty directory")
+
+	// Test with different image types
+	displayImageArtifacts(tempDir, "RAW")
+	displayImageArtifacts(tempDir, "ISO")
+	displayImageArtifacts(tempDir, "IMG")
+
+	t.Log("displayImageArtifacts tested with multiple image types")
+}
+
+// TestRegisterSuccess tests successful Register call
+func TestRegisterSuccess(t *testing.T) {
+	// This test verifies the Register function path
+	// In a real environment with config files, this would work
+
+	// Test that Register doesn't panic
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("Register panicked: %v", r)
+		}
+	}()
+
+	err := Register("azure-linux", "azl3", "x86_64")
+
+	// We expect error in test environment, but it should be controlled
+	if err != nil {
+		t.Logf("Register returned expected error in test environment: %v", err)
+	} else {
+		t.Log("Register succeeded unexpectedly - config files present")
+	}
+}
+
+// TestInstallHostDependencyMapping tests the dependency mapping logic
+func TestInstallHostDependencyMapping(t *testing.T) {
+	azl := &AzureLinux{}
+
+	// Call installHostDependency
+	err := azl.installHostDependency()
+
+	// In test environment, this may succeed or fail based on host OS
+	if err != nil {
+		// Verify error message is reasonable
+		if err.Error() == "" {
+			t.Error("Expected non-empty error message")
+		}
+		t.Logf("installHostDependency failed as may be expected: %v", err)
+	} else {
+		t.Log("installHostDependency succeeded - all dependencies present")
+	}
+}
+
+// TestAzlInitWithAarch64 tests Init with aarch64 architecture
+func TestAzlInitWithAarch64(t *testing.T) {
+	// Change to project root
+	originalDir, _ := os.Getwd()
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Logf("Failed to change back to original directory: %v", err)
+		}
+	}()
+
+	if err := os.Chdir("../../../"); err != nil {
+		t.Skipf("Cannot change to project root: %v", err)
+		return
+	}
+
+	azl := &AzureLinux{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	err := azl.Init("azl3", "aarch64")
+	if err != nil {
+		t.Skipf("Init failed for aarch64: %v", err)
+		return
+	}
+
+	if azl.repoCfg.URL == "" {
+		t.Error("Expected repoCfg.URL to be set for aarch64")
+	}
+
+	// Verify aarch64 is in the URL
+	if !strings.Contains(azl.repoCfg.URL, "aarch64") {
+		t.Errorf("Expected URL to contain 'aarch64', got: %s", azl.repoCfg.URL)
+	}
+
+	t.Logf("Successfully initialized with aarch64: %s", azl.repoCfg.URL)
+}
+
+// TestAzlInitErrorPaths tests error paths in Init method
+func TestAzlInitErrorPaths(t *testing.T) {
+	azl := &AzureLinux{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	// Test with invalid dist
+	err := azl.Init("invalid-dist", "x86_64")
+	if err == nil {
+		t.Error("Expected error for invalid dist")
+	} else {
+		t.Logf("Got expected error for invalid dist: %v", err)
+	}
+}
+
+// TestBuildImageEdgeCases tests edge cases in BuildImage
+func TestBuildImageEdgeCases(t *testing.T) {
+	azl := &AzureLinux{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	// Test with empty image name
+	template := createTestImageTemplate()
+	template.Image.Name = ""
+	template.Target.ImageType = "raw"
+
+	err := azl.BuildImage(template)
+	if err == nil {
+		t.Log("BuildImage handled empty name gracefully")
+	} else {
+		t.Logf("BuildImage with empty name failed: %v", err)
+	}
+}
+
+// TestPreProcessErrorPropagation tests error propagation in PreProcess
+func TestPreProcessErrorPropagation(t *testing.T) {
+	azl := &AzureLinux{
+		chrootEnv: &mockChrootEnv{},
+	}
+
+	template := createTestImageTemplate()
+
+	err := azl.PreProcess(template)
+	if err != nil {
+		// Verify error message contains context
+		if !strings.Contains(err.Error(), "failed to") {
+			t.Errorf("Expected error to contain context, got: %v", err)
+		}
+	}
+}

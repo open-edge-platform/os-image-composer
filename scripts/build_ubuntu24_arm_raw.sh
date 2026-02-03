@@ -166,16 +166,18 @@ run_qemu_boot_test() {
     IMAGE=\"$IMAGE\"
     RAW_IMAGE=\"$RAW_IMAGE\"
     ORIGINAL_DIR=\"$ORIGINAL_DIR\"
+       # -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \\
+       # -drive if=pflash,format=raw,file=/usr/share/OVMF/OVMF_VARS_4M.fd \\
+       # -enable-kvm \\
     
     touch \"\$LOGFILE\" && chmod 666 \"\$LOGFILE\"    
-    nohup qemu-system-x86_64 \\
+    nohup qemu-system-aarch64 \\
         -m 2048 \\
-        -enable-kvm \\
+        -machine virt \\
         -cpu host \\
         -drive if=none,file=\"\$IMAGE\",format=raw,id=nvme0 \\
         -device nvme,drive=nvme0,serial=deadbeef \\
-        -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \\
-        -drive if=pflash,format=raw,file=/usr/share/OVMF/OVMF_VARS_4M.fd \\
+        -bios /usr/share/qemu/edk2-aarch64-code.fd \\
         -nographic \\
         -serial mon:stdio \\
         > \"\$LOGFILE\" 2>&1 &
@@ -264,11 +266,10 @@ build_ubuntu24_raw_image() {
   fi
 
   # Temporarily disable exit on error for the build command to capture output
-  set +e
-  output=$( sudo -S ./os-image-composer build image-templates/ubuntu24-x86_64-minimal-raw.yml 2>&1)
-  build_exit_code=$?
-  set -e
-  
+   set +e
+   output=$( sudo -S ./os-image-composer build image-templates/ubuntu24-aarch64-minimal-raw.yml 2>&1)
+   build_exit_code=$?
+   set -e
   # Check for the success message in the output
   if [ $build_exit_code -eq 0 ] && echo "$output" | grep -q "image build completed successfully"; then
     echo "Ubuntu 24 raw Image build passed."

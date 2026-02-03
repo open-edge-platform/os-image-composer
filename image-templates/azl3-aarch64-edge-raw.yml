@@ -1,28 +1,11 @@
-# AI-searchable metadata for template discovery
-metadata:
-  description: "Azure Linux 3 edge-optimized raw disk image with container runtime and Azure IoT edge packages"
-  use_cases:
-    - "Azure IoT Edge"
-    - "edge computing"
-    - "container workloads"
-    - "cloud-connected edge"
-  keywords:
-    - edge
-    - container
-    - docker
-    - azure
-    - azl3
-    - iot
-    - cloud
-
 image:
-  name: azl3-x86_64-edge
+  name: azl3-aarch64-edge
   version: "1.0.0"
 
 target:
   os: azure-linux # Target OS name
   dist: azl3 # Target OS distribution
-  arch: x86_64 # Target OS architecture
+  arch: aarch64 # Target OS architecture
   imageType: raw # Image type, valid value: [raw, iso].
 
 # Disk configuration can be omitted to use defaults from default template
@@ -86,10 +69,10 @@ systemConfig:
 
   # Kernel Configuration
   kernel:
-    version: "6.12"
+    #version: "6.12"
     cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
-    #packages:
-    #  - kernel-azure
+    packages:
+      - kernel-64k-6.6.57.1-6.azl3.aarch64.rpm 
     #  - kernel-modules-azure
 
   # Everything else uses defaults from the default template:

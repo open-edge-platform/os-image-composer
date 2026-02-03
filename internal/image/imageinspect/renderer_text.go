@@ -141,6 +141,12 @@ func RenderCompareText(w io.Writer, r *ImageCompareResult, opts CompareTextOptio
 		renderEFIBinaryDiffText(w, r.Diff.EFIBinaries, "  ")
 	}
 
+	// dm-verity diff
+	if r.Diff.Verity != nil && r.Diff.Verity.Changed {
+		fmt.Fprintln(w)
+		renderVerityDiffText(w, r.Diff.Verity)
+	}
+
 	// Full mode: image metadata & volatile / meaningful remove reasons
 	if mode == "full" {
 		renderImagesBlock(w, r.From, r.To)
@@ -168,7 +174,11 @@ func RenderSummaryText(w io.Writer, summary *ImageSummary, opts TextOptions) err
 
 	// Partitions table (includes the “Partitions” header)
 	renderPartitionTable(w, summary.PartitionTable)
-
+	// dm-verity section
+	if summary.Verity != nil && summary.Verity.Enabled {
+		fmt.Fprintln(w)
+		renderVerityInfo(w, summary.Verity)
+	}
 	// Detailed per-partition filesystem blocks (ONLY ONCE)
 	for _, p := range summary.PartitionTable.Partitions {
 		if p.Filesystem == nil || isFilesystemEmpty(p.Filesystem) {
@@ -544,6 +554,69 @@ func renderPartitionTableHeader(w io.Writer, pt PartitionTableSummary) {
 		fmt.Fprintf(tw, "Misaligned partitions:\t%v\n", pt.MisalignedPartitions)
 	}
 	_ = tw.Flush()
+}
+
+func renderVerityInfo(w io.Writer, v *VerityInfo) {
+	fmt.Fprintln(w, "dm-verity Configuration")
+	fmt.Fprintln(w, "-----------------------")
+
+	tw := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
+	fmt.Fprintf(tw, "Enabled:\t%t\n", v.Enabled)
+	if v.Method != "" {
+		fmt.Fprintf(tw, "Method:\t%s\n", v.Method)
+	}
+	if v.RootDevice != "" {
+		fmt.Fprintf(tw, "Root device:\t%s\n", v.RootDevice)
+	}
+	if v.HashPartition > 0 {
+		fmt.Fprintf(tw, "Hash partition:\t%d\n", v.HashPartition)
+	}
+	_ = tw.Flush()
+
+	if len(v.Notes) > 0 {
+		fmt.Fprintln(w, "Notes:")
+		for _, note := range v.Notes {
+			fmt.Fprintf(w, "  - %s\n", note)
+		}
+	}
+}
+
+func renderVerityDiffText(w io.Writer, d *VerityDiff) {
+	fmt.Fprintln(w, "dm-verity:")
+
+	if d.Added != nil {
+		fmt.Fprintln(w, "  dm-verity ENABLED:")
+		tw := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
+		fmt.Fprintf(tw, "    Method:\t%s\n", d.Added.Method)
+		if d.Added.RootDevice != "" {
+			fmt.Fprintf(tw, "    Root device:\t%s\n", d.Added.RootDevice)
+		}
+		if d.Added.HashPartition > 0 {
+			fmt.Fprintf(tw, "    Hash partition:\t%d\n", d.Added.HashPartition)
+		}
+		_ = tw.Flush()
+		return
+	}
+
+	if d.Removed != nil {
+		fmt.Fprintln(w, "  dm-verity DISABLED")
+		fmt.Fprintf(w, "    Previous method: %s\n", d.Removed.Method)
+		return
+	}
+
+	// Field changes
+	if d.Enabled != nil {
+		fmt.Fprintf(w, "  Enabled: %t -> %t\n", d.Enabled.From, d.Enabled.To)
+	}
+	if d.Method != nil {
+		fmt.Fprintf(w, "  Method: %s -> %s\n", d.Method.From, d.Method.To)
+	}
+	if d.RootDevice != nil {
+		fmt.Fprintf(w, "  Root device: %s -> %s\n", d.RootDevice.From, d.RootDevice.To)
+	}
+	if d.HashPartition != nil {
+		fmt.Fprintf(w, "  Hash partition: %d -> %d\n", d.HashPartition.From, d.HashPartition.To)
+	}
 }
 
 func renderEFIArtifactsTable(w io.Writer, arts []EFIBinaryEvidence) {

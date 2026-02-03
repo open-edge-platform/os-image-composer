@@ -1,11 +1,11 @@
 image:
-  name: azl3-default-x86_64
+  name: azl3-default-aarch64
   version: "1.0.0"
 
 target:
   os: azure-linux # Target OS name
   dist: azl3 # Target OS distribution
-  arch: x86_64 # Target OS architecture
+  arch: aarch64 # Target OS architecture
   imageType: raw # Image type, valid value: [raw, iso].
 
 disk:
@@ -29,7 +29,7 @@ disk:
       mountOptions: umask=0077
 
     - id: rootfs
-      type: linux-root-amd64
+      type: linux-root-arm64
       start: 513MiB
       end: 2561MiB  # 513MiB + 2GiB (2048MiB) = 2561MiB
       fsType: ext4

@@ -1,6 +1,7 @@
-name: Build ELXR12 Raw Image
+name: Build Azure Linux Raw Image - ARM 
 on:
   workflow_dispatch:             # Manual runs
+    push:
     inputs:
       ref:
         description: "Branch or SHA to test (e.g. feature/x or a1b2c3)"
@@ -13,25 +14,17 @@ on:
         options:
         - "true"
         - "false"
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-
 permissions:
   contents: read
 
 jobs:
-  build-elxr12-raw:
-    runs-on: ubuntu-latest
+  build-azl3-arm-raw:
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-          ref: ${{ github.event.inputs.ref || github.ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -45,7 +38,7 @@ jobs:
       - name: Install system deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 ovmf tree jq systemd-ukify mmdebstrap systemd-boot
+          sudo apt-get install -y qemu-system-aarch64 ovmf tree jq systemd-ukify mmdebstrap systemd-boot qemu-efi-aarch64
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -54,17 +47,18 @@ jobs:
 
       - name: Prepare build script
         run: |
-          if [ ! -f scripts/build_elxr12_raw.sh ]; then
-            echo "scripts/build_elxr12_raw.sh not found!"
+          if [ ! -f scripts/build_azl3_arm_raw.sh ]; then
+            echo "scripts/build_azl3_arm_raw.sh not found!"
             exit 1
           fi
-          chmod +x scripts/build_elxr12_raw.sh
+          chmod +x scripts/build_azl3_arm_raw.sh
 
-      - name: Run ELXR12 Raw Image Build
+      - name: Run azl3 Raw Image Build
         env:
-          RUN_QEMU_TEST: ${{ github.event.inputs.run_qemu_test }}
+          #RUN_QEMU_TEST: ${{ github.event.push }}
+          RUN_QEMU_TEST: false
         run: |
-          echo "Starting ELXR12 raw image build..."
+          echo "Starting azl3 raw image build..."
           # Ensure script has access to docker group for Earthly
           sudo usermod -aG docker $USER
           
@@ -84,24 +78,18 @@ jobs:
               ;;
           esac
           
-          # Run the ELXR12 raw image build script
-          ./scripts/build_elxr12_raw.sh $ARGS
-          echo "ELXR12 raw image build completed."
+          # Run the azl3 raw image build script
+          ./scripts/build_azl3_arm_raw.sh $ARGS
+          echo "azl3 raw image build completed."
 
-      - name: Notify on failure
-        if: ${{ failure() && github.event_name == 'pull_request' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REVIEWER_ID: srmungar
+      - name: Set file permissions for artifacts
         run: |
-          PR_AUTHOR=$(jq --raw-output 'try .pull_request.user.login // empty' "$GITHUB_EVENT_PATH")
-          if [ -z "$PR_AUTHOR" ]; then
-            echo "PR_AUTHOR not found in event payload. Skipping notification."
-            exit 0
-          fi
-          COMMENT_BODY="Hey @$PR_AUTHOR and @$REVIEWER_ID — the ELXR12 raw image build has failed. Please check the logs."
-          curl -s -X POST \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            --data "{\"body\": \"$COMMENT_BODY\"}" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
+          sudo chmod -R 755 workspace/ || true
+          find workspace/*/imagebuild/*/ -name "*.raw*" -exec chmod 777 {} \; || true
+      - name: GitHub Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: azl3-arm-raw-image
+          path: |
+            workspace/*/imagebuild/*/*.raw*
+          retention-days: 30

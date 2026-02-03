@@ -54,8 +54,11 @@ func (p *eLxr) Name(dist, arch string) string {
 func (p *eLxr) Init(dist, arch string) error {
 
 	// Architecture mapping if needed
-	if arch == "x86_64" {
+	switch arch {
+	case "x86_64":
 		arch = "amd64"
+	case "aarch64":
+		arch = "arm64"
 	}
 
 	cfgs, err := loadRepoConfig("", arch)
@@ -280,7 +283,7 @@ func loadRepoConfig(repoUrl string, arch string) ([]debutils.RepoConfig, error) 
 	var repoConfigs []debutils.RepoConfig
 
 	// Load provider repo config for elxr - use correct OS name
-	providerConfigs, err := config.LoadProviderRepoConfig(OsName, "elxr12") // Use "wind-river-elxr" and "aria" dist
+	providerConfigs, err := config.LoadProviderRepoConfig(OsName, "elxr12", arch) // Use "wind-river-elxr" and "aria" dist
 	if err != nil {
 		return repoConfigs, fmt.Errorf("failed to load provider repo config: %w", err)
 	}
