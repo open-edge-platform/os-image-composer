@@ -1,6 +1,7 @@
 package imageconvert
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -71,37 +72,94 @@ func (imageConvert *ImageConvert) ConvertImageFile(filePath string, template *co
 	return nil
 }
 
-// DetectImageFormat detects the format of an image file using qemu-img
 func DetectImageFormat(filePath string) (string, error) {
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return "", fmt.Errorf("image file does not exist: %s", filePath)
-	}
-
-	cmdStr := fmt.Sprintf("qemu-img info --output=json %s", filePath)
-	output, err := shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
+	fi, err := os.Stat(filePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to detect image format: %w", err)
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("image file does not exist: %s", filePath)
+		}
+		return "", fmt.Errorf("stat image file: %w", err)
+	}
+	if fi.IsDir() {
+		return "", fmt.Errorf("image path is a directory: %s", filePath)
 	}
 
-	// Parse JSON output to extract format
-	// Simple string search for format field
-	outputStr := strings.TrimSpace(output)
-	if strings.Contains(outputStr, `"format"`) {
-		// Extract format value
-		for _, line := range strings.Split(outputStr, "\n") {
-			if strings.Contains(line, `"format"`) {
-				// Parse: "format": "raw",
-				parts := strings.Split(line, `"`)
-				if len(parts) >= 4 {
-					format := strings.TrimSpace(parts[3])
-					log.Debugf("Detected image format: %s", format)
-					return format, nil
-				}
+	qPath := shellSingleQuote(filePath)
+	cmdStr := fmt.Sprintf("qemu-img info --output=json -- %s", qPath)
+
+	out, err := shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
+	if err != nil {
+		// qemu-img sometimes prints useful hints to output; include it
+		trim := strings.TrimSpace(out)
+		if trim != "" {
+			return "", fmt.Errorf("qemu-img info failed: %w (output: %s)", err, trim)
+		}
+		return "", fmt.Errorf("qemu-img info failed: %w", err)
+	}
+
+	outStr := strings.TrimSpace(out)
+
+	var info struct {
+		Format string `json:"format"`
+		// Keep flexible across qemu versions
+		FormatSpecific map[string]any `json:"format-specific"`
+	}
+
+	// First attempt: parse directly
+	if uerr := json.Unmarshal([]byte(outStr), &info); uerr != nil {
+		// Fallback: salvage JSON object from combined output (stderr noise etc.)
+		start := strings.Index(outStr, "{")
+		end := strings.LastIndex(outStr, "}")
+		if start >= 0 && end > start {
+			s := outStr[start : end+1]
+			if uerr2 := json.Unmarshal([]byte(s), &info); uerr2 != nil {
+				return "", fmt.Errorf("failed to parse qemu-img JSON: %w (also failed salvage parse: %v)", uerr, uerr2)
 			}
+		} else {
+			return "", fmt.Errorf("failed to parse qemu-img JSON: %w", uerr)
 		}
 	}
 
-	return "", fmt.Errorf("failed to parse image format from qemu-img output")
+	format := strings.ToLower(strings.TrimSpace(info.Format))
+	if format == "" || format == "file" {
+		if t, ok := info.FormatSpecific["type"].(string); ok && strings.TrimSpace(t) != "" {
+			format = strings.ToLower(strings.TrimSpace(t))
+		}
+	}
+
+	if format == "" {
+		format = formatFromExt(filePath)
+	}
+
+	if format == "" {
+		return "", fmt.Errorf("unable to detect image format for %s", filePath)
+	}
+
+	log.Debugf("Detected image format: %s", format)
+	return format, nil
+}
+
+func shellSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
+}
+
+func formatFromExt(filePath string) string {
+	switch strings.ToLower(filepath.Ext(filePath)) {
+	case ".raw", ".img":
+		return "raw"
+	case ".qcow2":
+		return "qcow2"
+	case ".vhd":
+		return "vhd"
+	case ".vhdx":
+		return "vhdx"
+	case ".vmdk":
+		return "vmdk"
+	case ".vdi":
+		return "vdi"
+	default:
+		return ""
+	}
 }
 
 // ConvertImageToRaw converts any qemu-img supported format to RAW format
@@ -122,7 +180,7 @@ func ConvertImageToRaw(filePath, outputDir string) (string, error) {
 	}
 
 	// If already raw, just return the path
-	if sourceFormat == "raw" {
+	if strings.EqualFold(sourceFormat, "raw") {
 		log.Debugf("Image is already in raw format: %s", filePath)
 		return filePath, nil
 	}

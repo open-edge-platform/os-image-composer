@@ -1002,7 +1002,7 @@ func TestDetectImageFormat_MultiLineJSON(t *testing.T) {
 
 func TestDetectImageFormat_MissingFormat(t *testing.T) {
 	tempDir := t.TempDir()
-	filePath := filepath.Join(tempDir, "test-image.raw")
+	filePath := filepath.Join(tempDir, "test-image.bin")
 
 	if err := os.WriteFile(filePath, []byte("test data"), 0644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
@@ -1019,6 +1019,58 @@ func TestDetectImageFormat_MissingFormat(t *testing.T) {
 	_, err := DetectImageFormat(filePath)
 	if err == nil {
 		t.Fatalf("Expected error for missing format")
+	}
+}
+
+func TestDetectImageFormat_FormatSpecificFallback(t *testing.T) {
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test-image.raw")
+
+	if err := os.WriteFile(filePath, []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	jsonOut := `{"format":"file","format-specific":{"type":"raw"}}`
+	mockCommands := []shell.MockCommand{
+		{Pattern: "qemu-img info --output=json", Output: jsonOut, Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	format, err := DetectImageFormat(filePath)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if format != "raw" {
+		t.Fatalf("Expected format raw, got %s", format)
+	}
+}
+
+func TestDetectImageFormat_FormatSpecificOnly(t *testing.T) {
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "test-image.qcow2")
+
+	if err := os.WriteFile(filePath, []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	jsonOut := `{"format-specific":{"type":"qcow2"}}`
+	mockCommands := []shell.MockCommand{
+		{Pattern: "qemu-img info --output=json", Output: jsonOut, Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockCommands)
+
+	format, err := DetectImageFormat(filePath)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if format != "qcow2" {
+		t.Fatalf("Expected format qcow2, got %s", format)
 	}
 }
 
