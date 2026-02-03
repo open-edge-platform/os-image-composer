@@ -8,24 +8,27 @@ usage() {
 dep-analyzer.sh — analyze and slice DOT dependency graphs
 
 Usage:
+  ./dep-analyzer.sh -i deps.dot -t svg                   # Render full graph to SVG
   ./dep-analyzer.sh -i deps.dot -r vim -d 2              # Forward deps of vim, depth 2
   ./dep-analyzer.sh -i deps.dot -r vim -d 3 --reverse    # Who depends on vim, depth 3
   ./dep-analyzer.sh -i deps.dot -r vim -d 2 -t svg       # Render to SVG
 
 Options:
   -i, --input FILE      Input DOT file (required)
-  -r, --root NAME       Root package name (required for slicing)
-  -d, --depth N         Max depth, default: 2
+  -r, --root NAME       Root package name (optional; omit to render full graph)
+  -d, --depth N         Max depth, default: 2 (only used with --root)
   -o, --output FILE     Output file (auto-generated if omitted)
   -t, --type TYPE       Output: dot|svg|png|pdf (default: dot)
-      --reverse         Reverse direction (who depends on root)
-      --highlight-root  Add thick red border to root node
+      --reverse         Reverse direction (who depends on root, requires --root)
+      --highlight-root  Add thick red border to root node (requires --root)
       --list-roots      List all root packages (no incoming edges)
       --list-leaves     List all leaf packages (no outgoing edges)
       --stats           Show graph statistics
   -h, --help            Show this help
 
 Notes:
+  - Without --root: renders or copies the full graph
+  - With --root: slices graph using BFS from root node
   - "depth" means shortest-path hops from root following edge direction
   - Reverse mode is useful for "who depends on X" analysis
 EOF
@@ -98,8 +101,35 @@ if [[ "${SHOW_STATS}" == "true" ]]; then
   exit 0
 fi
 
-# For slicing mode, --root is required
-[[ -z "${ROOT}" ]] && { echo "Error: --root required for slicing"; usage; exit 2; }
+# If no --root is provided, render the full graph (no slicing)
+if [[ -z "${ROOT}" ]]; then
+  stem="$(basename "${INPUT}" .dot)"
+  if [[ -z "${OUT}" ]]; then
+    OUT="${stem}.${TYPE}"
+  fi
+  
+  if [[ "${TYPE}" == "dot" ]]; then
+    cp "${INPUT}" "${OUT}"
+    echo "Wrote: ${OUT}"
+    exit 0
+  fi
+  
+  command -v dot >/dev/null || graphviz_not_found "dot"
+  
+  case "${TYPE}" in
+    svg|png|pdf)
+      dot -T"${TYPE}" "${INPUT}" -o "${OUT}"
+      echo "Rendered: ${OUT}"
+      ;;
+    *)
+      echo "Error: unsupported type '${TYPE}'. Use dot|svg|png|pdf."
+      exit 2
+      ;;
+  esac
+  exit 0
+fi
+
+# For slicing mode with --root
 ! [[ "${DEPTH}" =~ ^[0-9]+$ ]] && { echo "Error: depth must be an integer >= 0"; exit 2; }
 
 stem="$(basename "${INPUT}" .dot)"
