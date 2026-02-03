@@ -29,32 +29,20 @@ disk:
       fsType: vfat
       # Builder expects explicit MiB offsets
       start: 1MiB
-      end: 106MiB
+      end: 1025MiB
       mountPoint: /boot/efi
       mountOptions: defaults
       flags:
         - boot
         - esp
-    # Dedicated /boot to host kernels and bootloader assets
-    - id: BOOT
-      name: BOOT
-      type: linux
-      # GPT GUID for Linux /boot partition
-      typeUUID: bc13c2ff-59e6-4262-a352-b275fd6f7172
-      fsType: ext4
-      start: 106MiB
-      end: 500MiB
-      mountPoint: /boot
-      mountOptions: defaults
-      flags: []
-    # Root filesystem filling remainder of disk
+    # Root filesystem
     - id: ROOT
       name: ROOT
       type: linux-root-amd64
       # Standard Linux root filesystem GUID for x86_64
       typeUUID: 4f68bce3-e8cd-4db1-96e7-fbcaf984b709
       fsType: ext4
-      start: 500MiB
+      start: 1025MiB
       end: "0"
       mountPoint: /
       mountOptions: defaults
@@ -119,19 +107,43 @@ systemConfig:
 
   packages:
     - bsdutils
+    - cloud-utils
     - debianutils
     - diffutils
     - findutils
     - grep
+    - grub-efi-amd64-signed
     - gzip
+    - ibus-table-cangjie-big
+    - ibus-table-cangjie3
+    - ibus-table-cangjie5
+    - init
+    - language-pack-en
+    - language-pack-en-base
+    - language-pack-gnome-en
+    - language-pack-gnome-en-base
     - libattr1
+    - libchewing3
+    - libchewing3-data
+    - libm17n-0
+    - libmarisa0
+    - libopencc-data
+    - libopencc1.1
+    - libotf1
+    - libpinyin-data
+    - libpinyin15
     - linux-base
+    - m17n-db
     - mawk
     - ncurses-base
     - ncurses-bin
+    - python3-netifaces
     - shim-signed
-    - ubuntu-minimal
     - ubuntu-desktop-minimal
+    - ubuntu-minimal
+    - ubuntu-standard
+    - ubuntu-wallpapers
+    - wbritish
     - gdm3
     - systemd
     - openssh-server
@@ -139,7 +151,9 @@ systemConfig:
     - util-linux
     - udev
     - initramfs-tools
+    - grub2-common
     - grub-pc-bin
+    - grub-efi-amd64
     - grub-efi-amd64-bin
     - efibootmgr
     # PTL network stack
@@ -353,22 +367,26 @@ systemConfig:
     - dkms
     
   kernel:
-    version: "6.14"
-    # Use this cmdline and kernel if using xe driver,
-    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7 xe.max_vfs=7 xe.force_probe=* modprobe.blacklist=i915 udmabuf.list_limit=8192"
-    enableExtraModules: "intel_vpu usb_storage uas"
-    packages:
-      - linux-headers-6.17-intel_251118t134731z-r2
-      - linux-image-6.17-intel_251118t134731z-r2
-    # alternative cmdline in case of i915 usage, using a default kernel
+    version: "6.17"
+    # Use this cmdline and kernel option if using xe driver,
+    # cmdline: "console=ttyS0,115200 console=tty0 loglevel=7 xe.max_vfs=7 xe.force_probe=* modprobe.blacklist=i915 udmabuf.list_limit=8192"
+    # enableExtraModules: "intel_vpu uas"
+    # Use this cmdline and kernel option if using i915 driver,
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7 i915.force_probe=*"
+    enableExtraModules: "intel_vpu uas"
+    # alternative cmdline in case gpu not support both i915 and xe drivers
     # cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    # enableExtraModules: "intel_vpu uas simpledrm"
+    packages:
+        - linux-image-6.17-intel_251118t134731z-r2
+        - linux-headers-6.17-intel_251118t134731z-r2
 
   users:
     - name: rbfadmin
       password: "jaiZ6dai"
     - name: user
-      password: user
-      groups: ["sudo", "render"]
+      password: user1234
+      groups: ["sudo"]
     - name: vpu-user
       password: vpu-user
       groups: ["render"]
@@ -388,21 +406,12 @@ systemConfig:
     - cmd: "echo 'ftp_proxy=http://proxy-dmz.intel.com:911' >> /etc/environment"
     - cmd: "echo 'socks_server=http://proxy-dmz.intel.com:1080' >> /etc/environment"
     - cmd: "echo 'no_proxy=localhost,127.0.0.1,127.0.1.1,127.0.0.0/8,172.16.0.0/20,192.168.0.0/16,10.0.0.0/8,10.1.0.0/16,10.152.183.0/24,devtools.intel.com,jf.intel.com,teamcity-or.intel.com,caas.intel.com,inn.intel.com,isscorp.intel.com,gfx-assets.fm.intel.com' >> /etc/environment"
-    # Change Ubuntu mirror
-    # - cmd: "sed -e 's@archive.ubuntu.com@mirrors.gbnetwork.com@g' -i /etc/apt/sources.list.d/ubuntu-noble.list"
     # Configure SSH keys for sys_olvtelemetry user
     - cmd: "mkdir -m 700 -p ~sys_olvtelemetry/.ssh"
     - cmd: "echo 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOPEVYF28+I92b3HFHOSlPQXt3kHXQ9IqtxFE4/0YkK5 swsbalabuser@BA02RNL99999' > ~sys_olvtelemetry/.ssh/authorized_keys"
     - cmd: "echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDb2P8gBvsy9DkzC1WiXfvisMFf7PQvtdvVC4n22ot4D5KOVxgoaCnjZM6qAZ2AdWPBebxInnUeMvw0u6RjRnflpYtNPgN4qiE313j62CmD80f/N+jvIxmoGhgsGE4RAMFXQ6pNaB/8KblrpmWQ5VfEIt7JcSR3Qvnkl9I2bljJU9zrMieE+Nras7hstg8fVWtGNjQjJpMWmt1YGxVbQiea0jDBqpru6TqnOYGD48JdR8QzHq++xL82I3x8kPz6annAvCDSVmiw9Mz0YtAsPIDZj4ABm866a8/U2mKVUncXYrBG1/pHBJMDJeX3ggd/UK2NvU8uEDJmITXUZRP8kBaO7b2LnRO08+Pr+nvmwukCP/wXflfS59h7kXCo8+Xjx/PEMO4OyFYHQunOUf/XTC13iig/MLY0EbqU6D+Lg1N13eJocRSta50zV+m+/PG23Zd3/6UH0noxYezQV3dQmsstzKKXbm8vkBmdqCZEvEnFSgl0VmX5HpzZLYI3L3hBH8/wgiWinrs7K13pZ8+lXN0ZhhJhdo61juiYwy1gbHP0ihqGkePw7w0DSCu5s9fA7xDTy2YTjkMsKaT8rbTYG5hunokNswdOCNYJyiCF3zJ08Z5hlDqSJJOPRdjL3YTIr6QlWSea/pTjkWmmE7Mv8M15c4V8Y77x6DsTFWlmGQbf1Q== swsbalabuser@BA02RNL99999' >> ~sys_olvtelemetry/.ssh/authorized_keys"
     - cmd: "chmod 600 ~sys_olvtelemetry/.ssh/authorized_keys"
     - cmd: "chown sys_olvtelemetry:sys_olvtelemetry -R ~sys_olvtelemetry/.ssh"
-    # Configure GRUB settings
-    # - cmd: "sed -i 's/GRUB_CMDLINE_LINUX=\"\\(.*\\)\"/GRUB_CMDLINE_LINUX=\"\\1 udmabuf.list_limit=8192 console=tty0 console=ttyS0,115200n8\"/' /etc/default/grub"
-    # - cmd: "sed -i 's/GRUB_CMDLINE_LINUX=\"\\(.*\\)\"/GRUB_CMDLINE_LINUX=\"\\1 xe.max_vfs=7 xe.force_probe=* modprobe.blacklist=i915 udmabuf.list_limit=8192 console=tty0 console=ttyS0,115200n8\"/' /etc/default/grub"
-    # - cmd: "sed -i 's/GRUB_DEFAULT=\"\\(.*\\)\"/GRUB_DEFAULT=\"\\1Advanced options for Ubuntu>Ubuntu, with Linux 6.17-intel\"/' /etc/default/grub"
-    # Configure GRUB timeout
-    # - cmd: "sed -e 's@^GRUB_TIMEOUT_STYLE=hidden@# GRUB_TIMEOUT_STYLE=hidden@' -e 's@^GRUB_TIMEOUT=0@GRUB_TIMEOUT=5@g' -i /etc/default/grub"
-    # - cmd: "update-grub"
     # Install NPU driver (firmware, compiler, runtime only - skip kernel module for chroot)
     - cmd: "mkdir -m 755 -pv /opt/vpu"
     - cmd: "curl -s https://af01p-ir.devtools.intel.com/artifactory/drivers_vpu_linux_client-ir-local/engineering-drops/driver/main/release/25ww49.1.1/npu-linux-driver-ci-1.30.0.20251128-19767695845-ubuntu2404-release.tar.gz | tar -zxv --strip-components=1 -C /opt/vpu -f -"
@@ -414,32 +423,6 @@ systemConfig:
     - cmd: "sed -i 's/load_module()/pass  # load_module() disabled for chroot/' /opt/vpu/npu-drv-installer"
     - cmd: "sed -i 's/create_user(/pass  # create_user() disabled for chroot; create_user_disabled(/' /opt/vpu/npu-drv-installer"
     - cmd: "/opt/vpu/npu-drv-installer --driver_only --skip_module_install --skip_module_load --skip_user_creation"
-    # # Create initramfs hook to build NPU kernel module before initramfs generation
-    # - cmd: "mkdir -p /etc/initramfs-tools/hooks"
-    # - cmd: "echo '#!/bin/sh' > /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo 'PREREQ=\"\"' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo 'prereqs() { echo \"$PREREQ\"; }' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo 'case \"$1\" in' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo '    prereqs) prereqs; exit 0;;' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo 'esac' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo '. /usr/share/initramfs-tools/hook-functions' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo 'LOCK_FILE=\"/var/lib/npu-module-installed\"' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo 'if [ ! -f \"$LOCK_FILE\" ] && [ -d \"/opt/vpu/packages/internal\" ]; then' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo '    echo \"Building NPU kernel module for initramfs...\"' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo '    cd /opt/vpu' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo '    if dpkg -i packages/internal/intel-kernel-module-npu-internal_*.deb >> /var/log/npu-module-install.log 2>&1; then' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo '        touch \"$LOCK_FILE\"' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo '        echo \"NPU kernel module installed successfully\"' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo '    else' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo '        echo \"Warning: Failed to install NPU kernel module\" >&2' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo '    fi' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo 'fi' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo 'if [ -f \"/lib/modules/$(uname -r)/updates/dkms/intel_vpu.ko\" ]; then' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo '    manual_add_modules intel_vpu' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo '    echo \"NPU module added to initramfs\"' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo 'fi' >> /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "chmod +x /etc/initramfs-tools/hooks/npu-module"
-    # - cmd: "echo 'intel_vpu' >> /etc/initramfs-tools/modules"
     # Install audio firmware
     - cmd: "mkdir -pv /lib/firmware/intel/sof-ipc4/mtl/ /lib/firmware/intel/sof-ace-tplg/"
     - cmd: "wget https://af01p-png.devtools.intel.com/artifactory/hspe-edge-png-local/ubuntu-mtl-audio-tplg-6/c0/intel/sof-ipc4/mtl/sof-mtl.ldc -O /lib/firmware/intel/sof-ipc4/mtl/sof-mtl.ldc"
