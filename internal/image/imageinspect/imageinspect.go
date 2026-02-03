@@ -574,12 +574,12 @@ func detectVerity(pt PartitionTableSummary) *VerityInfo {
 	info := &VerityInfo{}
 
 	// Look for hash partition (common names/types)
-	hashPartLoopIdx := -1
+	hashPartIdx := -1
 	for i, p := range pt.Partitions {
 		name := strings.ToLower(p.Name)
 		// Check for common hash partition names
 		if strings.Contains(name, "hash") || name == "roothashmap" {
-			hashPartLoopIdx = i
+			hashPartIdx = i
 			info.HashPartition = p.Index
 			info.Notes = append(info.Notes, fmt.Sprintf("Hash partition found: %s (partition %d)", p.Name, p.Index))
 			break
@@ -604,7 +604,7 @@ func detectVerity(pt PartitionTableSummary) *VerityInfo {
 
 	if cmdline == "" {
 		// No cmdline found, dm-verity not detected
-		if hashPartLoopIdx >= 0 {
+		if hashPartIdx >= 0 {
 			info.Notes = append(info.Notes, "Hash partition exists but no UKI cmdline found")
 		}
 		return nil
@@ -628,8 +628,8 @@ func detectVerity(pt PartitionTableSummary) *VerityInfo {
 			}
 		}
 
-		if hashPartLoopIdx >= 0 {
-			info.Notes = append(info.Notes, fmt.Sprintf("Hash partition present at index %d", hashPartLoopIdx))
+		if hashPartIdx >= 0 {
+			info.Notes = append(info.Notes, fmt.Sprintf("Hash partition present at index %d", hashPartIdx))
 		} else {
 			info.Notes = append(info.Notes, "WARNING: systemd.verity_* found but no hash partition detected")
 		}
@@ -650,8 +650,8 @@ func detectVerity(pt PartitionTableSummary) *VerityInfo {
 			}
 		}
 
-		if hashPartLoopIdx >= 0 {
-			info.Notes = append(info.Notes, fmt.Sprintf("Hash partition present at index %d", hashPartLoopIdx))
+		if hashPartIdx >= 0 {
+			info.Notes = append(info.Notes, fmt.Sprintf("Hash partition present at index %d", hashPartIdx))
 			info.Notes = append(info.Notes, "Likely using separate hash partition for dm-verity")
 		} else {
 			info.Notes = append(info.Notes, "No separate hash partition detected")
@@ -674,8 +674,8 @@ func detectVerity(pt PartitionTableSummary) *VerityInfo {
 			}
 		}
 
-		if hashPartLoopIdx >= 0 {
-			info.Notes = append(info.Notes, fmt.Sprintf("Hash partition present at index %d", hashPartLoopIdx))
+		if hashPartIdx >= 0 {
+			info.Notes = append(info.Notes, fmt.Sprintf("Hash partition present at index %d", hashPartIdx))
 		}
 		return info
 	}
