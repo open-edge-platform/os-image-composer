@@ -139,6 +139,10 @@ func DetectImageFormat(filePath string) (string, error) {
 	return format, nil
 }
 
+// shellSingleQuote wraps s in single quotes for POSIX shells and escapes any
+// embedded single quotes using the pattern `'"'"'`, which ends the current
+// single-quoted string, adds an escaped single quote, and starts a new
+// single-quoted string.
 func shellSingleQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }
