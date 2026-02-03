@@ -1,6 +1,7 @@
 name: Build Ubuntu24 Raw Image - ARM
 on:
   workflow_dispatch:             # Manual runs
+    push:
     inputs:
       ref:
         description: "Branch or SHA to test (e.g. feature/x or a1b2c3)"
@@ -13,12 +14,6 @@ on:
         options:
         - "true"
         - "false"
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
 
 permissions:
   contents: read
