@@ -147,6 +147,8 @@ func shellSingleQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'"'"'`) + "'"
 }
 
+// formatFromExt provides a fallback format detection based on common file
+// extensions when qemu-img based detection fails.
 func formatFromExt(filePath string) string {
 	switch strings.ToLower(filepath.Ext(filePath)) {
 	case ".raw", ".img":
