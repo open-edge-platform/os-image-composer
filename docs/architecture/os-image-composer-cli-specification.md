@@ -144,7 +144,7 @@ os-image-composer build [flags] TEMPLATE_FILE
 | `--cache-dir, -d DIR` | Package cache directory (overrides config). Proper caching significantly improves build times. |
 | `--work-dir DIR` | Working directory for builds (overrides config). This directory is where images are constructed before being finalized. |
 | `--verbose, -v` | Enable verbose output (equivalent to --log-level debug). Displays detailed information about each step of the build process. |
-| `--dotfile, -f FILE` | Generate a dot file for the merged template dependency graph (user + defaults with resolved packages). Nodes are color-coded: essentials (pale yellow), template packages (green), kernel (blue), bootloader (orange). |
+| `--dotfile, -f FILE` | Generate a dot file for the merged template dependency graph (user + defaults with resolved packages). |
 | `--system-packages-only` | When paired with `--dotfile`, limit the dependency graph to roots defined in `SystemConfig.Packages`. Dependencies pulled in by those roots still appear, but essentials/kernel/bootloader packages aren't drawn unless required by a system package. |
 
 **Example:**

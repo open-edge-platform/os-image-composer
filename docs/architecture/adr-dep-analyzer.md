@@ -94,10 +94,6 @@ is already required for DOT rendering).
    - Multiple output formats supported: DOT, SVG, PNG, PDF
    - Auto-generated filenames reflect analysis parameters
 
-4. **Color Preservation**  
-   - Maintain semantic colors from os-image-composer output
-   - Sliced subgraphs retain visual context
-
 ---
 
 ## Command Line Interface
@@ -167,22 +163,6 @@ Examples:
 - `deps_vim_d2.svg` - vim dependencies, depth 2, SVG format
 - `deps_libc6_d3_reverse.svg` - packages depending on libc6, depth 3
 - `deps_apt.dot` - apt dependencies, default depth, DOT format
-
----
-
-## Semantic Color Preservation
-
-The os-image-composer assigns colors to indicate package categories:
-
-| Color | Hex Code | Package Category |
-|-------|----------|------------------|
-| Yellow | `#fff4d6` | Essential packages |
-| Green | `#d4efdf` | System packages (user-specified) |
-| Blue | `#d6eaf8` | Kernel packages |
-| Orange | `#fdebd0` | Bootloader packages |
-
-The dep-analyzer preserves these colors in sliced subgraphs, maintaining
-visual context and category information.
 
 ---
 
