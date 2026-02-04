@@ -2,15 +2,20 @@ package rpmutils
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/xml"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/open-edge-platform/os-image-composer/internal/config"
@@ -22,13 +27,52 @@ import (
 // extractBaseRequirement takes a potentially complex requirement string
 // and returns only the base package/capability name.
 func extractBaseRequirement(req string) string {
-	if strings.HasPrefix(req, "(") && strings.Contains(req, " ") {
-		trimmed := strings.TrimPrefix(req, "(")
-		parts := strings.Fields(trimmed)
-		if len(parts) > 0 {
-			req = parts[0]
+	req = strings.TrimSpace(req)
+	if req == "" {
+		return ""
+	}
+
+	// Handle complex conditional dependencies with "if" clauses
+	if strings.Contains(req, ") if ") {
+		// Extract content between first '((' and ') if'
+		if start := strings.Index(req, "(("); start != -1 {
+			if end := strings.Index(req, ") if "); end != -1 {
+				inner := req[start+2 : end]
+				// Handle multiple operators in priority order
+				for _, op := range []string{" >= ", " <= ", " > ", " < ", " = "} {
+					if idx := strings.Index(inner, op); idx != -1 {
+						return strings.TrimSpace(inner[:idx])
+					}
+				}
+				return strings.TrimSpace(inner)
+			}
 		}
 	}
+
+	// Handle simple parentheses cases
+	if strings.HasPrefix(req, "(") && strings.HasSuffix(req, ")") {
+		inner := req[1 : len(req)-1]
+		inner = strings.TrimSpace(inner)
+		// Handle version operators in priority order
+		for _, op := range []string{" >= ", " <= ", " > ", " < ", " = "} {
+			if idx := strings.Index(inner, op); idx != -1 {
+				return strings.TrimSpace(inner[:idx])
+			}
+		}
+		parts := strings.Fields(inner)
+		if len(parts) > 0 {
+			return parts[0]
+		}
+		return inner
+	}
+
+	// Handle regular cases with operators
+	for _, op := range []string{" >= ", " <= ", " > ", " < ", " = "} {
+		if idx := strings.Index(req, op); idx != -1 {
+			return strings.TrimSpace(req[:idx])
+		}
+	}
+
 	finalParts := strings.Fields(req)
 	if len(finalParts) == 0 {
 		return ""
@@ -92,11 +136,21 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string, pkgSources map[strin
 }
 
 // ParseRepositoryMetadata parses the repodata/primary.xml(.gz/.zst) file from a given base URL.
+// It also caches the downloaded and uncompressed XML files for debugging purposes.
 func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 
 	fullURL := strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(gzHref, "/")
 	log.Infof("Fetching and parsing repository metadata from %s", fullURL)
+
+	// Create cache directory for XML files using same pattern as debutils
+	globalCache := config.TempDir()
+	metadataDirName := generateRPMMetadataDir(baseURL)
+	xmlCacheDir := filepath.Join(globalCache, "builds", metadataDirName)
+	if err := os.MkdirAll(xmlCacheDir, 0755); err != nil {
+		log.Warnf("Failed to create XML cache directory: %v", err)
+		xmlCacheDir = "" // Disable caching if directory creation fails
+	}
 
 	client := network.NewSecureHTTPClient()
 	resp, err := client.Get(fullURL)
@@ -105,14 +159,26 @@ func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, e
 	}
 	defer resp.Body.Close()
 
+	// First, save the compressed XML file
+	compressedData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read compressed data: %w", err)
+	}
+
+	// Save the original compressed file
+	if xmlCacheDir != "" {
+		saveOriginalXML(xmlCacheDir, gzHref, baseURL, compressedData)
+	}
+
 	var gr io.ReadCloser
 	ext := strings.ToLower(filepath.Ext(gzHref))
+	reader := bytes.NewReader(compressedData)
 	switch ext {
 	case ".gz":
-		gr, err = gzip.NewReader(resp.Body)
+		gr, err = gzip.NewReader(reader)
 
 	case ".zst":
-		zstDecoder, err := zstd.NewReader(resp.Body)
+		zstDecoder, err := zstd.NewReader(reader)
 		if err != nil {
 			return nil, err
 		}
@@ -127,7 +193,11 @@ func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, e
 	}
 	defer gr.Close()
 
-	dec := xml.NewDecoder(gr)
+	// Read and save the uncompressed XML
+	var xmlBuffer bytes.Buffer
+	teeReader := io.TeeReader(gr, &xmlBuffer)
+
+	dec := xml.NewDecoder(teeReader)
 
 	var (
 		infos   []ospackage.PackageInfo
@@ -361,11 +431,20 @@ func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, e
 			}
 		}
 	}
+
+	// Save the uncompressed XML file
+	if xmlCacheDir != "" {
+		saveUncompressedXML(xmlCacheDir, gzHref, baseURL, xmlBuffer.Bytes())
+	}
+
 	return infos, nil
 }
 
 // FetchPrimaryURL downloads repomd.xml and returns the href of the primary metadata.
+// It also saves the repomd.xml file to cache for debugging purposes.
 func FetchPrimaryURL(repomdURL string) (string, error) {
+	log := logger.Logger()
+
 	client := network.NewSecureHTTPClient()
 	resp, err := client.Get(repomdURL)
 	if err != nil {
@@ -373,7 +452,31 @@ func FetchPrimaryURL(repomdURL string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	dec := xml.NewDecoder(resp.Body)
+	// Read and save the repomd.xml content
+	repomdData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read repomd.xml: %w", err)
+	}
+
+	// Save repomd.xml file using same pattern as debutils
+	globalCache := config.TempDir()
+	baseURL := strings.TrimSuffix(repomdURL, "/repodata/repomd.xml")
+	metadataDirName := generateRPMMetadataDir(baseURL)
+	xmlCacheDir := filepath.Join(globalCache, "builds", metadataDirName)
+	if err := os.MkdirAll(xmlCacheDir, 0755); err == nil {
+		urlHash := sha256.Sum256([]byte(baseURL))
+		urlHashStr := hex.EncodeToString(urlHash[:])[:8]
+		timestamp := time.Now().Format("2006-01-02_15-04-05")
+		filename := fmt.Sprintf("repomd_%s_%s.xml", urlHashStr, timestamp)
+		filePath := filepath.Join(xmlCacheDir, filename)
+		if writeErr := os.WriteFile(filePath, repomdData, 0644); writeErr == nil {
+			log.Infof("Saved repomd.xml file: %s", filePath)
+		} else {
+			log.Warnf("Failed to save repomd.xml file: %v", writeErr)
+		}
+	}
+
+	dec := xml.NewDecoder(bytes.NewReader(repomdData))
 
 	// Walk the tokens looking for <data type="primary">
 	for {
@@ -620,4 +723,78 @@ func findMatchingKeyInNeededSet(neededSet map[string]struct{}, depName string) (
 		}
 	}
 	return "", false
+}
+
+// generateRPMMetadataDir creates a dynamic directory name for RPM metadata storage
+// following the same pattern as debutils: <repoId>_<arch>_<type>
+func generateRPMMetadataDir(baseURL string) string {
+	// Extract meaningful identifier from URL
+	urlHash := sha256.Sum256([]byte(baseURL))
+	urlHashStr := hex.EncodeToString(urlHash[:])[:8]
+
+	// Try to extract repository name from URL
+	repoId := "rpm"
+	if u, err := url.Parse(baseURL); err == nil {
+		pathParts := strings.Split(strings.Trim(u.Path, "/"), "/")
+		for _, part := range pathParts {
+			if part != "" && !strings.Contains(part, ".") {
+				repoId = part
+				break
+			}
+		}
+	}
+
+	// Detect architecture from URL if possible
+	arch := "x86_64" // default
+	if strings.Contains(baseURL, "aarch64") {
+		arch = "aarch64"
+	} else if strings.Contains(baseURL, "i386") {
+		arch = "i386"
+	} else if strings.Contains(baseURL, "armhf") {
+		arch = "armhf"
+	}
+
+	return fmt.Sprintf("%s_%s_%s_rpm", repoId, arch, urlHashStr)
+}
+
+// saveOriginalXML saves the original compressed XML file to cache directory
+func saveOriginalXML(xmlCacheDir, gzHref, baseURL string, data []byte) {
+	log := logger.Logger()
+
+	// Generate filename from URL and timestamp
+	urlHash := sha256.Sum256([]byte(baseURL))
+	urlHashStr := hex.EncodeToString(urlHash[:])[:8]
+	timestamp := time.Now().Format("2006-01-02_15-04-05")
+
+	baseFilename := strings.TrimSuffix(filepath.Base(gzHref), filepath.Ext(gzHref))
+	filename := fmt.Sprintf("%s_%s_%s%s", baseFilename, urlHashStr, timestamp, filepath.Ext(gzHref))
+
+	filePath := filepath.Join(xmlCacheDir, filename)
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
+		log.Warnf("Failed to save original XML file %s: %v", filePath, err)
+		return
+	}
+
+	log.Infof("Saved original XML file: %s", filePath)
+}
+
+// saveUncompressedXML saves the uncompressed XML content to cache directory
+func saveUncompressedXML(xmlCacheDir, gzHref, baseURL string, xmlData []byte) {
+	log := logger.Logger()
+
+	// Generate filename from URL and timestamp
+	urlHash := sha256.Sum256([]byte(baseURL))
+	urlHashStr := hex.EncodeToString(urlHash[:])[:8]
+	timestamp := time.Now().Format("2006-01-02_15-04-05")
+
+	baseFilename := strings.TrimSuffix(filepath.Base(gzHref), filepath.Ext(gzHref))
+	filename := fmt.Sprintf("%s_%s_%s.xml", baseFilename, urlHashStr, timestamp)
+
+	filePath := filepath.Join(xmlCacheDir, filename)
+	if err := os.WriteFile(filePath, xmlData, 0644); err != nil {
+		log.Warnf("Failed to save uncompressed XML file %s: %v", filePath, err)
+		return
+	}
+
+	log.Infof("Saved uncompressed XML file: %s", filePath)
 }

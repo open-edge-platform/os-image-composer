@@ -62,33 +62,29 @@ systemConfig:
     enabled: true # default is true
 
   packages:
-    - filesystem
-    - kernel
-    - azurelinux-release
-    # hyperv packages
-    - dracut-hyperv
-    - hyperv-daemons
-    # core image packages
-    - shim
-    - systemd-boot
-    - systemd-ukify
-    - ca-certificates
-    - cronie-anacron
-    - logrotate
-    - core-packages-base-image
-    - dracut-hostonly
-    - dracut-vrf
-    - initramfs
-    - shadow-utils
-    # ssh-server
-    - openssh-server
-    # cloud-init packages
-    - cloud-init
-    - cloud-utils-growpart
-    # virt guest packages
-    - dracut-virtio
-    - dracut-xen
-    - veritysetup
+    # --- MINIMUM BOOTABLE BASE ---
+    - basesystem           # The skeleton of the OS structure
+    - filesystem            # Provides the basic directory layout (/, /etc, /usr, etc.)
+    - setup                 # Contains fundamental system configuration files (like /etc/passwd)
+    - glibc                 # The core C library for almost all binaries
+    - bash                  # The shell required for init scripts
+    - coreutils             # Basic commands (ls, cp, mkdir) required during boot
+    - systemd               # The init system (PID 1)
+    - util-linux            # Required for mounting filesystems (mount, fdisk)
+    - kernel                # The Linux kernel itself
+    - kernel-core           # Essential kernel modules for hardware/filesystem support
+    - dracut                # Used to generate the initramfs to find the root disk
+    - dnf                   # Even a minimum build needs a way to install more packages
+
+    # --- BOOTLOADER (For UEFI/UKI) ---
+    - grub2-common                  # The EFI boot manager
+    - shim-x64              # Necessary for UEFI handover
+
+    # --- MINIMUM CONFIGURATION ---
+    - hostname              # To identify the system
+    - shadow-utils          # To manage users/root password
+    - iproute               # Minimum networking tool to bring up an interface
+    - ncurses               # Required for terminal display
 
   additionalFiles:
     - local: ../additionalfiles/99-dhcp-en.network
