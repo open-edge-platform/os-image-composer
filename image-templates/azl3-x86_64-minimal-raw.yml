@@ -1,3 +1,20 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Azure Linux 3 minimal raw disk image with essential packages for lightweight cloud and edge deployments"
+  use_cases:
+    - "lightweight azure deployment"
+    - "minimal cloud image"
+    - "azure edge node"
+    - "mariner-based edge"
+  keywords:
+    - minimal
+    - raw
+    - azure
+    - azl3
+    - cloud
+    - mariner
+    - lightweight
+
 image:
   name: azl3-x86_64-minimal
   version: "1.0.0"

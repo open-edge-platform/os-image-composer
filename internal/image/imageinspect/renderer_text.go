@@ -13,11 +13,14 @@ type TextOptions struct {
 	// e.g. ShowFSDetails bool
 }
 
+type objectCounts struct {
+	added, removed, modified int
+}
+
 type CompareTextOptions struct {
 	Mode string // "diff" | "summary" | "full"
 }
 
-// RenderCompareText renders an ImageCompareResult in human-readable text format.
 func RenderCompareText(w io.Writer, r *ImageCompareResult, opts CompareTextOptions) error {
 	if r == nil {
 		return fmt.Errorf("RenderCompareText: result is nil")
@@ -26,33 +29,43 @@ func RenderCompareText(w io.Writer, r *ImageCompareResult, opts CompareTextOptio
 	mode := normalizeCompareMode(opts.Mode)
 
 	// Header
-	fmt.Fprintf(w, "Equal: %v\n", r.Equal)
+	renderEqualityHeader(w, r)
+	fmt.Fprintln(w)
 
-	// Summary-only (compact)
 	if mode == "summary" {
 		s := r.Summary
 		fmt.Fprintf(w, "Changed: %v\n", s.Changed)
 		fmt.Fprintf(w, "PartitionTableChanged: %v\n", s.PartitionTableChanged)
 		fmt.Fprintf(w, "PartitionsChanged: %v\n", s.PartitionsChanged)
 		fmt.Fprintf(w, "EFIBinariesChanged: %v\n", s.EFIBinariesChanged)
-		fmt.Fprintf(w, "Counts: +%d -%d ~%d\n", s.AddedCount, s.RemovedCount, s.ModifiedCount)
+		obj := computeObjectCountsFromDiff(r.Diff)
+		fmt.Fprintf(w, "Counts (objects): +%d -%d ~%d\n", obj.added, obj.removed, obj.modified)
+
+		if r.Equality.Class == EqualityDifferent {
+			if r.Equality.VolatileDiffs > 0 || r.Equality.MeaningfulDiffs > 0 {
+				fmt.Fprintf(w, "Counts (fields):  volatile=%d meaningful=%d\n",
+					r.Equality.VolatileDiffs, r.Equality.MeaningfulDiffs)
+			}
+		}
+
 		return nil
 	}
 
-	// diff/full
 	if !r.Summary.Changed {
 		fmt.Fprintln(w, "No changes detected.")
 		if mode == "full" {
-			fmt.Fprintln(w)
-			fmt.Fprintln(w, "Images:")
-			fmt.Fprintf(w, "  From: %s (%s)\n", r.From.File, humanBytes(r.From.SizeBytes))
-			fmt.Fprintf(w, "  To:   %s (%s)\n", r.To.File, humanBytes(r.To.SizeBytes))
+			renderImagesBlock(w, r.From, r.To)
 		}
 		return nil
 	}
 
-	fmt.Fprintf(w, "Counts: +%d -%d ~%d\n", r.Summary.AddedCount, r.Summary.RemovedCount, r.Summary.ModifiedCount)
+	obj := computeObjectCountsFromDiff(r.Diff)
+	fmt.Fprintf(w, "Counts (objects): +%d -%d ~%d\n", obj.added, obj.removed, obj.modified)
 
+	if r.Equality.VolatileDiffs > 0 || r.Equality.MeaningfulDiffs > 0 {
+		fmt.Fprintf(w, "Counts (fields):  volatile=%d meaningful=%d\n",
+			r.Equality.VolatileDiffs, r.Equality.MeaningfulDiffs)
+	}
 	// Partition table diff
 	if r.Diff.PartitionTable.Changed {
 		pt := r.Diff.PartitionTable
@@ -128,12 +141,16 @@ func RenderCompareText(w io.Writer, r *ImageCompareResult, opts CompareTextOptio
 		renderEFIBinaryDiffText(w, r.Diff.EFIBinaries, "  ")
 	}
 
-	// Full mode: image metadata
-	if mode == "full" {
+	// dm-verity diff
+	if r.Diff.Verity != nil && r.Diff.Verity.Changed {
 		fmt.Fprintln(w)
-		fmt.Fprintln(w, "Images:")
-		fmt.Fprintf(w, "  From: %s (%s)\n", r.From.File, humanBytes(r.From.SizeBytes))
-		fmt.Fprintf(w, "  To:   %s (%s)\n", r.To.File, humanBytes(r.To.SizeBytes))
+		renderVerityDiffText(w, r.Diff.Verity)
+	}
+
+	// Full mode: image metadata & volatile / meaningful remove reasons
+	if mode == "full" {
+		renderImagesBlock(w, r.From, r.To)
+		renderEqualityReasonsBlock(w, r)
 	}
 
 	return nil
@@ -149,13 +166,19 @@ func RenderSummaryText(w io.Writer, summary *ImageSummary, opts TextOptions) err
 	fmt.Fprintln(w, "================")
 	fmt.Fprintf(w, "Image:\t%s\n", summary.File)
 	fmt.Fprintf(w, "Size:\t%s (%d bytes)\n", humanBytes(summary.SizeBytes), summary.SizeBytes)
-
+	if strings.TrimSpace(summary.SHA256) != "" {
+		fmt.Fprintf(w, "SHA256:\t%s\n", summary.SHA256)
+	}
 	// Partition table section
 	renderPartitionTableHeader(w, summary.PartitionTable)
 
 	// Partitions table (includes the “Partitions” header)
 	renderPartitionTable(w, summary.PartitionTable)
-
+	// dm-verity section
+	if summary.Verity != nil && summary.Verity.Enabled {
+		fmt.Fprintln(w)
+		renderVerityInfo(w, summary.Verity)
+	}
 	// Detailed per-partition filesystem blocks (ONLY ONCE)
 	for _, p := range summary.PartitionTable.Partitions {
 		if p.Filesystem == nil || isFilesystemEmpty(p.Filesystem) {
@@ -247,6 +270,15 @@ func renderEFIBinaryDiffText(w io.Writer, d EFIBinaryDiff, indent string) {
 			}
 			if m.From.SHA256 != m.To.SHA256 {
 				fmt.Fprintf(w, "%s    sha256: %s -> %s\n", indent, shortHash(m.From.SHA256), shortHash(m.To.SHA256))
+				// If cmdline hash changed and we have raw strings, show them
+				if m.From.Cmdline != "" || m.To.Cmdline != "" {
+					if m.From.Cmdline != m.To.Cmdline {
+						fmt.Fprintf(w, "%s    cmdline:\n", indent)
+						fmt.Fprintf(w, "%s      from: %q\n", indent, m.From.Cmdline)
+						fmt.Fprintf(w, "%s      to:   %q\n", indent, m.To.Cmdline)
+					}
+				}
+
 			}
 			if m.From.Signed != m.To.Signed {
 				fmt.Fprintf(w, "%s    signed: %v -> %v\n", indent, m.From.Signed, m.To.Signed)
@@ -270,6 +302,14 @@ func renderEFIBinaryDiffText(w io.Writer, d EFIBinaryDiff, indent string) {
 				if m.UKI.OSRelSHA256 != nil {
 					fmt.Fprintf(w, "%s      osrel:   %s -> %s\n", indent,
 						shortHash(m.UKI.OSRelSHA256.From), shortHash(m.UKI.OSRelSHA256.To))
+					// If os release raw changed and we have raw strings, show them
+					if m.From.OSReleaseRaw != "" || m.To.OSReleaseRaw != "" {
+						if m.From.OSReleaseRaw != m.To.OSReleaseRaw {
+							fmt.Fprintf(w, "%s    os release raw:\n", indent)
+							fmt.Fprintf(w, "%s      from: %q\n", indent, m.From.OSReleaseRaw)
+							fmt.Fprintf(w, "%s      to:   %q\n", indent, m.To.OSReleaseRaw)
+						}
+					}
 				}
 				if m.UKI.UnameSHA256 != nil {
 					fmt.Fprintf(w, "%s      uname:   %s -> %s\n", indent,
@@ -295,6 +335,43 @@ func normalizeCompareMode(mode string) string {
 
 func hasAnyEFIDiff(d EFIBinaryDiff) bool {
 	return len(d.Added) > 0 || len(d.Removed) > 0 || len(d.Modified) > 0
+}
+
+func computeObjectCountsFromDiff(d ImageDiff) objectCounts {
+	var c objectCounts
+
+	// Partitions
+	c.added += len(d.Partitions.Added)
+	c.removed += len(d.Partitions.Removed)
+	c.modified += len(d.Partitions.Modified)
+
+	// Global EFI binaries
+	c.added += len(d.EFIBinaries.Added)
+	c.removed += len(d.EFIBinaries.Removed)
+	c.modified += len(d.EFIBinaries.Modified)
+
+	// Optional: count filesystem changes as objects too
+	for _, mp := range d.Partitions.Modified {
+		if mp.Filesystem == nil {
+			continue
+		}
+		switch {
+		case mp.Filesystem.Added != nil:
+			c.added++
+		case mp.Filesystem.Removed != nil:
+			c.removed++
+		case mp.Filesystem.Modified != nil:
+			c.modified++
+		}
+		// Optional: per-partition EFI diff as objects
+		if mp.EFIBinaries != nil {
+			c.added += len(mp.EFIBinaries.Added)
+			c.removed += len(mp.EFIBinaries.Removed)
+			c.modified += len(mp.EFIBinaries.Modified)
+		}
+	}
+
+	return c
 }
 
 // renderPartitionTable prints a table of partitions in the partition table.
@@ -455,24 +532,90 @@ func renderPartitionTableHeader(w io.Writer, pt PartitionTableSummary) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Partition Table")
 	fmt.Fprintln(w, "---------------")
-	fmt.Fprintf(w, "Type:\t%s\n", strings.ToUpper(emptyIfWhitespace(pt.Type)))
+
+	tw := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
+	fmt.Fprintf(tw, "Type:\t%s\n", strings.ToUpper(emptyIfWhitespace(pt.Type)))
 	if strings.EqualFold(pt.Type, "gpt") && strings.TrimSpace(pt.DiskGUID) != "" {
-		fmt.Fprintf(w, "Disk GUID:\t%s\n", strings.ToUpper(strings.TrimSpace(pt.DiskGUID)))
+		fmt.Fprintf(tw, "Disk GUID:\t%s\n", strings.ToUpper(strings.TrimSpace(pt.DiskGUID)))
 	}
 	if pt.LogicalSectorSize > 0 {
-		fmt.Fprintf(w, "Logical sector size:\t%d bytes\n", pt.LogicalSectorSize)
+		fmt.Fprintf(tw, "Logical sector size:\t%d bytes\n", pt.LogicalSectorSize)
 	}
 	if pt.PhysicalSectorSize > 0 {
-		fmt.Fprintf(w, "Physical sector size:\t%d bytes\n", pt.PhysicalSectorSize)
+		fmt.Fprintf(tw, "Physical sector size:\t%d bytes\n", pt.PhysicalSectorSize)
 	}
 	if strings.EqualFold(pt.Type, "gpt") {
-		fmt.Fprintf(w, "Protective MBR:\t%t\n", pt.ProtectiveMBR)
+		fmt.Fprintf(tw, "Protective MBR:\t%t\n", pt.ProtectiveMBR)
 	}
 	if pt.LargestFreeSpan != nil {
-		fmt.Fprintf(w, "Largest free span:\t%s\n", freeSpanString(pt.LargestFreeSpan))
+		fmt.Fprintf(tw, "Largest free span:\t%s\n", freeSpanString(pt.LargestFreeSpan))
 	}
 	if len(pt.MisalignedPartitions) > 0 {
-		fmt.Fprintf(w, "Misaligned partitions:\t%v\n", pt.MisalignedPartitions)
+		fmt.Fprintf(tw, "Misaligned partitions:\t%v\n", pt.MisalignedPartitions)
+	}
+	_ = tw.Flush()
+}
+
+func renderVerityInfo(w io.Writer, v *VerityInfo) {
+	fmt.Fprintln(w, "dm-verity Configuration")
+	fmt.Fprintln(w, "-----------------------")
+
+	tw := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
+	fmt.Fprintf(tw, "Enabled:\t%t\n", v.Enabled)
+	if v.Method != "" {
+		fmt.Fprintf(tw, "Method:\t%s\n", v.Method)
+	}
+	if v.RootDevice != "" {
+		fmt.Fprintf(tw, "Root device:\t%s\n", v.RootDevice)
+	}
+	if v.HashPartition > 0 {
+		fmt.Fprintf(tw, "Hash partition:\t%d\n", v.HashPartition)
+	}
+	_ = tw.Flush()
+
+	if len(v.Notes) > 0 {
+		fmt.Fprintln(w, "Notes:")
+		for _, note := range v.Notes {
+			fmt.Fprintf(w, "  - %s\n", note)
+		}
+	}
+}
+
+func renderVerityDiffText(w io.Writer, d *VerityDiff) {
+	fmt.Fprintln(w, "dm-verity:")
+
+	if d.Added != nil {
+		fmt.Fprintln(w, "  dm-verity ENABLED:")
+		tw := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
+		fmt.Fprintf(tw, "    Method:\t%s\n", d.Added.Method)
+		if d.Added.RootDevice != "" {
+			fmt.Fprintf(tw, "    Root device:\t%s\n", d.Added.RootDevice)
+		}
+		if d.Added.HashPartition > 0 {
+			fmt.Fprintf(tw, "    Hash partition:\t%d\n", d.Added.HashPartition)
+		}
+		_ = tw.Flush()
+		return
+	}
+
+	if d.Removed != nil {
+		fmt.Fprintln(w, "  dm-verity DISABLED")
+		fmt.Fprintf(w, "    Previous method: %s\n", d.Removed.Method)
+		return
+	}
+
+	// Field changes
+	if d.Enabled != nil {
+		fmt.Fprintf(w, "  Enabled: %t -> %t\n", d.Enabled.From, d.Enabled.To)
+	}
+	if d.Method != nil {
+		fmt.Fprintf(w, "  Method: %s -> %s\n", d.Method.From, d.Method.To)
+	}
+	if d.RootDevice != nil {
+		fmt.Fprintf(w, "  Root device: %s -> %s\n", d.RootDevice.From, d.RootDevice.To)
+	}
+	if d.HashPartition != nil {
+		fmt.Fprintf(w, "  Hash partition: %d -> %d\n", d.HashPartition.From, d.HashPartition.To)
 	}
 }
 
@@ -543,6 +686,36 @@ func renderUKIDetailsBlock(w io.Writer, uki EFIBinaryEvidence) {
 		_ = kv2.Flush()
 	}
 }
+
+// renderEqualityReasonsBlock prints the equality reasons.
+func renderEqualityReasonsBlock(w io.Writer, r *ImageCompareResult) {
+	if r == nil {
+		return
+	}
+
+	if len(r.Equality.VolatileReasons) == 0 && len(r.Equality.MeaningfulReasons) == 0 {
+		return
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Equality reasons")
+	fmt.Fprintln(w, "----------------")
+
+	if len(r.Equality.VolatileReasons) > 0 {
+		fmt.Fprintf(w, "Volatile reasons (%d):\n", len(r.Equality.VolatileReasons))
+		for _, reason := range r.Equality.VolatileReasons {
+			fmt.Fprintf(w, "  - %s\n", reason)
+		}
+	}
+
+	if len(r.Equality.MeaningfulReasons) > 0 {
+		fmt.Fprintf(w, "\nMeaningful reasons (%d):\n", len(r.Equality.MeaningfulReasons))
+		for _, reason := range r.Equality.MeaningfulReasons {
+			fmt.Fprintf(w, "  - %s\n", reason)
+		}
+	}
+}
+
 func humanBytes(n int64) string {
 	if n < 0 {
 		return fmt.Sprintf("%d B", n)
@@ -714,4 +887,84 @@ func printOSReleaseKV(w io.Writer, title string, kvs []KeyValue) {
 		fmt.Fprintf(tw, "%s:\t%q\n", kv.Key, kv.Value)
 	}
 	_ = tw.Flush()
+}
+
+func renderEqualityHeader(w io.Writer, r *ImageCompareResult) {
+	// Primary classification
+	cls := strings.TrimSpace(string(r.Equality.Class))
+	if cls == "" {
+		cls = "(unset)"
+	}
+
+	label := map[EqualityClass]string{
+		EqualityBinary:     "Binary identical",
+		EqualitySemantic:   "Semantically identical",
+		EqualityUnverified: "Semantically identical (unverified)",
+		EqualityDifferent:  "Different",
+	}[r.Equality.Class]
+
+	if label == "" {
+		label = cls
+	}
+
+	fmt.Fprintf(w, "Equality: %s (%s)\n", label, cls)
+
+	// Warn if claiming binary identity without hashes
+	if r.Equality.Class == EqualityUnverified {
+		fmt.Fprintln(w, "Note: image SHA256 not available; enable --hash-images to prove binary identity.")
+	}
+
+	// Hint where to look when different
+	if r.Equality.Class == EqualityDifferent {
+		var areas []string
+
+		if r.Summary.PartitionTableChanged {
+			areas = append(areas, "partition table")
+		}
+		if r.Summary.PartitionsChanged {
+			areas = append(areas, "partitions/filesystems")
+		}
+		if r.Summary.EFIBinariesChanged {
+			areas = append(areas, "EFI binaries / boot artifacts")
+		}
+
+		if len(areas) > 0 {
+			fmt.Fprintf(w, "Most likely differences in: %s\n", strings.Join(areas, ", "))
+		}
+	}
+
+	// Hash display (or hint)
+	fromS := strings.TrimSpace(r.From.SHA256)
+	toS := strings.TrimSpace(r.To.SHA256)
+
+	switch {
+	case fromS != "" || toS != "":
+		fromH := "-"
+		toH := "-"
+		if fromS != "" {
+			fromH = shortHash(fromS)
+		}
+		if toS != "" {
+			toH = shortHash(toS)
+		}
+		fmt.Fprintf(w, "Image SHA256: from=%s to=%s\n", fromH, toH)
+
+	default:
+		if r.Equality.Class == EqualityBinary || r.Equality.Class == EqualitySemantic {
+			fmt.Fprintln(w, "Image SHA256: (not computed)")
+		}
+	}
+}
+
+func renderImagesBlock(w io.Writer, from, to ImageSummary) {
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Images:")
+	fmt.Fprintf(w, "  From: %s (%s)\n", from.File, humanBytes(from.SizeBytes))
+	if strings.TrimSpace(from.SHA256) != "" {
+		fmt.Fprintf(w, "        SHA256: %s\n", from.SHA256)
+	}
+	fmt.Fprintf(w, "  To:   %s (%s)\n", to.File, humanBytes(to.SizeBytes))
+	if strings.TrimSpace(to.SHA256) != "" {
+		fmt.Fprintf(w, "        SHA256: %s\n", to.SHA256)
+	}
 }

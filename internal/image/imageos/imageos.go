@@ -202,7 +202,7 @@ func (imageOs *ImageOs) InstallImageOs(diskPathIdMap map[string]string) (version
 		return
 	}
 
-	log.Infof("Configuring UKI...")
+	log.Infof("Configuring UKI... ")
 	if err = buildImageUKI(imageOs.installRoot, imageOs.template); err != nil {
 		err = fmt.Errorf("failed to configure UKI: %w", err)
 		return
@@ -567,12 +567,15 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 				}
 
 				output, err := shell.ExecCmdWithStream(installCmd, true, installRoot, envVars)
+				// Always log the full output for debugging
+				log.Infof("apt-get install output for %s:\n%s", pkg, output)
 				if err != nil {
 					if strings.Contains(output, "Failed to write 'LoaderSystemToken' EFI variable") ||
 						strings.Contains(output, "Failed to create EFI Boot variable entry") {
 						log.Debugf("Expected error: EFI variables cannot be accessed in chroot environment.")
 					} else {
 						log.Errorf("Failed to install package %s: %v", pkg, err)
+						log.Errorf("Full apt-get output:\n%s", output)
 						return fmt.Errorf("failed to install package %s: %w", pkg, err)
 					}
 				}
@@ -900,14 +903,68 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 		log.Debugf("UKI Path:", outputPath)
 
 		cmdlineFile := filepath.Join("/boot", "cmdline.conf")
+
+		// do checks for file paths
+		if _, err := os.Stat(installRoot); err == nil {
+			log.Infof("Install Root Exists at %s", installRoot)
+		} else {
+			log.Errorf("Install Root does not exist at %s", installRoot)
+		}
+		if _, err := os.Stat(kernelPath); err == nil {
+			log.Infof("kernelPath  Exists at %s", kernelPath)
+		} else {
+			log.Errorf("Install Root does not exist at %s", installRoot)
+		}
+
+		if _, err := os.Stat(kernelPath); err == nil {
+			log.Infof("kernelPath  Exists at %s", kernelPath)
+		} else {
+			log.Errorf("kernelPath does not exist at %s", kernelPath)
+		}
+
+		if _, err := os.Stat(initrdPath); err == nil {
+			log.Infof("initrdPath  Exists at %s", initrdPath)
+		} else {
+			log.Errorf("initrdPath does not exist at %s", initrdPath)
+		}
+		if _, err := os.Stat(cmdlineFile); err == nil {
+			log.Infof("cmdlineFile  Exists at %s", cmdlineFile)
+			return nil
+		} else {
+			log.Errorf("cmdlineFile does not exist at %s", cmdlineFile)
+		}
+		if _, err := os.Stat(outputPath); err == nil {
+			log.Infof("outputPath  Exists at %s", outputPath)
+			return nil
+		} else {
+			log.Errorf("outputPath does not exist at %s", outputPath)
+		}
+
 		if err := buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath, template); err != nil {
 			return fmt.Errorf("failed to build UKI: %w", err)
 		}
 		log.Debugf("UKI created successfully on:", outputPath)
+		log.Infof("Target architecture is %v ", template.Target.Arch)
 
-		// 3. Copy systemd-bootx64.efi to ESP/EFI/BOOT/BOOTX64.EFI
-		srcBootloader := filepath.Join("usr", "lib", "systemd", "boot", "efi", "systemd-bootx64.efi")
-		dstBootloader := filepath.Join(espDir, "EFI", "BOOT", "BOOTX64.EFI")
+		srcBootloader := ""
+		dstBootloader := ""
+
+		switch template.Target.Arch {
+		case "x86_64":
+			log.Infof("Target architecture is x86_64, proceeding with bootloader copy")
+			// 3. Copy systemd-bootx64.efi to ESP/EFI/BOOT/BOOTX64.EFI
+			srcBootloader = filepath.Join("usr", "lib", "systemd", "boot", "efi", "systemd-bootx64.efi")
+			dstBootloader = filepath.Join(espDir, "EFI", "BOOT", "BOOTX64.EFI")
+		case "aarch64":
+			log.Infof("Target architecture is ARM64, proceeding with bootloader copy")
+			// 3. Copy systemd-bootx64.efi to ESP/EFI/BOOT/BOOT64.EFI
+			srcBootloader = filepath.Join("usr", "lib", "systemd", "boot", "efi", "systemd-bootaa64.efi")
+			dstBootloader = filepath.Join(espDir, "EFI", "BOOT", "BOOTAA64.EFI")
+		default:
+			log.Infof("Skipping bootloader copy for architecture: %s", template.Target.Arch)
+			return nil
+		}
+
 		if err := copyBootloader(installRoot, srcBootloader, dstBootloader); err != nil {
 			return fmt.Errorf("failed to copy bootloader: %w", err)
 		}
@@ -1211,7 +1268,7 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 		envVars := []string{"TMPDIR=/tmp"}
 		_, err = shell.ExecCmd(cmd, true, installRoot, envVars)
 		if err != nil {
-			log.Errorf("Failed to build UKI with veritysetup: %v", err)
+			log.Errorf("Failed to build UKI with veritysetup: %v failing command: %s", err, cmd)
 			err = fmt.Errorf("failed to build UKI with veritysetup: %w", err)
 		}
 		installRoot = backInstallRoot
@@ -1219,9 +1276,12 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 	} else {
 		_, err = shell.ExecCmd(cmd, true, installRoot, nil)
 		if err != nil {
-			log.Errorf("Failed to build UKI: %v", err)
+			log.Errorf("non-immutable: Failed to build UKI: %v failing command %s", err, cmd)
 			err = fmt.Errorf("failed to build UKI: %w", err)
+		} else {
+			log.Infof("non-immutable: Successfully built UKI: %v  command %s", err, cmd)
 		}
+
 	}
 	return err
 }

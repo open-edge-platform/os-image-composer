@@ -1,3 +1,21 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: Minimal Ubuntu 24.04 initrd/initramfs image for network boot and PXE
+  use_cases:
+    - PXE network boot
+    - Diskless boot environments
+    - Network-based provisioning
+    - Live boot systems
+  keywords:
+    - initrd
+    - initramfs
+    - pxe
+    - network-boot
+    - diskless
+    - live
+    - minimal
+    - ubuntu
+
 image:
   name: minimal-os-image-ubuntu
   version: "24.04"

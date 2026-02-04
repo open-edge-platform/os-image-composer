@@ -1,3 +1,22 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Edge Microvisor Toolkit 3 Edge Multifunction Real-Time (EMF-RT) raw image with real-time kernel for time-sensitive edge workloads"
+  use_cases:
+    - "real-time edge"
+    - "industrial automation"
+    - "time-sensitive networking"
+    - "deterministic computing"
+  keywords:
+    - emf
+    - realtime
+    - rt
+    - edge
+    - industrial
+    - automation
+    - emt3
+    - microvisor
+    - deterministic
+
 image:
   name: emt3-x86_64-minimal-emf-rt
   version: "1.0.0"

@@ -1,3 +1,24 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Azure Linux 3 image with Intel DL Streamer for AI video analytics and deep learning inference"
+  use_cases:
+    - "video analytics"
+    - "AI inference"
+    - "deep learning"
+    - "computer vision"
+    - "Azure AI workloads"
+  keywords:
+    - dlstreamer
+    - ai
+    - inference
+    - video
+    - analytics
+    - deep-learning
+    - opencv
+    - gstreamer
+    - azure
+    - azl3
+
 image:
   name: azl3-dlstreamer-x86_64
   version: "1.0.0"

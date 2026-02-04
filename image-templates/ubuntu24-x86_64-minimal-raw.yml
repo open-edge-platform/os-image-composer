@@ -1,3 +1,19 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: Minimal Ubuntu 24.04 image with essential packages for lightweight deployments
+  use_cases:
+    - Lightweight Ubuntu base image
+    - Cloud instances
+    - Development environments
+    - Container hosts
+  keywords:
+    - minimal
+    - lightweight
+    - base
+    - ubuntu
+    - cloud
+    - development
+
 image:
   name: minimal-os-image-ubuntu
   version: "24.04"

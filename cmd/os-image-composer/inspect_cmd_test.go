@@ -15,8 +15,8 @@ import (
 // resetInspectFlags resets inspect flags to defaults.
 func resetInspectFlags() {
 	outputFormat = "text"
-	newInspector = func() inspector {
-		return imageinspect.NewDiskfsInspector()
+	newInspector = func(hash bool) inspector {
+		return imageinspect.NewDiskfsInspector(hash)
 	}
 }
 
@@ -161,7 +161,7 @@ func TestExecuteInspect_DirectCall(t *testing.T) {
 
 		oldNew := newInspector
 		t.Cleanup(func() { newInspector = oldNew })
-		newInspector = func() inspector {
+		newInspector = func(hash bool) inspector {
 			return &fakeInspector{
 				summary: &imageinspect.ImageSummary{File: "fake.img", SizeBytes: 123},
 			}
@@ -190,7 +190,7 @@ func TestExecuteInspect_DirectCall(t *testing.T) {
 
 		oldNew := newInspector
 		t.Cleanup(func() { newInspector = oldNew })
-		newInspector = func() inspector {
+		newInspector = func(hash bool) inspector {
 			return &fakeInspector{err: errors.New("boom")}
 		}
 
@@ -224,7 +224,7 @@ func TestInspectCommand_OutputFormats_WithFakeInspector(t *testing.T) {
 		},
 	}
 
-	newInspector = func() inspector {
+	newInspector = func(hash bool) inspector {
 		return &fakeInspector{summary: fake}
 	}
 	defer resetInspectFlags()
@@ -243,7 +243,7 @@ func TestInspectCommand_OutputFormats_WithFakeInspector(t *testing.T) {
 	t.Run("JSON", func(t *testing.T) {
 		resetInspectFlags()
 
-		newInspector = func() inspector {
+		newInspector = func(hash bool) inspector {
 			return &fakeInspector{
 				summary: &imageinspect.ImageSummary{
 					File:      "fake.img",
@@ -286,7 +286,7 @@ func TestInspectCommand_OutputFormats_WithFakeInspector(t *testing.T) {
 	})
 
 	t.Run("YAML", func(t *testing.T) {
-		newInspector = func() inspector {
+		newInspector = func(hash bool) inspector {
 			return &fakeInspector{
 				summary: &imageinspect.ImageSummary{
 					File:      "fake.img",

@@ -1,3 +1,24 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Edge Microvisor Toolkit 3 image with Intel DL Streamer for AI video analytics and deep learning inference at the edge"
+  use_cases:
+    - "video analytics"
+    - "AI inference"
+    - "deep learning"
+    - "computer vision"
+    - "media processing"
+  keywords:
+    - dlstreamer
+    - ai
+    - inference
+    - video
+    - analytics
+    - deep-learning
+    - opencv
+    - gstreamer
+    - emt3
+    - microvisor
+
 image:
   name: emt3-x86_64-dlstreamer
   version: "1.0.0"

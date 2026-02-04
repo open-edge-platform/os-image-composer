@@ -144,7 +144,7 @@ os-image-composer build [flags] TEMPLATE_FILE
 | `--cache-dir, -d DIR` | Package cache directory (overrides config). Proper caching significantly improves build times. |
 | `--work-dir DIR` | Working directory for builds (overrides config). This directory is where images are constructed before being finalized. |
 | `--verbose, -v` | Enable verbose output (equivalent to --log-level debug). Displays detailed information about each step of the build process. |
-| `--dotfile, -f FILE` | Generate a dot file for the merged template dependency graph (user + defaults with resolved packages). Nodes are color-coded: essentials (pale yellow), template packages (green), kernel (blue), bootloader (orange). |
+| `--dotfile, -f FILE` | Generate a dot file for the merged template dependency graph (user + defaults with resolved packages). |
 | `--system-packages-only` | When paired with `--dotfile`, limit the dependency graph to roots defined in `SystemConfig.Packages`. Dependencies pulled in by those roots still appear, but essentials/kernel/bootloader packages aren't drawn unless required by a system package. |
 
 **Example:**
@@ -290,6 +290,7 @@ os-image-composer compare [flags] IMAGE_FILE1 IMAGE_FILE2
 | `--format STRING` | Output format: `text` or `json` (default: `text`) |
 | `--mode STRING` | Compare mode: `diff` (partition/FS changes), `summary` (high-level counts), or `full` (complete image metadata). Default: `diff` for text, `full` for JSON |
 | `--pretty` | Pretty-print JSON output (only for `--format=json`; default: `false`) |
+| `--hash-images` | Perform image hashing for verifying binary identical image (default `false`) |
 
 **Description:**
 
@@ -341,6 +342,9 @@ os-image-composer compare --format=json --mode=full --pretty image-v1.raw image-
 
 # Compact JSON diff suitable for CI/CD automation
 os-image-composer compare --format=json --mode=diff image-v1.raw image-v2.raw
+
+# Perform comparison with image hashing enabled with details text diff
+os-image-composer compare --hash-images=true image-v1.raw image-v2.raw
 ```
 
 ### Cache Command

@@ -7,3 +7,9 @@ x86_64:
   pkgType: deb                                      # Package management system
   chrootenvConfigFile: chrootenvconfigs/chrootenv_x86_64.yml  # Path to chrootenv config
   releaseVersion: "24.04"                           # Distribution release version
+aarch64:
+  dist: ubuntu24                                    # Distribution identifier
+  arch: aarch64                                      # Target architecture
+  pkgType: deb                                      # Package management system
+  chrootenvConfigFile: chrootenvconfigs/chrootenv_aarch64.yml  # Path to chrootenv config
+  releaseVersion: "24.04"                           # Distribution release version

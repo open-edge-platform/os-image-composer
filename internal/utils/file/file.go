@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/open-edge-platform/os-image-composer/internal/config"
@@ -279,5 +280,35 @@ func CopyDir(srcDir, dstDir, flags string, sudo bool) error {
 	if _, err := shell.ExecCmd(cmdStr, sudo, shell.HostPath, nil); err != nil {
 		return fmt.Errorf("failed to copy directory from %s to %s: %w", srcDirPath, dstDirPath, err)
 	}
+	return nil
+}
+
+// CheckDiskSpace checks if there is sufficient disk space available in the given directory
+// to accommodate the specified size (with a safety margin).
+func CheckDiskSpace(dir string, requiredBytes int64, safetyMarginPercent float64) error {
+	// Use df command to get available space in bytes
+	cmdStr := fmt.Sprintf("df --output=avail -B1 '%s' | tail -n1", dir)
+	output, err := shell.ExecCmd(cmdStr, false, shell.HostPath, nil)
+	if err != nil {
+		return fmt.Errorf("failed to check disk space: %w", err)
+	}
+
+	availableStr := strings.TrimSpace(output)
+	availableBytes, err := strconv.ParseInt(availableStr, 10, 64)
+	if err != nil {
+		return fmt.Errorf("failed to parse disk space output: %w", err)
+	}
+
+	if safetyMarginPercent < 0 {
+		safetyMarginPercent = 0
+	}
+	safetyMargin := int64(float64(requiredBytes) * safetyMarginPercent)
+	requiredWithMargin := requiredBytes + safetyMargin
+
+	if availableBytes < requiredWithMargin {
+		return fmt.Errorf("insufficient disk space: need %d bytes (including %.0f%% margin), have %d bytes available",
+			requiredWithMargin, safetyMarginPercent*100, availableBytes)
+	}
+
 	return nil
 }
