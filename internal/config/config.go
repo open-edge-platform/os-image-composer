@@ -346,10 +346,10 @@ func (t *ImageTemplate) GetPackages() []string {
 
 var packageSourcePriority = map[PackageSource]int{
 	PackageSourceUnknown:    0,
-	PackageSourceEssential:  10,
+	PackageSourceSystem:     10,
 	PackageSourceKernel:     20,
 	PackageSourceBootloader: 20,
-	PackageSourceSystem:     30,
+	PackageSourceEssential:  30,
 }
 
 // GetPackageSourceMap returns a map of package name to the template section that requested it.
@@ -367,10 +367,10 @@ func (t *ImageTemplate) GetPackageSourceMap() map[string]PackageSource {
 		}
 	}
 
-	setSources(t.EssentialPkgList, PackageSourceEssential)
+	setSources(t.SystemConfig.Packages, PackageSourceSystem)
 	setSources(t.KernelPkgList, PackageSourceKernel)
 	setSources(t.BootloaderPkgList, PackageSourceBootloader)
-	setSources(t.SystemConfig.Packages, PackageSourceSystem)
+	setSources(t.EssentialPkgList, PackageSourceEssential)
 
 	return sources
 }

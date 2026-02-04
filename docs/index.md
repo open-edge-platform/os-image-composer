@@ -220,7 +220,7 @@ Flags:
 - `--cache-dir, -d`: Package cache directory (overrides the configuration file)
 - `--work-dir`: Working directory for builds (overrides the configuration file)
 - `--verbose, -v`: Enable verbose output
-- `--dotfile, -f`: Generate a dependency graph for the merged template as a dot file (color legend: essential = pale yellow, user packages = green, kernel = blue, bootloader = orange)
+- `--dotfile, -f`: Generate a dependency graph for the merged template as a dot file
 - `--system-packages-only`: Use together with `--dotfile` to keep only `SystemConfig.Packages` roots in the graph (dependencies still appear if required)
 - `--config`: Path to the configuration file
 - `--log-level`: Log level (debug, info, warn, and error)

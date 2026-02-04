@@ -3307,8 +3307,8 @@ func TestGetPackageSourceMap(t *testing.T) {
 	if got := sources["vim"]; got != PackageSourceSystem {
 		t.Fatalf("vim source = %s, want system", got)
 	}
-	if got := sources["bash"]; got != PackageSourceSystem {
-		t.Fatalf("bash source = %s, want system override", got)
+	if got := sources["bash"]; got != PackageSourceEssential {
+		t.Fatalf("bash source = %s, want essential (essential has higher priority than system)", got)
 	}
 	if _, exists := sources[""]; exists {
 		t.Fatalf("unexpected empty key in package source map")
