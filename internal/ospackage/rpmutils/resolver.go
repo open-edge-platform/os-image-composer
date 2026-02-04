@@ -66,19 +66,23 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string, pkgSources map[strin
 		if pkg.Name == "" {
 			continue
 		}
-		if _, err := fmt.Fprintf(writer, "  \"%s\";\n", pkg.Name); err != nil {
-			return fmt.Errorf("writing DOT node for %s: %w", pkg.Name, err)
+		// Extract clean package name for display (e.g., "libgcrypt" instead of "libgcrypt-1.10.3-1.azl3.x86_64.rpm")
+		cleanName := extractBasePackageNameFromFile(pkg.Name)
+		if _, err := fmt.Fprintf(writer, "  \"%s\";\n", cleanName); err != nil {
+			return fmt.Errorf("writing DOT node for %s: %w", cleanName, err)
 		}
 		for _, dep := range pkg.Requires {
 			if dep == "" {
 				continue
 			}
-			edgeKey := pkg.Name + "|" + dep
+			// Extract clean dependency name for edges
+			cleanDep := extractBasePackageNameFromFile(dep)
+			edgeKey := cleanName + "|" + cleanDep
 			if edgesWritten[edgeKey] {
 				continue
 			}
-			if _, err := fmt.Fprintf(writer, "  \"%s\" -> \"%s\";\n", pkg.Name, dep); err != nil {
-				return fmt.Errorf("writing DOT edge %s->%s: %w", pkg.Name, dep, err)
+			if _, err := fmt.Fprintf(writer, "  \"%s\" -> \"%s\";\n", cleanName, cleanDep); err != nil {
+				return fmt.Errorf("writing DOT edge %s->%s: %w", cleanName, cleanDep, err)
 			}
 			edgesWritten[edgeKey] = true
 		}
