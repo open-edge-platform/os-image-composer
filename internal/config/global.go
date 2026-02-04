@@ -435,8 +435,15 @@ func WorkDir() (string, error) {
 func TempDir() string {
 	tempDir := Global().TempDir
 	if tempDir == "" {
-		return os.TempDir()
+		tempDir = "./tmp" // Default to ./tmp instead of system temp
 	}
+
+	// Ensure directory exists
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		// If we can't create it, return the path anyway
+		return tempDir
+	}
+
 	return tempDir
 }
 

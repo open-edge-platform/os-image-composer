@@ -1,8 +1,9 @@
-GRUB_TIMEOUT=0
+GRUB_TIMEOUT=5
+GRUB_TIMEOUT_STYLE=menu
 GRUB_DISTRIBUTOR="{{.Hostname}}"
 GRUB_DISABLE_SUBMENU=y
 GRUB_TERMINAL_OUTPUT="console"
-GRUB_CMDLINE_LINUX="root={{.RootPartition}} boot_uuid={{.BootUUID}} {{.LuksUUID}} {{.EncryptionBootUUID}} {{.LVM}} {{.IMAPolicy}} {{.SELinux}} {{.FIPS}} {{.rdAuto}} {{.CGroup}} {{.ExtraCommandLine}} {{.SystemdVerity}} {{.RootHash}} net.ifnames=0"
+GRUB_CMDLINE_LINUX="root={{.RootPartition}} boot_uuid={{.BootUUID}} {{.LuksUUID}} {{.EncryptionBootUUID}} {{.LVM}} {{.IMAPolicy}} {{.SELinux}} {{.FIPS}} {{.rdAuto}} {{.CGroup}} {{.SystemdVerity}} {{.RootHash}} net.ifnames=0"
 GRUB_CMDLINE_LINUX_DEFAULT="{{.ExtraCommandLine}} \$kernelopts"
 
 # =============================notice===============================

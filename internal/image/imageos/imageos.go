@@ -583,10 +583,57 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 				if err := imageOs.chrootEnv.AptInstallPackage(pkg, installRoot, repoSrcList); err != nil {
 					return fmt.Errorf("failed to install package %s: %w", pkg, err)
 				}
+
+				// After apparmor is installed, create a wrapper to prevent postinst failures in chroot
+				pkgNameOnly := strings.Split(pkg, "_")[0]
+				if pkgNameOnly == "apparmor" {
+					// Create a wrapper script for apparmor_parser that always succeeds
+					apparmorOrigPath := filepath.Join(installRoot, "usr/sbin/apparmor_parser")
+					apparmorRealPath := filepath.Join(installRoot, "usr/sbin/apparmor_parser.real")
+
+					// Check if apparmor_parser exists
+					if _, err := os.Stat(apparmorOrigPath); err == nil {
+						// Rename the real apparmor_parser
+						if err := os.Rename(apparmorOrigPath, apparmorRealPath); err != nil {
+							log.Warnf("Failed to rename apparmor_parser: %v", err)
+						} else {
+							// Create a wrapper that calls the real parser but always returns success
+							wrapperScript := `#!/bin/bash
+# Wrapper for apparmor_parser in chroot environment
+# Calls the real parser but ignores errors since AppArmor kernel interface is not available
+/usr/sbin/apparmor_parser.real "$@" 2>&1 | grep -v "Cache read/write disabled" | grep -v "Kernel needs AppArmor" | grep -v "interface file missing" || true
+exit 0
+`
+							if err := os.WriteFile(apparmorOrigPath, []byte(wrapperScript), 0755); err != nil {
+								log.Warnf("Failed to create apparmor_parser wrapper: %v", err)
+							} else {
+								log.Debugf("Created apparmor_parser wrapper at %s", apparmorOrigPath)
+							}
+						}
+					} else {
+						log.Warnf("apparmor_parser not found at %s", apparmorOrigPath)
+					}
+				}
 			}
 		}
 		if err := imageOs.deInitDebLocalRepoWithinInstallRoot(installRoot); err != nil {
 			return fmt.Errorf("failed to de-initialize local repository within install root: %w", err)
+		}
+
+		// Restore original apparmor_parser after all packages are installed
+		apparmorRealPath := filepath.Join(installRoot, "usr/sbin/apparmor_parser.real")
+		if _, statErr := os.Stat(apparmorRealPath); statErr == nil {
+			apparmorOrigPath := filepath.Join(installRoot, "usr/sbin/apparmor_parser")
+			// Remove the wrapper
+			if err := os.Remove(apparmorOrigPath); err != nil {
+				log.Warnf("Failed to remove apparmor_parser wrapper: %v", err)
+			}
+			// Restore the original
+			if err := os.Rename(apparmorRealPath, apparmorOrigPath); err != nil {
+				log.Warnf("Failed to restore original apparmor_parser: %v", err)
+			} else {
+				log.Debugf("Restored original apparmor_parser after package installation")
+			}
 		}
 	} else {
 		return fmt.Errorf("unsupported package type: %s", pkgType)
