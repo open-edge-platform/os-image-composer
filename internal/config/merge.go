@@ -139,11 +139,27 @@ func MergeConfigurations(userTemplate, defaultTemplate *ImageTemplate) (*ImageTe
 
 	// Debug mode: Pretty print the merged template
 	if IsDebugMode() {
-		pretty, err := json.MarshalIndent(mergedTemplate, "", "  ")
+		// pretty, err := json.MarshalIndent(mergedTemplate, "", "  ")
+		// Build a redacted debug view of the merged template that avoids sensitive fields
+		debugView := struct {
+			ImageName        string `json:"imageName"`
+			SystemConfigName string `json:"systemConfigName"`
+			Immutability     bool   `json:"immutability"`
+			UserCount        int    `json:"userCount"`
+		}{
+			ImageName:        mergedTemplate.Image.Name,
+			SystemConfigName: mergedTemplate.SystemConfig.Name,
+			Immutability:     mergedTemplate.IsImmutabilityEnabled(),
+			UserCount:        len(mergedTemplate.GetUsers()),
+		}
+
+		pretty, err := json.MarshalIndent(debugView, "", "  ")
 		if err != nil {
-			log.Warnf("Failed to pretty print merged template: %v", err)
+			// log.Warnf("Failed to pretty print merged template: %v", err)
+			log.Warnf("Failed to pretty print merged template debug view: %v", err)
 		} else {
-			log.Debugf("Merged Template:\n%s", string(pretty))
+			// log.Debugf("Merged Template:\n%s", string(pretty))
+			log.Debugf("Merged Template (redacted):\n%s", string(pretty))
 		}
 	}
 

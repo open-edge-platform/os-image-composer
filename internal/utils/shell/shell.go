@@ -456,7 +456,9 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 
 		fullCmdStr = "sudo " + envValStr + "chroot " + chrootPath + " " + fullPathCmdStr
 		chrootDir := filepath.Base(chrootPath)
-		log.Debugf("Chroot " + chrootDir + " Exec: [" + fullPathCmdStr + "]")
+		// log.Debugf("Chroot " + chrootDir + " Exec: [" + fullPathCmdStr + "]")
+		// Avoid logging full command string to prevent leaking sensitive data.
+		log.Debugf("Chroot %s Exec: [command executed]", chrootDir)
 
 	} else {
 		if sudo {
@@ -467,10 +469,14 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 			}
 
 			fullCmdStr = "sudo " + envValStr + fullPathCmdStr
-			log.Debugf("Exec: [sudo " + fullPathCmdStr + "]")
+			// log.Debugf("Exec: [sudo " + fullPathCmdStr + "]")
+			// Avoid logging full command string to prevent leaking sensitive data.
+			log.Debugf("Exec with sudo: [command executed]")
 		} else {
 			fullCmdStr = fullPathCmdStr
-			log.Debugf("Exec: [" + fullPathCmdStr + "]")
+			// log.Debugf("Exec: [" + fullPathCmdStr + "]")
+			// Avoid logging full command string to prevent leaking sensitive data.
+			log.Debugf("Exec without sudo: [command executed]")
 		}
 	}
 
@@ -490,13 +496,19 @@ func (d *DefaultExecutor) ExecCmd(cmdStr string, sudo bool, chrootPath string, e
 
 	if err != nil {
 		if outputStr != "" {
-			return outputStr, fmt.Errorf("failed to exec %s: output %s, err %w", fullCmdStr, outputStr, err)
+			// return outputStr, fmt.Errorf("failed to exec %s: output %s, err %w", fullCmdStr, outputStr, err)
+			// Do not include the full command string in the error to avoid leaking sensitive data.
+			return outputStr, fmt.Errorf("failed to execute command: %w", err)
 		} else {
-			return outputStr, fmt.Errorf("failed to exec %s: %w", fullCmdStr, err)
+			// return outputStr, fmt.Errorf("failed to exec %s: %w", fullCmdStr, err)
+			// Do not include the full command string in the error to avoid leaking sensitive data.
+			return outputStr, fmt.Errorf("failed to execute command: %w", err)
 		}
 	} else {
 		if outputStr != "" {
-			log.Debugf(outputStr)
+			// log.Debugf(outputStr)
+			// Avoid logging raw command output to prevent leaking sensitive data.
+			log.Debugf("Command executed successfully with non-empty output")
 		}
 		return outputStr, nil
 	}
@@ -599,7 +611,8 @@ func (d *DefaultExecutor) ExecCmdWithInput(inputStr string, cmdStr string, sudo 
 		if outputStr != "" {
 			log.Infof(outputStr)
 		}
-		return outputStr, fmt.Errorf("failed to exec %s with input %s: %w", fullCmdStr, inputStr, err)
+		// return outputStr, fmt.Errorf("failed to exec %s with input %s: %w", fullCmdStr, inputStr, err)
+		return outputStr, fmt.Errorf("failed to exec %s: %w", fullCmdStr, err)
 	} else {
 		if outputStr != "" {
 			log.Debugf(outputStr)
