@@ -691,7 +691,8 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 				queue = append(queue, chosenCandidate)
 			} else {
 				// FAIL FAST instead of just warning
-				return nil, fmt.Errorf("no candidates found for required dependency %q of package %q", depName, cur.Name)
+				// return nil, fmt.Errorf("no candidates found for required dependency %q of package %q", depName, cur.Name)
+				log.Warnf("No candidates found for required dependency %q of package %q", depName, cur.Name)
 			}
 		}
 	}

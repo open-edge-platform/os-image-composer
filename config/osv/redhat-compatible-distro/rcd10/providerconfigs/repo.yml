@@ -6,7 +6,7 @@ component: "rcd-10.0-base"  # Repository component/section identifier
 gpgCheck: true  # Re-enabled with correct GPG key
 repoGPGCheck: true  # Re-enabled with correct GPG key
 enabled: true
-gpgKey: "repodata/repomd.xml.key"  # Relative path from resolved repository URL
+gpgKey: "https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official"
 # For RPM-based repositories, we use the baseURL pattern
 # The actual repository URL is constructed as: {baseURL}/{arch}/
 # Repodata is accessed at: {baseURL}/{arch}/repodata/repomd.xml
