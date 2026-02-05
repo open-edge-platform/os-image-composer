@@ -77,6 +77,8 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string, pkgSources map[strin
 			}
 			// Extract clean dependency name for edges (handles capabilities and package requirements)
 			cleanDep := extractBaseRequirement(dep)
+			// Also trim package filenames (e.g., "glibc-2.38-16.azl3.x86_64.rpm" -> "glibc")
+			cleanDep = extractBasePackageNameFromFile(cleanDep)
 			edgeKey := cleanName + "|" + cleanDep
 			if edgesWritten[edgeKey] {
 				continue
