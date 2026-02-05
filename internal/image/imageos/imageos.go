@@ -1518,8 +1518,10 @@ func setUserPassword(installRoot string, user config.UserConfig) error {
 			// Password is already hashed, use usermod to set it directly
 			usermodCmd := fmt.Sprintf("usermod -p '%s' %s", user.Password, user.Name)
 			if _, err := shell.ExecCmd(usermodCmd, true, installRoot, nil); err != nil {
-				log.Errorf("Failed to set hashed password for user %s: %v", user.Name, err)
-				return fmt.Errorf("failed to set hashed password for user %s: %w", user.Name, err)
+				// log.Errorf("Failed to set hashed password for user %s: %v", user.Name, err)
+				// return fmt.Errorf("failed to set hashed password for user %s: %w", user.Name, err)
+				log.Errorf("Failed to set hashed password for user %s", user.Name)
+				return fmt.Errorf("failed to set hashed password for user %s", user.Name)
 			}
 		} else {
 			// Password is plaintext, need to hash it first
@@ -1530,8 +1532,10 @@ func setUserPassword(installRoot string, user config.UserConfig) error {
 
 			usermodCmd := fmt.Sprintf("usermod -p '%s' %s", hashedPassword, user.Name)
 			if _, err := shell.ExecCmd(usermodCmd, true, installRoot, nil); err != nil {
-				log.Errorf("Failed to set hashed password for user %s: %v", user.Name, err)
-				return fmt.Errorf("failed to set hashed password for user %s: %w", user.Name, err)
+				// log.Errorf("Failed to set hashed password for user %s: %v", user.Name, err)
+				// return fmt.Errorf("failed to set hashed password for user %s: %w", user.Name, err)
+				log.Errorf("Failed to set password for user %s", user.Name)
+				return fmt.Errorf("failed to set password for user %s", user.Name)
 			}
 		}
 	} else {
@@ -1539,8 +1543,10 @@ func setUserPassword(installRoot string, user config.UserConfig) error {
 		passwdInput := fmt.Sprintf("%s\n%s\n", user.Password, user.Password)
 		passwdCmd := fmt.Sprintf("passwd %s", user.Name)
 		if _, err := shell.ExecCmdWithInput(passwdInput, passwdCmd, true, installRoot, nil); err != nil {
-			log.Errorf("Failed to set password for user %s: %v", user.Name, err)
-			return fmt.Errorf("failed to set password for user %s: %w", user.Name, err)
+			// log.Errorf("Failed to set password for user %s: %v", user.Name, err)
+			// return fmt.Errorf("failed to set password for user %s: %w", user.Name, err)
+			log.Errorf("Failed to set password for user %s", user.Name)
+			return fmt.Errorf("failed to set password for user %s", user.Name)
 		}
 	}
 
@@ -1572,7 +1578,8 @@ func hashPassword(password, hashAlgo, installRoot string) (string, error) {
 	log.Debugf("Hashing password with algorithm %s", hashAlgo)
 	output, err := shell.ExecCmd(cmd, true, installRoot, nil)
 	if err != nil {
-		log.Errorf("Failed to hash password with algorithm %s: %v", hashAlgo, err)
+		// log.Errorf("Failed to hash password with algorithm %s: %v", hashAlgo, err)
+		log.Errorf("Failed to hash password with algorithm %s", hashAlgo)
 		return "", fmt.Errorf("failed to hash password with algorithm %s: %w", hashAlgo, err)
 	}
 

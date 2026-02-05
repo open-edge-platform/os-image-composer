@@ -612,7 +612,7 @@ func (d *DefaultExecutor) ExecCmdWithInput(inputStr string, cmdStr string, sudo 
 			log.Infof(outputStr)
 		}
 		// return outputStr, fmt.Errorf("failed to exec %s with input %s: %w", fullCmdStr, inputStr, err)
-		return outputStr, fmt.Errorf("failed to exec %s: %w", fullCmdStr, err)
+		return outputStr, fmt.Errorf("failed to exec command: %w", err)
 	} else {
 		if outputStr != "" {
 			log.Debugf(outputStr)
