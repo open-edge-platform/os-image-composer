@@ -57,6 +57,7 @@ type ChrootEnv struct {
 	ChrootEnvRoot       string
 	ChrootImageBuildDir string
 	ChrootBuilder       chrootbuild.ChrootBuilderInterface
+	TargetOs            string // Store targetOs for package manager selection
 }
 
 func NewChrootEnv(targetOs, targetDist, targetArch string) (*ChrootEnv, error) {
@@ -80,6 +81,7 @@ func NewChrootEnv(targetOs, targetDist, targetArch string) (*ChrootEnv, error) {
 	return &ChrootEnv{
 		ChrootEnvRoot: chrootEnvRoot,
 		ChrootBuilder: chrootBuilder,
+		TargetOs:      targetOs,
 	}, nil
 }
 
@@ -277,8 +279,16 @@ func (chrootEnv *ChrootEnv) RefreshLocalCacheRepo() error {
 	// From local.repo
 	pkgType := chrootEnv.GetTargetOsPkgType()
 	if pkgType == "rpm" {
+		pkgManager := chrootEnv.getPackageManagerCmd()
 		releaseVersion := chrootEnv.GetTargetOsReleaseVersion()
-		cmd := fmt.Sprintf("tdnf makecache --releasever %s", releaseVersion)
+
+		var cmd string
+		if pkgManager == "dnf" {
+			cmd = "dnf makecache"
+		} else {
+			cmd = fmt.Sprintf("tdnf makecache --releasever %s", releaseVersion)
+		}
+
 		if _, err := shell.ExecCmdWithStream(cmd, true, chrootEnv.ChrootEnvRoot, nil); err != nil {
 			return fmt.Errorf("failed to refresh cache for chroot repository: %w", err)
 		}
@@ -480,22 +490,55 @@ func (chrootEnv *ChrootEnv) CleanupChrootEnv(targetOs, targetDist, targetArch st
 	return nil
 }
 
+// getPackageManagerCmd returns the appropriate package manager command based on target OS
+func (chrootEnv *ChrootEnv) getPackageManagerCmd() string {
+	if strings.Contains(chrootEnv.TargetOs, "redhat-compatible-distro") {
+		return "dnf"
+	}
+	return "tdnf"
+}
+
+// buildInstallCmd builds the package installation command based on the package manager
+func (chrootEnv *ChrootEnv) buildInstallCmd(packageName, chrootInstallRoot string, repositoryIDList []string) string {
+	pkgManager := chrootEnv.getPackageManagerCmd()
+	releaseVersion := chrootEnv.GetTargetOsReleaseVersion()
+
+	if pkgManager == "dnf" {
+		// dnf syntax for RCD builds (similar to tdnf but with dnf)
+		installCmd := fmt.Sprintf("dnf install %s -y --nogpgcheck --installroot %s --setopt=reposdir=%s",
+			packageName, chrootInstallRoot, RPMRepoConfigDir)
+
+		// Add repository configuration for dnf
+		if len(repositoryIDList) > 0 {
+			installCmd += " --disablerepo=*"
+			for _, repoID := range repositoryIDList {
+				installCmd += " --enablerepo=" + repoID
+			}
+		}
+		return installCmd
+	} else {
+		// tdnf original syntax
+		installCmd := fmt.Sprintf("tdnf install %s --releasever %s --setopt reposdir=%s --nogpgcheck --assumeyes --installroot %s",
+			packageName, releaseVersion, RPMRepoConfigDir, chrootInstallRoot)
+
+		// Add repository configuration for tdnf
+		if len(repositoryIDList) > 0 {
+			installCmd += " --disablerepo=*"
+			for _, repoID := range repositoryIDList {
+				installCmd += " --enablerepo=" + repoID
+			}
+		}
+		return installCmd
+	}
+}
+
 func (chrootEnv *ChrootEnv) TdnfInstallPackage(packageName, installRoot string, repositoryIDList []string) error {
-	var installCmd string
 	chrootInstallRoot, err := chrootEnv.GetChrootEnvPath(installRoot)
 	if err != nil {
 		return fmt.Errorf("failed to get chroot environment path for install root %s: %w", installRoot, err)
 	}
-	releaseVersion := chrootEnv.GetTargetOsReleaseVersion()
-	installCmd = fmt.Sprintf("tdnf install %s --releasever %s --setopt reposdir=%s --nogpgcheck --assumeyes --installroot %s",
-		packageName, releaseVersion, RPMRepoConfigDir, chrootInstallRoot)
 
-	if len(repositoryIDList) > 0 {
-		installCmd += " --disablerepo=*"
-		for _, repoID := range repositoryIDList {
-			installCmd += " --enablerepo=" + repoID
-		}
-	}
+	installCmd := chrootEnv.buildInstallCmd(packageName, chrootInstallRoot, repositoryIDList)
 
 	if _, err := shell.ExecCmdWithStream(installCmd, true, chrootEnv.ChrootEnvRoot, nil); err != nil {
 		return fmt.Errorf("failed to install package %s: %w", packageName, err)

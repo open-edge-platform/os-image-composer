@@ -246,13 +246,52 @@ func extractBasePackageNameFromFile(fullName string) string {
 // extractBaseNameFromDep takes a potentially complex requirement string
 // and returns only the base package/capability name.
 func extractBaseNameFromDep(req string) string {
-	if strings.HasPrefix(req, "(") && strings.Contains(req, " ") {
-		trimmed := strings.TrimPrefix(req, "(")
-		parts := strings.Fields(trimmed)
-		if len(parts) > 0 {
-			req = parts[0]
+	req = strings.TrimSpace(req)
+	if req == "" {
+		return ""
+	}
+
+	// Handle complex conditional dependencies with "if" clauses
+	if strings.Contains(req, ") if ") {
+		// Extract content between first '((' and ') if'
+		if start := strings.Index(req, "(("); start != -1 {
+			if end := strings.Index(req, ") if "); end != -1 {
+				inner := req[start+2 : end]
+				// Handle multiple operators in priority order
+				for _, op := range []string{" >= ", " <= ", " > ", " < ", " = "} {
+					if idx := strings.Index(inner, op); idx != -1 {
+						return strings.TrimSpace(inner[:idx])
+					}
+				}
+				return strings.TrimSpace(inner)
+			}
 		}
 	}
+
+	// Handle simple parentheses cases
+	if strings.HasPrefix(req, "(") && strings.HasSuffix(req, ")") {
+		inner := req[1 : len(req)-1]
+		inner = strings.TrimSpace(inner)
+		// Handle version operators in priority order
+		for _, op := range []string{" >= ", " <= ", " > ", " < ", " = "} {
+			if idx := strings.Index(inner, op); idx != -1 {
+				return strings.TrimSpace(inner[:idx])
+			}
+		}
+		parts := strings.Fields(inner)
+		if len(parts) > 0 {
+			return parts[0]
+		}
+		return inner
+	}
+
+	// Handle regular cases with operators
+	for _, op := range []string{" >= ", " <= ", " > ", " < ", " = "} {
+		if idx := strings.Index(req, op); idx != -1 {
+			return strings.TrimSpace(req[:idx])
+		}
+	}
+
 	finalParts := strings.Fields(req)
 	if len(finalParts) == 0 {
 		return ""

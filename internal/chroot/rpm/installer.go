@@ -170,10 +170,13 @@ func (rpmInstaller *RpmInstaller) updateRpmDB(chrootEnvBuildPath, chrootPkgCache
 // importGpgKeys imports GPG keys into the chroot environment
 func importGpgKeys(targetOs string, chrootEnvBuildPath string) error {
 	var cmdStr string
-	if targetOs == "edge-microvisor-toolkit" {
+	switch targetOs {
+	case "edge-microvisor-toolkit":
 		cmdStr = "rpm -q -l edge-repos-shared | grep 'rpm-gpg'"
-	} else if targetOs == "azure-linux" {
+	case "azure-linux":
 		cmdStr = "rpm -q -l azurelinux-repos-shared | grep 'rpm-gpg'"
+	case "redhat-compatible-distro":
+		cmdStr = "rpm -q -l centos-gpg-keys | grep 'RPM-GPG-KEY'"
 	}
 
 	output, err := shell.ExecCmd(cmdStr, false, chrootEnvBuildPath, nil)
