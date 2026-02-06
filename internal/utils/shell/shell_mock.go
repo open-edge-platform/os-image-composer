@@ -31,14 +31,20 @@ func getFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 	if chrootPath != HostPath {
 		fullCmdStr = "sudo " + envValStr + "chroot " + chrootPath + " " + cmdStr
 		chrootDir := filepath.Base(chrootPath)
-		log.Debugf("MockExecutor: Chroot " + chrootDir + " Exec: [" + cmdStr + "]")
+		// log.Debugf("MockExecutor: Chroot " + chrootDir + " Exec: [" + cmdStr + "]")
+		// Avoid logging full command string to prevent leaking sensitive data such as passwords.
+		log.Debugf("MockExecutor: Chroot %s Exec", chrootDir)
 	} else {
 		if sudo {
 			fullCmdStr = "sudo " + envValStr + cmdStr
-			log.Debugf("MockExecutor: Host Exec with sudo: [" + cmdStr + "]")
+			// log.Debugf("MockExecutor: Host Exec with sudo: [" + cmdStr + "]")
+			// Avoid logging full command string to prevent leaking sensitive data such as passwords.
+			log.Debugf("MockExecutor: Host Exec with sudo")
 		} else {
 			fullCmdStr = envValStr + cmdStr
-			log.Debugf("MockExecutor: Host Exec: [" + cmdStr + "]")
+			// log.Debugf("MockExecutor: Host Exec: [" + cmdStr + "]")
+			// Avoid logging full command string to prevent leaking sensitive data such as passwords.
+			log.Debugf("MockExecutor: Host Exec without sudo")
 		}
 	}
 	return fullCmdStr, nil

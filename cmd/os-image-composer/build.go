@@ -126,7 +126,9 @@ post:
 	if buildErr == nil {
 		log.Info("image build completed successfully")
 	} else {
-		log.Errorf("image build failed: %v", buildErr)
+		// Avoid logging the full error chain to prevent potential leakage of sensitive data.
+		// Log only the error type/category to aid debugging without exposing sensitive details.
+		log.Errorf("image build failed (error type: %T)", buildErr)
 	}
 
 	return buildErr
