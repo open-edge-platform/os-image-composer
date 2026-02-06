@@ -7,5 +7,4 @@ packages:
   - glibc-minimal-langpack # Core libraries without extra languages
   - dnf                    # Package manager (or 'microdnf' for even smaller)
   - rpm                    # Package database tools
-  - findutils              # Basic search tools (often needed by scripts)
-  - microdnf              # Lightweight package manager to replace tdnf
+  - findutils              # Basic search tools (often needed by scripts)  
