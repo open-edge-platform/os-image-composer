@@ -573,10 +573,28 @@ func diskPartitionCreate(
 	}
 
 	if partitionInfo.FsType == "fat32" || partitionInfo.FsType == "fat16" || partitionInfo.FsType == "vfat" {
+		var fatTypeFlag string
+		switch partitionInfo.FsType {
+		case "fat32":
+			fatTypeFlag = "-F 32"
+		case "fat16":
+			fatTypeFlag = "-F 16"
+		default: // "vfat"
+			fatTypeFlag = "" // Let mkfs.vfat auto-decide
+		}
+
 		if partitionInfo.FsLabel != "" {
-			cmdStr = fmt.Sprintf("mkfs -t vfat -n %s %s", partitionInfo.FsLabel, diskPartDev)
+			if fatTypeFlag != "" {
+				cmdStr = fmt.Sprintf("mkfs -t vfat %s -n %s %s", fatTypeFlag, partitionInfo.FsLabel, diskPartDev)
+			} else {
+				cmdStr = fmt.Sprintf("mkfs -t vfat -n %s %s", partitionInfo.FsLabel, diskPartDev)
+			}
 		} else {
-			cmdStr = fmt.Sprintf("mkfs -t vfat %s", diskPartDev)
+			if fatTypeFlag != "" {
+				cmdStr = fmt.Sprintf("mkfs -t vfat %s %s", fatTypeFlag, diskPartDev)
+			} else {
+				cmdStr = fmt.Sprintf("mkfs -t vfat %s", diskPartDev)
+			}
 		}
 		_, err := shell.ExecCmd(cmdStr, true, shell.HostPath, nil)
 		if err != nil {

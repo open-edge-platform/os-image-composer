@@ -84,6 +84,22 @@ systemConfig:
   name: ubuntu-server-cloud-amd64
   # High-level description surfaced in manifests
   description: server Ubuntu 24.04 cloud image for x86_64
+
+  immutability:
+    enabled: false # default is true, overridden to false here
+
+  # configurations:
+  #   # Backup the working DNS configuration before apt update  
+  #   - cmd: "cp /etc/resolv.conf /tmp/working-resolv.conf.backup"
+  #   # Debug: Show current DNS configuration that works
+  #   - cmd: "cat /etc/resolv.conf"
+  #   # Note: Keep the existing working DNS config - don't overwrite it!
+  #   # Update package database to find specific kernel packages like linux-image-6.11.0-17-generic
+  #   - cmd: "apt update"
+  #   # Restore the original systemd-resolved configuration (it was already working)
+  #   - cmd: "cp /tmp/working-resolv.conf.backup /etc/resolv.conf"
+  #   - cmd: "rm -f /tmp/working-resolv.conf.backup"
+    
   # Bootloader settings; grub following ubuntu defaults
   bootloader:
     bootType: efi
@@ -105,6 +121,7 @@ systemConfig:
   - init
   - libeatmydata1
   - libwrap0
+  - linux-virtual
   - login
   - ncurses-base
   - ncurses-bin
@@ -123,17 +140,69 @@ systemConfig:
   - python3-tz
   - shim-signed
   - ssh-import-id
-  - snapd
   - ubuntu-minimal
   - ubuntu-server
   - ubuntu-standard
   - util-linux
+  
+  ## other top level package 
+  - snapd
+  - systemd-resolved
+  
+  ## Packages required by installer.sh (services that must pre-exist)
+  - systemd-timesyncd
+  - rsyslog
+  - ufw
+  - cron
+  - logrotate
+  - unattended-upgrades
+  # - apport-symptoms
+  # - bash-completion
+  # - command-not-found
+  # - cryptsetup-initramfs
+  # - e2fsprogs-l10n
+  # - efibootmgr
+  # - finalrd
+  # - friendly-recovery
+  # - gdisk
+  # - gnupg-l10n
+  # - gpg-wks-client
+  # - iputils-tracepath
+  # - jq
+  # - krb5-locales
+  # - landscape-common
+  # - mtr-tiny
+  # - nano
+  # - needrestart
+  # - networkd-dispatcher
+  # - ntfs-3g
+  # - numactl
+  # - open-iscsi
+  # - os-prober
+  # - pastebinit
+  # - powermgmt-base
+  # - publicsuffix
+  # - rsyslog
+  # - run-one
+  # - secureboot-db
+  # - sysstat
+  # - systemd-hwe-hwdb
+  # - systemd-timesyncd
+  # - tcpdump
+  # - telnet
+  # - thin-provisioning-tools
+  # - ubuntu-kernel-accessories
+  # - udisks2
+  
+  # - usb-modeswitch
+  # - uuid-runtime
+  # - zerofree
 
   # Kernel metadata used by builder to set cmdline and module hints
   kernel:
-    version: "6.8"
-    cmdline: "console=tty0 console=ttyS0,115200"
+    version: "6.11"
+    cmdline: "root=LABEL=cloudimg-rootfs ro console=tty1 console=ttyS0"
     packages:
-#      - linux-image-virtual
-      - linux-image-6.8.0-58-generic
+    #- linux-image-6.8.0-58-generic
       - linux-image-6.11.0-17-generic
+    #  - linux-image-virtual-6.8
