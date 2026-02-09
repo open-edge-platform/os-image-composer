@@ -61,36 +61,49 @@ systemConfig:
 
   bootloader:
     bootType: efi # (efi or legacy)
-    provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
+    provider: grub # (grub for efi and legacy mode, or systemd-boot for efi mode)
 
   immutability:
-    enabled: true # default is true
+    enabled: false # default is true
 
   packages:
     # --- MINIMUM BOOTABLE BASE ---
-    - basesystem           # The skeleton of the OS structure
-    - filesystem            # Provides the basic directory layout (/, /etc, /usr, etc.)
-    - setup                 # Contains fundamental system configuration files (like /etc/passwd)
-    - glibc                 # The core C library for almost all binaries
-    - bash                  # The shell required for init scripts
-    - coreutils             # Basic commands (ls, cp, mkdir) required during boot
-    - systemd               # The init system (PID 1)
-    - util-linux            # Required for mounting filesystems (mount, fdisk)
-    - kernel                # The Linux kernel itself
-    - kernel-core           # Essential kernel modules for hardware/filesystem support
-    - dracut                # Used to generate the initramfs to find the root disk
-    - dnf                   # Even a minimum build needs a way to install more packages
+    - centos-stream-release  # <--- ADDED: Critical for system identity
+    - basesystem
+    - filesystem
+    - setup
+    - glibc
+    - bash
+    - coreutils
+    - systemd
+    - util-linux
+    - kernel
+    - kernel-core
+    - kernel-modules         # <--- ADDED: For hardware driver support
+    - dracut
+    - cpio
+    - dracut-config-generic  # <--- ADDED: Ensures the image boots on any hardware
+    - dnf
 
-    # --- BOOTLOADER (For UEFI/UKI) ---
-    - grub2-common                  # The EFI boot manager
-    - shim-x64              # Necessary for UEFI handover
+    # --- BOOTLOADER GRUB (For UEFI) ---
+    - grub2-common
+    - grub2-efi-x64          # <--- ADDED: The actual EFI bootloader
+    - grub2-tools            # <--- ADDED: Tools to generate grub.cfg
+    - shim-x64
+    - efibootmgr             # <--- ADDED: Required to register boot entry
+
+    # --- SYSTEMD-BOOT LOADER ---    
+    # - systemd-ukify          # <--- Provides the 'ukify' command
+    # - systemd-boot-unsigned  # The boot manager
+    # - shim-x64               # For Secure Boot handoff
+    # - binutils               # Required by ukify for 'objcopy' operations
+    # - python3-pefile         # Often a required dependency for ukify to handle PE binaries
 
     # --- MINIMUM CONFIGURATION ---
-    - hostname              # To identify the system
-    - shadow-utils          # To manage users/root password
-    - iproute               # Minimum networking tool to bring up an interface
-    - ncurses               # Required for terminal display
-
+    - hostname
+    - shadow-utils
+    - iproute
+    - ncurses
 
   additionalFiles:
     - local: ../additionalfiles/99-dhcp-en.network
