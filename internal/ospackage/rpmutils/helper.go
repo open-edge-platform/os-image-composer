@@ -226,27 +226,6 @@ var knownRPMArches = map[string]bool{
 	"src":     true,
 }
 
-// isDistMarker checks if a token contains a distribution marker pattern
-func isDistMarker(token string) bool {
-	// Check for .azl3, .azl4, etc.
-	if strings.Contains(token, ".azl") {
-		return true
-	}
-	// Check for .el7, .el8, .el9, etc. (RHEL/CentOS)
-	for i := 0; i < len(token)-2; i++ {
-		if token[i:i+3] == ".el" && i+3 < len(token) && token[i+3] >= '0' && token[i+3] <= '9' {
-			return true
-		}
-	}
-	// Check for .fc38, .fc39, etc. (Fedora)
-	for i := 0; i < len(token)-2; i++ {
-		if token[i:i+3] == ".fc" && i+3 < len(token) && token[i+3] >= '0' && token[i+3] <= '9' {
-			return true
-		}
-	}
-	return false
-}
-
 // extractBasePackageNameFromFile extracts the base package name from a full package filename
 // e.g., "curl-8.8.0-2.azl3.x86_64.rpm" -> "curl"
 // e.g., "curl-devel-8.8.0-1.azl3.x86_64.rpm" -> "curl-devel"
