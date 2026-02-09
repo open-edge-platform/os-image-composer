@@ -27,7 +27,7 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 	ver := ""
 	hasVersionConstraint := false
 	if len(candidates) > 0 {
-		op, ver, hasVersionConstraint = extractVersionRequirement(parentPkg.RequiresVer, extractBasePackageNameFromFile(candidates[0].Name))
+		op, ver, hasVersionConstraint = extractVersionRequirement(parentPkg.RequiresVer, candidates[0].Name)
 	}
 
 	if hasVersionConstraint {
@@ -207,86 +207,6 @@ func compareVersions(v1, v2 string) int {
 	return cmp
 }
 
-// Known RPM architectures
-var knownRPMArches = map[string]bool{
-	"x86_64":  true,
-	"i386":    true,
-	"i486":    true,
-	"i586":    true,
-	"i686":    true,
-	"aarch64": true,
-	"arm64":   true,
-	"armv7hl": true,
-	"armv7l":  true,
-	"ppc64":   true,
-	"ppc64le": true,
-	"s390":    true,
-	"s390x":   true,
-	"noarch":  true,
-	"src":     true,
-}
-
-// extractBasePackageNameFromFile extracts the base package name from a full package filename
-// e.g., "curl-8.8.0-2.azl3.x86_64.rpm" -> "curl"
-// e.g., "curl-devel-8.8.0-1.azl3.x86_64.rpm" -> "curl-devel"
-// e.g., "libpcre2-8-0-10.42-3.azl3.x86_64.rpm" -> "libpcre2-8-0"
-func extractBasePackageNameFromFile(fullName string) string {
-	// Remove .rpm suffix if present
-	name := strings.TrimSuffix(fullName, ".rpm")
-
-	// Split by '-' and find where the version starts
-	parts := strings.Split(name, "-")
-	if len(parts) < 2 {
-		return name
-	}
-
-	// First, check if this is a full RPM filename format by looking for architecture markers
-	// This allows us to use different strategies for full filenames vs simplified names
-	hasArchMarker := false
-	archMarkerIndex := -1
-	for i := len(parts) - 1; i >= 0; i-- {
-		part := parts[i]
-		dotParts := strings.Split(part, ".")
-		if len(dotParts) > 1 {
-			lastSegment := dotParts[len(dotParts)-1]
-			if knownRPMArches[lastSegment] {
-				hasArchMarker = true
-				archMarkerIndex = i
-				break
-			}
-		}
-	}
-
-	// If we have a full RPM filename with architecture marker, use backward search from arch
-	if hasArchMarker {
-		// Work backwards from the arch marker to find where version starts
-		// Prefer parts with dots (more likely to be version) over plain numbers
-		for j := archMarkerIndex - 1; j >= 1; j-- {
-			if len(parts[j]) > 0 && (parts[j][0] >= '0' && parts[j][0] <= '9') && strings.Contains(parts[j], ".") {
-				// This looks like a version part (starts with digit and contains dot)
-				return strings.Join(parts[:j], "-")
-			}
-		}
-		// If no dotted version found, take first digit-starting part
-		for j := archMarkerIndex - 1; j >= 1; j-- {
-			if len(parts[j]) > 0 && (parts[j][0] >= '0' && parts[j][0] <= '9') {
-				return strings.Join(parts[:j], "-")
-			}
-		}
-	}
-
-	// No architecture marker found - use simpler forward search (for test cases and simplified names)
-	// Find the first part that looks like a version (starts with digit)
-	for i := 1; i < len(parts); i++ {
-		if len(parts[i]) > 0 && (parts[i][0] >= '0' && parts[i][0] <= '9') {
-			return strings.Join(parts[:i], "-")
-		}
-	}
-
-	// If no version-like part found, return the whole name
-	return name
-}
-
 // extractBaseNameFromDep takes a potentially complex requirement string
 // and returns only the base package/capability name.
 func extractBaseNameFromDep(req string) string {
@@ -312,9 +232,8 @@ func findAllCandidates(parent ospackage.PackageInfo, depName string, all []ospac
 
 	// First pass: look for exact name (canonical name) matches
 	for _, pi := range all {
-		// Extract the base package name (everything before the first '-' that starts a version)
-		baseName := extractBasePackageNameFromFile(pi.Name)
-		if baseName == depName {
+		// pi.Name is already the clean package name from XML <name> element
+		if pi.Name == depName {
 			candidates = append(candidates, pi)
 		}
 	}
@@ -354,28 +273,18 @@ func findAllCandidates(parent ospackage.PackageInfo, depName string, all []ospac
 func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospackage.PackageInfo, bool) {
 	var candidates []ospackage.PackageInfo
 	for _, pi := range all {
-		// 1) exact name, e.g. acct-205-25.azl3.noarch.rpm
+		// 1) exact name match (e.g., "acct")
 		if pi.Name == want {
 			candidates = append(candidates, pi)
 			break
 		}
-		cleanName := extractBasePackageNameFromFile(pi.Name)
-		// 2) base name, e.g. acct
-		if cleanName == want {
-			candidates = append(candidates, pi)
-			continue
-		}
-		// 3) prefix by want-version ("acl-")
-		// expected pi.Name should look like openvino-2025.3.0-2025.3.0.19807-1.noarch.rpm
-		// want = openvino-2025.3.0
-		if strings.HasPrefix(pi.Name, want) {
-			// Extract string after "-" and compare with pi.Version
-			if dashIdx := strings.LastIndex(want, "-"); dashIdx != -1 {
-				verStr := want[dashIdx+1:]
-				if strings.Contains(pi.Version, verStr) {
-					candidates = append(candidates, pi)
-					continue
-				}
+		// 2) prefix match for version-specific requests (e.g., want = "openvino-2025.3.0")
+		if strings.HasPrefix(want, pi.Name+"-") && len(want) > len(pi.Name)+1 {
+			// Extract string after package name and compare with pi.Version
+			verStr := want[len(pi.Name)+1:]
+			if strings.Contains(pi.Version, verStr) {
+				candidates = append(candidates, pi)
+				continue
 			}
 		}
 	}
@@ -385,7 +294,7 @@ func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospac
 	}
 
 	// If we got an exact match in step (1), it's the only candidate
-	if len(candidates) == 1 && (candidates[0].Name == want || extractBasePackageNameFromFile(candidates[0].Name) == want) {
+	if len(candidates) == 1 {
 		return candidates[0], true
 	}
 

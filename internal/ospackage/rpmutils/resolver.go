@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -82,13 +81,10 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string, pkgSources map[strin
 		if pkg.Name == "" {
 			continue
 		}
-		// Extract clean package name for display (e.g., "libgcrypt" instead of "libgcrypt-1.10.3-1.azl3.x86_64.rpm")
-		// Note: Multiple package versions (e.g., glibc-2.38 and glibc-2.35) will both produce "glibc"
-		// This causes duplicate node declarations in the DOT file, which is valid - GraphViz merges them.
-		// For visualization purposes, we only care about package relationships, not specific versions.
-		cleanName := extractBasePackageNameFromFile(pkg.Name)
-		if _, err := fmt.Fprintf(writer, "  \"%s\";\n", cleanName); err != nil {
-			return fmt.Errorf("writing DOT node for %s: %w", cleanName, err)
+		// pkg.Name already contains the clean package name from XML <name> element
+		// (e.g., "libgcrypt" not "libgcrypt-1.10.3-1.azl3.x86_64.rpm")
+		if _, err := fmt.Fprintf(writer, "  \"%s\";\n", pkg.Name); err != nil {
+			return fmt.Errorf("writing DOT node for %s: %w", pkg.Name, err)
 		}
 		for _, dep := range pkg.Requires {
 			if dep == "" {
@@ -96,14 +92,12 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string, pkgSources map[strin
 			}
 			// Extract clean dependency name for edges (handles capabilities and package requirements)
 			cleanDep := extractBaseRequirement(dep)
-			// Also trim package filenames (e.g., "glibc-2.38-16.azl3.x86_64.rpm" -> "glibc")
-			cleanDep = extractBasePackageNameFromFile(cleanDep)
-			edgeKey := cleanName + "|" + cleanDep
+			edgeKey := pkg.Name + "|" + cleanDep
 			if edgesWritten[edgeKey] {
 				continue
 			}
-			if _, err := fmt.Fprintf(writer, "  \"%s\" -> \"%s\";\n", cleanName, cleanDep); err != nil {
-				return fmt.Errorf("writing DOT edge %s->%s: %w", cleanName, cleanDep, err)
+			if _, err := fmt.Fprintf(writer, "  \"%s\" -> \"%s\";\n", pkg.Name, cleanDep); err != nil {
+				return fmt.Errorf("writing DOT edge %s->%s: %w", pkg.Name, cleanDep, err)
 			}
 			edgesWritten[edgeKey] = true
 		}
@@ -206,11 +200,10 @@ func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, e
 				}
 
 			case "location":
-				// read the href and build full URL + infer Name (filename)
+				// read the href and build full URL (but don't overwrite Name - it's already set from <name> element)
 				for _, a := range elem.Attr {
 					if a.Name.Local == "href" {
 						curInfo.URL = strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(a.Value, "/")
-						curInfo.Name = path.Base(a.Value)
 						break
 					}
 				}
@@ -634,12 +627,13 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 }
 
 // findMatchingKeyInNeededSet checks if any key in neededSet contains depName as a substring,
-// and returns the first matching key whose base package name equals depName.
+// and returns the first matching key whose package name equals depName.
 func findMatchingKeyInNeededSet(neededSet map[string]struct{}, depName string) (string, bool) {
 	for k := range neededSet {
 		if strings.Contains(k, depName) {
-			fileName := extractBasePackageNameFromFile(k)
-			if fileName == depName {
+			// k format is "name=version", extract the name part
+			parts := strings.Split(k, "=")
+			if len(parts) > 0 && parts[0] == depName {
 				return k, true
 			}
 		}
