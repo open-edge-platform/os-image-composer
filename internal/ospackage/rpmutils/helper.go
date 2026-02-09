@@ -241,12 +241,21 @@ func extractBasePackageNameFromFile(fullName string) string {
 		}
 	}
 
-	// Fallback: Find the first part that looks like a version (starts with digit and contains a dot)
+	// Fallback: Find the first part that looks like a version (starts with digit and contains dot+digit)
 	// This handles simple cases where there's no clear dist marker
+	// Requires digit-dot-digit pattern to avoid matching release+arch like "1.ppc64le" or "1.s390x"
 	for i := 1; i < len(parts); i++ {
-		if len(parts[i]) > 0 && (parts[i][0] >= '0' && parts[i][0] <= '9') && strings.Contains(parts[i], ".") {
-			// This looks like a version (e.g., "8.8.0")
-			return strings.Join(parts[:i], "-")
+		part := parts[i]
+		if len(part) > 0 && (part[0] >= '0' && part[0] <= '9') {
+			// Check if it matches version pattern (e.g., "8.8.0", "10.42") with digit after dot
+			dotIdx := strings.Index(part, ".")
+			if dotIdx > 0 && dotIdx < len(part)-1 {
+				// Check if character after dot is a digit (to avoid "1.ppc64le")
+				if part[dotIdx+1] >= '0' && part[dotIdx+1] <= '9' {
+					// This looks like a version (e.g., "8.8.0")
+					return strings.Join(parts[:i], "-")
+				}
+			}
 		}
 	}
 
