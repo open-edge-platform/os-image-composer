@@ -342,6 +342,14 @@
           "minimum": -9999,
           "maximum": 9999,
           "default": 0
+        },
+        "packages": {
+          "type": "array",
+          "description": "Optional: specific packages to include from this repository (package pinning)",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       },
       "required": ["codename", "url", "pkey"],

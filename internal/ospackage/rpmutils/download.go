@@ -43,7 +43,7 @@ func Packages() ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", RepoCfg.URL)
 
-	packages, err := ParseRepositoryMetadata(RepoCfg.URL, GzHref)
+	packages, err := ParseRepositoryMetadata(RepoCfg.URL, GzHref, nil)
 	if err != nil {
 		log.Errorf("parsing primary.xml.gz failed: %v", err)
 		return nil, err
@@ -62,6 +62,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 		codename string
 		url      string
 		pkey     string
+		packages []string
 	}, len(UserRepo))
 	for i, repo := range UserRepo {
 		repoList[i] = struct {
@@ -69,29 +70,40 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 			codename string
 			url      string
 			pkey     string
+			packages []string
 		}{
 			id:       fmt.Sprintf("rpmcustrepo%d", i+1),
 			codename: repo.Codename,
 			url:      repo.URL,
 			pkey:     repo.PKey,
+			packages: repo.Packages,
 		}
 	}
 
-	var userRepo []RepoConfig
+	type RepoConfigWithPackages struct {
+		RepoConfig
+		Packages []string
+	}
+
+	var userRepo []RepoConfigWithPackages
 	for _, repoItem := range repoList {
 		id := repoItem.id
 		codename := repoItem.codename
 		baseURL := repoItem.url
 		pkey := repoItem.pkey
+		packages := repoItem.packages
 
-		repo := RepoConfig{
-			Name:         id,
-			GPGCheck:     true,
-			RepoGPGCheck: true,
-			Enabled:      true,
-			GPGKey:       pkey,
-			URL:          baseURL,
-			Section:      fmt.Sprintf("[%s]", codename),
+		repo := RepoConfigWithPackages{
+			RepoConfig: RepoConfig{
+				Name:         id,
+				GPGCheck:     true,
+				RepoGPGCheck: true,
+				Enabled:      true,
+				GPGKey:       pkey,
+				URL:          baseURL,
+				Section:      fmt.Sprintf("[%s]", codename),
+			},
+			Packages: packages,
 		}
 
 		userRepo = append(userRepo, repo)
@@ -112,7 +124,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 			return nil, fmt.Errorf("fetching %s URL failed: %w", repoMetaDataURL, err)
 		}
 
-		userPkgs, err := ParseRepositoryMetadata(rpItx.URL, primaryXmlURL)
+		userPkgs, err := ParseRepositoryMetadata(rpItx.URL, primaryXmlURL, rpItx.Packages)
 		if err != nil {
 			return nil, fmt.Errorf("parsing user repo failed: %w", err)
 		}

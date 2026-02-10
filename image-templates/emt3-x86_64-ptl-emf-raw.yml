@@ -1,0 +1,102 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Edge Microvisor Toolkit 3 Edge Multifunction (EMF) raw image for edge multifunction deployments without real-time requirements"
+  use_cases:
+    - "edge multifunction"
+    - "industrial edge"
+    - "non-realtime edge"
+    - "edge workloads"
+  keywords:
+    - emf
+    - edge
+    - multifunction
+    - industrial
+    - emt3
+    - microvisor
+    - raw
+
+image:
+  name: emt3-x86_64-minimal-emf
+  version: "1.0.0"
+
+target:
+  os: edge-microvisor-toolkit # Target OS name
+  dist: emt3 # Target OS distribution
+  arch: x86_64 # Target OS architecture
+  imageType: raw # Image type, valid value: [raw, iso].
+
+packageRepositories:
+  - codename: "emtNext"
+    url: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpms/next/base"
+    pkey: "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY"
+    packages:
+      - kernel-6.17.11
+      - kernel-drivers-gpu-6.17.11
+
+disk:
+  name: edge-non-rt # 1:1 mapping to the systemConfigs name
+  artifacts:
+    -
+      type: raw  # image file format, valid value [raw, vhd, vhdx, qcow2, vmdk, vdi]
+      compression: gz # image compression format (optional)
+  size: 4GiB # 4G, 4GB, 4096 MiB also valid. (Required for raw)
+  partitionTableType: gpt # Partition table type, valid value: [gpt, mbr]
+  partitions: # Required for raw, optional for ISO, not needed for rootfs.
+    - id: boot
+      type: esp
+      flags:
+        - esp
+        - boot
+      start: 1MiB
+      end: 384MiB
+      fsType: fat32
+      mountPoint: /boot/efi
+      mountOptions: umask=0077
+
+    - id: rootfs
+      type: linux-root-amd64
+      start: 384MiB
+      end: 3584MiB
+      fsType: ext4
+      mountPoint: /
+      mountOptions: defaults
+
+    - id: edge_persistent
+      type: linux
+      start: 3584MiB
+      end: "0"  # use the rest of the disk space
+      fsType: ext4
+      mountPoint: /opt
+
+
+
+systemConfig:
+  
+  additionalFiles:
+    - local: ../additionalfiles/layout.env
+      final: /etc/layout.env
+  
+  name: edge-non-rt
+  description: Default yml configuration for raw image
+      
+  immutability:
+    enabled: false # default is true
+    # To enable Secure Boot, provide the actual file paths for your environment below and uncomment the relevant lines.
+    # secureBootDBKey: "<SECURE_BOOT_DB_KEY_PATH>"
+    # secureBootDBCrt: "<SECURE_BOOT_DB_CRT_PATH>"
+    # secureBootDBCer: "<SECURE_BOOT_DB_CER_PATH>"
+
+    # Package Configuration
+  packages:
+    # Additional packages beyond the base system
+    - tpm-cryptsetup
+    - persistent-mount
+    - intel-npu-driver
+
+  # Kernel Configuration
+  kernel:
+    version: "6.17"
+    cmdline: "root=/dev/mapper/rootfs_verity console=ttyS0,115200 console=tty0 loglevel=7 sysctl.vm.overcommit_memory=1 sysctl.kernel.panic=10 sysctl.kernel.panic_on_oops=1 sysctl.fs.inotify.max_user_instances=8192 rd.parallel=1 rd.shell=0 rd.timeout=200 rd.emergency=reboot"
+    packages:
+      - kernel-drivers-gpu-6.17.11
+  

@@ -160,9 +160,30 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string, pkgSources map[strin
 	return nil
 }
 
+// matchesPackageFilter checks if a package name matches any of the filter patterns.
+// Supports exact match and version-specific match (e.g., "kernel-6.17.11" matches "kernel-6.17.11-1.emt3.x86_64.rpm")
+func matchesPackageFilter(pkgName string, filter []string) bool {
+	if len(filter) == 0 {
+		return true // No filter means include all
+	}
+
+	for _, pattern := range filter {
+		// Exact match
+		if pkgName == pattern {
+			return true
+		}
+		// Prefix match with version (e.g., "kernel-drivers-gpu-6.17.11" matches "kernel-drivers-gpu-6.17.11-1.emt3.x86_64")
+		if strings.HasPrefix(pkgName, pattern+"-") || strings.HasPrefix(pkgName, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
 // ParseRepositoryMetadata parses the repodata/primary.xml(.gz/.zst) file from a given base URL.
+// If packageFilter is non-empty, only packages matching the filter (by name prefix) will be included.
 // It also caches the downloaded and uncompressed XML files for debugging purposes.
-func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, error) {
+func ParseRepositoryMetadata(baseURL, gzHref string, packageFilter []string) ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 
 	fullURL := strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(gzHref, "/")
@@ -449,6 +470,10 @@ func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, e
 			switch elem.Name.Local {
 			case "package":
 				if curInfo.Arch == "src" {
+					continue
+				}
+				// Apply package filter if specified
+				if len(packageFilter) > 0 && !matchesPackageFilter(curInfo.Name, packageFilter) {
 					continue
 				}
 				// finish this package
