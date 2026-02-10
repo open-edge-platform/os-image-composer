@@ -18,6 +18,16 @@ on:
     branches: [ "main" ]
   schedule:
     - cron: '34 20 * * 5'
+  workflow_dispatch:
+    inputs:
+      test_email:
+        description: 'Test email notification'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+        - 'false'
+        - 'true'
 
 jobs:
   analyze:
@@ -38,6 +48,9 @@ jobs:
       # only required for workflows in private repositories
       actions: read
       contents: read
+      
+      # required to create issues for security notifications
+      issues: write
 
     strategy:
       fail-fast: false
@@ -101,6 +114,95 @@ jobs:
       uses: github/codeql-action/analyze@v4
       with:
         category: "/language:${{matrix.language}}"
+
+    - name: Check for Security Issues
+      id: check-security
+      run: |
+        # Check if SARIF results contain any security findings
+        if [ -d "${{ github.workspace }}/.github/codeql-action/results" ]; then
+          SARIF_FILES=$(find "${{ github.workspace }}/.github/codeql-action/results" -name "*.sarif" -type f 2>/dev/null || true)
+          if [ -n "$SARIF_FILES" ]; then
+            FINDINGS_COUNT=$(jq -r '.runs[].results | length' $SARIF_FILES 2>/dev/null | awk '{sum+=$1} END {print sum+0}')
+            echo "findings_count=$FINDINGS_COUNT" >> $GITHUB_OUTPUT
+            if [ "$FINDINGS_COUNT" -gt 0 ]; then
+              echo "security_issues_found=true" >> $GITHUB_OUTPUT
+              echo "Found $FINDINGS_COUNT security issues"
+            else
+              echo "security_issues_found=false" >> $GITHUB_OUTPUT
+              echo "No security issues found"
+            fi
+          else
+            echo "security_issues_found=false" >> $GITHUB_OUTPUT
+            echo "No SARIF files found"
+          fi
+        else
+          echo "security_issues_found=false" >> $GITHUB_OUTPUT
+          echo "No CodeQL results directory found"
+        fi
+
+    - name: Create Security Issue on Findings
+      if: steps.check-security.outputs.security_issues_found == 'true' || github.event.inputs.test_email == 'true'
+      uses: actions/github-script@v7
+      env:
+        FINDINGS_COUNT: ${{ steps.check-security.outputs.findings_count }}
+        BRANCH_NAME: ${{ github.ref_name }}
+        COMMIT_SHA: ${{ github.sha }}
+        REPOSITORY: ${{ github.repository }}
+        RUN_NUMBER: ${{ github.run_number }}
+        RUN_ID: ${{ github.run_id }}
+        SERVER_URL: ${{ github.server_url }}
+        MATRIX_LANGUAGE: ${{ matrix.language }}
+        COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+      with:
+        script: |
+          // Safely handle potentially user-controlled data
+          const findingsCount = process.env.FINDINGS_COUNT || '0';
+          const branchName = process.env.BRANCH_NAME || 'unknown';
+          const commitMessage = process.env.COMMIT_MESSAGE || 'Latest commit';
+          const commitSha = process.env.COMMIT_SHA || 'unknown';
+          const repository = process.env.REPOSITORY || 'unknown';
+          const runNumber = process.env.RUN_NUMBER || '0';
+          const runId = process.env.RUN_ID || '0';
+          const serverUrl = process.env.SERVER_URL || 'https://github.com';
+          const language = process.env.MATRIX_LANGUAGE || 'unknown';
+          
+          // Sanitize inputs to prevent injection
+          const sanitize = (str) => String(str).replace(/[<>&"']/g, (char) => {
+            const map = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#x27;' };
+            return map[char];
+          });
+          
+          const title = `🚨 Security Issues Detected - ${sanitize(commitMessage)}`;
+          const body = `## Security Alert
+          
+          CodeQL analysis has detected **${sanitize(findingsCount)}** security issue(s) in the codebase.
+          
+          ### Details:
+          - **Repository**: ${sanitize(repository)}
+          - **Branch**: ${sanitize(branchName)}
+          - **Commit**: ${sanitize(commitSha)}
+          - **Workflow Run**: [${sanitize(runNumber)}](${sanitize(serverUrl)}/${sanitize(repository)}/actions/runs/${sanitize(runId)})
+          - **Language**: ${sanitize(language)}
+          
+          ### Action Required:
+          Please review the security findings immediately:
+          - [View Security Tab](${sanitize(serverUrl)}/${sanitize(repository)}/security/code-scanning)
+          - [View Workflow Run](${sanitize(serverUrl)}/${sanitize(repository)}/actions/runs/${sanitize(runId)})
+          
+          ### Assignees:
+          @elvin03 please review and address these security issues.
+          
+          ---
+          *This issue was automatically created by the CodeQL security workflow.*`;
+          
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: title,
+            body: body,
+            labels: ['security', 'automated', 'high-priority'],
+            assignees: ['elvin03']
+          });
 
     - name: Generate Security Report
       uses: rsdmike/github-security-report-action@v3.0.4
