@@ -522,7 +522,24 @@ func preImageOsInstall(installRoot string, template *config.ImageTemplate) error
 
 func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.ImageTemplate) error {
 	pkgType := imageOs.chrootEnv.GetTargetOsPkgType()
+
 	if pkgType == "rpm" {
+
+		// Disable the Boot Loader Specification logic
+		// log.Infof("Disabling Boot Loader Specification logic...")
+		// kernelDir := filepath.Join(installRoot, "etc", "kernel")
+		// if err := os.MkdirAll(kernelDir, 0755); err != nil {
+		// 	log.Errorf("Failed to create kernel config directory %s: %v", kernelDir, err)
+		// 	return fmt.Errorf("failed to create kernel config directory %s: %w", kernelDir, err)
+		// }
+
+		// installConfPath := filepath.Join(installRoot, "etc", "kernel", "install.conf")
+		// installConfContent := "layout=other\n"
+		// if err := file.Write(installConfContent, installConfPath); err != nil {
+		// 	log.Errorf("Failed to write kernel install config file %s: %v", installConfPath, err)
+		// 	return fmt.Errorf("failed to write kernel install config file %s: %w", installConfPath, err)
+		// }
+
 		if err := imageOs.initImageRpmDb(installRoot, template); err != nil {
 			return fmt.Errorf("failed to initialize RPM database: %w", err)
 		}

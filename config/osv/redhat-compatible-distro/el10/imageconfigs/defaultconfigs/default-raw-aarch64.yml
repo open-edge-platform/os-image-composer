@@ -4,7 +4,7 @@ image:
 
 target:
   os: redhat-compatible-distro # Target OS name
-  dist: rcd10 # Target OS distribution
+  dist: el10 # Target OS distribution
   arch: x86_64 # Target OS architecture
   imageType: raw # Image type, valid value: [raw, iso].
 
