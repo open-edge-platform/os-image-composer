@@ -1,0 +1,278 @@
+# Robotics AI Suite: Embodied AI / Humanoid Imitation Learning Image Template
+# Ubuntu 24.04 LTS + ROS2 Jazzy
+#
+# This template creates a ready-to-deploy OS image for Embodied AI and
+# Humanoid Imitation Learning systems including Diffusion Policy, ACT,
+# and LLM-based robot control.
+#
+# Components included:
+#   - ROS2 Jazzy with full desktop and MoveIt2
+#   - OpenVINO with VLA models (Diffusion Policy, iDP3, RDT-1B)
+#   - LLM inference support (Qwen2.5VL, Whisper)
+#   - Intel RealSense camera support
+#   - Intel GPU/NPU acceleration for ML inference
+#   - Python ML stack for imitation learning
+#
+# Target use cases:
+#   - Diffusion Policy for manipulation
+#   - Action Chunking Transformers (ACT)
+#   - LLM-controlled robot arms
+#   - Vision-Language-Action (VLA) models
+#   - Human action imitation
+#
+# Usage:
+#   sudo ./os-image-composer build -t image-templates/robotics-embodied-ubuntu24-x86_64.yml
+
+image:
+  name: robotics-embodied-ubuntu24
+  version: "24.04"
+
+target:
+  os: ubuntu
+  dist: ubuntu24
+  arch: x86_64
+  imageType: raw
+
+packageRepositories:
+  # ROS2 Jazzy repository
+  - codename: "noble"
+    url: "http://packages.ros.org/ros2/ubuntu"
+    pkey: "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key"
+    component: "main"
+
+  # Intel oneAPI repository
+  - codename: "all"
+    url: "https://apt.repos.intel.com/oneapi"
+    pkey: "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+    component: "main"
+
+  # Intel OpenVINO repository
+  - codename: "ubuntu24"
+    url: "https://apt.repos.intel.com/openvino/2024"
+    pkey: "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+    component: "main"
+
+  # Intel Graphics repository (GPU drivers)
+  - codename: "noble"
+    url: "https://repositories.intel.com/gpu/ubuntu"
+    pkey: "https://repositories.intel.com/gpu/intel-graphics.key"
+    component: "unified"
+
+  # Gazebo simulation
+  - codename: "noble"
+    url: "http://packages.osrfoundation.org/gazebo/ubuntu-stable"
+    pkey: "https://packages.osrfoundation.org/gazebo.gpg"
+    component: "main"
+
+systemConfig:
+  name: robotics-embodied
+  description: Intel Robotics AI Suite - Embodied AI / Humanoid Imitation Learning with ROS2 Jazzy
+
+  immutability:
+    enabled: false  # Disabled for ML development flexibility
+
+  packages:
+    # Base system
+    - ubuntu-minimal
+    - systemd
+    - systemd-resolved
+    - openssh-server
+    - network-manager
+    - sudo
+    - curl
+    - wget
+    - git
+    - vim
+    - htop
+    - unzip
+
+    # Build essentials
+    - build-essential
+    - cmake
+    - python3-pip
+    - python3-venv
+    - python3-colcon-common-extensions
+    - python3-dev
+
+    # ROS2 Jazzy Desktop (full GUI for visualization)
+    - ros-jazzy-desktop
+    - ros-jazzy-rmw-cyclonedds-cpp
+    - ros-jazzy-ros-dev-tools
+
+    # MoveIt2 Motion Planning (for robot arm control)
+    - ros-jazzy-moveit
+    - ros-jazzy-moveit-ros-planning
+    - ros-jazzy-moveit-ros-planning-interface
+    - ros-jazzy-moveit-ros-visualization
+    - ros-jazzy-moveit-servo
+    - ros-jazzy-moveit-msgs
+
+    # Robot Controllers
+    - ros-jazzy-controller-manager
+    - ros-jazzy-control-toolbox
+    - ros-jazzy-joint-state-broadcaster
+    - ros-jazzy-joint-trajectory-controller
+    - ros-jazzy-joint-state-publisher
+    - ros-jazzy-velocity-controllers
+    - ros-jazzy-position-controllers
+    - ros-jazzy-forward-command-controller
+
+    # ROS2 Transforms
+    - ros-jazzy-tf2
+    - ros-jazzy-tf2-ros
+    - ros-jazzy-tf2-geometry-msgs
+    - ros-jazzy-tf2-eigen
+    - ros-jazzy-tf2-sensor-msgs
+    - ros-jazzy-xacro
+
+    # ROS2 Visualization (full suite for embodied AI debugging)
+    - ros-jazzy-rviz2
+    - ros-jazzy-rviz-common
+    - ros-jazzy-rviz-default-plugins
+    - ros-jazzy-rviz-rendering
+    - ros-jazzy-rqt
+    - ros-jazzy-rqt-common-plugins
+
+    # Intel RealSense Camera Support
+    - ros-jazzy-librealsense2
+    - ros-jazzy-realsense2-camera
+    - ros-jazzy-realsense2-description
+    - ros-jazzy-realsense2-camera-msgs
+    - ros-jazzy-depth-image-proc
+    - ros-jazzy-image-transport
+    - ros-jazzy-compressed-image-transport
+    - ros-jazzy-compressed-depth-image-transport
+
+    # Intel OpenVINO for AI Inference (critical for VLA models)
+    - ros-jazzy-openvino-node
+    - openvino
+    - openvino-libraries-dev
+
+    # Intel oneAPI for ML acceleration
+    - intel-oneapi-runtime-dpcpp-cpp
+    - intel-oneapi-runtime-compilers
+    - intel-oneapi-runtime-openmp
+
+    # Point Cloud Processing
+    - ros-jazzy-pcl-conversions
+    - ros-jazzy-pcl-ros
+    - libpcl-dev
+
+    # Intel GPU/Compute Support
+    - intel-opencl-icd
+    - intel-level-zero-gpu
+    - level-zero
+
+    # Simulation (Gazebo) for training/testing
+    - ros-jazzy-gazebo-ros-pkgs
+    - ros-jazzy-gazebo-ros2-control
+
+    # Message types
+    - ros-jazzy-message-filters
+    - ros-jazzy-sensor-msgs
+    - ros-jazzy-geometry-msgs
+    - ros-jazzy-visualization-msgs
+    - ros-jazzy-std-srvs
+    - ros-jazzy-diagnostic-updater
+
+    # Hardware interface
+    - ros-jazzy-hardware-interface
+    - ros-jazzy-pluginlib
+    - ros-jazzy-rclcpp-components
+
+    # Math and optimization libraries
+    - libeigen3-dev
+    - libopencv-dev
+    - libyaml-cpp-dev
+    - libnlopt-dev
+    - libnlopt-cxx-dev
+    - nlohmann-json3-dev
+    - libboost-serialization-dev
+    - libopenblas-dev
+    - libssl-dev
+
+    # Python ML stack (system packages)
+    - python3-opencv
+    - python3-numpy
+    - python3-scipy
+    - python3-pillow
+    - python3-matplotlib
+    - python3-tk
+
+    # Audio/Speech (for LLM voice control)
+    - portaudio19-dev
+    - ffmpeg
+    - libsndfile1
+
+    # GUI support (for visualization and demos)
+    - libgl1
+    - libglib2.0-0
+    - libx11-dev
+    - libcanberra-gtk-module
+    - libcanberra-gtk3-module
+
+  kernel:
+    version: "6.14"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    packages:
+      - linux-image-generic-hwe-24.04
+
+  configurations:
+    # ROS2 environment setup
+    - cmd: "echo 'source /opt/ros/jazzy/setup.bash' >> /etc/bash.bashrc"
+    - cmd: "echo 'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> /etc/bash.bashrc"
+
+    # Create ROS data directories
+    - cmd: "mkdir -p /opt/ros-data/log"
+    - cmd: "mkdir -p /opt/ros-data/models"
+    - cmd: "mkdir -p /opt/ros-data/checkpoints"
+    - cmd: "mkdir -p /opt/ros-data/datasets"
+    - cmd: "mkdir -p /opt/ros-data/tmp"
+    - cmd: "chmod -R 777 /opt/ros-data"
+
+    # Create ML models directory
+    - cmd: "mkdir -p /opt/ml-models/diffusion-policy"
+    - cmd: "mkdir -p /opt/ml-models/act"
+    - cmd: "mkdir -p /opt/ml-models/openvino"
+    - cmd: "mkdir -p /opt/ml-models/llm"
+    - cmd: "chmod -R 777 /opt/ml-models"
+
+    # Environment variables
+    - cmd: "echo 'ROS_HOME=/opt/ros-data' >> /etc/environment"
+    - cmd: "echo 'ROS_LOG_DIR=/opt/ros-data/log' >> /etc/environment"
+    - cmd: "echo 'TMPDIR=/opt/ros-data/tmp' >> /etc/environment"
+    - cmd: "echo 'RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> /etc/environment"
+    - cmd: "echo 'ML_MODELS_DIR=/opt/ml-models' >> /etc/environment"
+
+    # Intel OpenVINO environment
+    - cmd: "echo 'source /opt/intel/openvino/setupvars.sh 2>/dev/null || true' >> /etc/bash.bashrc"
+
+    # Intel oneAPI environment
+    - cmd: "echo 'source /opt/intel/oneapi/setvars.sh 2>/dev/null || true' >> /etc/bash.bashrc"
+    - cmd: "echo 'export LD_LIBRARY_PATH=/opt/intel/oneapi/lib:$LD_LIBRARY_PATH' >> /etc/bash.bashrc"
+
+    # Enable services
+    - cmd: "systemctl enable NetworkManager"
+    - cmd: "systemctl enable ssh"
+
+    # Create robotics user group
+    - cmd: "groupadd -f robotics"
+
+    # RealSense camera udev rules
+    - cmd: "mkdir -p /etc/udev/rules.d"
+    - cmd: |
+        echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="8086", MODE="0666", GROUP="robotics"' > /etc/udev/rules.d/99-realsense.rules
+
+    # Robot controller access
+    - cmd: |
+        echo 'SUBSYSTEM=="tty", MODE="0666", GROUP="robotics"' >> /etc/udev/rules.d/99-robot-controllers.rules
+
+    # Create Python virtual environment for ML dependencies
+    - cmd: "python3 -m venv /opt/ml-venv"
+    - cmd: "echo 'source /opt/ml-venv/bin/activate' >> /etc/bash.bashrc"
+
+    # Install core Python ML packages in virtual environment
+    - cmd: "/opt/ml-venv/bin/pip install --upgrade pip"
+    - cmd: "/opt/ml-venv/bin/pip install openvino==2025.2 optimum optimum-intel"
+    - cmd: "/opt/ml-venv/bin/pip install opencv-python loguru psutil"
+    - cmd: "/opt/ml-venv/bin/pip install sentence-transformers websockets"

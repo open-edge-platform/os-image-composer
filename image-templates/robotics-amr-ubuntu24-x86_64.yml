@@ -1,0 +1,249 @@
+# Robotics AI Suite: Autonomous Mobile Robot (AMR) Image Template
+# Ubuntu 24.04 LTS + ROS2 Jazzy
+#
+# This template creates a ready-to-deploy OS image for Autonomous Mobile Robots
+# with Intel optimizations including ADBSCAN, ITS-Planner, SLAM, and navigation.
+#
+# Components included:
+#   - ROS2 Jazzy with Navigation2 stack
+#   - Intel Collaborative SLAM
+#   - Intel ITS-Planner (20-30x faster than A*)
+#   - Intel ADBSCAN clustering algorithm
+#   - OpenVINO with object detection models
+#   - Intel RealSense camera support
+#   - Intel GPU acceleration (Level-Zero, OpenCL)
+#
+# Target platforms:
+#   - Intel Core Ultra processors
+#   - Intel Atom processors
+#   - Systems with Intel integrated GPU/NPU
+#
+# Usage:
+#   sudo ./os-image-composer build -t image-templates/robotics-amr-ubuntu24-x86_64.yml
+
+image:
+  name: robotics-amr-ubuntu24
+  version: "24.04"
+
+target:
+  os: ubuntu
+  dist: ubuntu24
+  arch: x86_64
+  imageType: raw
+
+# Disk configuration - 30GiB for full ROS2 + Intel + Gazebo + TurtleBot stack
+disk:
+  name: robotics-amr
+  artifacts:
+    - type: raw
+      compression: gz
+  size: 30GiB
+  partitionTableType: gpt
+  partitions:
+    - id: boot
+      type: esp
+      flags:
+        - esp
+        - boot
+      start: 1MiB
+      end: 513MiB
+      fsType: fat32
+      mountPoint: /boot/efi
+      mountOptions: umask=0077
+    - id: rootfs
+      type: linux-root-amd64
+      start: 513MiB
+      end: "0"  # Use all remaining space for rootfs
+      fsType: ext4
+      mountPoint: /
+      mountOptions: defaults
+
+packageRepositories:
+  # ROS2 Jazzy repository
+  - codename: "noble"
+    url: "http://packages.ros.org/ros2/ubuntu"
+    pkey: "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key"
+    component: "main"
+
+  # Intel oneAPI repository (for Level-Zero, compute runtime)
+  - codename: "all"
+    url: "https://apt.repos.intel.com/oneapi"
+    pkey: "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+    component: "main"
+
+  # Intel OpenVINO repository
+  - codename: "ubuntu24"
+    url: "https://apt.repos.intel.com/openvino/2024"
+    pkey: "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+    component: "main"
+
+  # Intel Graphics repository (GPU drivers)
+  - codename: "noble"
+    url: "https://repositories.intel.com/gpu/ubuntu"
+    pkey: "https://repositories.intel.com/gpu/intel-graphics.key"
+    component: "unified"
+
+  # Gazebo simulation packages (OSRF repo)
+  - codename: "noble"
+    url: "http://packages.osrfoundation.org/gazebo/ubuntu-stable"
+    pkey: "https://packages.osrfoundation.org/gazebo.gpg"
+    component: "main"
+
+  # Intel RealSense repository (native librealsense2 libs)
+  - codename: "noble"
+    url: "https://librealsense.realsenseai.com/Debian/apt-repo"
+    pkey: "https://librealsense.realsenseai.com/Debian/librealsenseai.asc"
+    component: "main"
+
+systemConfig:
+  name: robotics-amr
+  description: Intel Robotics AI Suite - Autonomous Mobile Robot image with ROS2 Jazzy
+
+  immutability:
+    enabled: false  # Set to true for production deployment
+
+  packages:
+    # Base system
+    - ubuntu-minimal
+    - systemd
+    - systemd-resolved
+    - systemd-boot
+    - openssh-server
+    - network-manager
+    - sudo
+    - curl
+    - wget
+    - git
+    - vim
+    - htop
+
+    # Boot/initramfs (required for UKI)
+    - dracut-core
+    - cryptsetup-bin
+
+    # Build essentials (for development images)
+    - build-essential
+    - cmake
+    - python3-pip
+    - python3-venv
+    - python3-colcon-common-extensions
+
+    # ROS2 Jazzy Core
+    - ros-jazzy-ros-base
+    - ros-jazzy-rmw-cyclonedds-cpp
+    # - ros-jazzy-ros-dev-tools  # Provided by python3-colcon packages
+
+    # ROS2 Navigation Stack
+    - ros-jazzy-navigation2
+    - ros-jazzy-nav2-bringup
+    - ros-jazzy-nav2-msgs
+    - ros-jazzy-nav2-util
+    - ros-jazzy-nav2-costmap-2d
+    - ros-jazzy-slam-toolbox
+
+    # ROS2 Transforms and Utilities
+    - ros-jazzy-tf2
+    - ros-jazzy-tf2-ros
+    - ros-jazzy-tf2-geometry-msgs
+    - ros-jazzy-tf2-eigen
+    - ros-jazzy-xacro
+
+    # ROS2 Visualization
+    - ros-jazzy-rviz2
+    - ros-jazzy-rviz-common
+    - ros-jazzy-rviz-default-plugins
+
+    # Intel RealSense Camera Support (available in ROS2 Jazzy repo)
+    - ros-jazzy-librealsense2
+    - ros-jazzy-realsense2-camera
+    - ros-jazzy-realsense2-description
+    - ros-jazzy-realsense2-camera-msgs
+    - librealsense2           # Runtime library (from RealSense repo)
+    - librealsense2-utils     # Viewer and tools
+    # librealsense2-dkms excluded: DKMS kernel module build fails in chroot
+    # Install it post-deploy: sudo apt install librealsense2-dkms
+    - ros-jazzy-depth-image-proc
+    - ros-jazzy-image-transport
+    - ros-jazzy-compressed-image-transport
+
+    # Intel OpenVINO for AI Inference
+    - openvino
+    - openvino-libraries-dev
+    # ros-jazzy-openvino-node not available as deb - build from source:
+    # https://github.com/openvinotoolkit/openvino_contrib
+
+    # Point Cloud Processing
+    - ros-jazzy-pcl-conversions
+    - ros-jazzy-pcl-ros
+    - libpcl-dev
+
+    # Intel GPU/Compute Support
+    - intel-opencl-icd
+    - intel-level-zero-gpu
+    - level-zero
+
+    # Simulation (Gazebo Harmonic via ros-gz bridge)
+    - ros-jazzy-ros-gz-sim
+    - ros-jazzy-ros-gz-bridge
+    - ros-jazzy-ros-gz-image
+    - ros-jazzy-ros-gz-interfaces
+    - ros-jazzy-gz-ros2-control
+    - gz-harmonic
+
+    # TurtleBot3 for testing/simulation (available in ROS2 Jazzy repo)
+    - ros-jazzy-turtlebot3
+    - ros-jazzy-turtlebot3-msgs
+    - ros-jazzy-turtlebot3-simulations
+    - ros-jazzy-turtlebot3-navigation2
+    - ros-jazzy-turtlebot3-teleop
+
+    # Sensor and message types
+    - ros-jazzy-sensor-msgs
+    - ros-jazzy-geometry-msgs
+    - ros-jazzy-visualization-msgs
+    - ros-jazzy-diagnostic-updater
+
+    # Math and optimization libraries
+    - libeigen3-dev
+    - libopencv-dev
+    - libyaml-cpp-dev
+    - libsuitesparse-dev
+    - libboost-serialization-dev
+
+  kernel:
+    version: "6.14"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    packages:
+      - linux-image-generic-hwe-24.04
+
+  configurations:
+    # ROS2 environment setup
+    - cmd: "echo 'source /opt/ros/jazzy/setup.bash' >> /etc/bash.bashrc"
+    - cmd: "echo 'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> /etc/bash.bashrc"
+
+    # Create ROS data directories with full permissions
+    - cmd: "mkdir -p /opt/ros-data/log"
+    - cmd: "mkdir -p /opt/ros-data/maps"
+    - cmd: "mkdir -p /opt/ros-data/tmp"
+    - cmd: "chmod -R 777 /opt/ros-data"
+
+    # Environment variables for ROS
+    - cmd: "echo 'ROS_HOME=/opt/ros-data' >> /etc/environment"
+    - cmd: "echo 'ROS_LOG_DIR=/opt/ros-data/log' >> /etc/environment"
+    - cmd: "echo 'TMPDIR=/opt/ros-data/tmp' >> /etc/environment"
+    - cmd: "echo 'RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> /etc/environment"
+
+    # Intel GPU environment
+    - cmd: "echo 'export LD_LIBRARY_PATH=/opt/intel/oneapi/lib:$LD_LIBRARY_PATH' >> /etc/bash.bashrc"
+
+    # Enable required services
+    - cmd: "systemctl enable NetworkManager"
+    - cmd: "systemctl enable ssh"
+
+    # Create robotics user group
+    - cmd: "groupadd -f robotics"
+
+    # Set proper permissions for RealSense cameras (udev rules)
+    - cmd: "mkdir -p /etc/udev/rules.d"
+    - cmd: |
+        echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="8086", MODE="0666", GROUP="robotics"' > /etc/udev/rules.d/99-realsense.rules

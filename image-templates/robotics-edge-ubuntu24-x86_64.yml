@@ -1,0 +1,152 @@
+# Robotics AI Suite: Minimal Edge Deployment Image Template
+# Ubuntu 24.04 LTS + ROS2 Jazzy (Immutable)
+#
+# This template creates a lightweight, production-ready IMMUTABLE OS image
+# for deploying robots in field environments.
+#
+# Characteristics:
+#   - Immutable rootfs for security and reliability
+#   - Minimal footprint (no development tools)
+#   - Runtime-only packages
+#   - Pre-configured for headless operation
+#   - Optimized for Intel edge hardware
+#
+# Target deployment:
+#   - Production AMR fleets
+#   - Industrial robot cells
+#   - Field-deployed robots
+#   - Kiosk/embedded robotics systems
+#
+# Usage:
+#   sudo ./os-image-composer build -t image-templates/robotics-edge-ubuntu24-x86_64.yml
+
+image:
+  name: robotics-edge-ubuntu24
+  version: "24.04"
+
+target:
+  os: ubuntu
+  dist: ubuntu24
+  arch: x86_64
+  imageType: raw
+
+packageRepositories:
+  # ROS2 Jazzy repository
+  - codename: "noble"
+    url: "http://packages.ros.org/ros2/ubuntu"
+    pkey: "https://raw.githubusercontent.com/ros/rosdistro/master/ros.key"
+    component: "main"
+
+  # Intel oneAPI repository (runtime only)
+  - codename: "all"
+    url: "https://apt.repos.intel.com/oneapi"
+    pkey: "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+    component: "main"
+
+  # Intel OpenVINO repository
+  - codename: "ubuntu24"
+    url: "https://apt.repos.intel.com/openvino/2024"
+    pkey: "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+    component: "main"
+
+  # Intel Graphics repository (GPU drivers)
+  - codename: "noble"
+    url: "https://repositories.intel.com/gpu/ubuntu"
+    pkey: "https://repositories.intel.com/gpu/intel-graphics.key"
+    component: "unified"
+
+systemConfig:
+  name: robotics-edge
+  description: Intel Robotics AI Suite - Minimal Edge Deployment (Immutable)
+
+  immutability:
+    enabled: true
+    # Uncomment and configure for Secure Boot in production:
+    # secureBootDBKey: "/path/to/db.key"
+    # secureBootDBCrt: "/path/to/db.crt"
+    # secureBootDBCer: "/path/to/db.cer"
+
+  packages:
+    # Minimal base system
+    - ubuntu-minimal
+    - systemd
+    - systemd-boot
+    - systemd-resolved
+    - dracut-core
+    - cryptsetup-bin
+    - openssh-server
+    - network-manager
+    - sudo
+
+    # ROS2 Jazzy Core (minimal)
+    - ros-jazzy-ros-base
+    - ros-jazzy-rmw-cyclonedds-cpp
+
+    # Navigation (AMR deployments)
+    - ros-jazzy-navigation2
+    - ros-jazzy-nav2-bringup
+    - ros-jazzy-slam-toolbox
+
+    # Core transforms
+    - ros-jazzy-tf2
+    - ros-jazzy-tf2-ros
+    - ros-jazzy-tf2-geometry-msgs
+    - ros-jazzy-xacro
+
+    # Intel RealSense (runtime only)
+    - ros-jazzy-librealsense2
+    - ros-jazzy-realsense2-camera
+
+    # Intel OpenVINO runtime
+    - ros-jazzy-openvino-node
+    - openvino
+
+    # Intel GPU runtime
+    - intel-opencl-icd
+    - intel-level-zero-gpu
+    - level-zero
+
+    # Essential messages
+    - ros-jazzy-sensor-msgs
+    - ros-jazzy-geometry-msgs
+
+    # Minimal diagnostics
+    - ros-jazzy-diagnostic-updater
+
+  kernel:
+    version: "6.14"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=4 ro"
+    packages:
+      - linux-image-generic-hwe-24.04
+
+  configurations:
+    # ROS2 environment setup
+    - cmd: "echo 'source /opt/ros/jazzy/setup.bash' >> /etc/bash.bashrc"
+    - cmd: "echo 'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> /etc/bash.bashrc"
+
+    # Create writable data partition mount points
+    - cmd: "mkdir -p /opt/ros-data/log"
+    - cmd: "mkdir -p /opt/ros-data/maps"
+    - cmd: "mkdir -p /opt/ros-data/config"
+    - cmd: "chmod -R 777 /opt/ros-data"
+
+    # Environment variables
+    - cmd: "echo 'ROS_HOME=/opt/ros-data' >> /etc/environment"
+    - cmd: "echo 'ROS_LOG_DIR=/opt/ros-data/log' >> /etc/environment"
+    - cmd: "echo 'RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> /etc/environment"
+
+    # Enable services
+    - cmd: "systemctl enable NetworkManager"
+    - cmd: "systemctl enable ssh"
+
+    # Create robotics user group
+    - cmd: "groupadd -f robotics"
+
+    # RealSense camera udev rules
+    - cmd: "mkdir -p /etc/udev/rules.d"
+    - cmd: |
+        echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="8086", MODE="0666", GROUP="robotics"' > /etc/udev/rules.d/99-realsense.rules
+
+    # Hardening for production
+    - cmd: "echo 'PermitRootLogin no' >> /etc/ssh/sshd_config.d/99-hardening.conf"
+    - cmd: "echo 'PasswordAuthentication no' >> /etc/ssh/sshd_config.d/99-hardening.conf"
