@@ -70,13 +70,19 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 			}
 		}
 
-		// Priority 1: return first match from same repo
+		// Priority 1: return best match from same repo (prefer Dist match)
 		if len(sameRepoMatches) > 0 {
+			if best, ok := preferDistMatch(sameRepoMatches); ok {
+				return best, nil
+			}
 			return sameRepoMatches[0], nil
 		}
 
-		// Priority 2: return first match from other repos
+		// Priority 2: return best match from other repos (prefer Dist match)
 		if len(otherRepoMatches) > 0 {
+			if best, ok := preferDistMatch(otherRepoMatches); ok {
+				return best, nil
+			}
 			return otherRepoMatches[0], nil
 		}
 
@@ -95,6 +101,28 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 	// If only one candidate, return it
 	if len(candidates) == 1 {
 		return candidates[0], nil
+	}
+
+	// Rule 0: If Dist is set, filter by dist release tag (prefer packages matching the target distribution)
+	if Dist != "" {
+		var distCandidates []ospackage.PackageInfo
+		for _, candidate := range candidates {
+			if idx := strings.LastIndex(candidate.Version, "-"); idx != -1 {
+				verPart := candidate.Version[idx+1:]
+				if dotIdx := strings.Index(verPart, "."); dotIdx != -1 {
+					release := verPart[dotIdx+1:]
+					if release == Dist {
+						distCandidates = append(distCandidates, candidate)
+					}
+				}
+			}
+		}
+		if len(distCandidates) > 0 {
+			candidates = distCandidates
+			if len(candidates) == 1 {
+				return candidates[0], nil
+			}
+		}
 	}
 
 	// Rule 1: find all candidates with the same base URL and return the latest version
@@ -129,6 +157,28 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 
 	// Rule 2: If no candidate has the same repo, return the first candidate in other repos
 	return candidates[0], nil
+}
+
+// preferDistMatch returns the first candidate whose release tag matches the global Dist.
+// This ensures dependency resolution prefers packages built for the target distribution
+// (e.g., azl3 packages for an azl3 build) over packages from other distributions that
+// happen to share the same name and version.
+func preferDistMatch(candidates []ospackage.PackageInfo) (ospackage.PackageInfo, bool) {
+	if Dist == "" || len(candidates) <= 1 {
+		return ospackage.PackageInfo{}, false
+	}
+	for _, c := range candidates {
+		if idx := strings.LastIndex(c.Version, "-"); idx != -1 {
+			verPart := c.Version[idx+1:]
+			if dotIdx := strings.Index(verPart, "."); dotIdx != -1 {
+				release := verPart[dotIdx+1:]
+				if release == Dist {
+					return c, true
+				}
+			}
+		}
+	}
+	return ospackage.PackageInfo{}, false
 }
 
 func extractRepoBase(rawURL string) (string, error) {
