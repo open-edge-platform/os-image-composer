@@ -17,7 +17,7 @@ func ParsePEFromBytes(p string, blob []byte) (EFIBinaryEvidence, error) {
 		Kind:            BootloaderUnknown, // set after we have more evidence
 	}
 
-	ev.SHA256 = sha256Hex(blob)
+	ev.SHA256 = hashBytesHex(blob)
 
 	r := bytes.NewReader(blob)
 	f, err := pe.NewFile(r)
@@ -61,7 +61,7 @@ func ParsePEFromBytes(p string, blob []byte) (EFIBinaryEvidence, error) {
 			ev.Notes = append(ev.Notes, fmt.Sprintf("read section %s: %v", name, err))
 			continue
 		}
-		ev.SectionSHA256[name] = sha256Hex(data)
+		ev.SectionSHA256[name] = hashBytesHex(data)
 
 		switch name {
 		case ".linux":
@@ -269,4 +269,48 @@ func parseOSRelease(raw string) (map[string]string, []KeyValue) {
 	}
 
 	return m, sorted
+}
+
+// extractBootloaderConfig extracts bootloader configuration for a given EFI binary.
+// It examines the bootloader kind and attempts to locate and parse config files.
+func extractBootloaderConfig(kind BootloaderKind) *BootloaderConfig {
+	// For now, return nil for bootloader types that don't have config files
+	// Config file extraction requires access to the filesystem, which happens at a higher level
+	switch kind {
+	case BootloaderGrub, BootloaderSystemdBoot:
+		return &BootloaderConfig{
+			ConfigFiles:      make(map[string]string),
+			ConfigRaw:        make(map[string]string),
+			KernelReferences: []KernelReference{},
+			BootEntries:      []BootEntry{},
+			UUIDReferences:   []UUIDReference{},
+			Issues:           []string{},
+		}
+	default:
+		return nil
+	}
+}
+
+// BootloaderConfigPaths returns the filesystem paths to check for bootloader config files
+// based on the bootloader kind.
+func BootloaderConfigPaths(kind BootloaderKind) []string {
+	switch kind {
+	case BootloaderGrub:
+		return []string{
+			"/EFI/grub/grub.cfg",
+			"/efi/grub/grub.cfg",
+			"/boot/grub/grub.cfg",
+			"/boot/grub2/grub.cfg",
+			"/grub/grub.cfg",
+		}
+	case BootloaderSystemdBoot:
+		return []string{
+			"/loader/loader.conf",
+			"/loader/entries/",
+			"/EFI/systemd/loader.conf",
+			"/efi/systemd/loader.conf",
+		}
+	default:
+		return nil
+	}
 }

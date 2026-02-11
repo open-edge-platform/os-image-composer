@@ -201,6 +201,52 @@ type SectionMapDiff struct {
 	Modified map[string]ValueDiff[string] `json:"modified,omitempty"`
 }
 
+// BootloaderConfigDiff represents differences in bootloader configuration.
+type BootloaderConfigDiff struct {
+	ConfigFileChanges    []ConfigFileChange `json:"configFileChanges,omitempty"`
+	BootEntryChanges     []BootEntryChange  `json:"bootEntryChanges,omitempty"`
+	KernelRefChanges     []KernelRefChange  `json:"kernelRefChanges,omitempty"`
+	UUIDReferenceChanges []UUIDRefChange    `json:"uuidReferenceChanges,omitempty"`
+	IssuesAdded          []string           `json:"issuesAdded,omitempty"`
+	IssuesRemoved        []string           `json:"issuesRemoved,omitempty"`
+}
+
+// ConfigFileChange represents a change to a bootloader config file.
+type ConfigFileChange struct {
+	Path     string `json:"path" yaml:"path"`
+	Status   string `json:"status" yaml:"status"` // "added", "removed", "modified"
+	HashFrom string `json:"hashFrom,omitempty" yaml:"hashFrom,omitempty"`
+	HashTo   string `json:"hashTo,omitempty" yaml:"hashTo,omitempty"`
+}
+
+// BootEntryChange represents a change to a boot entry.
+type BootEntryChange struct {
+	Name        string `json:"name" yaml:"name"`
+	Status      string `json:"status" yaml:"status"` // "added", "removed", "modified"
+	KernelFrom  string `json:"kernelFrom,omitempty" yaml:"kernelFrom,omitempty"`
+	KernelTo    string `json:"kernelTo,omitempty" yaml:"kernelTo,omitempty"`
+	CmdlineFrom string `json:"cmdlineFrom,omitempty" yaml:"cmdlineFrom,omitempty"`
+	CmdlineTo   string `json:"cmdlineTo,omitempty" yaml:"cmdlineTo,omitempty"`
+}
+
+// KernelRefChange represents a change to a kernel reference.
+type KernelRefChange struct {
+	Path     string `json:"path" yaml:"path"`
+	Status   string `json:"status" yaml:"status"` // "added", "removed", "modified"
+	UUIDFrom string `json:"uuidFrom,omitempty" yaml:"uuidFrom,omitempty"`
+	UUIDTo   string `json:"uuidTo,omitempty" yaml:"uuidTo,omitempty"`
+}
+
+// UUIDRefChange represents a change to a UUID reference.
+type UUIDRefChange struct {
+	UUID         string `json:"uuid" yaml:"uuid"`
+	Status       string `json:"status" yaml:"status"` // "added", "removed", "modified"
+	ContextFrom  string `json:"contextFrom,omitempty" yaml:"contextFrom,omitempty"`
+	ContextTo    string `json:"contextTo,omitempty" yaml:"contextTo,omitempty"`
+	MismatchFrom bool   `json:"mismatchFrom,omitempty" yaml:"mismatchFrom,omitempty"`
+	MismatchTo   bool   `json:"mismatchTo,omitempty" yaml:"mismatchTo,omitempty"`
+}
+
 // CompareImages compares two ImageSummary objects and returns a structured diff.
 func CompareImages(from, to *ImageSummary) ImageCompareResult {
 	if from == nil || to == nil {

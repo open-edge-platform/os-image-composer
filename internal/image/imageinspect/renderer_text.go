@@ -316,6 +316,18 @@ func renderEFIBinaryDiffText(w io.Writer, d EFIBinaryDiff, indent string) {
 						shortHash(m.UKI.UnameSHA256.From), shortHash(m.UKI.UnameSHA256.To))
 				}
 			}
+
+			// Bootloader configuration diff (if present)
+			if m.From.BootConfig != nil || m.To.BootConfig != nil {
+				bootDiff := compareBootloaderConfigs(m.From.BootConfig, m.To.BootConfig)
+				if bootDiff != nil {
+					fmt.Fprintf(w, "%s    Bootloader config:\n", indent)
+					renderBootloaderConfigDiffText(w, bootDiff, indent+"      ")
+				} else if m.From.BootConfig != nil && m.To.BootConfig != nil {
+					// Both exist but no changes
+					fmt.Fprintf(w, "%s    Bootloader config: (no changes)\n", indent)
+				}
+			}
 		}
 	}
 }
@@ -500,6 +512,13 @@ func renderPartitionFilesystemDetails(w io.Writer, p PartitionSummary) {
 		// Print a focused UKI block for the first UKI found
 		if uki, ok := firstUKI(arts); ok {
 			renderUKIDetailsBlock(w, uki)
+		}
+
+		// Print bootloader config details if present
+		for _, art := range arts {
+			if art.BootConfig != nil {
+				renderBootloaderConfigDetails(w, art.Path, art.BootConfig)
+			}
 		}
 	}
 
@@ -712,6 +731,218 @@ func renderEqualityReasonsBlock(w io.Writer, r *ImageCompareResult) {
 		fmt.Fprintf(w, "\nMeaningful reasons (%d):\n", len(r.Equality.MeaningfulReasons))
 		for _, reason := range r.Equality.MeaningfulReasons {
 			fmt.Fprintf(w, "  - %s\n", reason)
+		}
+	}
+}
+
+// renderBootloaderConfigDetails renders bootloader configuration details for a single image.
+func renderBootloaderConfigDetails(w io.Writer, efiPath string, cfg *BootloaderConfig) {
+	if cfg == nil {
+		return
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Bootloader configuration")
+	fmt.Fprintln(w, "------------------------")
+
+	// Config file hashes and content preview
+	if len(cfg.ConfigFiles) > 0 {
+		fmt.Fprintln(w, "Config files:")
+		for path, hash := range cfg.ConfigFiles {
+			fmt.Fprintf(w, "  %s: %s\n", path, shortHash(hash))
+
+			// Show raw config content (first 30 lines or up to 2KB)
+			if raw, ok := cfg.ConfigRaw[path]; ok && raw != "" {
+				lines := strings.Split(raw, "\n")
+				maxLines := 30
+				if len(lines) > maxLines {
+					lines = lines[:maxLines]
+				}
+
+				fmt.Fprintln(w, "    Content preview:")
+				for _, line := range lines {
+					if strings.TrimSpace(line) != "" {
+						// Truncate very long lines
+						if len(line) > 100 {
+							fmt.Fprintf(w, "      %s...\n", line[:97])
+						} else {
+							fmt.Fprintf(w, "      %s\n", line)
+						}
+					}
+				}
+				if len(cfg.ConfigRaw[path]) > 2048 {
+					fmt.Fprintf(w, "      [... config truncated, total size: %d bytes]\n", len(cfg.ConfigRaw[path]))
+				}
+			}
+		}
+	}
+
+	// Display boot entries
+	if len(cfg.BootEntries) > 0 {
+		fmt.Fprintln(w, "Boot entries:")
+		for i, entry := range cfg.BootEntries {
+			mark := " "
+			if entry.IsDefault {
+				mark = "*"
+			}
+			fmt.Fprintf(w, "  %s [%d] %s\n", mark, i+1, entry.Name)
+			if entry.Kernel != "" {
+				fmt.Fprintf(w, "       kernel: %s\n", entry.Kernel)
+			}
+			if entry.Initrd != "" {
+				fmt.Fprintf(w, "       initrd: %s\n", entry.Initrd)
+			}
+			if entry.RootDevice != "" {
+				fmt.Fprintf(w, "       root:   %s\n", entry.RootDevice)
+			}
+			if entry.Cmdline != "" {
+				if len(entry.Cmdline) > 100 {
+					fmt.Fprintf(w, "       cmdline: %s...\n", entry.Cmdline[:97])
+				} else {
+					fmt.Fprintf(w, "       cmdline: %s\n", entry.Cmdline)
+				}
+			}
+		}
+		if cfg.DefaultEntry != "" {
+			fmt.Fprintf(w, "  Default: %s\n", cfg.DefaultEntry)
+		}
+	}
+
+	// Display kernel references
+	if len(cfg.KernelReferences) > 0 {
+		fmt.Fprintln(w, "Kernel references:")
+		for _, ref := range cfg.KernelReferences {
+			fmt.Fprintf(w, "  %s\n", ref.Path)
+			if ref.PartitionUUID != "" {
+				fmt.Fprintf(w, "    partition uuid: %s\n", ref.PartitionUUID)
+			}
+			if ref.RootUUID != "" {
+				fmt.Fprintf(w, "    root uuid:      %s\n", ref.RootUUID)
+			}
+			if ref.BootEntry != "" {
+				fmt.Fprintf(w, "    boot entry:     %s\n", ref.BootEntry)
+			}
+		}
+	}
+
+	// Display UUID references with validation status
+	if len(cfg.UUIDReferences) > 0 {
+		hasIssues := false
+		for _, ref := range cfg.UUIDReferences {
+			if ref.Mismatch {
+				hasIssues = true
+				break
+			}
+		}
+
+		if hasIssues {
+			fmt.Fprintln(w, "UUID validation:")
+			for _, ref := range cfg.UUIDReferences {
+				status := "✓"
+				if ref.Mismatch {
+					status = "✗ MISMATCH"
+				}
+				fmt.Fprintf(w, "  [%s] %s (%s)\n", status, ref.UUID, ref.Context)
+				if ref.ReferencedPartition > 0 {
+					fmt.Fprintf(w, "       -> partition %d\n", ref.ReferencedPartition)
+				}
+			}
+		}
+	}
+
+	// Display validation issues
+	if len(cfg.Issues) > 0 {
+		fmt.Fprintln(w, "Issues:")
+		for _, issue := range cfg.Issues {
+			fmt.Fprintf(w, "  ⚠ %s\n", issue)
+		}
+	}
+}
+
+// renderBootloaderConfigDiffText renders bootloader configuration differences in a comparison.
+func renderBootloaderConfigDiffText(w io.Writer, diff *BootloaderConfigDiff, indent string) {
+	if diff == nil {
+		return
+	}
+
+	// Config file changes
+	if len(diff.ConfigFileChanges) > 0 {
+		fmt.Fprintf(w, "%sConfig files:\n", indent)
+		for _, change := range diff.ConfigFileChanges {
+			status := change.Status
+			fmt.Fprintf(w, "%s  %s: %s\n", indent, status, change.Path)
+			if status == "modified" {
+				fmt.Fprintf(w, "%s    hash: %s -> %s\n", indent, shortHash(change.HashFrom), shortHash(change.HashTo))
+			}
+		}
+	}
+
+	// Boot entry changes
+	if len(diff.BootEntryChanges) > 0 {
+		fmt.Fprintf(w, "%sBoot entries:\n", indent)
+		for _, change := range diff.BootEntryChanges {
+			fmt.Fprintf(w, "%s  %s: %s\n", indent, change.Status, change.Name)
+			if change.Status == "modified" {
+				if change.KernelFrom != change.KernelTo {
+					fmt.Fprintf(w, "%s    kernel: %s -> %s\n", indent, change.KernelFrom, change.KernelTo)
+				}
+				if change.CmdlineFrom != change.CmdlineTo {
+					if len(change.CmdlineFrom) > 80 {
+						fmt.Fprintf(w, "%s    cmdline: %s... -> %s...\n", indent, change.CmdlineFrom[:77], change.CmdlineTo[:77])
+					} else {
+						fmt.Fprintf(w, "%s    cmdline: %s -> %s\n", indent, change.CmdlineFrom, change.CmdlineTo)
+					}
+				}
+			}
+		}
+	}
+
+	// Kernel reference changes
+	if len(diff.KernelRefChanges) > 0 {
+		fmt.Fprintf(w, "%sKernel references:\n", indent)
+		for _, change := range diff.KernelRefChanges {
+			fmt.Fprintf(w, "%s  %s: %s\n", indent, change.Status, change.Path)
+			if change.Status == "modified" && change.UUIDFrom != change.UUIDTo {
+				fmt.Fprintf(w, "%s    uuid: %s -> %s\n", indent, change.UUIDFrom, change.UUIDTo)
+			}
+		}
+	}
+
+	// UUID reference changes
+	if len(diff.UUIDReferenceChanges) > 0 {
+		hasMismatch := false
+		for _, change := range diff.UUIDReferenceChanges {
+			if change.MismatchTo {
+				hasMismatch = true
+				break
+			}
+		}
+
+		if hasMismatch {
+			fmt.Fprintf(w, "%sUUID validation:\n", indent)
+			for _, change := range diff.UUIDReferenceChanges {
+				if change.MismatchTo {
+					fmt.Fprintf(w, "%s  ✗ CRITICAL: %s not found in partition table\n", indent, change.UUID)
+					if change.ContextTo != "" {
+						fmt.Fprintf(w, "%s    context: %s\n", indent, change.ContextTo)
+					}
+				}
+			}
+		}
+	}
+
+	// Configuration issues
+	if len(diff.IssuesAdded) > 0 {
+		fmt.Fprintf(w, "%sNew issues:\n", indent)
+		for _, issue := range diff.IssuesAdded {
+			fmt.Fprintf(w, "%s  - %s\n", indent, issue)
+		}
+	}
+
+	if len(diff.IssuesRemoved) > 0 {
+		fmt.Fprintf(w, "%sResolved issues:\n", indent)
+		for _, issue := range diff.IssuesRemoved {
+			fmt.Fprintf(w, "%s  - %s\n", indent, issue)
 		}
 	}
 }
