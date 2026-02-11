@@ -186,13 +186,7 @@ func (p *ubuntu) installHostDependency() error {
 		"veritysetup":    "cryptsetup",     // For the veritysetup command
 		"sbsign":         "sbsigntool",     // For the UKI image creation
 		"ubuntu-keyring": "ubuntu-keyring", // For Ubuntu repository GPG keys
-	}
-	hostOsInfo, err := system.GetHostOsInfo()
-	if err != nil {
-		return fmt.Errorf("failed to get host OS info: %w", err)
-	}
-	if hostOsInfo["name"] == "Ubuntu" && hostOsInfo["version"] == "24.04" {
-		dependencyInfo["bootctl"] = "systemd-boot-efi"
+		"bootctl":        "systemd-boot-efi", // For bootctl on Ubuntu hosts
 	}
 	hostPkgManager, err := system.GetHostOsPkgManager()
 	if err != nil {
