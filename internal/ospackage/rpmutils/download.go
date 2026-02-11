@@ -59,31 +59,31 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 	log.Infof("fetching packages from %s", "user package list")
 
 	repoList := make([]struct {
-		id       string
-		codename string
-		url      string
-		pkey     string
-		packages []string
+		id            string
+		codename      string
+		url           string
+		pkey          string
+		allowPackages []string
 	}, len(UserRepo))
 	for i, repo := range UserRepo {
 		repoList[i] = struct {
-			id       string
-			codename string
-			url      string
-			pkey     string
-			packages []string
+			id            string
+			codename      string
+			url           string
+			pkey          string
+			allowPackages []string
 		}{
-			id:       fmt.Sprintf("rpmcustrepo%d", i+1),
-			codename: repo.Codename,
-			url:      repo.URL,
-			pkey:     repo.PKey,
-			packages: repo.Packages,
+			id:            fmt.Sprintf("rpmcustrepo%d", i+1),
+			codename:      repo.Codename,
+			url:           repo.URL,
+			pkey:          repo.PKey,
+			allowPackages: repo.AllowPackages,
 		}
 	}
 
 	type RepoConfigWithPackages struct {
 		RepoConfig
-		Packages []string
+		AllowPackages []string
 	}
 
 	var userRepo []RepoConfigWithPackages
@@ -92,7 +92,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 		codename := repoItem.codename
 		baseURL := repoItem.url
 		pkey := repoItem.pkey
-		packages := repoItem.packages
+		allowPackages := repoItem.allowPackages
 
 		repo := RepoConfigWithPackages{
 			RepoConfig: RepoConfig{
@@ -104,7 +104,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 				URL:          baseURL,
 				Section:      fmt.Sprintf("[%s]", codename),
 			},
-			Packages: packages,
+			AllowPackages: allowPackages,
 		}
 
 		userRepo = append(userRepo, repo)
@@ -125,7 +125,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 			return nil, fmt.Errorf("fetching %s URL failed: %w", repoMetaDataURL, err)
 		}
 
-		userPkgs, err := ParseRepositoryMetadata(rpItx.URL, primaryXmlURL, rpItx.Packages)
+		userPkgs, err := ParseRepositoryMetadata(rpItx.URL, primaryXmlURL, rpItx.AllowPackages)
 		if err != nil {
 			return nil, fmt.Errorf("parsing user repo failed: %w", err)
 		}

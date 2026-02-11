@@ -29,7 +29,8 @@ packageRepositories:
   - codename: "emtNext"
     url: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpms/next/base"
     pkey: "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY"
-    packages:
+    # list of allowed packages from this repository
+    AllowPackages:
       - kernel-6.17.11
       - kernel-drivers-gpu-6.17.11
 

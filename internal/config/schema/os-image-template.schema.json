@@ -344,7 +344,7 @@
           "maximum": 9999,
           "default": 0
         },
-        "packages": {
+        "AllowPackages": {
           "type": "array",
           "description": "Optional: specific packages to include from this repository (package pinning)",
           "items": {
