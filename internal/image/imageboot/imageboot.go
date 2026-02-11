@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"os"
+
 	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/image/imagedisc"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/file"
@@ -149,6 +151,56 @@ func updateGrubConfig(installRoot, grubVersion string) error {
 		log.Errorf("Failed to update grub configuration: %v", err)
 		return fmt.Errorf("failed to update grub configuration: %w", err)
 	}
+	return nil
+}
+
+// Helper to get the current kernel version from the rootfs
+func getKernelVersionFromBoot(installRoot string) (string, error) {
+	kernelDir := filepath.Join(installRoot, "boot")
+	files, err := os.ReadDir(kernelDir)
+	if err != nil {
+		log.Errorf("Failed to list kernel directory %s: %v", kernelDir, err)
+		return "", fmt.Errorf("failed to list kernel directory %s: %w", kernelDir, err)
+	}
+	for _, f := range files {
+		if strings.HasPrefix(f.Name(), "vmlinuz-") {
+			return strings.TrimPrefix(f.Name(), "vmlinuz-"), nil
+		}
+	}
+	log.Errorf("Kernel image not found in %s", kernelDir)
+	return "", fmt.Errorf("kernel image not found in %s", kernelDir)
+}
+
+// Helper to update initramfs for Debian/Ubuntu systems using initramfs-tools
+func updateInitramfsForGrub(installRoot, kernelVersion string, template *config.ImageTemplate) error {
+	log.Debugf("Updating initramfs for Debian/Ubuntu at kernel version: %s", kernelVersion)
+
+	// Add kernel modules specified in enableExtraModules
+	extraModules := strings.TrimSpace(template.SystemConfig.Kernel.EnableExtraModules)
+	if extraModules != "" {
+		log.Debugf("Adding modules to initramfs: %s", extraModules)
+		// Split by space and add each module
+		modules := strings.Fields(extraModules)
+		for _, mod := range modules {
+			appendCmd := fmt.Sprintf("echo '%s' >> %s", mod, "/etc/initramfs-tools/modules")
+			if _, err := shell.ExecCmd(appendCmd, true, installRoot, nil); err != nil {
+				log.Warnf("Failed to add module %s to initramfs: %v", mod, err)
+			}
+		}
+	} else {
+		log.Debugf("No extra modules specified in enableExtraModules")
+	}
+
+	// Run update-initramfs to regenerate the initramfs
+	cmd := fmt.Sprintf("update-initramfs -u -k %s", kernelVersion)
+	log.Debugf("Executing: %s", cmd)
+	_, err := shell.ExecCmd(cmd, true, installRoot, nil)
+	if err != nil {
+		log.Errorf("Failed to update initramfs: %v", err)
+		return fmt.Errorf("failed to update initramfs: %w", err)
+	}
+
+	log.Debugf("Initramfs updated successfully")
 	return nil
 }
 
@@ -391,6 +443,21 @@ func (imageBoot *ImageBoot) InstallImageBoot(installRoot string, diskPathIdMap m
 
 		if err := copyGrubEnvFile(installRoot, grubVersion); err != nil {
 			return fmt.Errorf("failed to copy grubenv file: %w", err)
+		}
+
+		// Update initramfs for Debian/Ubuntu systems with GRUB
+		// This must happen after updateBootConfigTemplate but before updateGrubConfig
+		if pkgType == "deb" {
+			kernelVersion, err := getKernelVersionFromBoot(installRoot)
+			if err != nil {
+				return fmt.Errorf("Failed to get kernel version for initramfs update: %w", err)
+			} else {
+				if err := updateInitramfsForGrub(installRoot, kernelVersion, template); err != nil {
+					return fmt.Errorf("Failed to update initramfs: %w", err)
+				} else {
+					log.Infof("Initramfs updated successfully for kernel version: %s", kernelVersion)
+				}
+			}
 		}
 
 		if err := updateGrubConfig(installRoot, grubVersion); err != nil {

@@ -54,8 +54,11 @@ func (p *eLxr) Name(dist, arch string) string {
 func (p *eLxr) Init(dist, arch string) error {
 
 	// Architecture mapping if needed
-	if arch == "x86_64" {
+	switch arch {
+	case "x86_64":
 		arch = "amd64"
+	case "aarch64":
+		arch = "arm64"
 	}
 
 	cfgs, err := loadRepoConfig("", arch)
@@ -74,6 +77,11 @@ func (p *eLxr) Init(dist, arch string) error {
 }
 
 func (p *eLxr) PreProcess(template *config.ImageTemplate) error {
+	// Generate apt sources file from packageRepositories
+	if err := template.GenerateAptSourcesFromRepositories(); err != nil {
+		return fmt.Errorf("failed to generate apt sources from repositories: %w", err)
+	}
+
 	if err := p.installHostDependency(); err != nil {
 		return fmt.Errorf("failed to install host dependencies: %w", err)
 	}
@@ -280,7 +288,7 @@ func loadRepoConfig(repoUrl string, arch string) ([]debutils.RepoConfig, error) 
 	var repoConfigs []debutils.RepoConfig
 
 	// Load provider repo config for elxr - use correct OS name
-	providerConfigs, err := config.LoadProviderRepoConfig(OsName, "elxr12") // Use "wind-river-elxr" and "aria" dist
+	providerConfigs, err := config.LoadProviderRepoConfig(OsName, "elxr12", arch) // Use "wind-river-elxr" and "aria" dist
 	if err != nil {
 		return repoConfigs, fmt.Errorf("failed to load provider repo config: %w", err)
 	}
@@ -304,6 +312,7 @@ func loadRepoConfig(repoUrl string, arch string) ([]debutils.RepoConfig, error) 
 			URL:       baseURL,
 			PKey:      gpgKey,
 			Component: component,
+			Priority:  0, // Default priority
 		}
 	}
 

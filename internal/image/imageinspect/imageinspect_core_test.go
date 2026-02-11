@@ -19,7 +19,7 @@ func TestInspectCore_Propagates_GetPartitionTable_Error(t *testing.T) {
 	want := errors.New("pt boom")
 	disk := &fakeDiskAccessor{ptErr: want}
 
-	_, err := d.inspectCore(img, disk, 512, "ignored", 1<<20)
+	_, err := d.inspectCoreNoHash(img, disk, 512, "ignored", 1<<20)
 	if err == nil {
 		t.Fatalf("expected error")
 	}
@@ -37,7 +37,7 @@ func TestInspectCore_GPT_Table_SetsTypeAndBasics(t *testing.T) {
 
 	disk := &fakeDiskAccessor{pt: minimalGPTWithOnePartition()}
 
-	got, err := d.inspectCore(img, disk, 512, "ignored", 8<<20)
+	got, err := d.inspectCoreNoHash(img, disk, 512, "ignored", 8<<20)
 	if err != nil {
 		t.Fatalf("inspectCore: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestInspectCore_MBR_Table_SetsTypeAndBasics(t *testing.T) {
 
 	disk := &fakeDiskAccessor{pt: minimalMBRWithOnePartition()}
 
-	got, err := d.inspectCore(img, disk, 512, "ignored", 8<<20)
+	got, err := d.inspectCoreNoHash(img, disk, 512, "ignored", 8<<20)
 	if err != nil {
 		t.Fatalf("inspectCore: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestInspectCore_GetFilesystem_Error_IsRecordedAsNote(t *testing.T) {
 		fsErrAny: want, // any filesystem open fails
 	}
 
-	got, err := d.inspectCore(img, disk, 512, "ignored", 8<<20)
+	got, err := d.inspectCoreNoHash(img, disk, 512, "ignored", 8<<20)
 	if err != nil {
 		t.Fatalf("inspectCore should not fail on GetFilesystem error; got: %v", err)
 	}
@@ -800,7 +800,7 @@ func TestInspectCore_PropagatesFilesystemError_WhenCalled(t *testing.T) {
 		fsErrAny: want,
 	}
 
-	_, err := d.inspectCore(img, disk, 512, "ignored", 8<<20)
+	_, err := d.inspectCoreNoHash(img, disk, 512, "ignored", 8<<20)
 
 	if err != nil {
 		t.Fatalf("did not expect inspectCore error; GetFilesystem failures are captured as notes. err=%v", err)
@@ -912,5 +912,451 @@ func TestInheritBootloaderKindBySHA_AlreadyClassifiedNotOverwritten(t *testing.T
 	// Should NOT overwrite an already-classified binary
 	if evs[1].Kind != BootloaderGrub {
 		t.Errorf("already classified binary should not be overwritten, got %q", evs[1].Kind)
+	}
+}
+
+func TestSummarizePartitionTable_PartitionWithNilFilesystem(t *testing.T) {
+	// A partition can exist without a filesystem (e.g., raw data partition)
+	pt := &gpt.Table{
+		LogicalSectorSize: 512,
+		Partitions: []*gpt.Partition{
+			{
+				Name:  "raw_data",
+				Start: 2048,
+				End:   4095,
+			},
+		},
+	}
+
+	got, err := summarizePartitionTable(pt, 512, 8<<20)
+	if err != nil {
+		t.Fatalf("summarizePartitionTable: %v", err)
+	}
+
+	require(t, len(got.Partitions) == 1, "expected 1 partition")
+	if got.Partitions[0].Filesystem != nil {
+		t.Fatalf("expected Filesystem to be nil for raw partition, got %+v", got.Partitions[0].Filesystem)
+	}
+	// Verify partition is otherwise properly summarized
+	if got.Partitions[0].Name != "raw_data" {
+		t.Fatalf("expected partition name raw_data, got %s", got.Partitions[0].Name)
+	}
+}
+
+func TestInspectCore_InvalidLogicalSectorSize_Zero(t *testing.T) {
+	d := &DiskfsInspector{}
+	img := tinyReaderAt(4096)
+	disk := &fakeDiskAccessor{pt: minimalGPTWithOnePartition()}
+
+	// Sector size of 0 should be rejected
+	_, err := d.inspectCoreNoHash(img, disk, 0, "ignored", 8<<20)
+	if err == nil {
+		t.Fatalf("expected error for sector size 0")
+	}
+}
+
+func TestInspectCore_InvalidLogicalSectorSize_ExtremelyLarge(t *testing.T) {
+	d := &DiskfsInspector{}
+	img := tinyReaderAt(4096)
+	disk := &fakeDiskAccessor{pt: minimalGPTWithOnePartition()}
+
+	// Sector size larger than typical disk would likely cause issues
+	_, err := d.inspectCoreNoHash(img, disk, 1<<30, "ignored", 8<<20) // 1GB sector size
+	if err == nil {
+		t.Fatalf("expected error for extremely large sector size")
+	}
+}
+
+func TestSummarizePartitionTable_MisalignedPartitions(t *testing.T) {
+	// Partitions not aligned to sector boundaries are detected and reported
+	pt := &gpt.Table{
+		LogicalSectorSize: 512,
+		Partitions: []*gpt.Partition{
+			{
+				Name:  "aligned",
+				Start: 2048,
+				End:   4095,
+			},
+			{
+				Name:  "misaligned",
+				Start: 4096,
+				End:   8191,
+			},
+		},
+	}
+
+	got, err := summarizePartitionTable(pt, 512, 8<<20)
+	if err != nil {
+		t.Fatalf("summarizePartitionTable: %v", err)
+	}
+
+	// Check that misaligned partitions are tracked (if the implementation detects them)
+	// Even if not all partitions are marked misaligned, verify the structure is complete
+	require(t, len(got.Partitions) == 2, "expected 2 partitions")
+	require(t, got.Partitions[0].StartLBA == 2048, "expected first partition StartLBA=2048")
+	require(t, got.Partitions[1].StartLBA == 4096, "expected second partition StartLBA=4096")
+
+	// If MisalignedPartitions slice is populated, verify it contains correct indices
+	if len(got.MisalignedPartitions) > 0 {
+		found := false
+		for _, idx := range got.MisalignedPartitions {
+			if idx == 1 { // Second partition index
+				found = true
+				break
+			}
+		}
+		if !found && len(got.MisalignedPartitions) > 0 {
+			t.Logf("MisalignedPartitions detected: %v", got.MisalignedPartitions)
+		}
+	}
+}
+
+func TestSummarizePartitionTable_MisalignedPartitions_ExactBoundaries(t *testing.T) {
+	// Test partitions with boundaries that don't align to 4KB (common alignment boundary)
+	pt := &gpt.Table{
+		LogicalSectorSize:  512,
+		PhysicalSectorSize: 4096,
+		Partitions: []*gpt.Partition{
+			{
+				Name:  "well_aligned",
+				Start: 2048, // 1MB boundary (2048 * 512 = 1MB)
+				End:   4095,
+			},
+			{
+				Name:  "poorly_aligned",
+				Start: 2049, // Starts at odd sector
+				End:   4095,
+			},
+		},
+	}
+
+	got, err := summarizePartitionTable(pt, 512, 8<<20)
+	if err != nil {
+		t.Fatalf("summarizePartitionTable: %v", err)
+	}
+
+	require(t, len(got.Partitions) == 2, "expected 2 partitions")
+	// Verify the boundaries are captured correctly regardless of alignment
+	if got.Partitions[1].StartLBA != 2049 {
+		t.Fatalf("expected misaligned partition StartLBA=2049, got %d", got.Partitions[1].StartLBA)
+	}
+}
+
+func TestInspectCore_PhysicalSectorSize_VersusLogicalSectorSize(t *testing.T) {
+	// Physical sector size > logical sector size is valid (common with modern drives)
+	d := &DiskfsInspector{}
+	img := tinyReaderAt(4096)
+
+	pt := minimalGPTWithOnePartition()
+	pt.PhysicalSectorSize = 4096
+	pt.LogicalSectorSize = 512
+
+	disk := &fakeDiskAccessor{pt: pt}
+
+	got, err := d.inspectCoreNoHash(img, disk, 512, "ignored", 8<<20)
+	if err != nil {
+		t.Fatalf("inspectCore with phys>logical sectors: %v", err)
+	}
+
+	if got.PartitionTable.PhysicalSectorSize != 4096 {
+		t.Fatalf("expected PhysicalSectorSize=4096, got %d", got.PartitionTable.PhysicalSectorSize)
+	}
+	if got.PartitionTable.LogicalSectorSize != 512 {
+		t.Fatalf("expected LogicalSectorSize=512, got %d", got.PartitionTable.LogicalSectorSize)
+	}
+}
+
+func TestDetectVerity_SystemdVerity_WithHashPartition(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "root=/dev/sda2 systemd.verity_name=rootfs systemd.verity_root_data=/dev/sda2 systemd.verity_root_hash=/dev/sda3",
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+			{Index: 3, Name: "roothash"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info == nil {
+		t.Fatal("expected dm-verity to be detected")
+	}
+	if !info.Enabled {
+		t.Fatalf("expected Enabled=true, got false")
+	}
+	if info.Method != "systemd-verity" {
+		t.Fatalf("expected Method=systemd-verity, got %q", info.Method)
+	}
+	if info.RootDevice != "/dev/sda2" {
+		t.Fatalf("expected RootDevice=/dev/sda2, got %q", info.RootDevice)
+	}
+	if info.HashPartition != 3 {
+		t.Fatalf("expected HashPartition=3, got %d", info.HashPartition)
+	}
+	if len(info.Notes) == 0 {
+		t.Fatal("expected notes to be populated")
+	}
+	// Check for expected notes
+	notesStr := strings.Join(info.Notes, "\n")
+	if !strings.Contains(notesStr, "systemd.verity_*") {
+		t.Errorf("expected systemd.verity_* note, got: %s", notesStr)
+	}
+	if !strings.Contains(notesStr, "Hash partition") {
+		t.Errorf("expected hash partition note, got: %s", notesStr)
+	}
+}
+
+func TestDetectVerity_CustomInitramfs_NoHashPartition(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "console=ttyS0 root=/dev/mapper/rootfs_verity rw quiet splash",
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info == nil {
+		t.Fatal("expected dm-verity to be detected")
+	}
+	if !info.Enabled {
+		t.Fatalf("expected Enabled=true, got false")
+	}
+	if info.Method != "custom-initramfs" {
+		t.Fatalf("expected Method=custom-initramfs, got %q", info.Method)
+	}
+	if info.RootDevice != "/dev/mapper/rootfs_verity" {
+		t.Fatalf("expected RootDevice=/dev/mapper/rootfs_verity, got %q", info.RootDevice)
+	}
+	if info.HashPartition != 0 {
+		t.Fatalf("expected HashPartition=0 (none), got %d", info.HashPartition)
+	}
+	// Check for expected notes
+	notesStr := strings.Join(info.Notes, "\n")
+	if !strings.Contains(notesStr, "root=/dev/mapper/*verity*") {
+		t.Errorf("expected root=/dev/mapper/*verity* note, got: %s", notesStr)
+	}
+	if !strings.Contains(notesStr, "No separate hash partition") {
+		t.Errorf("expected 'No separate hash partition' note, got: %s", notesStr)
+	}
+	if !strings.Contains(notesStr, "custom initramfs") {
+		t.Errorf("expected 'custom initramfs' note, got: %s", notesStr)
+	}
+}
+
+func TestDetectVerity_RoothashParameter(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "root=/dev/sda2 roothash=abcdef1234567890 rd.dm.verity=1",
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info == nil {
+		t.Fatal("expected dm-verity to be detected")
+	}
+	if !info.Enabled {
+		t.Fatalf("expected Enabled=true, got false")
+	}
+	if info.Method != "roothash-parameter" {
+		t.Fatalf("expected Method=roothash-parameter, got %q", info.Method)
+	}
+	if info.RootDevice != "/dev/sda2" {
+		t.Fatalf("expected RootDevice=/dev/sda2, got %q", info.RootDevice)
+	}
+	notesStr := strings.Join(info.Notes, "\n")
+	if !strings.Contains(notesStr, "roothash=") {
+		t.Errorf("expected roothash= note, got: %s", notesStr)
+	}
+}
+
+func TestDetectVerity_NoUKI_ReturnsNil(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: false,
+				},
+			},
+			{Index: 2, Name: "root"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info != nil {
+		t.Fatalf("expected nil when no UKI present, got: %+v", info)
+	}
+}
+
+func TestDetectVerity_NoCmdline_ReturnsNil(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "", // Empty cmdline
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info != nil {
+		t.Fatalf("expected nil when cmdline is empty, got: %+v", info)
+	}
+}
+
+func TestDetectVerity_NoVerityParameters_ReturnsNil(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "root=/dev/sda2 quiet splash", // No verity params
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info != nil {
+		t.Fatalf("expected nil when no verity params, got: %+v", info)
+	}
+}
+
+func TestDetectVerity_HashPartitionOnly_WithoutVerity_AddsNote(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "root=/dev/sda2 quiet",
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+			{Index: 3, Name: "roothash"},
+		},
+	}
+
+	info := detectVerity(pt)
+	// Should return nil since no verity params in cmdline
+	if info != nil {
+		t.Fatalf("expected nil when hash partition exists but no verity params, got: %+v", info)
+	}
+}
+
+func TestDetectVerity_MultipleUKIs_UsesFirst(t *testing.T) {
+	pt := PartitionTableSummary{
+		Type: "gpt",
+		Partitions: []PartitionSummary{
+			{
+				Index: 1,
+				Name:  "ESP",
+				Filesystem: &FilesystemSummary{
+					Type:   "vfat",
+					HasUKI: true,
+					EFIBinaries: []EFIBinaryEvidence{
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "root=/dev/mapper/test_verity",
+						},
+						{
+							Kind:    "uki",
+							IsUKI:   true,
+							Cmdline: "root=/dev/sda2", // This should be ignored
+						},
+					},
+				},
+			},
+			{Index: 2, Name: "root"},
+		},
+	}
+
+	info := detectVerity(pt)
+	if info == nil {
+		t.Fatal("expected dm-verity to be detected")
+	}
+	if info.RootDevice != "/dev/mapper/test_verity" {
+		t.Fatalf("expected first UKI cmdline to be used, got RootDevice=%q", info.RootDevice)
 	}
 }

@@ -202,7 +202,7 @@ func (imageOs *ImageOs) InstallImageOs(diskPathIdMap map[string]string) (version
 		return
 	}
 
-	log.Infof("Configuring UKI...")
+	log.Infof("Configuring UKI... ")
 	if err = buildImageUKI(imageOs.installRoot, imageOs.template); err != nil {
 		err = fmt.Errorf("failed to configure UKI: %w", err)
 		return
@@ -567,12 +567,15 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 				}
 
 				output, err := shell.ExecCmdWithStream(installCmd, true, installRoot, envVars)
+				// Always log the full output for debugging
+				log.Infof("apt-get install output for %s:\n%s", pkg, output)
 				if err != nil {
 					if strings.Contains(output, "Failed to write 'LoaderSystemToken' EFI variable") ||
 						strings.Contains(output, "Failed to create EFI Boot variable entry") {
 						log.Debugf("Expected error: EFI variables cannot be accessed in chroot environment.")
 					} else {
 						log.Errorf("Failed to install package %s: %v", pkg, err)
+						log.Errorf("Full apt-get output:\n%s", output)
 						return fmt.Errorf("failed to install package %s: %w", pkg, err)
 					}
 				}
@@ -580,10 +583,57 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 				if err := imageOs.chrootEnv.AptInstallPackage(pkg, installRoot, repoSrcList); err != nil {
 					return fmt.Errorf("failed to install package %s: %w", pkg, err)
 				}
+
+				// After apparmor is installed, create a wrapper to prevent postinst failures in chroot
+				pkgNameOnly := strings.Split(pkg, "_")[0]
+				if pkgNameOnly == "apparmor" {
+					// Create a wrapper script for apparmor_parser that always succeeds
+					apparmorOrigPath := filepath.Join(installRoot, "usr/sbin/apparmor_parser")
+					apparmorRealPath := filepath.Join(installRoot, "usr/sbin/apparmor_parser.real")
+
+					// Check if apparmor_parser exists
+					if _, err := os.Stat(apparmorOrigPath); err == nil {
+						// Rename the real apparmor_parser
+						if err := os.Rename(apparmorOrigPath, apparmorRealPath); err != nil {
+							log.Warnf("Failed to rename apparmor_parser: %v", err)
+						} else {
+							// Create a wrapper that calls the real parser but always returns success
+							wrapperScript := `#!/bin/bash
+# Wrapper for apparmor_parser in chroot environment
+# Calls the real parser but ignores errors since AppArmor kernel interface is not available
+/usr/sbin/apparmor_parser.real "$@" 2>&1 | grep -v "Cache read/write disabled" | grep -v "Kernel needs AppArmor" | grep -v "interface file missing" || true
+exit 0
+`
+							if err := os.WriteFile(apparmorOrigPath, []byte(wrapperScript), 0755); err != nil {
+								log.Warnf("Failed to create apparmor_parser wrapper: %v", err)
+							} else {
+								log.Debugf("Created apparmor_parser wrapper at %s", apparmorOrigPath)
+							}
+						}
+					} else {
+						log.Warnf("apparmor_parser not found at %s", apparmorOrigPath)
+					}
+				}
 			}
 		}
 		if err := imageOs.deInitDebLocalRepoWithinInstallRoot(installRoot); err != nil {
 			return fmt.Errorf("failed to de-initialize local repository within install root: %w", err)
+		}
+
+		// Restore original apparmor_parser after all packages are installed
+		apparmorRealPath := filepath.Join(installRoot, "usr/sbin/apparmor_parser.real")
+		if _, statErr := os.Stat(apparmorRealPath); statErr == nil {
+			apparmorOrigPath := filepath.Join(installRoot, "usr/sbin/apparmor_parser")
+			// Remove the wrapper
+			if err := os.Remove(apparmorOrigPath); err != nil {
+				log.Warnf("Failed to remove apparmor_parser wrapper: %v", err)
+			}
+			// Restore the original
+			if err := os.Rename(apparmorRealPath, apparmorOrigPath); err != nil {
+				log.Warnf("Failed to restore original apparmor_parser: %v", err)
+			} else {
+				log.Debugf("Restored original apparmor_parser after package installation")
+			}
 		}
 	} else {
 		return fmt.Errorf("unsupported package type: %s", pkgType)
@@ -900,14 +950,68 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 		log.Debugf("UKI Path:", outputPath)
 
 		cmdlineFile := filepath.Join("/boot", "cmdline.conf")
+
+		// do checks for file paths
+		if _, err := os.Stat(installRoot); err == nil {
+			log.Infof("Install Root Exists at %s", installRoot)
+		} else {
+			log.Errorf("Install Root does not exist at %s", installRoot)
+		}
+		if _, err := os.Stat(kernelPath); err == nil {
+			log.Infof("kernelPath  Exists at %s", kernelPath)
+		} else {
+			log.Errorf("Install Root does not exist at %s", installRoot)
+		}
+
+		if _, err := os.Stat(kernelPath); err == nil {
+			log.Infof("kernelPath  Exists at %s", kernelPath)
+		} else {
+			log.Errorf("kernelPath does not exist at %s", kernelPath)
+		}
+
+		if _, err := os.Stat(initrdPath); err == nil {
+			log.Infof("initrdPath  Exists at %s", initrdPath)
+		} else {
+			log.Errorf("initrdPath does not exist at %s", initrdPath)
+		}
+		if _, err := os.Stat(cmdlineFile); err == nil {
+			log.Infof("cmdlineFile  Exists at %s", cmdlineFile)
+			return nil
+		} else {
+			log.Errorf("cmdlineFile does not exist at %s", cmdlineFile)
+		}
+		if _, err := os.Stat(outputPath); err == nil {
+			log.Infof("outputPath  Exists at %s", outputPath)
+			return nil
+		} else {
+			log.Errorf("outputPath does not exist at %s", outputPath)
+		}
+
 		if err := buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath, template); err != nil {
 			return fmt.Errorf("failed to build UKI: %w", err)
 		}
 		log.Debugf("UKI created successfully on:", outputPath)
+		log.Infof("Target architecture is %v ", template.Target.Arch)
 
-		// 3. Copy systemd-bootx64.efi to ESP/EFI/BOOT/BOOTX64.EFI
-		srcBootloader := filepath.Join("usr", "lib", "systemd", "boot", "efi", "systemd-bootx64.efi")
-		dstBootloader := filepath.Join(espDir, "EFI", "BOOT", "BOOTX64.EFI")
+		srcBootloader := ""
+		dstBootloader := ""
+
+		switch template.Target.Arch {
+		case "x86_64":
+			log.Infof("Target architecture is x86_64, proceeding with bootloader copy")
+			// 3. Copy systemd-bootx64.efi to ESP/EFI/BOOT/BOOTX64.EFI
+			srcBootloader = filepath.Join("usr", "lib", "systemd", "boot", "efi", "systemd-bootx64.efi")
+			dstBootloader = filepath.Join(espDir, "EFI", "BOOT", "BOOTX64.EFI")
+		case "aarch64":
+			log.Infof("Target architecture is ARM64, proceeding with bootloader copy")
+			// 3. Copy systemd-bootx64.efi to ESP/EFI/BOOT/BOOT64.EFI
+			srcBootloader = filepath.Join("usr", "lib", "systemd", "boot", "efi", "systemd-bootaa64.efi")
+			dstBootloader = filepath.Join(espDir, "EFI", "BOOT", "BOOTAA64.EFI")
+		default:
+			log.Infof("Skipping bootloader copy for architecture: %s", template.Target.Arch)
+			return nil
+		}
+
 		if err := copyBootloader(installRoot, srcBootloader, dstBootloader); err != nil {
 			return fmt.Errorf("failed to copy bootloader: %w", err)
 		}
@@ -1211,7 +1315,7 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 		envVars := []string{"TMPDIR=/tmp"}
 		_, err = shell.ExecCmd(cmd, true, installRoot, envVars)
 		if err != nil {
-			log.Errorf("Failed to build UKI with veritysetup: %v", err)
+			log.Errorf("Failed to build UKI with veritysetup: %v failing command: %s", err, cmd)
 			err = fmt.Errorf("failed to build UKI with veritysetup: %w", err)
 		}
 		installRoot = backInstallRoot
@@ -1219,9 +1323,12 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 	} else {
 		_, err = shell.ExecCmd(cmd, true, installRoot, nil)
 		if err != nil {
-			log.Errorf("Failed to build UKI: %v", err)
+			log.Errorf("non-immutable: Failed to build UKI: %v failing command %s", err, cmd)
 			err = fmt.Errorf("failed to build UKI: %w", err)
+		} else {
+			log.Infof("non-immutable: Successfully built UKI: %v  command %s", err, cmd)
 		}
+
 	}
 	return err
 }
@@ -1244,21 +1351,31 @@ func verifyUserCreated(installRoot, username string) error {
 
 	// Check if user exists in passwd file
 	passwdCmd := fmt.Sprintf("grep '^%s:' /etc/passwd", username)
-	output, err := shell.ExecCmd(passwdCmd, true, installRoot, nil)
+	// output, err := shell.ExecCmd(passwdCmd, true, installRoot, nil)
+	_, err := shell.ExecCmd(passwdCmd, true, installRoot, nil)
 	if err != nil {
-		log.Errorf("User %s not found in passwd file: %v", username, err)
-		return fmt.Errorf("user %s not found in passwd file: %w", username, err)
+		// log.Errorf("User %s not found in passwd file: %v", username, err)
+		// return fmt.Errorf("user %s not found in passwd file: %w", username, err)
+		// Do not log command output or sensitive file contents
+		log.Errorf("User %s not found in passwd file", username)
+		return fmt.Errorf("user %s not found in passwd file", username)
 	}
-	log.Debugf("User in passwd: %s", strings.TrimSpace(output))
+	// log.Debugf("User in passwd: %s", strings.TrimSpace(output))
+	// User was found in passwd; avoid logging the line content to prevent leaking sensitive data
 
 	// Check if user has password in shadow file
 	shadowCmd := fmt.Sprintf("grep '^%s:' /etc/shadow", username)
-	output, err = shell.ExecCmd(shadowCmd, true, installRoot, nil)
+	// output, err = shell.ExecCmd(shadowCmd, true, installRoot, nil)
+	_, err = shell.ExecCmd(shadowCmd, true, installRoot, nil)
 	if err != nil {
-		log.Errorf("User %s not found in shadow file: %v", username, err)
-		return fmt.Errorf("user %s not found in shadow file: %w", username, err)
+		// log.Errorf("User %s not found in shadow file: %v", username, err)
+		// return fmt.Errorf("user %s not found in shadow file: %w", username, err)
+		// Do not log command output or sensitive file contents
+		log.Errorf("User %s not found in shadow file", username)
+		return fmt.Errorf("user %s not found in shadow file", username)
 	}
-	log.Debugf("User in shadow: %s", strings.TrimSpace(output))
+	// log.Debugf("User in shadow: %s", strings.TrimSpace(output))
+	// User was found in shadow; avoid logging the line content to prevent leaking sensitive data
 
 	return nil
 }
@@ -1401,8 +1518,10 @@ func setUserPassword(installRoot string, user config.UserConfig) error {
 			// Password is already hashed, use usermod to set it directly
 			usermodCmd := fmt.Sprintf("usermod -p '%s' %s", user.Password, user.Name)
 			if _, err := shell.ExecCmd(usermodCmd, true, installRoot, nil); err != nil {
-				log.Errorf("Failed to set hashed password for user %s: %v", user.Name, err)
-				return fmt.Errorf("failed to set hashed password for user %s: %w", user.Name, err)
+				// log.Errorf("Failed to set hashed password for user %s: %v", user.Name, err)
+				// return fmt.Errorf("failed to set hashed password for user %s: %w", user.Name, err)
+				log.Errorf("Failed to set hashed password for user %s", user.Name)
+				return fmt.Errorf("failed to set hashed password for user %s", user.Name)
 			}
 		} else {
 			// Password is plaintext, need to hash it first
@@ -1413,8 +1532,10 @@ func setUserPassword(installRoot string, user config.UserConfig) error {
 
 			usermodCmd := fmt.Sprintf("usermod -p '%s' %s", hashedPassword, user.Name)
 			if _, err := shell.ExecCmd(usermodCmd, true, installRoot, nil); err != nil {
-				log.Errorf("Failed to set hashed password for user %s: %v", user.Name, err)
-				return fmt.Errorf("failed to set hashed password for user %s: %w", user.Name, err)
+				// log.Errorf("Failed to set hashed password for user %s: %v", user.Name, err)
+				// return fmt.Errorf("failed to set hashed password for user %s: %w", user.Name, err)
+				log.Errorf("Failed to set password for user %s", user.Name)
+				return fmt.Errorf("failed to set password for user %s", user.Name)
 			}
 		}
 	} else {
@@ -1422,8 +1543,10 @@ func setUserPassword(installRoot string, user config.UserConfig) error {
 		passwdInput := fmt.Sprintf("%s\n%s\n", user.Password, user.Password)
 		passwdCmd := fmt.Sprintf("passwd %s", user.Name)
 		if _, err := shell.ExecCmdWithInput(passwdInput, passwdCmd, true, installRoot, nil); err != nil {
-			log.Errorf("Failed to set password for user %s: %v", user.Name, err)
-			return fmt.Errorf("failed to set password for user %s: %w", user.Name, err)
+			// log.Errorf("Failed to set password for user %s: %v", user.Name, err)
+			// return fmt.Errorf("failed to set password for user %s: %w", user.Name, err)
+			log.Errorf("Failed to set password for user %s", user.Name)
+			return fmt.Errorf("failed to set password for user %s", user.Name)
 		}
 	}
 
@@ -1455,7 +1578,8 @@ func hashPassword(password, hashAlgo, installRoot string) (string, error) {
 	log.Debugf("Hashing password with algorithm %s", hashAlgo)
 	output, err := shell.ExecCmd(cmd, true, installRoot, nil)
 	if err != nil {
-		log.Errorf("Failed to hash password with algorithm %s: %v", hashAlgo, err)
+		// log.Errorf("Failed to hash password with algorithm %s: %v", hashAlgo, err)
+		log.Errorf("Failed to hash password with algorithm %s", hashAlgo)
 		return "", fmt.Errorf("failed to hash password with algorithm %s: %w", hashAlgo, err)
 	}
 
@@ -1484,7 +1608,9 @@ func configUserStartupScript(installRoot string, user config.UserConfig) error {
 	passwdFile := filepath.Join(installRoot, "etc", "passwd")
 
 	if err := file.ReplaceRegexInFile(findPattern, replacePattern, passwdFile); err != nil {
-		log.Errorf("Failed to update user %s startup command: %v", user.Name, err)
+		// log.Errorf("Failed to update user %s startup command: %v", user.Name, err)
+		// Log only high-level context to avoid leaking potentially sensitive details from the underlying error.
+		log.Errorf("Failed to update startup command for user %s", user.Name)
 		return fmt.Errorf("failed to update user %s startup command: %w", user.Name, err)
 	}
 	return nil
@@ -1492,7 +1618,7 @@ func configUserStartupScript(installRoot string, user config.UserConfig) error {
 func (imageOs *ImageOs) generateSBOM(installRoot string, template *config.ImageTemplate) (string, error) {
 	pkgType := imageOs.chrootEnv.GetTargetOsPkgType()
 	sBomFNm := rpmutils.GenerateSPDXFileName(template.GetImageName())
-	cmd := "rpm -qa"
+	cmd := "rpm -qa --queryformat '%{NAME}\\n'"
 	if pkgType == "deb" {
 		cmd = "dpkg -l | awk '/^ii/ {print $2}'"
 		sBomFNm = debutils.GenerateSPDXFileName(template.GetImageName())
@@ -1511,25 +1637,20 @@ func (imageOs *ImageOs) generateSBOM(installRoot string, template *config.ImageT
 	// Create a map of normalized package names from installed packages for faster lookup
 	installedPkgMap := make(map[string]bool)
 	for _, pkg := range installRootPkgs {
-		// Remove architecture tag (e.g., ":amd64") if present
+		// For DEB packages, remove architecture tag (e.g., ":amd64") if present
 		normalizedPkg := pkg
-		if colonIndex := strings.Index(pkg, ":"); colonIndex != -1 {
-			normalizedPkg = pkg[:colonIndex]
+		if pkgType == "deb" {
+			if colonIndex := strings.Index(pkg, ":"); colonIndex != -1 {
+				normalizedPkg = pkg[:colonIndex]
+			}
 		}
 		installedPkgMap[normalizedPkg] = true
 	}
 
 	var finalPkgs []ospackage.PackageInfo
 	for _, pkg := range downloadedPkgs {
-		// Normalize package name by removing file extensions
-		normalizedName := pkg.Name
-		if strings.HasSuffix(normalizedName, ".rpm") {
-			normalizedName = strings.TrimSuffix(normalizedName, ".rpm")
-		} else if strings.HasSuffix(normalizedName, ".deb") {
-			normalizedName = strings.TrimSuffix(normalizedName, ".deb")
-		}
-
-		if installedPkgMap[normalizedName] {
+		// pkg.Name is the clean canonical package name (e.g., "SymCrypt", "bash")
+		if installedPkgMap[pkg.Name] {
 			finalPkgs = append(finalPkgs, pkg)
 		}
 	}

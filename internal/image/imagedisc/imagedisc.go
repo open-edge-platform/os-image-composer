@@ -68,6 +68,7 @@ var partitionTypeNameToGUID = map[string]string{
 	"esp":              "c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
 	"xbootldr":         "bc13c2ff-59e6-4262-a352-b275fd6f7172",
 	"linux-root-amd64": "4f68bce3-e8cd-4db1-96e7-fbcaf984b709",
+	"linux-root-arm64": "b921b045-1df0-41c3-af44-4c6f280d3fae",
 	"linux-swap":       "0657fd6d-a4ab-43c4-84e5-0933c84b4f4f",
 	"linux-home":       "933ac7e1-2eb4-4f13-b844-0e14e2aef915",
 	"linux-srv":        "3b8f8425-20e0-4f3b-907f-1a25a76f98e8",

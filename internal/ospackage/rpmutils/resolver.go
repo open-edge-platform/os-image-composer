@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -21,6 +20,11 @@ import (
 
 // extractBaseRequirement takes a potentially complex requirement string
 // and returns only the base package/capability name.
+// Examples:
+//   - "libc.so.6(GLIBC_2.38)(64bit)" -> "libc.so.6"
+//   - "libsemanage.so.2(LIBSEMANAGE_1.0)(64bit)" -> "libsemanage.so.2"
+//   - "(coreutils or busybox)" -> "coreutils"
+//   - "filesystem >= 3.0" -> "filesystem"
 func extractBaseRequirement(req string) string {
 	if strings.HasPrefix(req, "(") && strings.Contains(req, " ") {
 		trimmed := strings.TrimPrefix(req, "(")
@@ -34,27 +38,18 @@ func extractBaseRequirement(req string) string {
 		return ""
 	}
 	base := finalParts[0]
-	return strings.TrimSuffix(base, "()(64bit)")
-}
 
-type dotStyle struct {
-	fillColor   string
-	borderColor string
-	legendLabel string
-}
+	// Remove all parenthesized suffixes like (GLIBC_2.38)(64bit), (LIBSEMANAGE_1.0)(64bit), etc.
+	// Keep removing until no more parentheses at the end
+	for {
+		idx := strings.Index(base, "(")
+		if idx == -1 {
+			break
+		}
+		base = base[:idx]
+	}
 
-var packageSourceStyles = map[config.PackageSource]dotStyle{
-	config.PackageSourceEssential:  {fillColor: "#fff4d6", borderColor: "#f5c518", legendLabel: "EssentialPkgList"},
-	config.PackageSourceSystem:     {fillColor: "#d4efdf", borderColor: "#27ae60", legendLabel: "SystemConfig.Packages"},
-	config.PackageSourceKernel:     {fillColor: "#d6eaf8", borderColor: "#1f618d", legendLabel: "Kernel"},
-	config.PackageSourceBootloader: {fillColor: "#fdebd0", borderColor: "#d35400", legendLabel: "Bootloader"},
-}
-
-var legendOrder = []config.PackageSource{
-	config.PackageSourceEssential,
-	config.PackageSourceSystem,
-	config.PackageSourceKernel,
-	config.PackageSourceBootloader,
+	return base
 }
 
 func GenerateDot(pkgs []ospackage.PackageInfo, file string, pkgSources map[string]config.PackageSource) error {
@@ -76,43 +71,35 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string, pkgSources map[strin
 	if _, err := fmt.Fprintln(writer, "  rankdir=LR;"); err != nil {
 		return fmt.Errorf("writing DOT attributes: %w", err)
 	}
-	if _, err := fmt.Fprintln(writer, "  node [shape=box, style=filled, fillcolor=\"#ffffff\", color=\"#666666\"];"); err != nil {
+	if _, err := fmt.Fprintln(writer, "  node [shape=box];"); err != nil {
 		return fmt.Errorf("writing DOT node defaults: %w", err)
 	}
 
-	legendUsed := make(map[config.PackageSource]bool)
+	edgesWritten := make(map[string]bool)
 
 	for _, pkg := range pkgs {
 		if pkg.Name == "" {
 			continue
 		}
-		source := config.PackageSourceUnknown
-		if pkgSources != nil {
-			if val, ok := pkgSources[pkg.Name]; ok {
-				source = val
-			}
-		}
-		attr := fmt.Sprintf("label=\"%s\"", pkg.Name)
-		if style, ok := packageSourceStyles[source]; ok {
-			legendUsed[source] = true
-			attr += fmt.Sprintf(", fillcolor=\"%s\", color=\"%s\"", style.fillColor, style.borderColor)
-		}
-		if _, err := fmt.Fprintf(writer, "  \"%s\" [%s];\n", pkg.Name, attr); err != nil {
+		// pkg.Name already contains the clean package name from XML <name> element
+		// (e.g., "libgcrypt" not "libgcrypt-1.10.3-1.azl3.x86_64.rpm")
+		if _, err := fmt.Fprintf(writer, "  \"%s\";\n", pkg.Name); err != nil {
 			return fmt.Errorf("writing DOT node for %s: %w", pkg.Name, err)
 		}
 		for _, dep := range pkg.Requires {
 			if dep == "" {
 				continue
 			}
-			if _, err := fmt.Fprintf(writer, "  \"%s\" -> \"%s\";\n", pkg.Name, dep); err != nil {
-				return fmt.Errorf("writing DOT edge %s->%s: %w", pkg.Name, dep, err)
+			// Extract clean dependency name for edges (handles capabilities and package requirements)
+			cleanDep := extractBaseRequirement(dep)
+			edgeKey := pkg.Name + "|" + cleanDep
+			if edgesWritten[edgeKey] {
+				continue
 			}
-		}
-	}
-
-	if len(legendUsed) > 0 {
-		if err := writeLegend(writer, legendUsed); err != nil {
-			return err
+			if _, err := fmt.Fprintf(writer, "  \"%s\" -> \"%s\";\n", pkg.Name, cleanDep); err != nil {
+				return fmt.Errorf("writing DOT edge %s->%s: %w", pkg.Name, cleanDep, err)
+			}
+			edgesWritten[edgeKey] = true
 		}
 	}
 
@@ -120,47 +107,6 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string, pkgSources map[strin
 		return fmt.Errorf("writing DOT footer: %w", err)
 	}
 
-	return nil
-}
-
-func writeLegend(writer *bufio.Writer, legendUsed map[config.PackageSource]bool) error {
-	if _, err := fmt.Fprintln(writer, "  subgraph cluster_legend {"); err != nil {
-		return fmt.Errorf("writing legend header: %w", err)
-	}
-	if _, err := fmt.Fprintln(writer, "    label=\"Legend\";"); err != nil {
-		return fmt.Errorf("writing legend label: %w", err)
-	}
-	if _, err := fmt.Fprintln(writer, "    style=\"dashed\";"); err != nil {
-		return fmt.Errorf("writing legend style: %w", err)
-	}
-	if _, err := fmt.Fprintln(writer, "    color=\"#bbbbbb\";"); err != nil {
-		return fmt.Errorf("writing legend color: %w", err)
-	}
-
-	var previous string
-	for _, source := range legendOrder {
-		if !legendUsed[source] {
-			continue
-		}
-		style, ok := packageSourceStyles[source]
-		if !ok {
-			continue
-		}
-		nodeName := fmt.Sprintf("legend_%s", source)
-		if _, err := fmt.Fprintf(writer, "    %s [label=\"%s\", style=\"filled\", fillcolor=\"%s\", color=\"%s\"];\n", nodeName, style.legendLabel, style.fillColor, style.borderColor); err != nil {
-			return fmt.Errorf("writing legend node for %s: %w", source, err)
-		}
-		if previous != "" {
-			if _, err := fmt.Fprintf(writer, "    %s -> %s [style=invis];\n", previous, nodeName); err != nil {
-				return fmt.Errorf("writing legend spacing edge: %w", err)
-			}
-		}
-		previous = nodeName
-	}
-
-	if _, err := fmt.Fprintln(writer, "  }"); err != nil {
-		return fmt.Errorf("writing legend footer: %w", err)
-	}
 	return nil
 }
 
@@ -254,11 +200,10 @@ func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, e
 				}
 
 			case "location":
-				// read the href and build full URL + infer Name (filename)
+				// read the href and build full URL (but don't overwrite Name - it's already set from <name> element)
 				for _, a := range elem.Attr {
 					if a.Name.Local == "href" {
 						curInfo.URL = strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(a.Value, "/")
-						curInfo.Name = path.Base(a.Value)
 						break
 					}
 				}
@@ -682,12 +627,13 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 }
 
 // findMatchingKeyInNeededSet checks if any key in neededSet contains depName as a substring,
-// and returns the first matching key whose base package name equals depName.
+// and returns the first matching key whose package name equals depName.
 func findMatchingKeyInNeededSet(neededSet map[string]struct{}, depName string) (string, bool) {
 	for k := range neededSet {
 		if strings.Contains(k, depName) {
-			fileName := extractBasePackageNameFromFile(k)
-			if fileName == depName {
+			// k format is "name=version", extract the name part
+			parts := strings.Split(k, "=")
+			if len(parts) > 0 && parts[0] == depName {
 				return k, true
 			}
 		}

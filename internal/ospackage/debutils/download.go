@@ -28,6 +28,7 @@ type Repository struct {
 	URL       string
 	PKey      string
 	Component string
+	Priority  int
 }
 
 // repoConfig hold repo related info
@@ -44,6 +45,7 @@ type RepoConfig struct {
 	ReleaseSign  string
 	BuildPath    string // path to store builds, relative to the root of the repo
 	Arch         string // architecture, e.g., amd64, all
+	Priority     int    // repository priority (higher numbers = higher priority)
 }
 
 type pkgChecksum struct {
@@ -129,11 +131,13 @@ func BuildRepoConfigs(userRepoList []Repository, arch string) ([]RepoConfig, err
 			for _, localArch := range strings.Split(archs, ",") {
 				package_list_url, err := GetPackagesNames(baseURL, codename, localArch, componentName)
 				if err != nil {
-					return nil, fmt.Errorf("getting package metadata name: %w", err)
+					return nil, fmt.Errorf("getting package metadata name: %w, baseURL %s codename %s localArch %s componentName %s\n", err, baseURL, codename, localArch, componentName)
 				}
 				if package_list_url == "" {
+					fmt.Printf("getting package metadata name: %v, baseURL %s codename %s localArch %s componentName %s\n", err, baseURL, codename, localArch, componentName)
 					continue // No valid package list found for this arch/component
 				}
+				fmt.Printf("SUCCESS: baseURL %s codename %s localArch %s componentName %s\n", baseURL, codename, localArch, componentName)
 				repo := RepoConfig{
 					PkgList:      package_list_url,
 					ReleaseFile:  fmt.Sprintf("%s/dists/%s/%s", baseURL, codename, releaseNm),
@@ -146,6 +150,7 @@ func BuildRepoConfigs(userRepoList []Repository, arch string) ([]RepoConfig, err
 					PbGPGKey:     pkey,
 					BuildPath:    filepath.Join(config.TempDir(), "builds", fmt.Sprintf("%s_%s_%s", id, localArch, componentName)),
 					Arch:         localArch,
+					Priority:     repoItem.Priority,
 				}
 				userRepo = append(userRepo, repo)
 				connectSuccess = true
@@ -178,8 +183,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 			Codename:  repo.Codename,
 			URL:       repo.URL,
 			PKey:      repo.PKey,
-			Component: repo.Component,
-		})
+			Component: repo.Component, Priority: repo.Priority})
 	}
 
 	// If no valid repositories were found (all were placeholders), return empty package list

@@ -31,10 +31,14 @@ var commandMap = map[string][]string{
 	"cd":                 {"cd"}, // 'cd' is a shell builtin, not a standalone command
 	"chroot":             {"/usr/sbin/chroot"},
 	"chmod":              {"/usr/bin/chmod"},
+	"chown":              {"/usr/bin/chown"},
 	"command":            {"command"}, // 'command' is a shell builtin
 	"cp":                 {"/bin/cp", "/usr/bin/cp"},
+	"crontab":            {"/usr/bin/crontab"},
+	"curl":               {"/usr/bin/curl"},
 	"createrepo_c":       {"/usr/bin/createrepo_c"},
 	"cryptsetup":         {"/usr/sbin/cryptsetup"},
+	"date":               {"/usr/bin/date"},
 	"dd":                 {"/usr/bin/dd"},
 	"df":                 {"/usr/bin/df"},
 	"dirname":            {"/usr/bin/dirname"},
@@ -90,6 +94,7 @@ var commandMap = map[string][]string{
 	"sha256sum":          {"/usr/bin/sha256sum"},
 	"sh":                 {"/bin/sh"},
 	"sleep":              {"/usr/bin/sleep"},
+	"snap":               {"/usr/bin/snap"},
 	"sudo":               {"/usr/bin/sudo"},
 	"swapon":             {"/usr/sbin/swapon"},
 	"swapoff":            {"/usr/sbin/swapoff"},
@@ -97,6 +102,7 @@ var commandMap = map[string][]string{
 	"tail":               {"/usr/bin/tail"},
 	"tar":                {"/usr/bin/tar"},
 	"tdnf":               {"/usr/bin/tdnf"},
+	"tee":                {"/usr/bin/tee"},
 	"touch":              {"/usr/bin/touch"},
 	"truncate":           {"/usr/bin/truncate"},
 	"tune2fs":            {"/usr/sbin/tune2fs"},
@@ -106,6 +112,7 @@ var commandMap = map[string][]string{
 	"uniq":               {"/usr/bin/uniq"},
 	"veritysetup":        {"/usr/sbin/veritysetup"},
 	"vgcreate":           {"/usr/sbin/vgcreate"},
+	"wget":               {"/usr/bin/wget"},
 	"wipefs":             {"/usr/sbin/wipefs"},
 	"xorriso":            {"/usr/bin/xorriso"},
 	"xz":                 {"/usr/bin/xz"},
@@ -123,6 +130,8 @@ var commandMap = map[string][]string{
 	"systemctl":          {"/usr/bin/systemctl"},
 	"test":               {"/bin/test"},
 	"awk":                {"/usr/bin/awk"},
+	"update-initramfs":   {"/usr/sbin/update-initramfs", "/usr/bin/update-initramfs"},
+	"update-grub":        {"/usr/sbin/update-grub", "/usr/bin/update-grub"},
 	// Add more mappings as needed
 }
 
@@ -235,10 +244,6 @@ func extractSedPattern(command string) (string, error) {
 }
 
 func extractEchoString(command string) (string, error) {
-	// Match strings inside echo with single or double quotes
-	// Note: Ideally, the pattern should be `(?s)echo\s+(?:-e\s+)?(['"])(.*?)\1'`
-	// But the go built-in lib regexp doesn't support this backreferences.
-
 	// First try single quotes
 	singleRe := regexp.MustCompile(`(?s)echo\s+(?:-e\s+)?'(.*?)'`)
 	matches := singleRe.FindStringSubmatch(command)
@@ -254,7 +259,89 @@ func extractEchoString(command string) (string, error) {
 		return matches[1], nil
 	}
 
-	return "", fmt.Errorf("no quoted string found in echo command")
+	// Check with need manual parsing
+	// This handles cases like: echo 'hello "world" good morning'
+	return extractEchoStringManual(command)
+}
+
+// extractEchoStringManual uses manual parsing to ensure opening and closing quotes match
+// This handles cases like: echo 'hello "world" good morning'
+func extractEchoStringManual(command string) (string, error) {
+	// Find the echo command and optional -e flag
+	echoRe := regexp.MustCompile(`echo\s+(?:-e\s+)?`)
+	loc := echoRe.FindStringIndex(command)
+	if loc == nil {
+		return "", fmt.Errorf("no echo command found")
+	}
+
+	// Get the rest of the string after 'echo' and optional '-e'
+	rest := command[loc[1]:]
+	rest = strings.TrimSpace(rest)
+
+	if len(rest) == 0 {
+		return "", fmt.Errorf("no quoted string found in echo command")
+	}
+
+	// Check if it starts with a quote
+	if rest[0] != '\'' && rest[0] != '"' {
+		return "", fmt.Errorf("echo string must start with a quote")
+	}
+
+	quoteChar := rest[0]
+
+	// Find the matching closing quote (same type as opening)
+	escaped := false
+	for i := 1; i < len(rest); i++ {
+		if escaped {
+			escaped = false
+			continue
+		}
+		if rest[i] == '\\' {
+			escaped = true
+			continue
+		}
+		if rest[i] == quoteChar {
+			// Found the matching closing quote - return WITH quotes
+			return rest[0 : i+1], nil
+		}
+	}
+
+	return "", fmt.Errorf("no matching closing quote found")
+}
+
+// findSeparatorOutsideQuotes finds the index of a separator that is not within quotes
+func findSeparatorOutsideQuotes(cmd string, sep string) int {
+	inSingleQuote := false
+	inDoubleQuote := false
+	escaped := false
+
+	for i := 0; i < len(cmd); i++ {
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		if cmd[i] == '\\' {
+			escaped = true
+			continue
+		}
+
+		// Toggle quote states
+		if cmd[i] == '\'' && !inDoubleQuote {
+			inSingleQuote = !inSingleQuote
+		} else if cmd[i] == '"' && !inSingleQuote {
+			inDoubleQuote = !inDoubleQuote
+		}
+
+		// Check if we found the separator outside quotes
+		if !inSingleQuote && !inDoubleQuote {
+			if i+len(sep) <= len(cmd) && cmd[i:i+len(sep)] == sep {
+				return i
+			}
+		}
+	}
+
+	return -1
 }
 
 func verifyCmdWithFullPath(cmd, chrootPath string) (string, error) {
@@ -283,7 +370,7 @@ func verifyCmdWithFullPath(cmd, chrootPath string) (string, error) {
 	sepIdx := -1
 	sep := ""
 	for _, s := range separators {
-		if idx := strings.Index(cmd, s); idx != -1 && (sepIdx == -1 || idx < sepIdx) {
+		if idx := findSeparatorOutsideQuotes(cmd, s); idx != -1 && (sepIdx == -1 || idx < sepIdx) {
 			sepIdx = idx
 			sep = s
 		}
@@ -369,7 +456,9 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 
 		fullCmdStr = "sudo " + envValStr + "chroot " + chrootPath + " " + fullPathCmdStr
 		chrootDir := filepath.Base(chrootPath)
-		log.Debugf("Chroot " + chrootDir + " Exec: [" + fullPathCmdStr + "]")
+		// log.Debugf("Chroot " + chrootDir + " Exec: [" + fullPathCmdStr + "]")
+		// Avoid logging full command string to prevent leaking sensitive data.
+		log.Debugf("Chroot %s Exec: [command executed]", chrootDir)
 
 	} else {
 		if sudo {
@@ -380,10 +469,14 @@ func GetFullCmdStr(cmdStr string, sudo bool, chrootPath string, envVal []string)
 			}
 
 			fullCmdStr = "sudo " + envValStr + fullPathCmdStr
-			log.Debugf("Exec: [sudo " + fullPathCmdStr + "]")
+			// log.Debugf("Exec: [sudo " + fullPathCmdStr + "]")
+			// Avoid logging full command string to prevent leaking sensitive data.
+			log.Debugf("Exec with sudo: [command executed]")
 		} else {
 			fullCmdStr = fullPathCmdStr
-			log.Debugf("Exec: [" + fullPathCmdStr + "]")
+			// log.Debugf("Exec: [" + fullPathCmdStr + "]")
+			// Avoid logging full command string to prevent leaking sensitive data.
+			log.Debugf("Exec without sudo: [command executed]")
 		}
 	}
 
@@ -403,13 +496,19 @@ func (d *DefaultExecutor) ExecCmd(cmdStr string, sudo bool, chrootPath string, e
 
 	if err != nil {
 		if outputStr != "" {
-			return outputStr, fmt.Errorf("failed to exec %s: output %s, err %w", fullCmdStr, outputStr, err)
+			// return outputStr, fmt.Errorf("failed to exec %s: output %s, err %w", fullCmdStr, outputStr, err)
+			// Do not include the full command string in the error to avoid leaking sensitive data.
+			return outputStr, fmt.Errorf("failed to execute command with output: %w", err)
 		} else {
-			return outputStr, fmt.Errorf("failed to exec %s: %w", fullCmdStr, err)
+			// return outputStr, fmt.Errorf("failed to exec %s: %w", fullCmdStr, err)
+			// Do not include the full command string in the error to avoid leaking sensitive data.
+			return outputStr, fmt.Errorf("failed to execute command: %w", err)
 		}
 	} else {
 		if outputStr != "" {
-			log.Debugf(outputStr)
+			// log.Debugf(outputStr)
+			// Avoid logging raw command output to prevent leaking sensitive data.
+			log.Debugf("Command executed successfully with non-empty output")
 		}
 		return outputStr, nil
 	}
@@ -512,7 +611,8 @@ func (d *DefaultExecutor) ExecCmdWithInput(inputStr string, cmdStr string, sudo 
 		if outputStr != "" {
 			log.Infof(outputStr)
 		}
-		return outputStr, fmt.Errorf("failed to exec %s with input %s: %w", fullCmdStr, inputStr, err)
+		// return outputStr, fmt.Errorf("failed to exec %s with input %s: %w", fullCmdStr, inputStr, err)
+		return outputStr, fmt.Errorf("failed to exec command: %w", err)
 	} else {
 		if outputStr != "" {
 			log.Debugf(outputStr)

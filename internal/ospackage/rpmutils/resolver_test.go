@@ -171,6 +171,25 @@ func TestGenerateDot(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name: "duplicate dependencies should be deduplicated",
+			packages: []ospackage.PackageInfo{
+				{
+					Name:     "libstdc++",
+					Requires: []string{"glibc", "glibc", "glibc", "libgcc", "libgcc"},
+				},
+				{
+					Name:     "glibc",
+					Requires: []string{},
+				},
+				{
+					Name:     "libgcc",
+					Requires: []string{"glibc"},
+				},
+			},
+			filename:    filepath.Join(tmpDir, "dedup.dot"),
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -209,28 +228,29 @@ func TestGenerateDot(t *testing.T) {
 
 			// Check that all packages are represented
 			for _, pkg := range tt.packages {
-				nodePrefix := fmt.Sprintf("\"%s\" [label=\"%s\"", pkg.Name, pkg.Name)
-				if !strings.Contains(contentStr, nodePrefix) {
+				nodeDef := fmt.Sprintf("\"%s\";", pkg.Name)
+				if !strings.Contains(contentStr, nodeDef) {
 					t.Errorf("DOT file should contain node definition for %s", pkg.Name)
 				}
 
-				// Check dependencies
+				// Check dependencies - each unique edge should appear exactly once
+				seenEdges := make(map[string]bool)
 				for _, dep := range pkg.Requires {
 					expectedEdge := fmt.Sprintf("\"%s\" -> \"%s\";", pkg.Name, dep)
 					if !strings.Contains(contentStr, expectedEdge) {
 						t.Errorf("DOT file should contain edge: %s", expectedEdge)
 					}
+					seenEdges[expectedEdge] = true
 				}
-			}
-			if tt.pkgSources != nil {
-				if !strings.Contains(contentStr, "legend_kernel") {
-					t.Errorf("legend for kernel packages not found")
-				}
-				if !strings.Contains(contentStr, "\"kernel\" [label=\"kernel\", fillcolor=\"#d6eaf8\", color=\"#1f618d\"];") {
-					t.Errorf("expected kernel node styling")
-				}
-				if !strings.Contains(contentStr, "\"boot\" [label=\"boot\", fillcolor=\"#fdebd0\", color=\"#d35400\"];") {
-					t.Errorf("expected bootloader node styling")
+
+				// For duplicate dependency test, verify each unique edge appears only once
+				if tt.name == "duplicate dependencies should be deduplicated" {
+					for edge := range seenEdges {
+						count := strings.Count(contentStr, edge)
+						if count != 1 {
+							t.Errorf("Edge %s should appear exactly once, but appears %d times", edge, count)
+						}
+					}
 				}
 			}
 		})
@@ -252,7 +272,7 @@ func TestParsePrimary(t *testing.T) {
 			filename:      "primary.xml.gz",
 			expectedError: false,
 			expectedCount: 2,
-			expectedNames: []string{"bash-5.1-8.el9.x86_64.rpm", "glibc-2.32-1.el9.x86_64.rpm"},
+			expectedNames: []string{"bash", "glibc"},
 		},
 		{
 			name:          "empty metadata",
@@ -330,13 +350,13 @@ func TestParsePrimary(t *testing.T) {
 				// Check bash package details
 				var bashPkg *ospackage.PackageInfo
 				for _, pkg := range packages {
-					if pkg.Name == "bash-5.1-8.el9.x86_64.rpm" {
+					if pkg.Name == "bash" {
 						bashPkg = &pkg
 						break
 					}
 				}
 				if bashPkg == nil {
-					t.Fatal("bash-5.1-8.el9.x86_64.rpm package not found")
+					t.Fatal("bash package not found")
 				}
 
 				if bashPkg.License != "GPLv3+" {

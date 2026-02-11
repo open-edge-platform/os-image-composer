@@ -310,6 +310,10 @@ func TestInstallImageBoot_GrubEfiMode(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(tmpDir, "etc", "default"), 0755); err != nil {
 		t.Fatalf("Failed to create etc directories: %v", err)
 	}
+	// Create mock kernel file for initramfs update
+	if err := os.WriteFile(filepath.Join(tmpDir, "boot", "vmlinuz-5.15.0-test"), []byte(""), 0644); err != nil {
+		t.Fatalf("Failed to create mock kernel file: %v", err)
+	}
 
 	template := &config.ImageTemplate{
 		Image: config.ImageInfo{
@@ -337,11 +341,14 @@ func TestInstallImageBoot_GrubEfiMode(t *testing.T) {
 		{Pattern: "blkid.*UUID", Output: "UUID=test-uuid\n", Error: nil},
 		{Pattern: "blkid.*PARTUUID", Output: "PARTUUID=test-partuuid\n", Error: nil},
 		{Pattern: "command -v grub2-mkconfig", Output: "/usr/sbin/grub2-mkconfig", Error: nil},
+		{Pattern: "command -v update-initramfs", Output: "/usr/sbin/update-initramfs", Error: nil},
 		{Pattern: "mkdir", Output: "", Error: nil},
 		{Pattern: "cp", Output: "", Error: nil},
 		{Pattern: "sed", Output: "", Error: nil},
 		{Pattern: "chmod", Output: "", Error: nil},
 		{Pattern: "chmod", Output: "", Error: nil},
+		{Pattern: "echo.*initramfs-tools/modules", Output: "", Error: nil},
+		{Pattern: "update-initramfs", Output: "", Error: nil},
 		{Pattern: "grub-install", Output: "", Error: nil},
 		{Pattern: "grub2-mkconfig", Output: "", Error: nil},
 	}
@@ -467,6 +474,10 @@ func TestInstallImageBoot_SeparateBootPartition(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(tmpDir, "etc", "default"), 0755); err != nil {
 		t.Fatalf("Failed to create etc directories: %v", err)
 	}
+	// Create mock kernel file for initramfs update
+	if err := os.WriteFile(filepath.Join(tmpDir, "boot", "vmlinuz-5.15.0-test"), []byte(""), 0644); err != nil {
+		t.Fatalf("Failed to create mock kernel file: %v", err)
+	}
 
 	template := &config.ImageTemplate{
 		Image: config.ImageInfo{
@@ -495,11 +506,14 @@ func TestInstallImageBoot_SeparateBootPartition(t *testing.T) {
 		{Pattern: "blkid.*UUID", Output: "UUID=boot-uuid\n", Error: nil},
 		{Pattern: "blkid.*PARTUUID", Output: "PARTUUID=root-partuuid\n", Error: nil},
 		{Pattern: "command -v grub2-mkconfig", Output: "/usr/sbin/grub2-mkconfig", Error: nil},
+		{Pattern: "command -v update-initramfs", Output: "/usr/sbin/update-initramfs", Error: nil},
 		{Pattern: "mkdir", Output: "", Error: nil},
 		{Pattern: "cp", Output: "", Error: nil},
 		{Pattern: "sed", Output: "", Error: nil},
 		{Pattern: "chmod", Output: "", Error: nil},
 		{Pattern: "chmod", Output: "", Error: nil},
+		{Pattern: "echo.*initramfs-tools/modules", Output: "", Error: nil},
+		{Pattern: "update-initramfs", Output: "", Error: nil},
 		{Pattern: "grub-install", Output: "", Error: nil},
 		{Pattern: "grub2-mkconfig", Output: "", Error: nil},
 	}
@@ -1074,5 +1088,403 @@ func TestInstallImageBoot_GrubVersionNotFound(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "neither grub2-mkconfig nor grub-mkconfig found") {
 		t.Errorf("Expected grub version error, got: %v", err)
+	}
+}
+
+func TestGetKernelVersionFromBoot_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+	bootDir := filepath.Join(tmpDir, "boot")
+	if err := os.MkdirAll(bootDir, 0755); err != nil {
+		t.Fatalf("Failed to create boot directory: %v", err)
+	}
+
+	// Create a vmlinuz file with version
+	kernelVersion := "5.15.0-73-generic"
+	kernelFile := filepath.Join(bootDir, fmt.Sprintf("vmlinuz-%s", kernelVersion))
+	if err := os.WriteFile(kernelFile, []byte("fake kernel"), 0644); err != nil {
+		t.Fatalf("Failed to create kernel file: %v", err)
+	}
+
+	version, err := getKernelVersionFromBoot(tmpDir)
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+	if version != kernelVersion {
+		t.Errorf("Expected kernel version %s, got: %s", kernelVersion, version)
+	}
+}
+
+func TestGetKernelVersionFromBoot_MultipleKernels(t *testing.T) {
+	tmpDir := t.TempDir()
+	bootDir := filepath.Join(tmpDir, "boot")
+	if err := os.MkdirAll(bootDir, 0755); err != nil {
+		t.Fatalf("Failed to create boot directory: %v", err)
+	}
+
+	// Create multiple kernel files - should return first match
+	kernelVersions := []string{"5.15.0-73-generic", "6.2.0-26-generic"}
+	for _, ver := range kernelVersions {
+		kernelFile := filepath.Join(bootDir, fmt.Sprintf("vmlinuz-%s", ver))
+		if err := os.WriteFile(kernelFile, []byte("fake kernel"), 0644); err != nil {
+			t.Fatalf("Failed to create kernel file: %v", err)
+		}
+	}
+
+	version, err := getKernelVersionFromBoot(tmpDir)
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+	// Should get the first one found
+	if version != kernelVersions[0] && version != kernelVersions[1] {
+		t.Errorf("Expected one of the kernel versions, got: %s", version)
+	}
+}
+
+func TestGetKernelVersionFromBoot_NoKernelFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	bootDir := filepath.Join(tmpDir, "boot")
+	if err := os.MkdirAll(bootDir, 0755); err != nil {
+		t.Fatalf("Failed to create boot directory: %v", err)
+	}
+
+	// Create some other files but not a kernel
+	otherFile := filepath.Join(bootDir, "config-5.15.0")
+	if err := os.WriteFile(otherFile, []byte("config"), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	version, err := getKernelVersionFromBoot(tmpDir)
+	if err == nil {
+		t.Error("Expected error when kernel not found")
+	}
+	if version != "" {
+		t.Errorf("Expected empty version, got: %s", version)
+	}
+	if !strings.Contains(err.Error(), "kernel image not found") {
+		t.Errorf("Expected kernel not found error, got: %v", err)
+	}
+}
+
+func TestGetKernelVersionFromBoot_BootDirNotExist(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Don't create boot directory
+
+	version, err := getKernelVersionFromBoot(tmpDir)
+	if err == nil {
+		t.Error("Expected error when boot directory doesn't exist")
+	}
+	if version != "" {
+		t.Errorf("Expected empty version, got: %s", version)
+	}
+	if !strings.Contains(err.Error(), "failed to list kernel directory") {
+		t.Errorf("Expected directory list error, got: %v", err)
+	}
+}
+
+func TestUpdateInitramfsForGrub_NoExtraModules(t *testing.T) {
+	tmpDir := t.TempDir()
+	kernelVersion := "5.15.0-73-generic"
+
+	template := &config.ImageTemplate{
+		SystemConfig: config.SystemConfig{
+			Kernel: config.KernelConfig{
+				EnableExtraModules: "", // No extra modules
+			},
+		},
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "update-initramfs -u -k " + kernelVersion, Output: "update-initramfs: Generating /boot/initrd.img-" + kernelVersion, Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
+
+	err := updateInitramfsForGrub(tmpDir, kernelVersion, template)
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func TestUpdateInitramfsForGrub_WithSingleExtraModule(t *testing.T) {
+	tmpDir := t.TempDir()
+	kernelVersion := "5.15.0-73-generic"
+
+	template := &config.ImageTemplate{
+		SystemConfig: config.SystemConfig{
+			Kernel: config.KernelConfig{
+				EnableExtraModules: "intel_vpu",
+			},
+		},
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "echo 'intel_vpu' >> /etc/initramfs-tools/modules", Output: "", Error: nil},
+		{Pattern: "update-initramfs -u -k " + kernelVersion, Output: "update-initramfs: Generating /boot/initrd.img-" + kernelVersion, Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
+
+	err := updateInitramfsForGrub(tmpDir, kernelVersion, template)
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func TestUpdateInitramfsForGrub_WithMultipleExtraModules(t *testing.T) {
+	tmpDir := t.TempDir()
+	kernelVersion := "6.2.0-26-generic"
+
+	template := &config.ImageTemplate{
+		SystemConfig: config.SystemConfig{
+			Kernel: config.KernelConfig{
+				EnableExtraModules: "intel_vpu nvidia_drm i915",
+			},
+		},
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "echo 'intel_vpu' >> /etc/initramfs-tools/modules", Output: "", Error: nil},
+		{Pattern: "echo 'nvidia_drm' >> /etc/initramfs-tools/modules", Output: "", Error: nil},
+		{Pattern: "echo 'i915' >> /etc/initramfs-tools/modules", Output: "", Error: nil},
+		{Pattern: "update-initramfs -u -k " + kernelVersion, Output: "update-initramfs: Generating /boot/initrd.img-" + kernelVersion, Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
+
+	err := updateInitramfsForGrub(tmpDir, kernelVersion, template)
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func TestUpdateInitramfsForGrub_WithWhitespaceInModules(t *testing.T) {
+	tmpDir := t.TempDir()
+	kernelVersion := "5.15.0-73-generic"
+
+	template := &config.ImageTemplate{
+		SystemConfig: config.SystemConfig{
+			Kernel: config.KernelConfig{
+				EnableExtraModules: "  intel_vpu   nvidia_drm  ",
+			},
+		},
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "echo 'intel_vpu' >> /etc/initramfs-tools/modules", Output: "", Error: nil},
+		{Pattern: "echo 'nvidia_drm' >> /etc/initramfs-tools/modules", Output: "", Error: nil},
+		{Pattern: "update-initramfs -u -k " + kernelVersion, Output: "update-initramfs: Generating /boot/initrd.img-" + kernelVersion, Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
+
+	err := updateInitramfsForGrub(tmpDir, kernelVersion, template)
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func TestUpdateInitramfsForGrub_UpdateInitramfsFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	kernelVersion := "5.15.0-73-generic"
+
+	template := &config.ImageTemplate{
+		SystemConfig: config.SystemConfig{
+			Kernel: config.KernelConfig{
+				EnableExtraModules: "",
+			},
+		},
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "update-initramfs -u -k " + kernelVersion, Output: "", Error: fmt.Errorf("update-initramfs failed")},
+	}
+	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
+
+	err := updateInitramfsForGrub(tmpDir, kernelVersion, template)
+	if err == nil {
+		t.Error("Expected error when update-initramfs fails")
+	}
+	if !strings.Contains(err.Error(), "failed to update initramfs") {
+		t.Errorf("Expected update initramfs error, got: %v", err)
+	}
+}
+
+func TestUpdateInitramfsForGrub_ModuleAddFailsContinues(t *testing.T) {
+	tmpDir := t.TempDir()
+	kernelVersion := "5.15.0-73-generic"
+
+	template := &config.ImageTemplate{
+		SystemConfig: config.SystemConfig{
+			Kernel: config.KernelConfig{
+				EnableExtraModules: "intel_vpu nvidia_drm",
+			},
+		},
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "echo 'intel_vpu' >> /etc/initramfs-tools/modules", Output: "", Error: fmt.Errorf("failed to add module")},
+		{Pattern: "echo 'nvidia_drm' >> /etc/initramfs-tools/modules", Output: "", Error: nil},
+		{Pattern: "update-initramfs -u -k " + kernelVersion, Output: "update-initramfs: Generating /boot/initrd.img-" + kernelVersion, Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
+
+	// Should continue even if one module fails
+	err := updateInitramfsForGrub(tmpDir, kernelVersion, template)
+	if err != nil {
+		t.Errorf("Expected no error (should continue after module add failure), got: %v", err)
+	}
+}
+
+func TestInstallImageBoot_GrubWithEnableExtraModules(t *testing.T) {
+	setupConfigDir(t)
+	diskPathIdMap := map[string]string{
+		"root": "/dev/sda1",
+	}
+
+	tmpDir := t.TempDir()
+	// Create necessary directories in tmpDir
+	if err := os.MkdirAll(filepath.Join(tmpDir, "boot", "efi", "boot", "grub2"), 0755); err != nil {
+		t.Fatalf("Failed to create boot directories: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmpDir, "boot", "grub2"), 0755); err != nil {
+		t.Fatalf("Failed to create boot directories: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmpDir, "etc", "default"), 0755); err != nil {
+		t.Fatalf("Failed to create etc directories: %v", err)
+	}
+
+	// Create boot directory with a kernel file to test kernel version detection
+	bootDir := filepath.Join(tmpDir, "boot")
+	kernelVersion := "5.15.0-73-generic"
+	kernelFile := filepath.Join(bootDir, fmt.Sprintf("vmlinuz-%s", kernelVersion))
+	if err := os.WriteFile(kernelFile, []byte("fake kernel"), 0644); err != nil {
+		t.Fatalf("Failed to create kernel file: %v", err)
+	}
+
+	template := &config.ImageTemplate{
+		Image: config.ImageInfo{
+			Name: "test-image",
+		},
+		Disk: config.DiskConfig{
+			Partitions: []config.PartitionInfo{
+				{ID: "root", MountPoint: "/"},
+			},
+		},
+		SystemConfig: config.SystemConfig{
+			Bootloader: config.Bootloader{
+				Provider: "grub",
+				BootType: "efi",
+			},
+			Kernel: config.KernelConfig{
+				Cmdline:            "console=tty0",
+				EnableExtraModules: "intel_vpu nvidia_drm i915",
+			},
+		},
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "blkid.*UUID", Output: "UUID=test-uuid\n", Error: nil},
+		{Pattern: "blkid.*PARTUUID", Output: "PARTUUID=test-partuuid\n", Error: nil},
+		{Pattern: "command -v grub2-mkconfig", Output: "/usr/sbin/grub2-mkconfig", Error: nil},
+		{Pattern: "mkdir", Output: "", Error: nil},
+		{Pattern: "cp", Output: "", Error: nil},
+		{Pattern: "sed", Output: "", Error: nil},
+		{Pattern: "chmod", Output: "", Error: nil},
+		{Pattern: "echo 'intel_vpu' >> /etc/initramfs-tools/modules", Output: "", Error: nil},
+		{Pattern: "echo 'nvidia_drm' >> /etc/initramfs-tools/modules", Output: "", Error: nil},
+		{Pattern: "echo 'i915' >> /etc/initramfs-tools/modules", Output: "", Error: nil},
+		{Pattern: "update-initramfs -u -k " + kernelVersion, Output: "update-initramfs: Generating /boot/initrd.img-" + kernelVersion, Error: nil},
+		{Pattern: "grub-install", Output: "", Error: nil},
+		{Pattern: "grub2-mkconfig", Output: "", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
+
+	imageBoot := NewImageBoot()
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
+
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+}
+
+func TestInstallImageBoot_GrubWithEnableExtraModulesUbuntu(t *testing.T) {
+	setupConfigDir(t)
+	diskPathIdMap := map[string]string{
+		"root": "/dev/sda1",
+	}
+
+	tmpDir := t.TempDir()
+	// Create necessary directories in tmpDir
+	if err := os.MkdirAll(filepath.Join(tmpDir, "boot", "efi", "boot", "grub2"), 0755); err != nil {
+		t.Fatalf("Failed to create boot directories: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmpDir, "boot", "grub2"), 0755); err != nil {
+		t.Fatalf("Failed to create boot directories: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmpDir, "etc", "default"), 0755); err != nil {
+		t.Fatalf("Failed to create etc directories: %v", err)
+	}
+
+	// Create boot directory with a kernel file
+	bootDir := filepath.Join(tmpDir, "boot")
+	kernelVersion := "6.2.0-26-generic"
+	kernelFile := filepath.Join(bootDir, fmt.Sprintf("vmlinuz-%s", kernelVersion))
+	if err := os.WriteFile(kernelFile, []byte("fake kernel"), 0644); err != nil {
+		t.Fatalf("Failed to create kernel file: %v", err)
+	}
+
+	template := &config.ImageTemplate{
+		Image: config.ImageInfo{
+			Name: "ubuntu-test-image",
+		},
+		Disk: config.DiskConfig{
+			Partitions: []config.PartitionInfo{
+				{ID: "root", MountPoint: "/"},
+			},
+		},
+		SystemConfig: config.SystemConfig{
+			Bootloader: config.Bootloader{
+				Provider: "grub",
+				BootType: "efi",
+			},
+			Kernel: config.KernelConfig{
+				Cmdline:            "quiet splash",
+				EnableExtraModules: "vpu",
+			},
+		},
+	}
+
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "blkid.*UUID", Output: "UUID=ubuntu-uuid\n", Error: nil},
+		{Pattern: "blkid.*PARTUUID", Output: "PARTUUID=ubuntu-partuuid\n", Error: nil},
+		{Pattern: "command -v grub2-mkconfig", Output: "/usr/sbin/grub2-mkconfig", Error: nil},
+		{Pattern: "mkdir", Output: "", Error: nil},
+		{Pattern: "cp", Output: "", Error: nil},
+		{Pattern: "sed", Output: "", Error: nil},
+		{Pattern: "chmod", Output: "", Error: nil},
+		{Pattern: "echo 'vpu' >> /etc/initramfs-tools/modules", Output: "", Error: nil},
+		{Pattern: "update-initramfs -u -k " + kernelVersion, Output: "update-initramfs: Generating /boot/initrd.img-" + kernelVersion, Error: nil},
+		{Pattern: "grub-install", Output: "", Error: nil},
+		{Pattern: "grub2-mkconfig", Output: "", Error: nil},
+	}
+	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
+
+	imageBoot := NewImageBoot()
+	err := imageBoot.InstallImageBoot(tmpDir, diskPathIdMap, template, "deb")
+
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
 	}
 }

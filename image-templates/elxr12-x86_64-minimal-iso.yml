@@ -1,3 +1,20 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: Minimal ELXR 12 bootable ISO image for installation media
+  use_cases:
+    - Creating bootable installation media
+    - USB/DVD installation
+    - Bare metal provisioning
+    - System recovery
+  keywords:
+    - iso
+    - bootable
+    - installation
+    - usb
+    - dvd
+    - minimal
+    - elxr
+
 image:
   name: elxr12-x86_64-minimal
   version: "1.0.0"

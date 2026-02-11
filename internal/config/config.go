@@ -47,6 +47,7 @@ type PackageRepository struct {
 	URL       string `yaml:"url"`                 // Repository base URL
 	PKey      string `yaml:"pkey"`                // Public GPG key URL for verification
 	Component string `yaml:"component,omitempty"` // Repository component (e.g., "main", "restricted")
+	Priority  int    `yaml:"priority,omitempty"`  // Repository priority (higher numbers = higher priority)
 }
 
 // ProviderRepoConfig represents the repository configuration for a provider
@@ -307,8 +308,8 @@ func (t *ImageTemplate) GetInitramfsTemplate() (string, error) {
 	}
 	if filepath.IsAbs(t.SystemConfig.Initramfs.Template) {
 		initrdTemplateFilePath = t.SystemConfig.Initramfs.Template
-		if _, err := os.Stat(initrdTemplateFilePath); os.IsNotExist(err) {
-			return "", fmt.Errorf("initrd template file does not exist: %s", initrdTemplateFilePath)
+		if _, err := os.Stat(initrdTemplateFilePath); err != nil {
+			return "", fmt.Errorf("initrd template file does not exist or is not accessible: %s", initrdTemplateFilePath)
 		}
 	} else {
 		if len(t.PathList) == 0 {
@@ -347,10 +348,10 @@ func (t *ImageTemplate) GetPackages() []string {
 
 var packageSourcePriority = map[PackageSource]int{
 	PackageSourceUnknown:    0,
-	PackageSourceEssential:  10,
+	PackageSourceSystem:     10,
 	PackageSourceKernel:     20,
 	PackageSourceBootloader: 20,
-	PackageSourceSystem:     30,
+	PackageSourceEssential:  30,
 }
 
 // GetPackageSourceMap returns a map of package name to the template section that requested it.
@@ -368,10 +369,10 @@ func (t *ImageTemplate) GetPackageSourceMap() map[string]PackageSource {
 		}
 	}
 
-	setSources(t.EssentialPkgList, PackageSourceEssential)
+	setSources(t.SystemConfig.Packages, PackageSourceSystem)
 	setSources(t.KernelPkgList, PackageSourceKernel)
 	setSources(t.BootloaderPkgList, PackageSourceBootloader)
-	setSources(t.SystemConfig.Packages, PackageSourceSystem)
+	setSources(t.EssentialPkgList, PackageSourceEssential)
 
 	return sources
 }
@@ -613,7 +614,7 @@ func (t *ImageTemplate) GetPackageRepositories() []PackageRepository {
 
 // LoadProviderRepoConfig loads provider repository configuration from YAML file
 // Returns a slice of ProviderRepoConfig to support multiple repositories
-func LoadProviderRepoConfig(targetOS, targetDist string) ([]ProviderRepoConfig, error) {
+func LoadProviderRepoConfig(targetOS, targetDist string, arch string) ([]ProviderRepoConfig, error) {
 	// Get the target OS config directory
 	targetOsConfigDir, err := GetTargetOsConfigDir(targetOS, targetDist)
 	if err != nil {
@@ -621,7 +622,7 @@ func LoadProviderRepoConfig(targetOS, targetDist string) ([]ProviderRepoConfig, 
 	}
 
 	// Construct path to repo.yml
-	repoConfigPath := filepath.Join(targetOsConfigDir, "providerconfigs", "repo.yml")
+	repoConfigPath := filepath.Join(targetOsConfigDir, "providerconfigs", arch+"_repo.yml")
 
 	// Read the YAML file
 	yamlData, err := security.SafeReadFile(repoConfigPath, security.RejectSymlinks)

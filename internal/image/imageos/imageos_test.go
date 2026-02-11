@@ -1737,8 +1737,8 @@ func TestInstallImagePkgs(t *testing.T) {
 		pkgType  string
 		expected string
 	}{
-		{"RPM packages", "rpm", "rpm"},
-		{"DEB packages", "deb", "repo config file"},
+		{"RPM packages", "rpm", "RPM database"},
+		{"DEB packages", "deb", "local repo"},
 	}
 
 	for _, tt := range tests {
@@ -1757,6 +1757,11 @@ func TestInstallImagePkgs(t *testing.T) {
 			if tt.pkgType == "deb" {
 				if err := os.MkdirAll(configDir, 0755); err != nil {
 					t.Fatalf("Failed to create config directory: %v", err)
+				}
+				// Create the local.list file that the method expects
+				localListPath := filepath.Join(configDir, "local.list")
+				if err := os.WriteFile(localListPath, []byte("deb file:///repo bookworm main"), 0644); err != nil {
+					t.Fatalf("Failed to create local.list file: %v", err)
 				}
 				defer os.RemoveAll("/tmp/config")
 			}

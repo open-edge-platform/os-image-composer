@@ -3307,8 +3307,8 @@ func TestGetPackageSourceMap(t *testing.T) {
 	if got := sources["vim"]; got != PackageSourceSystem {
 		t.Fatalf("vim source = %s, want system", got)
 	}
-	if got := sources["bash"]; got != PackageSourceSystem {
-		t.Fatalf("bash source = %s, want system override", got)
+	if got := sources["bash"]; got != PackageSourceEssential {
+		t.Fatalf("bash source = %s, want essential (essential has higher priority than system)", got)
 	}
 	if _, exists := sources[""]; exists {
 		t.Fatalf("unexpected empty key in package source map")
@@ -3510,8 +3510,8 @@ func TestGetInitramfsTemplate(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for nonexistent absolute path")
 	}
-	if !strings.Contains(err.Error(), "initrd template file does not exist") {
-		t.Errorf("Expected 'initrd template file does not exist' error, got %s", err.Error())
+	if err != nil && !strings.Contains(err.Error(), "initrd template file does not exist or is not accessible") {
+		t.Errorf("Expected 'initrd template file does not exist or is not accessible' error, got %s", err.Error())
 	}
 
 	// Test with relative path but no PathList
@@ -3605,7 +3605,7 @@ func TestGetKernelPackages(t *testing.T) {
 func TestLoadProviderRepoConfig(t *testing.T) {
 	// Test with invalid parameters - this will fail in test environment
 	// but we test that the function handles the error gracefully
-	_, err := LoadProviderRepoConfig("nonexistent-os", "nonexistent-dist")
+	_, err := LoadProviderRepoConfig("nonexistent-os", "nonexistent-dist", "amd64")
 	if err == nil {
 		t.Log("Unexpected success - config found for nonexistent OS/dist")
 	} else {
@@ -3617,7 +3617,7 @@ func TestLoadProviderRepoConfig(t *testing.T) {
 	}
 
 	// Test with empty parameters
-	_, err = LoadProviderRepoConfig("", "")
+	_, err = LoadProviderRepoConfig("", "", "")
 	if err == nil {
 		t.Error("Expected error with empty parameters")
 	} else {
@@ -3635,7 +3635,7 @@ func TestLoadProviderRepoConfig(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		_, err := LoadProviderRepoConfig(tc.os, tc.dist)
+		_, err := LoadProviderRepoConfig(tc.os, tc.dist, "amd64")
 		if err == nil {
 			t.Logf("Unexpected success for %s/%s in test environment", tc.os, tc.dist)
 		} else {
@@ -3774,5 +3774,331 @@ func TestUnifiedRepoConfig(t *testing.T) {
 
 			t.Logf("✅ %s: type=%s, url=%s, gpgKey=%s", tt.name, repoType, url, gpgKey)
 		})
+	}
+}
+
+// TestGetAdditionalFileInfo tests the GetAdditionalFileInfo method
+func TestGetAdditionalFileInfo(t *testing.T) {
+	// Create temporary test files
+	tmpDir := t.TempDir()
+	validFile := filepath.Join(tmpDir, "valid.txt")
+	if err := os.WriteFile(validFile, []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		template      *ImageTemplate
+		expectedCount int
+		description   string
+	}{
+		{
+			name: "Empty additional files",
+			template: &ImageTemplate{
+				SystemConfig: SystemConfig{
+					AdditionalFiles: []AdditionalFileInfo{},
+				},
+			},
+			expectedCount: 0,
+			description:   "Should return empty list when no additional files",
+		},
+		{
+			name: "Valid absolute path",
+			template: &ImageTemplate{
+				SystemConfig: SystemConfig{
+					AdditionalFiles: []AdditionalFileInfo{
+						{
+							Local: validFile,
+							Final: "/etc/config.txt",
+						},
+					},
+				},
+			},
+			expectedCount: 1,
+			description:   "Should include file with valid absolute path",
+		},
+		{
+			name: "Empty local path - should be filtered",
+			template: &ImageTemplate{
+				SystemConfig: SystemConfig{
+					AdditionalFiles: []AdditionalFileInfo{
+						{
+							Local: "",
+							Final: "/etc/config.txt",
+						},
+					},
+				},
+			},
+			expectedCount: 0,
+			description:   "Should filter out entries with empty local path",
+		},
+		{
+			name: "Empty final path - should be filtered",
+			template: &ImageTemplate{
+				SystemConfig: SystemConfig{
+					AdditionalFiles: []AdditionalFileInfo{
+						{
+							Local: validFile,
+							Final: "",
+						},
+					},
+				},
+			},
+			expectedCount: 0,
+			description:   "Should filter out entries with empty final path",
+		},
+		{
+			name: "Mixed valid and invalid entries",
+			template: &ImageTemplate{
+				SystemConfig: SystemConfig{
+					AdditionalFiles: []AdditionalFileInfo{
+						{Local: validFile, Final: "/etc/valid1.txt"},
+						{Local: "", Final: "/etc/empty.txt"},
+						{Local: validFile, Final: ""},
+						{Local: validFile, Final: "/etc/valid2.txt"},
+					},
+				},
+			},
+			expectedCount: 2,
+			description:   "Should filter out invalid entries and keep valid ones",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.template.GetAdditionalFileInfo()
+			if len(result) != tt.expectedCount {
+				t.Errorf("%s: expected %d files, got %d", tt.description, tt.expectedCount, len(result))
+			}
+		})
+	}
+}
+
+// TestWasProvided tests the WasProvided method for ImmutabilityConfig
+func TestWasProvided(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *ImmutabilityConfig
+		expected bool
+	}{
+		{
+			name: "Was provided - true",
+			config: &ImmutabilityConfig{
+				wasProvided: true,
+			},
+			expected: true,
+		},
+		{
+			name: "Was not provided - false",
+			config: &ImmutabilityConfig{
+				wasProvided: false,
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.config.WasProvided()
+			if result != tt.expected {
+				t.Errorf("WasProvided() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestGetConfigPaths tests that GetConfigPaths returns expected config locations
+func TestGetConfigPaths(t *testing.T) {
+	paths := GetConfigPaths()
+
+	if len(paths) == 0 {
+		t.Error("GetConfigPaths should return at least one path")
+	}
+
+	// Verify that current directory paths are included
+	expectedPaths := []string{
+		"os-image-composer.yml",
+		".os-image-composer.yml",
+		"os-image-composer.yaml",
+		".os-image-composer.yaml",
+	}
+
+	for _, expected := range expectedPaths {
+		found := false
+		for _, path := range paths {
+			if path == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected path %s not found in config paths", expected)
+		}
+	}
+
+	// Verify system paths are included
+	systemPaths := []string{
+		"/etc/os-image-composer/config.yml",
+		"/etc/os-image-composer/config.yaml",
+	}
+
+	for _, sysPath := range systemPaths {
+		found := false
+		for _, path := range paths {
+			if path == sysPath {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected system path %s not found in config paths", sysPath)
+		}
+	}
+}
+
+// TestFindConfigFile tests the FindConfigFile function
+func TestFindConfigFile(t *testing.T) {
+	// Create a temporary config file in current directory
+	tmpDir := t.TempDir()
+	originalDir, _ := os.Getwd()
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Logf("Failed to change back to original directory: %v", err)
+		}
+	}()
+
+	err := os.Chdir(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to change to temp dir: %v", err)
+	}
+
+	// Test when no config file exists
+	result := FindConfigFile()
+	if result != "" {
+		t.Logf("Found unexpected config file: %s", result)
+	}
+
+	// Create a config file
+	configFile := "os-image-composer.yml"
+	if err := os.WriteFile(configFile, []byte("workers: 4\n"), 0644); err != nil {
+		t.Fatalf("Failed to create test config: %v", err)
+	}
+
+	// Test when config file exists
+	result = FindConfigFile()
+	if result == "" {
+		t.Error("FindConfigFile should find the created config file")
+	}
+}
+
+// TestWorkers tests the Workers convenience function
+func TestWorkers(t *testing.T) {
+	// This function depends on Global() which should return valid config
+	workers := Workers()
+	if workers < 0 {
+		t.Errorf("Workers should return non-negative value, got %d", workers)
+	}
+}
+
+// TestVerificationWorkers tests the VerificationWorkers convenience function
+func TestVerificationWorkers(t *testing.T) {
+	workers := VerificationWorkers()
+	if workers < 0 {
+		t.Errorf("VerificationWorkers should return non-negative value, got %d", workers)
+	}
+	if workers > 4 {
+		t.Errorf("VerificationWorkers should be capped at 4, got %d", workers)
+	}
+}
+
+// TestConfigDir tests the ConfigDir function
+func TestConfigDir(t *testing.T) {
+	dir, err := ConfigDir()
+	if err != nil {
+		t.Logf("ConfigDir returned error (may be expected in test): %v", err)
+		return
+	}
+	if dir == "" {
+		t.Error("ConfigDir should return non-empty path")
+	}
+	if !filepath.IsAbs(dir) {
+		t.Errorf("ConfigDir should return absolute path, got: %s", dir)
+	}
+}
+
+// TestCacheDir tests the CacheDir function
+func TestCacheDir(t *testing.T) {
+	dir, err := CacheDir()
+	if err != nil {
+		t.Logf("CacheDir returned error (may be expected in test): %v", err)
+		return
+	}
+	if dir == "" {
+		t.Error("CacheDir should return non-empty path")
+	}
+	if !filepath.IsAbs(dir) {
+		t.Errorf("CacheDir should return absolute path, got: %s", dir)
+	}
+}
+
+// TestWorkDir tests the WorkDir function
+func TestWorkDir(t *testing.T) {
+	dir, err := WorkDir()
+	if err != nil {
+		t.Logf("WorkDir returned error (may be expected in test): %v", err)
+		return
+	}
+	if dir == "" {
+		t.Error("WorkDir should return non-empty path")
+	}
+	if !filepath.IsAbs(dir) {
+		t.Errorf("WorkDir should return absolute path, got: %s", dir)
+	}
+}
+
+// TestTempDir tests the TempDir function
+func TestTempDir(t *testing.T) {
+	dir := TempDir()
+	if dir == "" {
+		t.Error("TempDir should return non-empty path")
+	}
+}
+
+// TestLogLevel tests the LogLevel function
+func TestLogLevel(t *testing.T) {
+	level := LogLevel()
+	// Log level can be any string, just verify it doesn't panic
+	t.Logf("Log level: %s", level)
+}
+
+// TestEnsureCacheDir tests the EnsureCacheDir function
+func TestEnsureCacheDir(t *testing.T) {
+	err := EnsureCacheDir()
+	if err != nil {
+		t.Logf("EnsureCacheDir returned error (may be expected in test): %v", err)
+	}
+}
+
+// TestEnsureWorkDir tests the EnsureWorkDir function
+func TestEnsureWorkDir(t *testing.T) {
+	err := EnsureWorkDir()
+	if err != nil {
+		t.Logf("EnsureWorkDir returned error (may be expected in test): %v", err)
+	}
+}
+
+// TestEnsureTempDir tests the EnsureTempDir function
+func TestEnsureTempDir(t *testing.T) {
+	dir, err := EnsureTempDir("test-subdir")
+	if err != nil {
+		t.Fatalf("EnsureTempDir failed: %v", err)
+	}
+	if dir == "" {
+		t.Error("EnsureTempDir should return non-empty path")
+	}
+
+	// Verify the directory was created
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		t.Error("EnsureTempDir should create the directory")
 	}
 }

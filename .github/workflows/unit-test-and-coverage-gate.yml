@@ -185,22 +185,21 @@ jobs:
           # Only update if new threshold is higher than old threshold
           if (( $(echo "$NEW_THRESHOLD > $OLD_THRESHOLD" | bc -l) )); then
             echo "Updating threshold: ${OLD_THRESHOLD}% -> ${NEW_THRESHOLD}%"
+            
+            # Update threshold file content
             echo "${NEW_THRESHOLD}" > .coverage-threshold
             
-            # Configure git
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
+            # Use GitHub API to create a signed commit
+            # Get current file SHA
+            FILE_SHA=$(gh api repos/${{ github.repository }}/contents/.coverage-threshold?ref=${BRANCH} --jq '.sha')
             
-            # Fetch and checkout the branch
-            git fetch origin "${BRANCH}"
-            git checkout "${BRANCH}"
-            # Ensure branch is up to date in case it changed after the workflow started
-            git pull --rebase origin "${BRANCH}"
-            
-            # Stage and commit
-            git add .coverage-threshold
-            git commit -m "chore: auto-update coverage threshold to ${NEW_THRESHOLD}% (was ${OLD_THRESHOLD}%)"
-            git push origin "${BRANCH}"
+            # Create commit using GitHub API (automatically signed)
+            gh api repos/${{ github.repository }}/contents/.coverage-threshold \
+              -X PUT \
+              -f message="chore: auto-update coverage threshold to ${NEW_THRESHOLD}% (was ${OLD_THRESHOLD}%)" \
+              -f content="$(echo -n "${NEW_THRESHOLD}" | base64)" \
+              -f branch="${BRANCH}" \
+              -f sha="${FILE_SHA}"
             
             echo "::notice::Coverage threshold updated to ${NEW_THRESHOLD}% on branch ${BRANCH}"
           else

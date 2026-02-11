@@ -258,7 +258,7 @@
         "packages": {
           "type": "array",
           "description": "List of packages to include in the system",
-          "items": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9+_.-]*[A-Za-z0-9+])?$" },
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9+_.:~-]*[A-Za-z0-9+])?$" },
           "uniqueItems": true
         },
         "additionalFiles": {
@@ -272,6 +272,27 @@
           "items": { "type": "object", "additionalProperties": true }
         },
         "kernel": { "$ref": "#/$defs/Kernel" }
+      },
+      "additionalProperties": false
+    },
+    "Metadata": {
+      "type": "object",
+      "description": "AI-searchable metadata for template discovery",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the template"
+        },
+        "use_cases": {
+          "type": "array",
+          "description": "List of use cases this template is designed for",
+          "items": { "type": "string" }
+        },
+        "keywords": {
+          "type": "array",
+          "description": "Keywords for template discovery and search",
+          "items": { "type": "string" }
+        }
       },
       "additionalProperties": false
     },
@@ -291,13 +312,37 @@
         },
         "pkey": {
           "type": "string",
-          "description": "Public GPG key URL for package verification",
-          "format": "uri"
+          "description": "Public GPG key URL for package verification or [trusted=yes] to skip verification",
+          "oneOf": [
+            {
+              "pattern": "^(https?|file)://",
+              "description": "URL to GPG key file (must start with http://, https://, or file://)"
+            },
+            {
+              "pattern": "^/",
+              "description": "Absolute local file path to GPG key file"
+            },
+            {
+              "const": "[trusted=yes]",
+              "description": "Special value to mark repository as trusted and skip GPG verification"
+            },
+            {
+              "const": "<PUBLIC_KEY_URL>",
+              "description": "Placeholder value for template examples"
+            }
+          ]
         },
         "component": {
           "type": "string",
           "description": "Repository component (e.g., 'main', 'restricted')",
           "minLength": 1
+        },
+        "priority": {
+          "type": "integer",
+          "description": "Repository priority (higher numbers = higher priority, like apt pinning)",
+          "minimum": -9999,
+          "maximum": 9999,
+          "default": 0
         }
       },
       "required": ["codename", "url", "pkey"],
@@ -307,6 +352,7 @@
     "FullTemplate": {
       "type": "object",
       "properties": {
+        "metadata": { "$ref": "#/$defs/Metadata" },
         "image": { "$ref": "#/$defs/Image" },
         "target": { "$ref": "#/$defs/Target" },
         "disk": { "$ref": "#/$defs/Disk" },
@@ -324,6 +370,7 @@
     "UserTemplate": {
       "type": "object",
       "properties": {
+        "metadata": { "$ref": "#/$defs/Metadata" },
         "image": { "$ref": "#/$defs/Image" },
         "target": { "$ref": "#/$defs/Target" },
         "disk": { "$ref": "#/$defs/Disk" },

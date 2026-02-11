@@ -679,3 +679,63 @@ func TestCopyFileConcurrent(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckDiskSpace(t *testing.T) {
+	dir := t.TempDir()
+
+	t.Run("sufficient space", func(t *testing.T) {
+		// Request 1KB with 20% margin (1200 bytes total)
+		// Any modern system should have this much space
+		err := file.CheckDiskSpace(dir, 1024, 0.20)
+		if err != nil {
+			t.Fatalf("CheckDiskSpace failed with small requirement: %v", err)
+		}
+	})
+
+	t.Run("zero required bytes", func(t *testing.T) {
+		// Should always succeed with zero requirement
+		err := file.CheckDiskSpace(dir, 0, 0.0)
+		if err != nil {
+			t.Fatalf("CheckDiskSpace failed with zero requirement: %v", err)
+		}
+	})
+
+	t.Run("with safety margin", func(t *testing.T) {
+		// Test with various safety margins
+		margins := []float64{0.0, 0.10, 0.25, 0.50}
+		for _, margin := range margins {
+			err := file.CheckDiskSpace(dir, 1024, margin)
+			if err != nil {
+				t.Errorf("CheckDiskSpace failed with %.0f%% margin: %v", margin*100, err)
+			}
+		}
+	})
+
+	t.Run("negative safety margin treated as zero", func(t *testing.T) {
+		// Negative margin should be treated as 0
+		err := file.CheckDiskSpace(dir, 1024, -0.10)
+		if err != nil {
+			t.Fatalf("CheckDiskSpace failed with negative margin: %v", err)
+		}
+	})
+
+	t.Run("insufficient space", func(t *testing.T) {
+		// Request more space than any reasonable system would have
+		// (1 exabyte = 1,152,921,504,606,846,976 bytes)
+		err := file.CheckDiskSpace(dir, 1152921504606846976, 0.0)
+		if err == nil {
+			t.Fatal("CheckDiskSpace should fail with unrealistic space requirement")
+		}
+		if !strings.Contains(err.Error(), "insufficient disk space") {
+			t.Errorf("expected 'insufficient disk space' error, got: %v", err)
+		}
+	})
+
+	t.Run("invalid directory", func(t *testing.T) {
+		// Non-existent directory should fail
+		err := file.CheckDiskSpace("/nonexistent/path/that/does/not/exist", 1024, 0.0)
+		if err == nil {
+			t.Fatal("CheckDiskSpace should fail with non-existent directory")
+		}
+	})
+}

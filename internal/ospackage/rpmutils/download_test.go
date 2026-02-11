@@ -164,7 +164,7 @@ func TestMatchRequested(t *testing.T) {
 			name:     "exact name match with .rpm extension",
 			requests: []string{"test-package"},
 			all: []ospackage.PackageInfo{
-				{Name: "test-package.rpm", Arch: "x86_64"},
+				{Name: "test-package", Arch: "x86_64", Version: "1.0-1"},
 			},
 			expectError: false,
 			expectCount: 1,
@@ -173,8 +173,8 @@ func TestMatchRequested(t *testing.T) {
 			name:     "version prefix match",
 			requests: []string{"acl"},
 			all: []ospackage.PackageInfo{
-				{Name: "acl-2.3.1-2.el8", Arch: "x86_64"},
-				{Name: "acl-dev", Arch: "x86_64"}, // Should not match - not a version
+				{Name: "acl", Version: "2.3.1-2.el8", Arch: "x86_64"},
+				{Name: "acl-dev", Arch: "x86_64"}, // Should not match - different package
 			},
 			expectError: false,
 			expectCount: 1,
@@ -183,7 +183,7 @@ func TestMatchRequested(t *testing.T) {
 			name:     "release prefix match",
 			requests: []string{"package"},
 			all: []ospackage.PackageInfo{
-				{Name: "package-1.0.0", Arch: "x86_64"},
+				{Name: "package", Version: "1.0.0", Arch: "x86_64"},
 			},
 			expectError: false,
 			expectCount: 1,
@@ -211,12 +211,12 @@ func TestMatchRequested(t *testing.T) {
 			name:     "multiple candidates - pick highest",
 			requests: []string{"package"},
 			all: []ospackage.PackageInfo{
-				{Name: "package-1.0.0", Arch: "x86_64"},
-				{Name: "package-2.0.0", Arch: "x86_64"},
-				{Name: "package-1.5.0", Arch: "x86_64"},
+				{Name: "package", Version: "1.0.0", Arch: "x86_64"},
+				{Name: "package", Version: "2.0.0", Arch: "x86_64"},
+				{Name: "package", Version: "1.5.0", Arch: "x86_64"},
 			},
 			expectError: false,
-			expectCount: 1, // Should pick package-2.0.0 (highest lex sort)
+			expectCount: 1, // Should pick package with version 2.0.0 (exact name match, first found)
 		},
 	}
 
@@ -234,136 +234,6 @@ func TestMatchRequested(t *testing.T) {
 				}
 				if len(result) != tc.expectCount {
 					t.Errorf("Expected %d packages, got %d", tc.expectCount, len(result))
-				}
-			}
-		})
-	}
-}
-
-func TestIsAcceptedChar(t *testing.T) {
-	testCases := []struct {
-		name     string
-		input    string
-		expected bool
-	}{
-		{
-			name:     "empty string",
-			input:    "",
-			expected: false,
-		},
-		{
-			name:     "only digits",
-			input:    "123",
-			expected: true,
-		},
-		{
-			name:     "digits with dash",
-			input:    "1-2-3",
-			expected: true,
-		},
-		{
-			name:     "contains letters",
-			input:    "1a2",
-			expected: false,
-		},
-		{
-			name:     "contains special chars",
-			input:    "1.2",
-			expected: false,
-		},
-		{
-			name:     "only dash",
-			input:    "-",
-			expected: true,
-		},
-		{
-			name:     "mixed valid chars",
-			input:    "123-456-789",
-			expected: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Since isAcceptedChar is not exported, we need to test it indirectly through isValidVersionFormat
-			// or we need to make it exported for testing. For now, let's test it indirectly.
-			t.Skip("isAcceptedChar is not exported - testing indirectly through isValidVersionFormat")
-		})
-	}
-}
-
-func TestIsValidVersionFormat(t *testing.T) {
-	testCases := []struct {
-		name     string
-		input    string
-		expected bool
-	}{
-		{
-			name:     "empty string",
-			input:    "",
-			expected: false,
-		},
-		{
-			name:     "simple version",
-			input:    "1.0.0",
-			expected: true,
-		},
-		{
-			name:     "version with dash",
-			input:    "1-2.el8",
-			expected: true,
-		},
-		{
-			name:     "version without dot",
-			input:    "123",
-			expected: true,
-		},
-		{
-			name:     "invalid version with letters",
-			input:    "abc.def",
-			expected: false,
-		},
-		{
-			name:     "version starting with letter",
-			input:    "a1.0.0",
-			expected: false,
-		},
-		{
-			name:     "complex version",
-			input:    "2-3-1.el8_5",
-			expected: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Since isValidVersionFormat is not exported, we'll test it indirectly
-			// Let's create a test that exercises this through MatchRequested
-			all := []ospackage.PackageInfo{
-				{Name: fmt.Sprintf("package-%s", tc.input), Arch: "x86_64"},
-			}
-
-			result, err := rpmutils.MatchRequested([]string{"package"}, all)
-
-			if tc.expected {
-				// If the version format is valid, we should find a match
-				if err != nil || len(result) == 0 {
-					t.Errorf("Expected to find match for valid version format %q", tc.input)
-				}
-			} else {
-				// If the version format is invalid, we should not find a match (unless it's exact)
-				if err == nil && len(result) > 0 && result[0].Name != "package" {
-					// Only fail if we found a match that wasn't exact
-					exactMatch := false
-					for _, pkg := range all {
-						if pkg.Name == "package" {
-							exactMatch = true
-							break
-						}
-					}
-					if !exactMatch {
-						t.Errorf("Expected no match for invalid version format %q, but got: %v", tc.input, result)
-					}
 				}
 			}
 		})

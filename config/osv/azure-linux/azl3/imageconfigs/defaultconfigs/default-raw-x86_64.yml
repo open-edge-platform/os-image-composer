@@ -59,7 +59,7 @@ systemConfig:
     provider: systemd-boot # (grub for efi and legacy mode, or systemd-boot for efi mode)
 
   immutability:
-    enabled: true # default is true
+    enabled: false # default is true
 
   packages:
     - filesystem
