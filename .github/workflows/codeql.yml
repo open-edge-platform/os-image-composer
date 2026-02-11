@@ -20,8 +20,8 @@ on:
     - cron: '34 20 * * 5'
   workflow_dispatch:
     inputs:
-      test_email:
-        description: 'Test email notification'
+      test_issue_creation:
+        description: 'Test issue creation'
         required: false
         default: 'false'
         type: choice
