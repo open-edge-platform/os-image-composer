@@ -94,7 +94,7 @@ jobs:
           find workspace/*/imagebuild/*/ -name "*.raw*" -exec chmod 777 {} \; || true
 
       - name: GitHub Upload Release Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: elxr12-arm-raw-image
           path: |
