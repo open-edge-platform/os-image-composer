@@ -308,6 +308,7 @@ func ParseRepositoryMetadata(baseURL, gzHref string) ([]ospackage.PackageInfo, e
 				if tok2, err2 := dec.Token(); err2 == nil {
 					if cd, ok := tok2.(xml.CharData); ok && curInfo != nil {
 						curInfo.Name = string(cd)
+						curInfo.PkgName = string(cd) // store canonical package name in PkgName field
 					}
 				}
 
@@ -461,7 +462,6 @@ func convertFlags(flags string) string {
 func MatchRequested(requests []string, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
 
 	var out []ospackage.PackageInfo
-
 	for _, want := range requests {
 		if pkg, found := ResolveTopPackageConflicts(want, all); found {
 			out = append(out, pkg)
