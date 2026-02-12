@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -430,12 +429,11 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 		}
 	}
 
-	// Extract URLs and build download list using URL basenames
-	// (files are saved by URL basename, e.g., "SymCrypt-106.0.1-1.emt3.x86_64.rpm")
+	// Extract URLs
 	urls := make([]string, len(sorted_pkgs))
 	for i, pkg := range sorted_pkgs {
 		urls[i] = pkg.URL
-		downloadPkgList = append(downloadPkgList, path.Base(pkg.URL))
+		downloadPkgList = append(downloadPkgList, pkg.Name)
 	}
 
 	// Ensure dest directory exists
