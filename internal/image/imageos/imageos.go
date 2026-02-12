@@ -1358,21 +1358,31 @@ func verifyUserCreated(installRoot, username string) error {
 
 	// Check if user exists in passwd file
 	passwdCmd := fmt.Sprintf("grep '^%s:' /etc/passwd", username)
-	output, err := shell.ExecCmd(passwdCmd, true, installRoot, nil)
+	// output, err := shell.ExecCmd(passwdCmd, true, installRoot, nil)
+	_, err := shell.ExecCmd(passwdCmd, true, installRoot, nil)
 	if err != nil {
-		log.Errorf("User %s not found in passwd file: %v", username, err)
-		return fmt.Errorf("user %s not found in passwd file: %w", username, err)
+		// log.Errorf("User %s not found in passwd file: %v", username, err)
+		// return fmt.Errorf("user %s not found in passwd file: %w", username, err)
+		// Do not log command output or sensitive file contents
+		log.Errorf("User %s not found in passwd file", username)
+		return fmt.Errorf("user %s not found in passwd file", username)
 	}
-	log.Debugf("User in passwd: %s", strings.TrimSpace(output))
+	// log.Debugf("User in passwd: %s", strings.TrimSpace(output))
+	// User was found in passwd; avoid logging the line content to prevent leaking sensitive data
 
 	// Check if user has password in shadow file
 	shadowCmd := fmt.Sprintf("grep '^%s:' /etc/shadow", username)
-	output, err = shell.ExecCmd(shadowCmd, true, installRoot, nil)
+	// output, err = shell.ExecCmd(shadowCmd, true, installRoot, nil)
+	_, err = shell.ExecCmd(shadowCmd, true, installRoot, nil)
 	if err != nil {
-		log.Errorf("User %s not found in shadow file: %v", username, err)
-		return fmt.Errorf("user %s not found in shadow file: %w", username, err)
+		// log.Errorf("User %s not found in shadow file: %v", username, err)
+		// return fmt.Errorf("user %s not found in shadow file: %w", username, err)
+		// Do not log command output or sensitive file contents
+		log.Errorf("User %s not found in shadow file", username)
+		return fmt.Errorf("user %s not found in shadow file", username)
 	}
-	log.Debugf("User in shadow: %s", strings.TrimSpace(output))
+	// log.Debugf("User in shadow: %s", strings.TrimSpace(output))
+	// User was found in shadow; avoid logging the line content to prevent leaking sensitive data
 
 	return nil
 }
@@ -1515,8 +1525,10 @@ func setUserPassword(installRoot string, user config.UserConfig) error {
 			// Password is already hashed, use usermod to set it directly
 			usermodCmd := fmt.Sprintf("usermod -p '%s' %s", user.Password, user.Name)
 			if _, err := shell.ExecCmd(usermodCmd, true, installRoot, nil); err != nil {
-				log.Errorf("Failed to set hashed password for user %s: %v", user.Name, err)
-				return fmt.Errorf("failed to set hashed password for user %s: %w", user.Name, err)
+				// log.Errorf("Failed to set hashed password for user %s: %v", user.Name, err)
+				// return fmt.Errorf("failed to set hashed password for user %s: %w", user.Name, err)
+				log.Errorf("Failed to set hashed password for user %s", user.Name)
+				return fmt.Errorf("failed to set hashed password for user %s", user.Name)
 			}
 		} else {
 			// Password is plaintext, need to hash it first
@@ -1527,8 +1539,10 @@ func setUserPassword(installRoot string, user config.UserConfig) error {
 
 			usermodCmd := fmt.Sprintf("usermod -p '%s' %s", hashedPassword, user.Name)
 			if _, err := shell.ExecCmd(usermodCmd, true, installRoot, nil); err != nil {
-				log.Errorf("Failed to set hashed password for user %s: %v", user.Name, err)
-				return fmt.Errorf("failed to set hashed password for user %s: %w", user.Name, err)
+				// log.Errorf("Failed to set hashed password for user %s: %v", user.Name, err)
+				// return fmt.Errorf("failed to set hashed password for user %s: %w", user.Name, err)
+				log.Errorf("Failed to set password for user %s", user.Name)
+				return fmt.Errorf("failed to set password for user %s", user.Name)
 			}
 		}
 	} else {
@@ -1536,8 +1550,10 @@ func setUserPassword(installRoot string, user config.UserConfig) error {
 		passwdInput := fmt.Sprintf("%s\n%s\n", user.Password, user.Password)
 		passwdCmd := fmt.Sprintf("passwd %s", user.Name)
 		if _, err := shell.ExecCmdWithInput(passwdInput, passwdCmd, true, installRoot, nil); err != nil {
-			log.Errorf("Failed to set password for user %s: %v", user.Name, err)
-			return fmt.Errorf("failed to set password for user %s: %w", user.Name, err)
+			// log.Errorf("Failed to set password for user %s: %v", user.Name, err)
+			// return fmt.Errorf("failed to set password for user %s: %w", user.Name, err)
+			log.Errorf("Failed to set password for user %s", user.Name)
+			return fmt.Errorf("failed to set password for user %s", user.Name)
 		}
 	}
 
@@ -1569,7 +1585,8 @@ func hashPassword(password, hashAlgo, installRoot string) (string, error) {
 	log.Debugf("Hashing password with algorithm %s", hashAlgo)
 	output, err := shell.ExecCmd(cmd, true, installRoot, nil)
 	if err != nil {
-		log.Errorf("Failed to hash password with algorithm %s: %v", hashAlgo, err)
+		// log.Errorf("Failed to hash password with algorithm %s: %v", hashAlgo, err)
+		log.Errorf("Failed to hash password with algorithm %s", hashAlgo)
 		return "", fmt.Errorf("failed to hash password with algorithm %s: %w", hashAlgo, err)
 	}
 
@@ -1598,7 +1615,9 @@ func configUserStartupScript(installRoot string, user config.UserConfig) error {
 	passwdFile := filepath.Join(installRoot, "etc", "passwd")
 
 	if err := file.ReplaceRegexInFile(findPattern, replacePattern, passwdFile); err != nil {
-		log.Errorf("Failed to update user %s startup command: %v", user.Name, err)
+		// log.Errorf("Failed to update user %s startup command: %v", user.Name, err)
+		// Log only high-level context to avoid leaking potentially sensitive details from the underlying error.
+		log.Errorf("Failed to update startup command for user %s", user.Name)
 		return fmt.Errorf("failed to update user %s startup command: %w", user.Name, err)
 	}
 	return nil

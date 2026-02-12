@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -407,6 +408,16 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 	}
 	all = append(all, userpkg...)
 
+	// Adjust package names to remove any prefixes before PkgName - Azure Linux RPM repos often prefix package file names
+	for i := range all {
+		// Find where the package name starts in the full name
+		if idx := strings.Index(all[i].Name, all[i].PkgName); idx > 0 {
+			// Remove the prefix by taking substring from where PkgName starts
+			all[i].Name = all[i].Name[idx:]
+		}
+		// If PkgName is not found or is at the beginning, keep the original Name
+	}
+
 	// Match the packages in the template against all the packages
 	req, err := MatchRequested(pkgList, all)
 	if err != nil {
@@ -445,7 +456,7 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 	urls := make([]string, len(sorted_pkgs))
 	for i, pkg := range sorted_pkgs {
 		urls[i] = pkg.URL
-		downloadPkgList = append(downloadPkgList, pkg.Name)
+		downloadPkgList = append(downloadPkgList, path.Base(pkg.URL))
 	}
 
 	// Ensure dest directory exists

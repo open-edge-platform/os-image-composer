@@ -137,13 +137,14 @@ func MergeConfigurations(userTemplate, defaultTemplate *ImageTemplate) (*ImageTe
 	// Validate immutability configuration and fix if needed
 	validateAndFixImmutabilityConfig(&mergedTemplate)
 
-	// Debug mode: Pretty print the merged template
+	// Debug mode: Pretty print the merged template with sensitive data redacted
 	if IsDebugMode() {
-		pretty, err := json.MarshalIndent(mergedTemplate, "", "  ")
+		redactedTemplate := redactSensitiveData(&mergedTemplate)
+		pretty, err := json.MarshalIndent(redactedTemplate, "", "  ")
 		if err != nil {
 			log.Warnf("Failed to pretty print merged template: %v", err)
 		} else {
-			log.Debugf("Merged Template:\n%s", string(pretty))
+			log.Debugf("Merged Template (sensitive data redacted):\n%s", string(pretty))
 		}
 	}
 
@@ -151,6 +152,50 @@ func MergeConfigurations(userTemplate, defaultTemplate *ImageTemplate) (*ImageTe
 		mergedTemplate.Image.Name, mergedTemplate.SystemConfig.Name, mergedTemplate.IsImmutabilityEnabled(), len(mergedTemplate.GetUsers()))
 
 	return &mergedTemplate, nil
+}
+
+// redactSensitiveData creates a copy of the template with sensitive data redacted for safe logging.
+// This prevents passwords, keys, and other sensitive information from appearing in logs.
+func redactSensitiveData(template *ImageTemplate) *ImageTemplate {
+	// Create a deep copy
+	redacted := *template
+	redacted.SystemConfig = redactSensitiveSystemConfig(template.SystemConfig)
+	return &redacted
+}
+
+// redactSensitiveSystemConfig creates a copy of SystemConfig with sensitive fields redacted
+func redactSensitiveSystemConfig(config SystemConfig) SystemConfig {
+	redacted := config
+
+	// Redact user passwords and sensitive user data
+	if len(config.Users) > 0 {
+		redacted.Users = make([]UserConfig, len(config.Users))
+		for i, user := range config.Users {
+			redactedUser := user
+			// Redact password if present
+			if user.Password != "" {
+				redactedUser.Password = "[REDACTED]"
+			}
+			// Redact hash algorithm to prevent revealing password security details
+			if user.HashAlgo != "" {
+				redactedUser.HashAlgo = "[REDACTED]"
+			}
+			redacted.Users[i] = redactedUser
+		}
+	}
+
+	// Redact secure boot keys/certificates (sensitive file paths that could reveal security setup)
+	if config.Immutability.SecureBootDBKey != "" {
+		redacted.Immutability.SecureBootDBKey = "[REDACTED]"
+	}
+	if config.Immutability.SecureBootDBCrt != "" {
+		redacted.Immutability.SecureBootDBCrt = "[REDACTED]"
+	}
+	if config.Immutability.SecureBootDBCer != "" {
+		redacted.Immutability.SecureBootDBCer = "[REDACTED]"
+	}
+
+	return redacted
 }
 
 // mergeSystemConfig merges a single system configuration
