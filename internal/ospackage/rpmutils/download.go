@@ -396,6 +396,16 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 	}
 	all = append(all, userpkg...)
 
+	// Adjust package names to remove any prefixes before PkgName - Azure Linux RPM repos often prefix package file names
+	for i := range all {
+		// Find where the package name starts in the full name
+		if idx := strings.Index(all[i].Name, all[i].PkgName); idx > 0 {
+			// Remove the prefix by taking substring from where PkgName starts
+			all[i].Name = all[i].Name[idx:]
+		}
+		// If PkgName is not found or is at the beginning, keep the original Name
+	}
+
 	// Match the packages in the template against all the packages
 	req, err := MatchRequested(pkgList, all)
 	if err != nil {
@@ -430,8 +440,7 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 		}
 	}
 
-	// Extract URLs and build download list using URL basenames
-	// (files are saved by URL basename, e.g., "SymCrypt-106.0.1-1.emt3.x86_64.rpm")
+	// Extract URLs
 	urls := make([]string, len(sorted_pkgs))
 	for i, pkg := range sorted_pkgs {
 		urls[i] = pkg.URL
