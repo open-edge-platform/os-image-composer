@@ -36,21 +36,6 @@ func normalizeUUID(uuid string) string {
 	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(uuid, "-", ""), "_", ""))
 }
 
-// extractPartitionNumber extracts partition number from specs like "gpt2" or "msdos1".
-// Returns the partition number and true if successful, 0 and false otherwise.
-func extractPartitionNumber(spec string) (int, bool) {
-	re := regexp.MustCompile(`^(gpt|msdos)(\d+)$`)
-	matches := re.FindStringSubmatch(strings.ToLower(spec))
-	if len(matches) > 2 {
-		var num int
-		fmt.Sscanf(matches[2], "%d", &num)
-		if num > 0 {
-			return num, true
-		}
-	}
-	return 0, false
-}
-
 // parseGrubConfigContent extracts boot entries and kernel references from grub.cfg content.
 func parseGrubConfigContent(content string) BootloaderConfig {
 	cfg := BootloaderConfig{
@@ -395,10 +380,11 @@ func resolveUUIDsToPartitions(uuidRefs []UUIDReference, pt PartitionTableSummary
 			if digits != "" {
 				// convert to int
 				var idx int
-				fmt.Sscanf(digits, "%d", &idx)
-				if idx > 0 {
-					result[ref.UUID] = idx
-					continue
+				if _, err := fmt.Sscanf(digits, "%d", &idx); err == nil {
+					if idx > 0 {
+						result[ref.UUID] = idx
+						continue
+					}
 				}
 			}
 		}
