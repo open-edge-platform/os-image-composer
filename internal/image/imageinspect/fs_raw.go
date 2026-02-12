@@ -149,10 +149,90 @@ func scanAndHashEFIFromRawFAT(r io.ReaderAt, partOff int64, out *FilesystemSumma
 		case BootloaderGrub, BootloaderSystemdBoot:
 			// Try to extract config files
 			efi.BootConfig = extractBootloaderConfigFromFAT(v, efi.Kind)
+			// For systemd-boot on UKI systems, also synthesize boot config from UKI
+			if efi.Kind == BootloaderSystemdBoot && out.HasUKI && efi.BootConfig != nil && len(efi.BootConfig.ConfigFiles) == 0 {
+				// No loader.conf found on UKI system; synthesize from UKI cmdline
+				for _, uki := range out.EFIBinaries {
+					if uki.IsUKI && uki.Cmdline != "" {
+						// Create synthetic boot config from UKI
+						efi.BootConfig = synthesizeBootConfigFromUKI(&uki)
+						break
+					}
+				}
+			}
 		}
 	}
 
 	return nil
+}
+
+// synthesizeBootConfigFromUKI creates a BootloaderConfig from a UKI binary's cmdline.
+// This is used for UKI-based systems that don't have a separate loader.conf file.
+func synthesizeBootConfigFromUKI(uki *EFIBinaryEvidence) *BootloaderConfig {
+	cfg := &BootloaderConfig{
+		ConfigFiles:      make(map[string]string),
+		ConfigRaw:        make(map[string]string),
+		KernelReferences: []KernelReference{},
+		BootEntries:      []BootEntry{},
+		UUIDReferences:   []UUIDReference{},
+		Notes:            []string{},
+	}
+
+	if uki == nil || uki.Cmdline == "" {
+		cfg.Notes = append(cfg.Notes, "No UKI cmdline available for boot config synthesis")
+		return cfg
+	}
+
+	// Store the UKI cmdline as ConfigRaw
+	cfg.ConfigRaw["uki_cmdline"] = uki.Cmdline
+
+	// Parse the UKI cmdline to extract boot parameters
+	// Create a synthetic boot entry for the UKI
+	entry := BootEntry{
+		Name:      "UKI Boot Entry",
+		Kernel:    uki.Path,
+		Cmdline:   uki.Cmdline,
+		IsDefault: true,
+		UKIPath:   uki.Path,
+	}
+
+	// Extract root= and UUIDs from cmdline
+	for _, token := range strings.Fields(uki.Cmdline) {
+		if strings.HasPrefix(token, "root=") {
+			entry.RootDevice = strings.TrimPrefix(token, "root=")
+			entry.RootDevice = strings.Trim(entry.RootDevice, `"'`)
+			// Extract UUID if present
+			for _, u := range extractUUIDsFromString(entry.RootDevice) {
+				entry.PartitionUUID = u
+				cfg.UUIDReferences = append(cfg.UUIDReferences, UUIDReference{UUID: u, Context: "uki_cmdline"})
+			}
+		} else if strings.HasPrefix(token, "boot_uuid=") {
+			// boot_uuid parameter points to the root filesystem UUID
+			id := strings.TrimPrefix(token, "boot_uuid=")
+			id = strings.Trim(id, `"'`)
+			for _, u := range extractUUIDsFromString(id) {
+				cfg.UUIDReferences = append(cfg.UUIDReferences, UUIDReference{UUID: u, Context: "uki_boot_uuid"})
+			}
+		}
+	}
+
+	cfg.BootEntries = append(cfg.BootEntries, entry)
+
+	// Create kernel reference
+	kernRef := KernelReference{
+		Path:      uki.Path,
+		BootEntry: entry.Name,
+		RootUUID:  entry.RootDevice,
+	}
+	if entry.PartitionUUID != "" {
+		kernRef.PartitionUUID = entry.PartitionUUID
+	}
+	cfg.KernelReferences = append(cfg.KernelReferences, kernRef)
+
+	// Note that this is a synthesized config
+	cfg.Notes = append(cfg.Notes, fmt.Sprintf("Boot configuration extracted from UKI binary %s (no loader.conf found)", uki.Path))
+
+	return cfg
 }
 
 // extractBootloaderConfigFromFAT attempts to read and parse bootloader config files
@@ -164,42 +244,12 @@ func extractBootloaderConfigFromFAT(v *fatVol, kind BootloaderKind) *BootloaderC
 		KernelReferences: []KernelReference{},
 		BootEntries:      []BootEntry{},
 		UUIDReferences:   []UUIDReference{},
-		Issues:           []string{},
+		Notes:            []string{},
 	}
 
-	// Try to read config files based on bootloader kind
-	var configPaths []string
-	switch kind {
-	case BootloaderGrub:
-		// Try common GRUB config locations (ESP only, no /boot partition access yet)
-		// Distribution-specific locations in /EFI/ are tried first
-		configPaths = []string{
-			// Debian/Ubuntu family
-			"/EFI/ubuntu/grub.cfg",
-			"/EFI/debian/grub.cfg",
-			// RedHat family
-			"/EFI/centos/grub.cfg",
-			"/EFI/fedora/grub.cfg",
-			"/EFI/redhat/grub.cfg",
-			// SUSE family
-			"/EFI/opensuse/grub.cfg",
-			"/EFI/sle/grub.cfg",
-			// Arch and generic
-			"/EFI/arch/grub.cfg",
-			"/EFI/grub/grub.cfg",
-			// Other common locations
-			"/EFI/BOOT/grub.cfg",
-			"/EFI/boot/grub.cfg",
-			"/EFI/systemd/grub.cfg",
-			"/EFI/Boot/grub.cfg",
-			// Fallback locations
-			"/grub/grub.cfg",
-			"/boot/grub/grub.cfg",
-			"/boot/grub2/grub.cfg",
-		}
-	case BootloaderSystemdBoot:
-		configPaths = []string{"/loader/loader.conf", "/EFI/systemd/loader.conf", "/boot/loader.conf"}
-	default:
+	// Generate candidate config paths based on filesystem layout and bootloader kind
+	configPaths := generateBootloaderConfigPaths(v, kind)
+	if len(configPaths) == 0 {
 		return nil
 	}
 
@@ -226,7 +276,7 @@ func extractBootloaderConfigFromFAT(v *fatVol, kind BootloaderKind) *BootloaderC
 				cfg.BootEntries = parsed.BootEntries
 				cfg.KernelReferences = parsed.KernelReferences
 				cfg.UUIDReferences = parsed.UUIDReferences
-				cfg.Issues = append(cfg.Issues, parsed.Issues...)
+				cfg.Notes = append(cfg.Notes, parsed.Notes...)
 				// Don't overwrite ConfigRaw since we set it above
 				cfg.DefaultEntry = parsed.DefaultEntry
 			case BootloaderSystemdBoot:
@@ -234,7 +284,7 @@ func extractBootloaderConfigFromFAT(v *fatVol, kind BootloaderKind) *BootloaderC
 				cfg.BootEntries = parsed.BootEntries
 				cfg.DefaultEntry = parsed.DefaultEntry
 				cfg.UUIDReferences = parsed.UUIDReferences
-				cfg.Issues = append(cfg.Issues, parsed.Issues...)
+				cfg.Notes = append(cfg.Notes, parsed.Notes...)
 			}
 
 			break // Found config file, stop trying alternatives
@@ -245,7 +295,7 @@ func extractBootloaderConfigFromFAT(v *fatVol, kind BootloaderKind) *BootloaderC
 			}
 			if !strings.Contains(err.Error(), "does not exist") && !strings.Contains(err.Error(), "not found") {
 				// Only report non-file-not-found errors
-				cfg.Issues = append(cfg.Issues, fmt.Sprintf("Failed to read %s: %v", cfgPath, err))
+				cfg.Notes = append(cfg.Notes, fmt.Sprintf("Failed to read %s: %v", cfgPath, err))
 			}
 		}
 	}
@@ -266,7 +316,7 @@ func extractBootloaderConfigFromFAT(v *fatVol, kind BootloaderKind) *BootloaderC
 			cfg.BootEntries = parsed.BootEntries
 			cfg.KernelReferences = parsed.KernelReferences
 			cfg.UUIDReferences = parsed.UUIDReferences
-			cfg.Issues = append(cfg.Issues, parsed.Issues...)
+			cfg.Notes = append(cfg.Notes, parsed.Notes...)
 			cfg.DefaultEntry = parsed.DefaultEntry
 		}
 	}
@@ -275,9 +325,9 @@ func extractBootloaderConfigFromFAT(v *fatVol, kind BootloaderKind) *BootloaderC
 	if len(cfg.ConfigFiles) == 0 {
 		switch kind {
 		case BootloaderSystemdBoot:
-			cfg.Issues = append(cfg.Issues, "No systemd-boot configuration file found (may be normal for UKI-based systems)")
+			cfg.Notes = append(cfg.Notes, "No systemd-boot configuration file found (may be normal for UKI-based systems)")
 		case BootloaderGrub:
-			cfg.Issues = append(cfg.Issues, "No GRUB configuration file found on ESP. Note: Some distributions (e.g., openSUSE) may store GRUB config on the root partition (/boot/grub/grub.cfg) instead of the ESP")
+			cfg.Notes = append(cfg.Notes, "No GRUB configuration file found on ESP. Some distributions may store GRUB config on the root partition (/boot/grub/grub.cfg)")
 		}
 	}
 
@@ -439,6 +489,78 @@ func readFileFromFAT(v *fatVol, filePath string) (string, error) {
 	}
 
 	return "", fmt.Errorf("file not found: %s", filePath)
+}
+
+// generateBootloaderConfigPaths builds a prioritized list of candidate configuration
+// file paths for a given `kind` on the provided FAT volume. It prefers files
+// under /EFI/* (inspecting actual subdirectories) and falls back to common
+// /boot locations. Returned paths are normalized (leading '/') and deduplicated
+// while preserving order.
+func generateBootloaderConfigPaths(v *fatVol, kind BootloaderKind) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	add := func(p string) {
+		if p == "" {
+			return
+		}
+		// normalize
+		if !strings.HasPrefix(p, "/") {
+			p = "/" + p
+		}
+		if _, ok := seen[p]; ok {
+			return
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+
+	// Inspect /EFI directory to discover vendor-specific subdirs
+	var efiSubdirs []string
+	if ents, err := v.listDir("EFI"); err == nil {
+		for _, e := range ents {
+			if e.isDir {
+				efiSubdirs = append(efiSubdirs, e.name)
+			}
+		}
+	}
+
+	switch kind {
+	case BootloaderGrub:
+		// Prefer vendor-specific locations under /EFI/<vendor>/*.cfg
+		for _, d := range efiSubdirs {
+			// common candidate names
+			add(path.Join("EFI", d, "grub.cfg"))
+			add(path.Join("EFI", d, "grub-efi.cfg"))
+			add(path.Join("EFI", d, "grubx64.cfg"))
+			add(path.Join("EFI", d, "grub.cfg.signed"))
+			// nested possibilities
+			add(path.Join("EFI", d, "grub", "grub.cfg"))
+			add(path.Join("EFI", d, "boot", "grub.cfg"))
+		}
+		// Common ESP-wide locations
+		add("EFI/BOOT/grub.cfg")
+		add("EFI/boot/grub.cfg")
+		add("EFI/grub/grub.cfg")
+
+		// Fallbacks on possible non-ESP /boot locations
+		add("/grub/grub.cfg")
+		add("/boot/grub/grub.cfg")
+		add("/boot/grub2/grub.cfg")
+
+	case BootloaderSystemdBoot:
+		// Prefer loader.conf under /loader and vendor dirs
+		add("loader/loader.conf")
+		add("EFI/systemd/loader.conf")
+		for _, d := range efiSubdirs {
+			add(path.Join("EFI", d, "loader.conf"))
+			add(path.Join("EFI", d, "loader", "loader.conf"))
+		}
+		add("/boot/loader.conf")
+	default:
+		// Unknown bootloader
+	}
+
+	return out
 }
 
 func (v *fatVol) readFileByEntry(e *fatDirEntry) ([]byte, int64, error) {

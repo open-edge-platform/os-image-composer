@@ -190,7 +190,7 @@ type BootloaderConfig struct {
 	DefaultEntry string `json:"defaultEntry,omitempty" yaml:"defaultEntry,omitempty"`
 
 	// Configuration issues detected during parsing
-	Issues []string `json:"issues,omitempty" yaml:"issues,omitempty"`
+	Notes []string `json:"notes,omitempty" yaml:"notes,omitempty"`
 }
 
 // KernelReference represents a kernel file reference found in bootloader config.

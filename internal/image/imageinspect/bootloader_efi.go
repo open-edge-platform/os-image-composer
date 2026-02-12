@@ -271,26 +271,6 @@ func parseOSRelease(raw string) (map[string]string, []KeyValue) {
 	return m, sorted
 }
 
-// extractBootloaderConfig extracts bootloader configuration for a given EFI binary.
-// It examines the bootloader kind and attempts to locate and parse config files.
-func extractBootloaderConfig(kind BootloaderKind) *BootloaderConfig {
-	// For now, return nil for bootloader types that don't have config files
-	// Config file extraction requires access to the filesystem, which happens at a higher level
-	switch kind {
-	case BootloaderGrub, BootloaderSystemdBoot:
-		return &BootloaderConfig{
-			ConfigFiles:      make(map[string]string),
-			ConfigRaw:        make(map[string]string),
-			KernelReferences: []KernelReference{},
-			BootEntries:      []BootEntry{},
-			UUIDReferences:   []UUIDReference{},
-			Issues:           []string{},
-		}
-	default:
-		return nil
-	}
-}
-
 // BootloaderConfigPaths returns the filesystem paths to check for bootloader config files
 // based on the bootloader kind.
 func BootloaderConfigPaths(kind BootloaderKind) []string {

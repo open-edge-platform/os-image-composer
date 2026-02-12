@@ -318,15 +318,9 @@ func renderEFIBinaryDiffText(w io.Writer, d EFIBinaryDiff, indent string) {
 			}
 
 			// Bootloader configuration diff (if present)
-			if m.From.BootConfig != nil || m.To.BootConfig != nil {
-				bootDiff := compareBootloaderConfigs(m.From.BootConfig, m.To.BootConfig)
-				if bootDiff != nil {
-					fmt.Fprintf(w, "%s    Bootloader config:\n", indent)
-					renderBootloaderConfigDiffText(w, bootDiff, indent+"      ")
-				} else if m.From.BootConfig != nil && m.To.BootConfig != nil {
-					// Both exist but no changes
-					fmt.Fprintf(w, "%s    Bootloader config: (no changes)\n", indent)
-				}
+			if m.BootConfig != nil {
+				fmt.Fprintf(w, "%s    Bootloader config:\n", indent)
+				renderBootloaderConfigDiffText(w, m.BootConfig, indent+"      ")
 			}
 		}
 	}
@@ -850,11 +844,11 @@ func renderBootloaderConfigDetails(w io.Writer, efiPath string, cfg *BootloaderC
 		}
 	}
 
-	// Display validation issues
-	if len(cfg.Issues) > 0 {
-		fmt.Fprintln(w, "Issues:")
-		for _, issue := range cfg.Issues {
-			fmt.Fprintf(w, "  ⚠ %s\n", issue)
+	// Display validation notes
+	if len(cfg.Notes) > 0 {
+		fmt.Fprintln(w, "Notes:")
+		for _, note := range cfg.Notes {
+			fmt.Fprintf(w, "  - %s\n", note)
 		}
 	}
 }
@@ -931,18 +925,18 @@ func renderBootloaderConfigDiffText(w io.Writer, diff *BootloaderConfigDiff, ind
 		}
 	}
 
-	// Configuration issues
-	if len(diff.IssuesAdded) > 0 {
+	// Configuration notes
+	if len(diff.NotesAdded) > 0 {
 		fmt.Fprintf(w, "%sNew issues:\n", indent)
-		for _, issue := range diff.IssuesAdded {
-			fmt.Fprintf(w, "%s  - %s\n", indent, issue)
+		for _, note := range diff.NotesAdded {
+			fmt.Fprintf(w, "%s  - %s\n", indent, note)
 		}
 	}
 
-	if len(diff.IssuesRemoved) > 0 {
+	if len(diff.NotesRemoved) > 0 {
 		fmt.Fprintf(w, "%sResolved issues:\n", indent)
-		for _, issue := range diff.IssuesRemoved {
-			fmt.Fprintf(w, "%s  - %s\n", indent, issue)
+		for _, note := range diff.NotesRemoved {
+			fmt.Fprintf(w, "%s  - %s\n", indent, note)
 		}
 	}
 }

@@ -102,6 +102,7 @@ func compareEFIBinaries(from, to []EFIBinaryEvidence) EFIBinaryDiff {
 			}
 			mod.Changes = appendEFIBinaryFieldChanges(nil, f, t)
 			mod.UKI = buildUKIDiffIfRelevant(f, t)
+			mod.BootConfig = compareBootloaderConfigs(f.BootConfig, t.BootConfig)
 			out.Modified = append(out.Modified, mod)
 		}
 	}
@@ -264,8 +265,8 @@ func compareBootloaderConfigs(a, b *BootloaderConfig) *BootloaderConfigDiff {
 		BootEntryChanges:     []BootEntryChange{},
 		KernelRefChanges:     []KernelRefChange{},
 		UUIDReferenceChanges: []UUIDRefChange{},
-		IssuesAdded:          []string{},
-		IssuesRemoved:        []string{},
+		NotesAdded:           []string{},
+		NotesRemoved:         []string{},
 	}
 
 	// Handle nil cases
@@ -289,16 +290,16 @@ func compareBootloaderConfigs(a, b *BootloaderConfig) *BootloaderConfigDiff {
 	diff.UUIDReferenceChanges = compareUUIDReferences(a.UUIDReferences, b.UUIDReferences)
 
 	// Compare issues
-	diff.IssuesRemoved = findRemovedStrings(a.Issues, b.Issues)
-	diff.IssuesAdded = findRemovedStrings(b.Issues, a.Issues)
+	diff.NotesRemoved = findRemovedStrings(a.Notes, b.Notes)
+	diff.NotesAdded = findRemovedStrings(b.Notes, a.Notes)
 
 	// Check if anything actually changed
 	if len(diff.ConfigFileChanges) == 0 &&
 		len(diff.BootEntryChanges) == 0 &&
 		len(diff.KernelRefChanges) == 0 &&
 		len(diff.UUIDReferenceChanges) == 0 &&
-		len(diff.IssuesAdded) == 0 &&
-		len(diff.IssuesRemoved) == 0 {
+		len(diff.NotesAdded) == 0 &&
+		len(diff.NotesRemoved) == 0 {
 		return nil
 	}
 

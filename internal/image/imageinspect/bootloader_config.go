@@ -36,6 +36,21 @@ func normalizeUUID(uuid string) string {
 	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(uuid, "-", ""), "_", ""))
 }
 
+// extractPartitionNumber extracts partition number from specs like "gpt2" or "msdos1".
+// Returns the partition number and true if successful, 0 and false otherwise.
+func extractPartitionNumber(spec string) (int, bool) {
+	re := regexp.MustCompile(`^(gpt|msdos)(\d+)$`)
+	matches := re.FindStringSubmatch(strings.ToLower(spec))
+	if len(matches) > 2 {
+		var num int
+		fmt.Sscanf(matches[2], "%d", &num)
+		if num > 0 {
+			return num, true
+		}
+	}
+	return 0, false
+}
+
 // parseGrubConfigContent extracts boot entries and kernel references from grub.cfg content.
 func parseGrubConfigContent(content string) BootloaderConfig {
 	cfg := BootloaderConfig{
@@ -43,11 +58,11 @@ func parseGrubConfigContent(content string) BootloaderConfig {
 		KernelReferences: []KernelReference{},
 		BootEntries:      []BootEntry{},
 		UUIDReferences:   []UUIDReference{},
-		Issues:           []string{},
+		Notes:            []string{},
 	}
 
 	if content == "" {
-		cfg.Issues = append(cfg.Issues, "grub.cfg is empty")
+		cfg.Notes = append(cfg.Notes, "grub.cfg is empty")
 		return cfg
 	}
 
@@ -58,7 +73,7 @@ func parseGrubConfigContent(content string) BootloaderConfig {
 		cfg.ConfigRaw["grub.cfg"] = content
 	}
 
-	// Extract UUIDs from config content
+	// Extract UUID-like tokens from config content
 	uuids := extractUUIDsFromString(content)
 	for _, uuid := range uuids {
 		cfg.UUIDReferences = append(cfg.UUIDReferences, UUIDReference{
@@ -74,6 +89,34 @@ func parseGrubConfigContent(content string) BootloaderConfig {
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
+
+		// Capture GRUB device notation like (hd0,gpt2) or (hd0,msdos1)
+		if strings.Contains(trimmed, "(hd") {
+			// find all occurrences of gptN or msdosN inside parentheses
+			// crude scan: look for "gpt" or "msdos" and digits following
+			parts := strings.FieldsFunc(trimmed, func(r rune) bool { return r == '(' || r == ')' || r == ',' || r == ' ' })
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if strings.HasPrefix(strings.ToLower(p), "gpt") || strings.HasPrefix(strings.ToLower(p), "msdos") {
+					// extract trailing digits
+					var num string
+					for i := len(p) - 1; i >= 0; i-- {
+						if p[i] < '0' || p[i] > '9' {
+							num = p[i+1:]
+							break
+						}
+						if i == 0 {
+							num = p
+						}
+					}
+					if num != "" {
+						// store as a reference like gpt2 or msdos1
+						id := strings.ToLower(strings.TrimSpace(p))
+						cfg.UUIDReferences = append(cfg.UUIDReferences, UUIDReference{UUID: id, Context: "grub_root_hd"})
+					}
+				}
+			}
+		}
 
 		// Extract set prefix value: set prefix=($root)"/boot/grub2"
 		if strings.HasPrefix(trimmed, "set prefix") {
@@ -113,12 +156,35 @@ func parseGrubConfigContent(content string) BootloaderConfig {
 				}
 			}
 		}
+
+		// Look for search commands which may reference partition UUIDs
+		// Examples: search --fs-uuid --no-floppy --set=root 1234-ABCD or search --label --set=root mylabel
+		if strings.HasPrefix(trimmed, "search") {
+			// pick up any UUID-like token on the line
+			for _, token := range strings.Fields(trimmed) {
+				if strings.HasPrefix(token, "PARTUUID=") || strings.HasPrefix(token, "UUID=") {
+					val := token
+					if idx := strings.Index(val, "="); idx >= 0 {
+						val = val[idx+1:]
+					}
+					val = strings.Trim(val, `"'`)
+					for _, u := range extractUUIDsFromString(val) {
+						cfg.UUIDReferences = append(cfg.UUIDReferences, UUIDReference{UUID: u, Context: "grub_search"})
+					}
+				} else {
+					// also check raw tokens for UUIDs
+					for _, u := range extractUUIDsFromString(token) {
+						cfg.UUIDReferences = append(cfg.UUIDReferences, UUIDReference{UUID: u, Context: "grub_search"})
+					}
+				}
+			}
+		}
 	}
 
 	// If this is a stub config (has configfile), add metadata note
 	if configfilePath != "" {
 		note := fmt.Sprintf("Configuration note: This is a UEFI stub config that loads the main GRUB configuration from the root partition at '%s'. The actual boot entries are defined in that file.", configfilePath)
-		cfg.Issues = append(cfg.Issues, note)
+		cfg.Notes = append(cfg.Notes, note)
 
 		// Add a synthetic entry showing where the config is
 		stubEntry := BootEntry{
@@ -153,6 +219,31 @@ func parseGrubConfigContent(content string) BootloaderConfig {
 					currentEntry.Kernel = parts[1]
 					if len(parts) > 2 {
 						currentEntry.Cmdline = strings.Join(parts[2:], " ")
+						// Parse kernel cmdline tokens for root=PARTUUID=/UUID= references
+						for _, tok := range strings.Fields(currentEntry.Cmdline) {
+							if strings.HasPrefix(tok, "root=") {
+								val := strings.TrimPrefix(tok, "root=")
+								val = strings.Trim(val, `"'`)
+								currentEntry.RootDevice = val
+								// PARTUUID= or UUID= forms
+								if strings.HasPrefix(val, "PARTUUID=") || strings.HasPrefix(val, "UUID=") {
+									if idx := strings.Index(val, "="); idx >= 0 {
+										id := val[idx+1:]
+										id = strings.Trim(id, `"'`)
+										for _, u := range extractUUIDsFromString(id) {
+											currentEntry.PartitionUUID = u
+											cfg.UUIDReferences = append(cfg.UUIDReferences, UUIDReference{UUID: u, Context: "kernel_cmdline"})
+										}
+									}
+								} else {
+									// bare UUIDs or device paths may still include UUIDs
+									for _, u := range extractUUIDsFromString(val) {
+										currentEntry.PartitionUUID = u
+										cfg.UUIDReferences = append(cfg.UUIDReferences, UUIDReference{UUID: u, Context: "kernel_cmdline"})
+									}
+								}
+							}
+						}
 					}
 				}
 			}
@@ -198,6 +289,9 @@ func parseGrubConfigContent(content string) BootloaderConfig {
 			if entry.RootDevice != "" {
 				ref.RootUUID = entry.RootDevice
 			}
+			if entry.PartitionUUID != "" {
+				ref.PartitionUUID = entry.PartitionUUID
+			}
 			cfg.KernelReferences = append(cfg.KernelReferences, ref)
 		}
 	}
@@ -236,11 +330,11 @@ func parseSystemdBootEntries(content string) BootloaderConfig {
 		KernelReferences: []KernelReference{},
 		BootEntries:      []BootEntry{},
 		UUIDReferences:   []UUIDReference{},
-		Issues:           []string{},
+		Notes:            []string{},
 	}
 
 	if content == "" {
-		cfg.Issues = append(cfg.Issues, "loader.conf is empty")
+		cfg.Notes = append(cfg.Notes, "loader.conf is empty")
 		return cfg
 	}
 
@@ -278,51 +372,38 @@ func parseSystemdBootEntries(content string) BootloaderConfig {
 	return cfg
 }
 
-// parseEFIBootEntries extracts boot entries from EFI boot variables (efivars style).
-func parseEFIBootEntries(entryContent string) []BootEntry {
-	entries := []BootEntry{}
-	// This is a simplified parser; real EFI boot entry parsing is complex
-	// For now, just extract any kernel paths and UUIDs mentioned
-	lines := strings.Split(entryContent, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "File") || strings.Contains(line, "kernel") {
-			if path := extractPathFromEFIVariable(line); path != "" {
-				entries = append(entries, BootEntry{
-					Kernel: path,
-					Name:   "EFI_Entry",
-				})
-			}
-		}
-	}
-	return entries
-}
-
-// extractPathFromEFIVariable attempts to extract a file path from EFI variable output.
-func extractPathFromEFIVariable(line string) string {
-	// Look for common path patterns
-	patterns := []string{
-		`File\(.+?\)`,
-		`\\[A-Z0-9\s\\]+\.efi`,
-		`/[A-Za-z0-9/_.-]+`,
-	}
-
-	for _, pat := range patterns {
-		re := regexp.MustCompile(pat)
-		matches := re.FindAllString(line, 1)
-		if len(matches) > 0 {
-			return strings.TrimSpace(matches[0])
-		}
-	}
-
-	return ""
-}
-
 // resolveUUIDsToPartitions matches UUIDs in bootloader config against partition GUIDs.
 // It returns a map of UUID -> partition index.
 func resolveUUIDsToPartitions(uuidRefs []UUIDReference, pt PartitionTableSummary) map[string]int {
 	result := make(map[string]int)
 
 	for _, ref := range uuidRefs {
+		// If the token is a GPT/MSDOS partition spec like 'gpt2' or 'msdos1', map directly
+		low := strings.ToLower(ref.UUID)
+		if strings.HasPrefix(low, "gpt") || strings.HasPrefix(low, "msdos") {
+			// Extract trailing number
+			digits := ""
+			for i := len(low) - 1; i >= 0; i-- {
+				if low[i] < '0' || low[i] > '9' {
+					digits = low[i+1:]
+					break
+				}
+				if i == 0 {
+					digits = low
+				}
+			}
+			if digits != "" {
+				// convert to int
+				var idx int
+				fmt.Sscanf(digits, "%d", &idx)
+				if idx > 0 {
+					result[ref.UUID] = idx
+					continue
+				}
+			}
+		}
+
+		// Otherwise, try to match GUIDs (partition GUIDs) or filesystem UUIDs
 		normalized := normalizeUUID(ref.UUID)
 		for _, p := range pt.Partitions {
 			if normalizeUUID(p.GUID) == normalized {
@@ -348,7 +429,7 @@ func ValidateBootloaderConfig(cfg *BootloaderConfig, pt PartitionTableSummary) {
 
 	// Check for missing config files
 	if len(cfg.ConfigFiles) == 0 && len(cfg.ConfigRaw) == 0 {
-		cfg.Issues = append(cfg.Issues, "No bootloader configuration files found")
+		cfg.Notes = append(cfg.Notes, "No bootloader configuration files found")
 	}
 
 	// Resolve UUIDs and check for mismatches
@@ -358,7 +439,7 @@ func ValidateBootloaderConfig(cfg *BootloaderConfig, pt PartitionTableSummary) {
 			cfg.UUIDReferences[i].ReferencedPartition = uuidMap[uuidRef.UUID]
 		} else {
 			cfg.UUIDReferences[i].Mismatch = true
-			cfg.Issues = append(cfg.Issues,
+			cfg.Notes = append(cfg.Notes,
 				fmt.Sprintf("UUID %s referenced in %s not found in partition table", uuidRef.UUID, uuidRef.Context))
 		}
 	}
@@ -366,14 +447,14 @@ func ValidateBootloaderConfig(cfg *BootloaderConfig, pt PartitionTableSummary) {
 	// Check for kernel references without valid paths
 	for _, kernRef := range cfg.KernelReferences {
 		if kernRef.Path == "" {
-			cfg.Issues = append(cfg.Issues, fmt.Sprintf("Boot entry %s has no kernel path", kernRef.BootEntry))
+			cfg.Notes = append(cfg.Notes, fmt.Sprintf("Boot entry %s has no kernel path", kernRef.BootEntry))
 		}
 	}
 
 	// Check for boot entries without kernel
 	for _, entry := range cfg.BootEntries {
 		if entry.Kernel == "" {
-			cfg.Issues = append(cfg.Issues, fmt.Sprintf("Boot entry '%s' has no kernel path", entry.Name))
+			cfg.Notes = append(cfg.Notes, fmt.Sprintf("Boot entry '%s' has no kernel path", entry.Name))
 		}
 	}
 }
