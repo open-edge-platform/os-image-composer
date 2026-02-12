@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// Example test demonstrating bootloader configuration extraction and comparison
-
 func TestParseGrubConfig(t *testing.T) {
 	grubContent := `
 menuentry 'Ubuntu 24.04 LTS (5.15.0-105-generic)' {
@@ -259,7 +257,6 @@ func TestValidateBootloaderConfig(t *testing.T) {
 	}
 }
 
-// Example demonstrating real-world usage
 func ExampleBootloaderConfig() {
 	// Simulate extracting config from two images
 	grubConfig1 := `
@@ -335,7 +332,7 @@ menuentry 'Linux' {
 	}
 }
 
-// TestParseGrubConfigWithDeviceSpec tests GRUB device notation (hd0,gpt2)
+// TestParseGrubConfigWithDeviceSpec tests GRUB device notation
 func TestParseGrubConfigWithDeviceSpec(t *testing.T) {
 	grubCfg := `menuentry 'Linux' {
 	insmod gzio
@@ -358,7 +355,7 @@ func TestParseGrubConfigWithDeviceSpec(t *testing.T) {
 	}
 }
 
-// TestParseGrubConfigWithMsdosDeviceSpec tests GRUB device notation with MBR (hd0,msdos1)
+// TestParseGrubConfigWithMsdosDeviceSpec tests GRUB device notation with MBR
 func TestParseGrubConfigWithMsdosDeviceSpec(t *testing.T) {
 	grubCfg := `menuentry 'Windows' {
 	insmod registry
@@ -401,7 +398,7 @@ menuentry 'Linux Second' {
 	}
 }
 
-// TestParseGrubConfigWithExternalConfigfile tests stub config with external configfile
+// TestParseGrubConfigWithExternalConfigfile tests stub config with config
 func TestParseGrubConfigWithExternalConfigfile(t *testing.T) {
 	grubCfg := `set prefix=($root)"/boot/grub2"
 configfile ($root)"/boot/grub2/grub.cfg"`

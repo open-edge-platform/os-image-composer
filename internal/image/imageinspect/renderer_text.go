@@ -986,7 +986,6 @@ func gptTypeName(guid string) string {
 		return "Linux filesystem"
 	case "21686148-6449-6E6F-744E-656564454649":
 		return "BIOS boot partition"
-	// Add more as you run into them (BIOS boot, swap, LVM, etc.)
 	default:
 		return ""
 	}

@@ -6,10 +6,10 @@ import (
 	"strings"
 )
 
-// uuidRegex matches UUID format: 8-4-4-4-12 hex digits (case-insensitive with optional hyphens)
+// uuidRegex matches UUID format: 8-4-4-4-12 hex digits
 var uuidRegex = regexp.MustCompile(`[0-9a-fA-F]{8}[-_]?[0-9a-fA-F]{4}[-_]?[0-9a-fA-F]{4}[-_]?[0-9a-fA-F]{4}[-_]?[0-9a-fA-F]{12}`)
 
-// extractUUIDsFromString finds all UUIDs in a string and returns them normalized.
+// extractUUIDsFromString finds all UUIDs in a string and returns them normalized
 func extractUUIDsFromString(s string) []string {
 	if s == "" {
 		return nil
@@ -31,7 +31,7 @@ func extractUUIDsFromString(s string) []string {
 	return result
 }
 
-// normalizeUUID removes hyphens and converts to lowercase.
+// normalizeUUID removes hyphens and converts to lowercase
 func normalizeUUID(uuid string) string {
 	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(uuid, "-", ""), "_", ""))
 }
@@ -143,7 +143,6 @@ func parseGrubConfigContent(content string) BootloaderConfig {
 		}
 
 		// Look for search commands which may reference partition UUIDs
-		// Examples: search --fs-uuid --no-floppy --set=root 1234-ABCD or search --label --set=root mylabel
 		if strings.HasPrefix(trimmed, "search") {
 			// pick up any UUID-like token on the line
 			for _, token := range strings.Fields(trimmed) {
