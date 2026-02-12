@@ -111,6 +111,9 @@ func resolveMultiCandidates(parentPkg ospackage.PackageInfo, candidates []ospack
 				verPart := candidate.Version[idx+1:]
 				if dotIdx := strings.Index(verPart, "."); dotIdx != -1 {
 					release := verPart[dotIdx+1:]
+					if nextDot := strings.Index(release, "."); nextDot != -1 {
+						release = release[:nextDot]
+					}
 					if release == Dist {
 						distCandidates = append(distCandidates, candidate)
 					}
@@ -172,6 +175,9 @@ func preferDistMatch(candidates []ospackage.PackageInfo) (ospackage.PackageInfo,
 			verPart := c.Version[idx+1:]
 			if dotIdx := strings.Index(verPart, "."); dotIdx != -1 {
 				release := verPart[dotIdx+1:]
+				if nextDot := strings.Index(release, "."); nextDot != -1 {
+					release = release[:nextDot]
+				}
 				if release == Dist {
 					return c, true
 				}
@@ -360,6 +366,9 @@ func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospac
 				verPart := pi.Version[idx+1:]
 				if dotIdx := strings.Index(verPart, "."); dotIdx != -1 {
 					release := verPart[dotIdx+1:]
+					if nextDot := strings.Index(release, "."); nextDot != -1 {
+						release = release[:nextDot]
+					}
 					if release == Dist {
 						distRelease = release
 						break
@@ -374,6 +383,9 @@ func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospac
 					verPart := pi.Version[idx+1:]
 					if dotIdx := strings.Index(verPart, "."); dotIdx != -1 {
 						release := verPart[dotIdx+1:]
+						if nextDot := strings.Index(release, "."); nextDot != -1 {
+							release = release[:nextDot]
+						}
 						if release == distRelease {
 							filtered = append(filtered, pi)
 						}
