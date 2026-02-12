@@ -2,7 +2,7 @@ package ospackage
 
 // PackageInfo holds everything you need to fetch + verify one artifact.
 type PackageInfo struct {
-	Name        string // e.g. "abseil-cpp"
+	Name        string // e.g. file name "abseil-cpp.rpm"
 	Type        string // e.g. "rpm", "deb", "apk"
 	Description string // e.g. "Abseil C++ Common Libraries"
 	Origin      string // e.g. "Intel", the vendor or supplier of the package
@@ -15,6 +15,7 @@ type PackageInfo struct {
 	Requires    []string // capabilities this package requires
 	RequiresVer []string // version constraints for the required capabilities
 	Files       []string // list of files in this package (rpm:files)
+	PkgName     string   // name of the package
 }
 
 // Checksum holds the algorithm and value of a checksum.
