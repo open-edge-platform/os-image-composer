@@ -16,7 +16,7 @@ metadata:
     - raw
 
 image:
-  name: emt3-x86_64-minimal-emf
+  name: emt3-x86_64-minimal-ptl-emf
   version: "1.0.0"
 
 target:
