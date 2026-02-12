@@ -1618,7 +1618,7 @@ func configUserStartupScript(installRoot string, user config.UserConfig) error {
 func (imageOs *ImageOs) generateSBOM(installRoot string, template *config.ImageTemplate) (string, error) {
 	pkgType := imageOs.chrootEnv.GetTargetOsPkgType()
 	sBomFNm := rpmutils.GenerateSPDXFileName(template.GetImageName())
-	cmd := "rpm -qa --queryformat '%{NAME}\\n'"
+	cmd := "rpm -qa"
 	if pkgType == "deb" {
 		cmd = "dpkg -l | awk '/^ii/ {print $2}'"
 		sBomFNm = debutils.GenerateSPDXFileName(template.GetImageName())
@@ -1637,20 +1637,25 @@ func (imageOs *ImageOs) generateSBOM(installRoot string, template *config.ImageT
 	// Create a map of normalized package names from installed packages for faster lookup
 	installedPkgMap := make(map[string]bool)
 	for _, pkg := range installRootPkgs {
-		// For DEB packages, remove architecture tag (e.g., ":amd64") if present
+		// Remove architecture tag (e.g., ":amd64") if present
 		normalizedPkg := pkg
-		if pkgType == "deb" {
-			if colonIndex := strings.Index(pkg, ":"); colonIndex != -1 {
-				normalizedPkg = pkg[:colonIndex]
-			}
+		if colonIndex := strings.Index(pkg, ":"); colonIndex != -1 {
+			normalizedPkg = pkg[:colonIndex]
 		}
 		installedPkgMap[normalizedPkg] = true
 	}
 
 	var finalPkgs []ospackage.PackageInfo
 	for _, pkg := range downloadedPkgs {
-		// pkg.Name is the clean canonical package name (e.g., "SymCrypt", "bash")
-		if installedPkgMap[pkg.Name] {
+		// Normalize package name by removing file extensions
+		normalizedName := pkg.Name
+		if strings.HasSuffix(normalizedName, ".rpm") {
+			normalizedName = strings.TrimSuffix(normalizedName, ".rpm")
+		} else if strings.HasSuffix(normalizedName, ".deb") {
+			normalizedName = strings.TrimSuffix(normalizedName, ".deb")
+		}
+
+		if installedPkgMap[normalizedName] {
 			finalPkgs = append(finalPkgs, pkg)
 		}
 	}

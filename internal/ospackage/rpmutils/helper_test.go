@@ -115,6 +115,59 @@ func TestCompareVersions(t *testing.T) {
 	}
 }
 
+func TestExtractBasePackageNameFromFile(t *testing.T) {
+	tests := []struct {
+		name     string
+		fullName string
+		expected string
+	}{
+		{
+			name:     "RPM with version",
+			fullName: "curl-8.8.0-2.azl3.x86_64.rpm",
+			expected: "curl",
+		},
+		{
+			name:     "RPM with devel suffix",
+			fullName: "curl-devel-8.8.0-1.azl3.x86_64.rpm",
+			expected: "curl-devel",
+		},
+		{
+			name:     "RPM without .rpm extension",
+			fullName: "curl-8.8.0-2.azl3.x86_64",
+			expected: "curl",
+		},
+		{
+			name:     "Package with multiple dashes",
+			fullName: "python3-some-package-1.2.3-4.el8.noarch.rpm",
+			expected: "python3-some-package",
+		},
+		{
+			name:     "Simple package name without version",
+			fullName: "simple-package",
+			expected: "simple-package",
+		},
+		{
+			name:     "Single word package",
+			fullName: "curl",
+			expected: "curl",
+		},
+		{
+			name:     "Package name with no version part",
+			fullName: "some-package-name-without-version",
+			expected: "some-package-name-without-version",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractBasePackageNameFromFile(tt.fullName)
+			if result != tt.expected {
+				t.Errorf("extractBasePackageNameFromFile(%q) = %q, want %q", tt.fullName, result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestExtractBaseNameFromDep(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -354,22 +407,21 @@ func TestFindAllCandidates(t *testing.T) {
 
 	allPackages := []ospackage.PackageInfo{
 		{
-			Name:    "curl",
+			Name:    "curl-8.8.0-2.azl3.x86_64.rpm",
 			Version: "8.8.0-2.azl3",
 		},
 		{
-			Name:    "curl",
+			Name:    "curl-7.8.0-1.azl3.x86_64.rpm",
 			Version: "7.8.0-1.azl3",
 		},
 		{
-			Name:     "another-package",
+			Name:     "another-package-1.0-1.rpm",
 			Version:  "1.0-1",
 			Provides: []string{"provided-capability"},
 		},
 		{
-			Name:    "file-provider",
-			Version: "1.0-1",
-			Files:   []string{"/usr/bin/curl"},
+			Name:  "file-provider-1.0-1.rpm",
+			Files: []string{"/usr/bin/curl"},
 		},
 	}
 
@@ -382,20 +434,20 @@ func TestFindAllCandidates(t *testing.T) {
 		{
 			name:          "Direct name match",
 			depName:       "curl",
-			expectedCount: 2,      // curl packages
-			expectedFirst: "curl", // Name is curl (version comparison happens elsewhere)
+			expectedCount: 2,                              // curl packages
+			expectedFirst: "curl-8.8.0-2.azl3.x86_64.rpm", // Higher version
 		},
 		{
 			name:          "Provides match",
 			depName:       "provided-capability",
 			expectedCount: 1, // Only the package that provides this capability
-			expectedFirst: "another-package",
+			expectedFirst: "another-package-1.0-1.rpm",
 		},
 		{
 			name:          "File match",
 			depName:       "/usr/bin/curl",
 			expectedCount: 1,
-			expectedFirst: "file-provider",
+			expectedFirst: "file-provider-1.0-1.rpm",
 		},
 		{
 			name:          "No match",
@@ -427,12 +479,12 @@ func TestResolveTopPackageConflicts(t *testing.T) {
 
 	allPackages := []ospackage.PackageInfo{
 		{
-			Name:    "acct",
+			Name:    "acct-6.6.4-5+b1-amd64.rpm",
 			Version: "6.6.4-5+b1",
 			URL:     "https://example.com/acct-6.6.4-5+b1-amd64.rpm",
 		},
 		{
-			Name:    "acct",
+			Name:    "acct-205-25.azl3.noarch.rpm",
 			Version: "205-25.azl3",
 		},
 		{
@@ -458,17 +510,24 @@ func TestResolveTopPackageConflicts(t *testing.T) {
 		expectFound bool
 	}{
 		{
-			name:        "Exact match",
-			want:        "acct",
+			name:        "Exact match with file extension",
+			want:        "acct-6.6.4-5+b1-amd64.rpm",
 			dist:        "",
-			expectedPkg: "acct",
+			expectedPkg: "acct-6.6.4-5+b1-amd64.rpm",
 			expectFound: true,
 		},
 		{
-			name:        "Exact match with dist filter",
+			name:        "Base name match",
+			want:        "acct",
+			dist:        "",
+			expectedPkg: "acct-205-25.azl3.noarch.rpm", // Should find the first acct package
+			expectFound: true,
+		},
+		{
+			name:        "Base name match with dist filter",
 			want:        "acct",
 			dist:        "azl3",
-			expectedPkg: "acct", // Clean package name
+			expectedPkg: "acct-205-25.azl3.noarch.rpm", // The exact package name returned might be different due to filtering logic
 			expectFound: true,
 		},
 		{
@@ -476,13 +535,6 @@ func TestResolveTopPackageConflicts(t *testing.T) {
 			want:        "nonexistent",
 			dist:        "",
 			expectFound: false,
-		},
-		{
-			name:        "Multiple versions picks highest",
-			want:        "acct",
-			dist:        "",
-			expectedPkg: "acct",
-			expectFound: true,
 		},
 	}
 
@@ -496,12 +548,6 @@ func TestResolveTopPackageConflicts(t *testing.T) {
 			if tt.expectFound && pkg.Name != tt.expectedPkg {
 				t.Logf("ResolveTopPackageConflicts() found pkg: Name=%q, Version=%q", pkg.Name, pkg.Version)
 				t.Errorf("ResolveTopPackageConflicts() pkg.Name = %q, want %q", pkg.Name, tt.expectedPkg)
-			}
-			// For "Exact match with dist filter", verify dist filtering selects the right version
-			if tt.name == "Exact match with dist filter" && found {
-				if !strings.Contains(pkg.Version, "azl3") {
-					t.Errorf("ResolveTopPackageConflicts() with dist=azl3 should pick azl3 version, got %q", pkg.Version)
-				}
 			}
 		})
 	}
@@ -917,7 +963,7 @@ func TestFindAllCandidatesEdgeCases(t *testing.T) {
 			depName: "complex-dep",
 			allPackages: []ospackage.PackageInfo{
 				{
-					Name:        "complex-dep",
+					Name:        "complex-dep-1.0-1.azl3.x86_64.rpm",
 					Type:        "rpm",
 					Version:     "1.0-1.azl3",
 					Arch:        "x86_64",
@@ -926,7 +972,7 @@ func TestFindAllCandidatesEdgeCases(t *testing.T) {
 					RequiresVer: []string{"glibc (>= 2.17)", "systemd (= 1:255-29.emt3)", "openssl (>= 1.1.1)"},
 				},
 				{
-					Name:        "complex-dep",
+					Name:        "complex-dep-2.0-1.emt3.x86_64.rpm",
 					Type:        "rpm",
 					Version:     "2.0-1.emt3",
 					Arch:        "x86_64",
@@ -936,7 +982,7 @@ func TestFindAllCandidatesEdgeCases(t *testing.T) {
 				},
 			},
 			expectedCount: 2,
-			expectedNames: []string{"complex-dep", "complex-dep"}, // Sorted by version (2.0 > 1.0)
+			expectedNames: []string{"complex-dep-2.0-1.emt3.x86_64.rpm", "complex-dep-1.0-1.azl3.x86_64.rpm"}, // Sorted by version
 			expectError:   false,
 		},
 		{
@@ -944,7 +990,7 @@ func TestFindAllCandidatesEdgeCases(t *testing.T) {
 			depName: "epoch-package",
 			allPackages: []ospackage.PackageInfo{
 				{
-					Name:     "epoch-package",
+					Name:     "epoch-package-1:1.0-1.azl3.x86_64.rpm",
 					Type:     "rpm",
 					Version:  "1:1.0-1.azl3",
 					Arch:     "x86_64",
@@ -952,7 +998,7 @@ func TestFindAllCandidatesEdgeCases(t *testing.T) {
 					Requires: []string{"glibc"},
 				},
 				{
-					Name:     "epoch-package",
+					Name:     "epoch-package-2.0-1.azl3.x86_64.rpm",
 					Type:     "rpm",
 					Version:  "2.0-1.azl3",
 					Arch:     "x86_64",
@@ -961,7 +1007,7 @@ func TestFindAllCandidatesEdgeCases(t *testing.T) {
 				},
 			},
 			expectedCount: 2,
-			expectedNames: []string{"epoch-package", "epoch-package"}, // Epoch version should be higher
+			expectedNames: []string{"epoch-package-1:1.0-1.azl3.x86_64.rpm", "epoch-package-2.0-1.azl3.x86_64.rpm"}, // Epoch version should be higher
 			expectError:   false,
 		},
 	}
@@ -989,6 +1035,70 @@ func TestFindAllCandidatesEdgeCases(t *testing.T) {
 				if i < len(candidates) && candidates[i].Name != expectedName {
 					t.Errorf("findAllCandidates() candidate[%d].Name = %q, want %q", i, candidates[i].Name, expectedName)
 				}
+			}
+		})
+	}
+}
+
+// TestPackageNameExtractionEdgeCases tests edge cases in package name extraction
+func TestPackageNameExtractionEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		fullName string
+		expected string
+	}{
+		{
+			name:     "Package with multiple version parts",
+			fullName: "kernel-modules-extra-5.15.0-25.44.azl3.x86_64.rpm",
+			expected: "kernel-modules-extra",
+		},
+		{
+			name:     "Package with plus in version",
+			fullName: "gcc-11.2.1+20220127-1.azl3.x86_64.rpm",
+			expected: "gcc",
+		},
+		{
+			name:     "Package with tilde in version",
+			fullName: "python3-3.9.16~1.azl3.x86_64.rpm",
+			expected: "python3",
+		},
+		{
+			name:     "Package with colon in version (epoch)",
+			fullName: "systemd-1:255-29.emt3.x86_64.rpm",
+			expected: "systemd",
+		},
+		{
+			name:     "Package name with underscores",
+			fullName: "lib_special_package-1.0-1.el8.noarch.rpm",
+			expected: "lib_special_package",
+		},
+		{
+			name:     "Very complex package name",
+			fullName: "perl-DBD-MySQL-4.050-5.module+el8.5.0+20651+a25e96c4.x86_64.rpm",
+			expected: "perl-DBD-MySQL",
+		},
+		{
+			name:     "Package without rpm extension",
+			fullName: "simple-package-1.0-1.noarch",
+			expected: "simple-package",
+		},
+		{
+			name:     "Empty string",
+			fullName: "",
+			expected: "",
+		},
+		{
+			name:     "Just extension",
+			fullName: ".rpm",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractBasePackageNameFromFile(tt.fullName)
+			if result != tt.expected {
+				t.Errorf("extractBasePackageNameFromFile(%q) = %q, want %q", tt.fullName, result, tt.expected)
 			}
 		})
 	}
