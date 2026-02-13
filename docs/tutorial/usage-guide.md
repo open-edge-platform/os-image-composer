@@ -6,14 +6,21 @@ command reference, see the
 
 ## Table of Contents
 
-- [Binary Location](#binary-location)
-- [Commands Overview](#commands-overview)
-- [Building an Image](#building-an-image)
-- [Validating a Template](#validating-a-template)
-- [Configuration](#configuration)
-- [Operations Requiring Sudo](#operations-requiring-sudo)
-- [Shell Completion](#shell-completion)
-- [Template Examples](#template-examples)
+- [Usage Guide](#usage-guide)
+  - [Table of Contents](#table-of-contents)
+  - [Binary Location](#binary-location)
+  - [Commands Overview](#commands-overview)
+  - [Building an Image](#building-an-image)
+    - [Build Output](#build-output)
+  - [Validating a Template](#validating-a-template)
+  - [Configuration](#configuration)
+  - [Operations Requiring Sudo](#operations-requiring-sudo)
+  - [Shell Completion](#shell-completion)
+  - [Template Examples](#template-examples)
+    - [Minimal Edge Device](#minimal-edge-device)
+    - [Development Environment](#development-environment)
+    - [Edge Microvisor Toolkit](#edge-microvisor-toolkit)
+  - [Related Documentation](#related-documentation)
 
 ---
 
@@ -173,15 +180,15 @@ target:
   arch: x86_64
   imageType: raw
 
-systemConfigs:
-  - name: minimal
-    description: Minimal edge device configuration
-    packages:
-      - openssh-server
-      - ca-certificates
-    kernel:
-      version: "6.12"
-      cmdline: "quiet"
+systemConfig:
+  name: minimal
+  description: Minimal edge device configuration
+  packages:
+    - openssh-server
+    - ca-certificates
+  kernel:
+    version: "6.12"
+    cmdline: "quiet"
 ```
 
 ### Development Environment
@@ -197,20 +204,20 @@ target:
   arch: x86_64
   imageType: raw
 
-systemConfigs:
-  - name: development
-    description: Development environment with tools
-    packages:
-      - openssh-server
-      - git
-      - docker-ce
-      - vim
-      - curl
-      - wget
-      - python3
-    kernel:
-      version: "6.12"
-      cmdline: "quiet splash"
+systemConfig:
+  name: development
+  description: Development environment with tools
+  packages:
+    - openssh-server
+    - git
+    - docker-ce
+    - vim
+    - curl
+    - wget
+    - python3
+  kernel:
+    version: "6.12"
+    cmdline: "quiet splash"
 ```
 
 ### Edge Microvisor Toolkit
@@ -221,22 +228,20 @@ image:
   version: "1.0.0"
 
 target:
-  os: emt
+  os: edge-microvisor-toolkit
   dist: emt3
   arch: x86_64
   imageType: raw
 
-systemConfigs:
-  - name: edge
-    description: Edge Microvisor Toolkit configuration
-    packages:
-      - openssh-server
-      - docker-ce
-      - edge-runtime
-      - telemetry-agent
-    kernel:
-      version: "6.12"
-      cmdline: "quiet splash systemd.unified_cgroup_hierarchy=0"
+systemConfig:
+  name: edge
+  description: Edge Microvisor Toolkit configuration
+  packages:
+    - cloud-init
+    - rsyslog
+  kernel:
+    version: "6.12"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
 ```
 
 ---

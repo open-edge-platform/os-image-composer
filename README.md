@@ -89,12 +89,12 @@ target:
   arch: x86_64
   imageType: raw
 
-systemConfigs:
-  - name: edge
-    packages:
-      - openssh-server
-      - ca-certificates
-    kernel:
+systemConfig:
+  name: edge
+  packages:
+    - openssh-server
+    - ca-certificates
+  kernel:
       version: "6.12"
       cmdline: "quiet"
 ```
