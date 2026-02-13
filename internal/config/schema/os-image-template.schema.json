@@ -116,6 +116,7 @@
               "type": { "type": "string", "description": "Partition type" },
               "typeUUID": { "type": "string", "description": "Partition type UUID" },
               "fsType": { "type": "string", "description": "Filesystem type" },
+              "fsLabel": { "type": "string", "description": "Filesystem label" },
               "start": { "type": "string", "description": "Partition start offset" },
               "end": { "type": "string", "description": "Partition end offset (0 = rest of disk)" },
               "mountPoint": { "type": "string", "description": "Mount point path" },
