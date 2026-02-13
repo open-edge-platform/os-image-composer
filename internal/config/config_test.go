@@ -2977,21 +2977,28 @@ func TestMergePackageRepositories(t *testing.T) {
 
 	merged := mergePackageRepositories(defaultRepos, userRepos)
 
-	// User repos should completely override defaults
-	if len(merged) != 1 {
-		t.Errorf("expected 1 merged repository, got %d", len(merged))
+	// User repos are appended to defaults (additive merge)
+	if len(merged) != 3 {
+		t.Errorf("expected 3 merged repositories (2 default + 1 user), got %d", len(merged))
 	}
 
-	if merged[0].Codename != "user1" {
-		t.Errorf("expected merged repo codename 'user1', got '%s'", merged[0].Codename)
+	// Create a map to easily check repos by codename
+	repoMap := make(map[string]PackageRepository)
+	for _, repo := range merged {
+		repoMap[repo.Codename] = repo
 	}
 
-	if merged[0].URL != "https://user.com/1" {
-		t.Errorf("expected merged repo URL 'https://user.com/1', got '%s'", merged[0].URL)
+	// Verify all default repos are preserved
+	if repo, exists := repoMap["default1"]; !exists || repo.URL != "https://default.com/1" {
+		t.Errorf("expected default1 repo to be preserved")
+	}
+	if repo, exists := repoMap["default2"]; !exists || repo.URL != "https://default.com/2" {
+		t.Errorf("expected default2 repo to be preserved")
 	}
 
-	if merged[0].PKey != "https://user.com/1.pub" {
-		t.Errorf("expected merged repo pkey 'https://user.com/1.pub', got '%s'", merged[0].PKey)
+	// Verify user repo is added
+	if repo, exists := repoMap["user1"]; !exists || repo.URL != "https://user.com/1" {
+		t.Errorf("expected user1 repo to be added")
 	}
 }
 
@@ -3056,25 +3063,29 @@ func TestMergeConfigurationsWithPackageRepositories(t *testing.T) {
 		t.Fatalf("failed to merge configurations: %v", err)
 	}
 
-	// Test that user repositories completely override defaults
+	// Test that user repositories are added to defaults (additive merge)
 	repos := merged.GetPackageRepositories()
-	if len(repos) != 1 {
-		t.Errorf("expected 1 merged repository (user override), got %d", len(repos))
+	if len(repos) != 3 {
+		t.Errorf("expected 3 merged repositories (2 default + 1 user), got %d", len(repos))
 	}
 
-	if repos[0].Codename != "company-internal" {
-		t.Errorf("expected user repository codename 'company-internal', got '%s'", repos[0].Codename)
-	}
-
-	// Verify default repositories are not included when user specifies repositories
+	// Verify user repository is included
 	companyRepo := merged.GetRepositoryByCodename("company-internal")
 	if companyRepo == nil {
 		t.Errorf("expected to find user repository 'company-internal'")
+	} else if companyRepo.URL != "https://packages.company.com/internal" {
+		t.Errorf("expected company-internal URL to be correct, got '%s'", companyRepo.URL)
 	}
 
-	defaultRepo := merged.GetRepositoryByCodename("azure-extras")
-	if defaultRepo != nil {
-		t.Errorf("expected default repository 'azure-extras' to be overridden by user repos")
+	// Verify default repositories are preserved
+	azureExtrasRepo := merged.GetRepositoryByCodename("azure-extras")
+	if azureExtrasRepo == nil {
+		t.Errorf("expected default repository 'azure-extras' to be preserved")
+	}
+
+	azurePreviewRepo := merged.GetRepositoryByCodename("azure-preview")
+	if azurePreviewRepo == nil {
+		t.Errorf("expected default repository 'azure-preview' to be preserved")
 	}
 }
 

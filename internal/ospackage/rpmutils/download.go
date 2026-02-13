@@ -268,7 +268,7 @@ func createTempGPGKeyFiles(gpgKeyURLs []string) (keyPaths []string, cleanup func
 		log.Infof("fetched GPG key %d (%d bytes) from %s", i+1, len(keyBytes), gpgKeyURL)
 
 		// Create temp file with unique pattern
-		tmp, err := os.CreateTemp("", fmt.Sprintf("azurelinux-gpg-%d-*.asc", i))
+		tmp, err := os.CreateTemp("", fmt.Sprintf("rpm-gpg-%d-*.asc", i))
 		if err != nil {
 			// Cleanup any files created so far
 			for _, f := range tempFiles {
