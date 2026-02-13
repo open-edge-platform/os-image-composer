@@ -4884,7 +4884,11 @@ func TestFixKernelSymlinksPermissionIssues(t *testing.T) {
 	if err := os.Chmod(bootDir, 0444); err != nil {
 		t.Fatalf("Failed to make boot directory read-only: %v", err)
 	}
-	defer os.Chmod(bootDir, 0755) // Restore permissions for cleanup
+	defer func() {
+		if err := os.Chmod(bootDir, 0755); err != nil {
+			t.Logf("Warning: Failed to restore permissions for %s: %v", bootDir, err)
+		}
+	}() // Restore permissions for cleanup
 
 	// Test fixKernelSymlinks - should handle permission errors gracefully
 	err = fixKernelSymlinks(tempDir)
