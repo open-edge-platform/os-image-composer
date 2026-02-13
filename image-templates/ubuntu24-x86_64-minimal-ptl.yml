@@ -155,6 +155,7 @@ systemConfig:
     - iproute2
     # PTL packages
     - vim
+    - nano
     - ocl-icd-libopencl1
     - net-tools
     - libdrm-amdgpu1
@@ -256,6 +257,15 @@ systemConfig:
     - dbus-x11
     - sg3-utils
     - rpm
+    - dash
+    - hostname
+    - login
+    - passwd
+    - sed
+    - network-manager-config-connectivity-ubuntu
+    - cloud-init
+    - network-manager
+    - systemd-timesyncd
     # Pinned versions
     - xdp-tools
     - mutter-common-bin_46.2-1.0.24.04.13-1ppa1~noble2
@@ -347,12 +357,18 @@ systemConfig:
     - xnest_2:21.1.12-1ppa1~noble3
     - xserver-xorg-dev_2:21.1.12-1ppa1~noble3
     - xvfb_2:21.1.12-1ppa1~noble3
+
+  additionalFiles:
+    - local: ../additionalfiles/ptl/01-network-manager-all.yaml
+      final: /etc/netplan/01-network-manager-all.yaml
+    - local: ../additionalfiles/ptl/50-cloud-init.yaml
+      final: /etc/netplan/50-cloud-init.yaml
     
   kernel:
     version: "6.17"
     # Use this cmdline and kernel option if using xe driver,
     cmdline: "console=ttyS0,115200 console=tty0 loglevel=7 xe.max_vfs=7 xe.force_probe=* modprobe.blacklist=i915 udmabuf.list_limit=8192"
-    # enableExtraModules: "intel_vpu uas"
+    enableExtraModules: "intel_vpu uas"
     # Use this cmdline and kernel option if using i915 driver,
     # cmdline: "console=ttyS0,115200 console=tty0 loglevel=7 i915.force_probe=*"
     # enableExtraModules: "intel_vpu uas"
@@ -394,6 +410,8 @@ systemConfig:
     - cmd: "echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDb2P8gBvsy9DkzC1WiXfvisMFf7PQvtdvVC4n22ot4D5KOVxgoaCnjZM6qAZ2AdWPBebxInnUeMvw0u6RjRnflpYtNPgN4qiE313j62CmD80f/N+jvIxmoGhgsGE4RAMFXQ6pNaB/8KblrpmWQ5VfEIt7JcSR3Qvnkl9I2bljJU9zrMieE+Nras7hstg8fVWtGNjQjJpMWmt1YGxVbQiea0jDBqpru6TqnOYGD48JdR8QzHq++xL82I3x8kPz6annAvCDSVmiw9Mz0YtAsPIDZj4ABm866a8/U2mKVUncXYrBG1/pHBJMDJeX3ggd/UK2NvU8uEDJmITXUZRP8kBaO7b2LnRO08+Pr+nvmwukCP/wXflfS59h7kXCo8+Xjx/PEMO4OyFYHQunOUf/XTC13iig/MLY0EbqU6D+Lg1N13eJocRSta50zV+m+/PG23Zd3/6UH0noxYezQV3dQmsstzKKXbm8vkBmdqCZEvEnFSgl0VmX5HpzZLYI3L3hBH8/wgiWinrs7K13pZ8+lXN0ZhhJhdo61juiYwy1gbHP0ihqGkePw7w0DSCu5s9fA7xDTy2YTjkMsKaT8rbTYG5hunokNswdOCNYJyiCF3zJ08Z5hlDqSJJOPRdjL3YTIr6QlWSea/pTjkWmmE7Mv8M15c4V8Y77x6DsTFWlmGQbf1Q== swsbalabuser@BA02RNL99999' >> ~sys_olvtelemetry/.ssh/authorized_keys"
     - cmd: "chmod 600 ~sys_olvtelemetry/.ssh/authorized_keys"
     - cmd: "chown sys_olvtelemetry:sys_olvtelemetry -R ~sys_olvtelemetry/.ssh"
+    # Enable SSH service to start automatically on boot
+    - cmd: "ln -sf /lib/systemd/system/ssh.service /etc/systemd/system/multi-user.target.wants/ssh.service"
     # Install NPU driver via dpkg per script-1
     - cmd: "mkdir -p /tmp/npu-drv-package"
     - cmd: "cd /tmp/npu-drv-package && wget https://af01p-ir.devtools.intel.com/artifactory/drivers_vpu_linux_client-ir-local/builds/opensource-linux-vpu-driver/ci/opensource_main/npu-linux-driver-ci-1.28.0.20251218-20347000698/linux-npu-driver-v1.28.0.20251218-20347000698-ubuntu2404.tar.gz"
@@ -425,6 +443,9 @@ systemConfig:
     # Configure kernel messages
     - cmd: "echo 'kernel.printk = 7 4 1 7' > /etc/sysctl.d/99-kernel-printk.conf"
     - cmd: "echo 'kernel.dmesg_restrict = 0' >> /etc/sysctl.d/99-kernel-printk.conf"
+    # Configure NTP and timezone for correct datetime
+    - cmd: "ln -sf /usr/share/zoneinfo/UTC /etc/localtime"
+    - cmd: "ln -sf /lib/systemd/system/systemd-timesyncd.service /etc/systemd/system/sysinit.target.wants/systemd-timesyncd.service"
     # Set up snap proxy refresh
     - cmd: "echo '#!/bin/bash' > /opt/snapd_refresh.sh"
     - cmd: "echo 'snap set system proxy.http=http://proxy-dmz.intel.com:911' >> /opt/snapd_refresh.sh"
