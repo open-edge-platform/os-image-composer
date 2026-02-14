@@ -80,6 +80,26 @@ func TestExtractBaseRequirement(t *testing.T) {
 			input:    "/bin/sh",
 			expected: "/bin/sh",
 		},
+		{
+			name:     "complex conditional dependency",
+			input:    "((kernel-modules-extra-uname-r = 6.12.0-174.el10.x86_64) if kernel-modules-extra-matched)",
+			expected: "kernel-modules-extra-uname-r",
+		},
+		{
+			name:     "simple parentheses without spaces",
+			input:    "(linux-firmware)",
+			expected: "linux-firmware",
+		},
+		{
+			name:     "simple parentheses with version constraint",
+			input:    "(glibc >= 2.17)",
+			expected: "glibc",
+		},
+		{
+			name:     "complex conditional dependency with >= operator",
+			input:    "((linux-firmware >= 20150904-56.git6ebf5d57) if linux-firmware)",
+			expected: "linux-firmware",
+		},
 	}
 
 	for _, tt := range tests {
@@ -308,7 +328,7 @@ func TestParsePrimary(t *testing.T) {
 			defer server.Close()
 
 			// Test ParseRepositoryMetadata
-			packages, err := ParseRepositoryMetadata(server.URL+"/", tt.filename)
+			packages, err := ParseRepositoryMetadata(server.URL+"/", tt.filename, nil)
 
 			if tt.expectedError {
 				if err == nil {

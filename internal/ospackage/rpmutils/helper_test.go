@@ -204,6 +204,26 @@ func TestExtractBaseNameFromDep(t *testing.T) {
 			req:      "glibc >= 2.17",
 			expected: "glibc",
 		},
+		{
+			name:     "Complex conditional dependency",
+			req:      "((kernel-modules-extra-uname-r = 6.12.0-174.el10.x86_64) if kernel-modules-extra-matched)",
+			expected: "kernel-modules-extra-uname-r",
+		},
+		{
+			name:     "Simple parentheses without spaces",
+			req:      "(linux-firmware)",
+			expected: "linux-firmware",
+		},
+		{
+			name:     "Simple parentheses with version constraint",
+			req:      "(glibc >= 2.17)",
+			expected: "glibc",
+		},
+		{
+			name:     "Complex conditional dependency with >= operator",
+			req:      "((linux-firmware >= 20150904-56.git6ebf5d57) if linux-firmware)",
+			expected: "linux-firmware",
+		},
 	}
 
 	for _, tt := range tests {
