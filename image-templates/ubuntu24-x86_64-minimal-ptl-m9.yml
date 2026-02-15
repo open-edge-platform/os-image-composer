@@ -399,6 +399,7 @@ systemConfig:
   users:
     - name: rbfadmin
       password: "jaiZ6dai"
+      groups: ["docker", "render"]
     - name: user
       password: user1234
       groups: ["sudo"]
@@ -427,6 +428,8 @@ systemConfig:
     - cmd: "echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDb2P8gBvsy9DkzC1WiXfvisMFf7PQvtdvVC4n22ot4D5KOVxgoaCnjZM6qAZ2AdWPBebxInnUeMvw0u6RjRnflpYtNPgN4qiE313j62CmD80f/N+jvIxmoGhgsGE4RAMFXQ6pNaB/8KblrpmWQ5VfEIt7JcSR3Qvnkl9I2bljJU9zrMieE+Nras7hstg8fVWtGNjQjJpMWmt1YGxVbQiea0jDBqpru6TqnOYGD48JdR8QzHq++xL82I3x8kPz6annAvCDSVmiw9Mz0YtAsPIDZj4ABm866a8/U2mKVUncXYrBG1/pHBJMDJeX3ggd/UK2NvU8uEDJmITXUZRP8kBaO7b2LnRO08+Pr+nvmwukCP/wXflfS59h7kXCo8+Xjx/PEMO4OyFYHQunOUf/XTC13iig/MLY0EbqU6D+Lg1N13eJocRSta50zV+m+/PG23Zd3/6UH0noxYezQV3dQmsstzKKXbm8vkBmdqCZEvEnFSgl0VmX5HpzZLYI3L3hBH8/wgiWinrs7K13pZ8+lXN0ZhhJhdo61juiYwy1gbHP0ihqGkePw7w0DSCu5s9fA7xDTy2YTjkMsKaT8rbTYG5hunokNswdOCNYJyiCF3zJ08Z5hlDqSJJOPRdjL3YTIr6QlWSea/pTjkWmmE7Mv8M15c4V8Y77x6DsTFWlmGQbf1Q== swsbalabuser@BA02RNL99999' >> ~sys_olvtelemetry/.ssh/authorized_keys"
     - cmd: "chmod 600 ~sys_olvtelemetry/.ssh/authorized_keys"
     - cmd: "chown sys_olvtelemetry:sys_olvtelemetry -R ~sys_olvtelemetry/.ssh"
+    # Enable SSH service
+    - cmd: "systemctl enable ssh"
     # Install NPU driver (firmware, compiler, runtime only - skip kernel module for chroot)
     - cmd: "mkdir -m 755 -pv /opt/vpu"
     - cmd: "curl -s https://af01p-ir.devtools.intel.com/artifactory/drivers_vpu_linux_client-ir-local/engineering-drops/driver/main/release/25ww49.1.1/npu-linux-driver-ci-1.30.0.20251128-19767695845-ubuntu2404-release.tar.gz | tar -zxv --strip-components=1 -C /opt/vpu -f -"
