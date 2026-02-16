@@ -482,8 +482,7 @@ func TestStopGPGComponents(t *testing.T) {
 				{Pattern: "gpgconf --list-components", Output: "gpg:OpenPGP:/usr/bin/gpg\n", Error: nil},
 				{Pattern: "gpgconf --kill gpg", Output: "", Error: fmt.Errorf("kill gpg failed")},
 			},
-			expectError: true,
-			errorMsg:    "failed to stop GPG component gpg",
+			expectError: false, // Kill failures are non-fatal (component may not be running)
 		},
 		{
 			name: "empty_gpg_components_list",

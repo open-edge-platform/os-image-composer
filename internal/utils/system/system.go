@@ -137,7 +137,7 @@ func StopGPGComponents(chrootPath string) error {
 		component := strings.TrimSpace(strings.Split(line, ":")[0])
 		log.Debugf("Stopping GPG component: %s", component)
 		if _, err := shell.ExecCmd("gpgconf --kill "+component, true, chrootPath, nil); err != nil {
-			return fmt.Errorf("failed to stop GPG component %s: %w", component, err)
+			log.Warnf("Failed to stop GPG component %s (may not be running): %v", component, err)
 		}
 	}
 
