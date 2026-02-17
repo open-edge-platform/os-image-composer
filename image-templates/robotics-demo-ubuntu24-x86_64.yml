@@ -7,6 +7,11 @@
 # Usage:
 #   sudo ./os-image-composer build -t image-templates/robotics-demo-ubuntu24-x86_64.yml
 #
+# VM prerequisites:
+#   sudo apt install -y qemu-system-x86 ovmf
+#   cp /usr/share/OVMF/OVMF_CODE_4M.fd .
+#   cp /usr/share/OVMF/OVMF_VARS_4M.fd .
+#
 # VM launch:
 #   qemu-system-x86_64 -machine q35 -enable-kvm -cpu host -smp 4 -m 4096 \
 #     -drive if=pflash,format=raw,readonly=on,file=OVMF_CODE_4M.fd \
