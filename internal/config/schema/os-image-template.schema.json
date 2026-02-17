@@ -29,7 +29,7 @@
         "os": {
           "type": "string",
           "description": "Target operating system",
-          "enum": ["azure-linux", "edge-microvisor-toolkit", "wind-river-elxr", "ubuntu"]
+          "enum": ["azure-linux", "edge-microvisor-toolkit", "wind-river-elxr", "ubuntu", "redhat-compatible-distro"]
         },
         "dist": {
           "type": "string",
@@ -116,6 +116,7 @@
               "type": { "type": "string", "description": "Partition type" },
               "typeUUID": { "type": "string", "description": "Partition type UUID" },
               "fsType": { "type": "string", "description": "Filesystem type" },
+              "fsLabel": { "type": "string", "description": "Filesystem label" },
               "start": { "type": "string", "description": "Partition start offset" },
               "end": { "type": "string", "description": "Partition end offset (0 = rest of disk)" },
               "mountPoint": { "type": "string", "description": "Mount point path" },
@@ -342,6 +343,14 @@
           "minimum": -9999,
           "maximum": 9999,
           "default": 0
+        },
+        "AllowPackages": {
+          "type": "array",
+          "description": "Optional: specific packages to include from this repository (package pinning)",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       },
       "required": ["codename", "url", "pkey"],

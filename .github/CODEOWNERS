@@ -1,4 +1,16 @@
-* @open-edge-platform/image-composer-maintain 
+# SPDX-FileCopyrightText: 2026 Intel Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# These owners will be the default owners for everything in the repo. Unless a
+# later match takes precedence, these owners will be requested for review when
+# someone opens a pull request.
+
+# Everything requires image-composer-maintain team review by default
+* @open-edge-platform/os-image-composer-maintain
+
+# CI files
+
 
 # documentation content
 /docs @open-edge-platform/open-edge-platform-docs-write
