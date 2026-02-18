@@ -254,7 +254,6 @@ func extractBootloaderConfigFromFAT(v *fatVol, kind BootloaderKind) *BootloaderC
 	}
 
 	// Try to read each config file
-	var foundAnyError error
 	for _, cfgPath := range configPaths {
 		content, err := readFileFromFAT(v, cfgPath)
 		if err == nil && content != "" {
@@ -289,10 +288,6 @@ func extractBootloaderConfigFromFAT(v *fatVol, kind BootloaderKind) *BootloaderC
 
 			break // Found config file, stop trying alternatives
 		} else if err != nil {
-			// Track the first error for diagnostics
-			if foundAnyError == nil {
-				foundAnyError = err
-			}
 			if !strings.Contains(err.Error(), "does not exist") && !strings.Contains(err.Error(), "not found") {
 				// Only report non-file-not-found errors
 				cfg.Notes = append(cfg.Notes, fmt.Sprintf("Failed to read %s: %v", cfgPath, err))
