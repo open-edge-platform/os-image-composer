@@ -225,7 +225,7 @@ This reuse significantly improves build performance, especially when building mu
 - Generate verification metadata
 - Store signature information in image metadata
 
-Image signing is optional and is only performed if configured in the template. See [Understanding Templates](./os-image-composer-templates.md#security-configuration) for signing configuration examples.
+Image signing is optional and is only performed if configured in the template. See [Understanding Templates](./os-image-composer-templates.md) for template configuration details.
 
 ### 5. Finalize Stage
 
