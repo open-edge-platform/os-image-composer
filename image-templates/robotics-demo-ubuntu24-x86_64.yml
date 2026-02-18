@@ -24,9 +24,55 @@
 # Connect with X11 forwarding:
 #   ssh -X -p 2222 robot@localhost
 #
+# ROS2 is auto-sourced on login. If needed manually:
+#   source /opt/ros/jazzy/setup.bash
+#
 # Run demos:
+#   # Demo 1: Turtlesim — visual turtle control with arrow keys
 #   ros2 run turtlesim turtlesim_node &
 #   ros2 run turtlesim turtle_teleop_key
+#
+#   # Demo 2: rqt_graph — live node/topic graph (refresh to see connections)
+#   ros2 run rqt_graph rqt_graph &
+#
+#   # Demo 3: rqt_plot — real-time data chart (move turtle to see updates)
+#   ros2 run rqt_plot rqt_plot /turtle1/pose/x /turtle1/pose/y /turtle1/pose/theta &
+#
+#   # Demo 4: Talker/Listener — add more nodes to the graph
+#   ros2 run demo_nodes_cpp talker &
+#   ros2 run demo_nodes_cpp listener &
+
+# AI-searchable metadata for template discovery
+metadata:
+  description: Minimal ROS2 Jazzy demo image with visual tools (turtlesim, rqt) for QEMU VM testing
+  use_cases:
+    - Visual ROS2 demos in QEMU virtual machines
+    - Turtlesim keyboard-controlled robot simulation
+    - rqt_graph node/topic visualization
+    - rqt_plot real-time data charting
+    - ROS2 talker/listener pub/sub testing
+    - X11 forwarding GUI demos over SSH
+  keywords:
+    - robotics
+    - ros2
+    - jazzy
+    - turtlesim
+    - rqt
+    - demo
+    - qemu
+    - vm
+    - x11
+    - visualization
+    - ubuntu
+  capabilities:
+    - x11-forwarding
+    - ssh-gui
+    - ros2-demos
+    - ipv6-disabled
+  recommendedFor:
+    - "quick visual ROS2 demo in a VM"
+    - "testing ROS2 image builds before hardware deployment"
+    - "team onboarding and ROS2 training"
 
 image:
   name: robotics-demo-ubuntu24
