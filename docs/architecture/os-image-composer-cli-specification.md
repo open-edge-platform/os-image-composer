@@ -39,9 +39,7 @@
 
 `os-image-composer` is a command-line tool for generating custom images for
 different operating systems, including
-[Azure Linux](https://github.com/microsoft/azurelinux),
-[Wind River eLxr](https://www.windriver.com/blog/Introducing-eLxr), and
-[Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit).
+Azure Linux, Wind River eLxr, RCD, and Edge Microvisor Toolkit.
 The tool provides a flexible approach to creating and configuring
 production-ready OS images with precise customization.
 

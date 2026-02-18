@@ -57,7 +57,7 @@ The **Provider** component takes data from **Config** as its input, then orchest
 
 ### Provider
 
-The Provider component is the orchestrator of the image build process. Each supported operating system (Azure Linux, EMT, eLxr) has its own provider implementation that understands the specific requirements and package management for that OS.
+The Provider component is the orchestrator of the image build process. Each supported operating system (Azure Linux, EMT, eLxr, Ubuntu, RCD) has its own provider implementation that understands the specific requirements and package management for that OS.
 
 **Provider Interface:**
 - `Init(dist, arch string)` - Initialize the provider with distribution and architecture

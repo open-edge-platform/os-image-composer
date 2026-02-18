@@ -3,11 +3,9 @@
 OS Image Composer is a command-line tool that uses a simple toolchain to build
 mutable or immutable Linux distributions from the pre-built packages from
 different OS distribution repositories.
-Developed in the Go programming language, or Golang, the tool initially builds
+Developed in the Go programming language, or Golang, the tool builds
 custom images for
-[Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit),
-[Azure Linux](https://github.com/microsoft/azurelinux) and
-[Wind River eLxr](https://www.windriver.com/blog/Introducing-eLxr).
+Edge Microvisor Toolkit, Azure Linux, Wind River eLxr, Ubuntu, and Red Hat-compatible distributions (RCD).
 
 ## Get Started
 
@@ -23,7 +21,7 @@ support portability across operating systems.
   [latest tagged release](https://github.com/open-edge-platform/os-image-composer/releases)
   of the ZIP archive.
 
-- Install version 1.22.12 or later of the Go programming language before
+- Install version 1.24.0 or later of the Go programming language before
   building the tool; see the
   [Go installation instructions](https://go.dev/doc/manage-install)
   for your Linux distribution.
