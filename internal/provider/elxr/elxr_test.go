@@ -205,6 +205,7 @@ var _ chroot.ChrootEnvInterface = (*mockChrootEnv)(nil)
 func (m *mockChrootEnv) GetChrootEnvRoot() string          { return "/tmp/test-chroot" }
 func (m *mockChrootEnv) GetChrootImageBuildDir() string    { return "/tmp/test-build" }
 func (m *mockChrootEnv) GetTargetOsPkgType() string        { return "deb" }
+func (m *mockChrootEnv) GetTargetArch() string             { return "x86_64" }
 func (m *mockChrootEnv) GetTargetOsConfigDir() string      { return "/tmp/test-config" }
 func (m *mockChrootEnv) GetTargetOsReleaseVersion() string { return "12" }
 func (m *mockChrootEnv) GetChrootPkgCacheDir() string      { return "/tmp/test-cache" }

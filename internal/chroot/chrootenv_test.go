@@ -19,6 +19,7 @@ type mockChrootBuilder struct {
 	tempDir     string
 	osConfig    map[string]interface{}
 	pkgType     string
+	targetArch  string
 }
 
 // Add the missing method to satisfy ChrootBuilderInterface
@@ -75,6 +76,13 @@ func (m *mockChrootBuilder) GetTargetOsPkgType() string {
 		return m.pkgType
 	}
 	return "rpm"
+}
+
+func (m *mockChrootBuilder) GetTargetArch() string {
+	if m.targetArch != "" {
+		return m.targetArch
+	}
+	return "x86_64"
 }
 
 func (m *mockChrootBuilder) BuildChrootEnv(root, dist, arch string) error {

@@ -39,6 +39,10 @@ func (m *mockChrootEnv) GetTargetOsPkgType() string {
 	return m.pkgType
 }
 
+func (m *mockChrootEnv) GetTargetArch() string {
+	return "x86_64"
+}
+
 // Add missing method to satisfy chroot.ChrootEnvInterface
 func (m *mockChrootEnv) GetTargetOsConfigDir() string {
 	// Mock implementation: return a default config dir
