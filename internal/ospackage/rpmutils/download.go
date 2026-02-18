@@ -40,11 +40,11 @@ var (
 	Dist     string
 )
 
-func Packages() ([]ospackage.PackageInfo, error) {
+func Packages(targetArch string) ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", RepoCfg.URL)
 
-	packages, err := ParseRepositoryMetadata(RepoCfg.URL, GzHref, nil)
+	packages, err := ParseRepositoryMetadata(RepoCfg.URL, GzHref, targetArch, nil)
 	if err != nil {
 		log.Errorf("parsing primary.xml.gz failed: %v", err)
 		return nil, err
@@ -54,7 +54,7 @@ func Packages() ([]ospackage.PackageInfo, error) {
 	return packages, nil
 }
 
-func UserPackages() ([]ospackage.PackageInfo, error) {
+func UserPackages(targetArch string) ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", "user package list")
 
@@ -125,7 +125,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 			return nil, fmt.Errorf("fetching %s URL failed: %w", repoMetaDataURL, err)
 		}
 
-		userPkgs, err := ParseRepositoryMetadata(rpItx.URL, primaryXmlURL, rpItx.AllowPackages)
+		userPkgs, err := ParseRepositoryMetadata(rpItx.URL, primaryXmlURL, targetArch, rpItx.AllowPackages)
 		if err != nil {
 			return nil, fmt.Errorf("parsing user repo failed: %w", err)
 		}
@@ -384,25 +384,25 @@ func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospack
 }
 
 // DownloadPackages downloads packages and returns the list of downloaded package names.
-func DownloadPackages(pkgList []string, destDir, dotFile string, pkgSources map[string]config.PackageSource, systemRootsOnly bool) ([]string, error) {
-	downloadedPkgs, _, err := DownloadPackagesComplete(pkgList, destDir, dotFile, pkgSources, systemRootsOnly)
+func DownloadPackages(pkgList []string, destDir, targetArch, dotFile string, pkgSources map[string]config.PackageSource, systemRootsOnly bool) ([]string, error) {
+	downloadedPkgs, _, err := DownloadPackagesComplete(pkgList, destDir, targetArch, dotFile, pkgSources, systemRootsOnly)
 	return downloadedPkgs, err
 }
 
 // DownloadPackagesComplete downloads packages and returns both package names and full package info.
-func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSources map[string]config.PackageSource, systemRootsOnly bool) ([]string, []ospackage.PackageInfo, error) {
+func DownloadPackagesComplete(pkgList []string, destDir, targetArch string, dotFile string, pkgSources map[string]config.PackageSource, systemRootsOnly bool) ([]string, []ospackage.PackageInfo, error) {
 	var downloadPkgList []string
 
 	log := logger.Logger()
 	// Fetch the entire package list
-	all, err := Packages()
+	all, err := Packages(targetArch)
 	if err != nil {
 		log.Errorf("base packages fetch failed: %v", err)
 		return downloadPkgList, nil, fmt.Errorf("base package fetch failed: %v", err)
 	}
 
 	// Fetch the entire user repos package list
-	userpkg, err := UserPackages()
+	userpkg, err := UserPackages(targetArch)
 	if err != nil {
 		log.Errorf("getting user packages failed: %v", err)
 		return downloadPkgList, nil, fmt.Errorf("user package fetch failed: %w", err)
