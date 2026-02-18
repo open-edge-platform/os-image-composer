@@ -33,7 +33,7 @@ For build options (Earthly, Debian package) and prerequisite details, see the
 | [Installation Guide](./tutorial/installation.md) | Build methods, Debian packaging, prerequisites |
 | [Usage Guide](./tutorial/usage-guide.md) | CLI commands, configuration, build output, shell completion |
 | [CLI Reference](./architecture/os-image-composer-cli-specification.md) | Complete command-line specification |
-| [Image Templates](./architecture/os-image-composer-templates.md) | Template structure, variables, best practices |
+| [Image Templates](./architecture/os-image-composer-templates.md) | Field-by-field template reference, merge behavior, best practices |
 | [Build Process](./architecture/os-image-composer-build-process.md) | Pipeline stages, caching, troubleshooting |
 | [Architecture](./architecture/architecture.md) | System design and component overview |
 
