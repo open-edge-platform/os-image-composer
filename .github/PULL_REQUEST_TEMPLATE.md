@@ -3,6 +3,7 @@
 **All** boxes should be checked before merging the PR
 
 - [] The changes in the PR have been built and tested
+- [] Documentation has been updated to reflect the changes (or no doc update needed)
 - [] Ready to merge
 
 #### Description <!-- REQUIRED -->
