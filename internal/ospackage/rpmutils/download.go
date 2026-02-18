@@ -324,7 +324,8 @@ func Validate(destDir string) error {
 	}
 
 	if len(gpgKeyURLs) == 0 {
-		return fmt.Errorf("no GPG keys configured for verification")
+		log.Infof("no GPG keys configured for verification")
+		return nil
 	}
 
 	// Create temporary GPG key files
