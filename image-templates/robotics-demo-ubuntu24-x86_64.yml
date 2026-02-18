@@ -5,7 +5,7 @@
 # Includes turtlesim, rqt_graph, rqt_plot, and X11 forwarding support.
 #
 # Usage:
-#   sudo ./os-image-composer build -t image-templates/robotics-demo-ubuntu24-x86_64.yml
+#   sudo -E ./os-image-composer build image-templates/robotics-demo-ubuntu24-x86_64.yml
 #
 # VM prerequisites:
 #   sudo apt install -y qemu-system-x86 ovmf
@@ -21,8 +21,8 @@
 #     -netdev user,id=net0,hostfwd=tcp::2222-:22 \
 #     -nographic
 #
-# Connect with X11 forwarding:
-#   ssh -X -p 2222 robot@localhost
+# Connect with X11 forwarding (replace <user> with your configured user):
+#   ssh -X -p 2222 <user>@localhost
 #
 # ROS2 is auto-sourced on login. If needed manually:
 #   source /opt/ros/jazzy/setup.bash
@@ -175,7 +175,7 @@ systemConfig:
     - cmd: "systemctl enable ssh"
 
     # Fix SSH X11 forwarding (IPv6 socket allocation fails in QEMU)
-    - cmd: "echo 'AddressFamily inet' >> /etc/ssh/sshd_config"
+    - cmd: "sh -c \"mkdir -p /etc/ssh/sshd_config.d && printf 'AddressFamily inet\\n' > /etc/ssh/sshd_config.d/10-addressfamily.conf\""
 
     # Disable IPv6 (avoids DNS/connection timeouts in VM environments)
     - cmd: "echo 'net.ipv6.conf.all.disable_ipv6 = 1' >> /etc/sysctl.d/99-disable-ipv6.conf"
