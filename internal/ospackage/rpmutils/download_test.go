@@ -59,7 +59,7 @@ func TestUserPackages(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rpmutils.UserRepo = tc.userRepos
 
-			_, err := rpmutils.UserPackages()
+			_, err := rpmutils.UserPackages("x86_64")
 
 			if tc.expectError {
 				if err == nil {
@@ -115,7 +115,7 @@ func TestPackages(t *testing.T) {
 			}
 			rpmutils.GzHref = tc.gzHref
 
-			packages, err := rpmutils.Packages()
+			packages, err := rpmutils.Packages("x86_64")
 
 			if tc.expectError {
 				if err == nil {
@@ -686,7 +686,7 @@ func TestDownloadPackages(t *testing.T) {
 				defer os.RemoveAll(tmpDir)
 			}
 
-			result, err := rpmutils.DownloadPackages(tc.pkgList, tc.destDir, tc.dotFile, nil, false)
+			result, err := rpmutils.DownloadPackages(tc.pkgList, tc.destDir, "x86_64", tc.dotFile, nil, false)
 
 			if tc.expectError {
 				if err == nil {
@@ -1035,7 +1035,7 @@ func TestDownloadPackagesComplete(t *testing.T) {
 			}
 			defer os.RemoveAll(tmpDir)
 
-			downloadList, packageInfos, err := rpmutils.DownloadPackagesComplete(tc.pkgList, tmpDir, "", nil, false)
+			downloadList, packageInfos, err := rpmutils.DownloadPackagesComplete(tc.pkgList, tmpDir, "x86_64", "", nil, false)
 
 			if tc.expectError {
 				if err == nil {
@@ -1166,7 +1166,7 @@ func TestDownloadPackagesCompleteFunction(t *testing.T) {
 			}
 			defer os.RemoveAll(tmpDir)
 
-			downloadList, packageInfos, err := rpmutils.DownloadPackagesComplete(tc.pkgList, tmpDir, "", nil, false)
+			downloadList, packageInfos, err := rpmutils.DownloadPackagesComplete(tc.pkgList, tmpDir, "x86_64", "", nil, false)
 
 			if tc.expectError {
 				if err == nil {
@@ -1358,7 +1358,7 @@ func TestUserRepoConfig(t *testing.T) {
 
 			// Test that UserPackages function can handle the configuration
 			// Even though it will fail due to network calls, it validates the structure
-			_, err := rpmutils.UserPackages()
+			_, err := rpmutils.UserPackages("x86_64")
 
 			// For empty repos, should not error
 			if len(tc.userRepos) == 0 {
