@@ -154,7 +154,7 @@ The IR will be available at (example):
 ```bash
 gst-launch-1.0 filesrc location=/path/to/face-demographics-walking.mp4 ! \
   decodebin ! videoconvert ! \
-  gvadetect model=/home/<user>/intel/face-detection-adas-0001/FP32/face-detection-adas-0001.xml device=CPU ! \
+  gvadetect model=/home/<YOUR_USERNAME>/intel/face-detection-adas-0001/FP32/face-detection-adas-0001.xml device=CPU ! \
   gvawatermark ! videoconvert ! \
   vp8enc ! webmmux ! \
   filesink location=face_detected_output.webm
