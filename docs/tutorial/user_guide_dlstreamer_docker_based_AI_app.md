@@ -1,4 +1,3 @@
-
 # Docker‑Based Chat Q&A, Face Recognition & DL Streamer Face Detection
 
 *A unified guide for proxy setup, Docker-based AI apps (Ollama chat), face recognition (container), and DL Streamer face detection.*
