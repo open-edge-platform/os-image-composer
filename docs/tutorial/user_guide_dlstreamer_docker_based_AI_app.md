@@ -6,7 +6,7 @@
 ---
 
 ## 1. Prerequisites
-- Add DL Streamer and Docker based packages as part of os image composer build process using its multi repo features 
+- Add DL Streamer and Docker based packages as part of os image composer build process using its multi repo feature 
 - OS with Docker Engine installed via and running
 - (Optional) Corporate proxy details if you are behind a proxy
 - For DL Streamer section: Intel® DL Streamer installed under `/opt/intel/dlstreamer/`
@@ -207,4 +207,5 @@ Use these examples to extend your application beyond basic face detection into:
 ## 7. License
 
 This guide contains example commands and scripts provided for convenience. Review third‑party container/images licenses before redistribution.
+
 
