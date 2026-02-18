@@ -53,7 +53,7 @@ sudo -E os-image-composer build my-image-template.yml
 
 1. **Load Configuration** - Load global configuration and command-line overrides
 2. **Load and Merge Templates** - Parse user image template and merge with OS-specific default template for the image type and architecture
-3. **Initialize Provider** - Select the appropriate provider (Azure Linux, EMT, eLxr) based on template target (OS, distribution, architecture)
+3. **Initialize Provider** - Select the appropriate provider (Azure Linux, EMT, eLxr, Ubuntu, RCD) based on template target (OS, distribution, architecture)
 4. **PreProcess** - Provider validates template and prepares the build environment
 5. **BuildImage** - Provider executes the complete image build pipeline
 6. **PostProcess** - Provider performs cleanup and generates SBOM
