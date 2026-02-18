@@ -204,7 +204,7 @@ os-image-composer --log-level debug validate my-image-template.yml
 
 See also:
 
-- [Validate Stage](./os-image-composer-build-process.md#1-validate-stage)
+- [Template Loading and Validation](./os-image-composer-build-process.md#1-template-loading-and-validation)
   for details on the validation process
 
 ### Inspect Command
