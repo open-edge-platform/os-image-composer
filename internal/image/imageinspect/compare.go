@@ -226,6 +226,8 @@ type BootEntryChange struct {
 	Status      string `json:"status" yaml:"status"` // "added", "removed", "modified"
 	KernelFrom  string `json:"kernelFrom,omitempty" yaml:"kernelFrom,omitempty"`
 	KernelTo    string `json:"kernelTo,omitempty" yaml:"kernelTo,omitempty"`
+	InitrdFrom  string `json:"initrdFrom,omitempty" yaml:"initrdFrom,omitempty"`
+	InitrdTo    string `json:"initrdTo,omitempty" yaml:"initrdTo,omitempty"`
 	CmdlineFrom string `json:"cmdlineFrom,omitempty" yaml:"cmdlineFrom,omitempty"`
 	CmdlineTo   string `json:"cmdlineTo,omitempty" yaml:"cmdlineTo,omitempty"`
 }
@@ -1088,6 +1090,8 @@ func tallyBootloaderConfigDiff(t *diffTally, diff *BootloaderConfigDiff, efiKey 
 			// vs just the display name changed
 			if be.KernelFrom != be.KernelTo {
 				t.addMeaningful(1, "BootConfig["+efiKey+"] boot entry kernel changed: "+be.Name)
+			} else if be.InitrdFrom != be.InitrdTo {
+				t.addMeaningful(1, "BootConfig["+efiKey+"] boot entry initrd changed: "+be.Name)
 			} else if normalizeKernelCmdline(be.CmdlineFrom) != normalizeKernelCmdline(be.CmdlineTo) {
 				t.addMeaningful(1, "BootConfig["+efiKey+"] boot entry cmdline changed: "+be.Name)
 			} else {

@@ -270,27 +270,3 @@ func parseOSRelease(raw string) (map[string]string, []KeyValue) {
 
 	return m, sorted
 }
-
-// BootloaderConfigPaths returns the filesystem paths to check for bootloader config files
-// based on the bootloader kind.
-func BootloaderConfigPaths(kind BootloaderKind) []string {
-	switch kind {
-	case BootloaderGrub:
-		return []string{
-			"/EFI/grub/grub.cfg",
-			"/efi/grub/grub.cfg",
-			"/boot/grub/grub.cfg",
-			"/boot/grub2/grub.cfg",
-			"/grub/grub.cfg",
-		}
-	case BootloaderSystemdBoot:
-		return []string{
-			"/loader/loader.conf",
-			"/loader/entries/",
-			"/EFI/systemd/loader.conf",
-			"/efi/systemd/loader.conf",
-		}
-	default:
-		return nil
-	}
-}

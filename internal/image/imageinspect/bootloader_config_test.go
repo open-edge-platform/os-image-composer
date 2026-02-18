@@ -151,6 +151,20 @@ func TestCompareBootloaderConfigs(t *testing.T) {
 		t.Errorf("Expected 2 boot entry changes (1 modified, 1 added), got %d", len(diff.BootEntryChanges))
 	}
 
+	modifiedFound := false
+	for _, change := range diff.BootEntryChanges {
+		if change.Status != "modified" || change.Name != "Linux (old)" {
+			continue
+		}
+		modifiedFound = true
+		if change.InitrdFrom != "/initrd-5.14" || change.InitrdTo != "/initrd-5.15" {
+			t.Errorf("Expected initrd change /initrd-5.14 -> /initrd-5.15, got %q -> %q", change.InitrdFrom, change.InitrdTo)
+		}
+	}
+	if !modifiedFound {
+		t.Errorf("Expected modified boot entry change for Linux (old)")
+	}
+
 	// Should detect kernel reference changes
 	// Old vmlinuz-5.14 removed, vmlinuz-5.15 modified, vmlinuz-5.16 added = 3 changes
 	if len(diff.KernelRefChanges) != 3 {

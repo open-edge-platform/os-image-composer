@@ -58,15 +58,6 @@ func parseGrubConfigContent(content string) BootloaderConfig {
 		cfg.ConfigRaw["grub.cfg"] = content
 	}
 
-	// Extract UUID-like tokens from config content
-	uuids := extractUUIDsFromString(content)
-	for _, uuid := range uuids {
-		cfg.UUIDReferences = append(cfg.UUIDReferences, UUIDReference{
-			UUID:    uuid,
-			Context: "grub_config",
-		})
-	}
-
 	// Extract critical metadata from the config
 	lines := strings.Split(content, "\n")
 	var configfilePath string
@@ -299,9 +290,12 @@ func parseGrubMenuEntry(menuLine string) *BootEntry {
 		}
 	}
 
-	// Fallback: extract whatever is between menuentry and {
-	if idx := strings.Index(menuLine, "{"); idx > 0 {
-		entry.Name = strings.TrimSpace(menuLine[9:idx])
+	// Fallback: extract whatever is between "menuentry" and "{", if safely available.
+	prefix := "menuentry"
+	if strings.HasPrefix(menuLine, prefix) {
+		if idx := strings.Index(menuLine, "{"); idx > len(prefix) {
+			entry.Name = strings.TrimSpace(menuLine[len(prefix):idx])
+		}
 	}
 
 	return entry

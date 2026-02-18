@@ -741,8 +741,17 @@ func renderBootloaderConfigDetails(w io.Writer, efiPath string, cfg *BootloaderC
 
 	// Config file hashes and content preview
 	if len(cfg.ConfigFiles) > 0 {
+		fmt.Fprintf(w, "EFI Path: %s\n", efiPath)
 		fmt.Fprintln(w, "Config files:")
-		for path, hash := range cfg.ConfigFiles {
+
+		// Collect and sort paths for deterministic output
+		paths := make([]string, 0, len(cfg.ConfigFiles))
+		for path := range cfg.ConfigFiles {
+			paths = append(paths, path)
+		}
+		sort.Strings(paths)
+		for _, path := range paths {
+			hash := cfg.ConfigFiles[path]
 			fmt.Fprintf(w, "  %s: %s\n", path, shortHash(hash))
 
 			// Show raw config content (first 30 lines or up to 2KB)
@@ -879,6 +888,9 @@ func renderBootloaderConfigDiffText(w io.Writer, diff *BootloaderConfigDiff, ind
 			if change.Status == "modified" {
 				if change.KernelFrom != change.KernelTo {
 					fmt.Fprintf(w, "%s    kernel: %s -> %s\n", indent, change.KernelFrom, change.KernelTo)
+				}
+				if change.InitrdFrom != change.InitrdTo {
+					fmt.Fprintf(w, "%s    initrd: %s -> %s\n", indent, change.InitrdFrom, change.InitrdTo)
 				}
 				if change.CmdlineFrom != change.CmdlineTo {
 					if len(change.CmdlineFrom) > 80 {

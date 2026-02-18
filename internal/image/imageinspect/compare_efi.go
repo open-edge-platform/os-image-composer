@@ -364,6 +364,7 @@ func compareBootEntries(a, b []BootEntry) []BootEntryChange {
 				Name:        name,
 				Status:      "removed",
 				KernelFrom:  entryA.Kernel,
+				InitrdFrom:  entryA.Initrd,
 				CmdlineFrom: entryA.Cmdline,
 			})
 		case entryA == nil && entryB != nil:
@@ -371,16 +372,19 @@ func compareBootEntries(a, b []BootEntry) []BootEntryChange {
 				Name:      name,
 				Status:    "added",
 				KernelTo:  entryB.Kernel,
+				InitrdTo:  entryB.Initrd,
 				CmdlineTo: entryB.Cmdline,
 			})
 		case entryA != nil && entryB != nil:
 			// Check for changes within the entry
-			if entryA.Kernel != entryB.Kernel || entryA.Cmdline != entryB.Cmdline {
+			if entryA.Kernel != entryB.Kernel || entryA.Initrd != entryB.Initrd || entryA.Cmdline != entryB.Cmdline {
 				changes = append(changes, BootEntryChange{
 					Name:        name,
 					Status:      "modified",
 					KernelFrom:  entryA.Kernel,
 					KernelTo:    entryB.Kernel,
+					InitrdFrom:  entryA.Initrd,
+					InitrdTo:    entryB.Initrd,
 					CmdlineFrom: entryA.Cmdline,
 					CmdlineTo:   entryB.Cmdline,
 				})
@@ -470,6 +474,16 @@ func compareUUIDReferences(a, b []UUIDReference) []UUIDRefChange {
 					MismatchFrom: refA.Mismatch,
 					MismatchTo:   refB.Mismatch,
 				})
+			}
+			if refA.Context != refB.Context {
+				if refA.Mismatch == refB.Mismatch {
+					changes = append(changes, UUIDRefChange{
+						UUID:        uuid,
+						Status:      "modified",
+						ContextFrom: refA.Context,
+						ContextTo:   refB.Context,
+					})
+				}
 			}
 		}
 	}
