@@ -163,6 +163,9 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string, pkgSources map[strin
 // matchesPackageFilter checks if a package name matches any of the filter patterns.
 // Supports exact match and version-specific match (e.g., "kernel-6.17.11" matches "kernel-6.17.11-1.emt3.x86_64.rpm")
 func matchesPackageFilter(pkgName string, targetArch string, filter []string) bool {
+	if targetArch != "" && !(strings.Contains(pkgName, targetArch) || strings.Contains(pkgName, "noarch")) {
+		return false
+	}
 	if len(filter) == 0 {
 		return true // No filter means include all
 	}
