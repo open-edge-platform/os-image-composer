@@ -106,6 +106,7 @@ systemConfig:
     - systemd
     - openssh-server
     - systemd-resolved
+    - systemd-timesyncd
     - util-linux
     - udev
     - linux-firmware

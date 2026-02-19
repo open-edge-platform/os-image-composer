@@ -93,6 +93,7 @@ systemConfig:
     - cryptsetup-bin
     - openssh-server
     - systemd-resolved
+    - systemd-timesyncd
     - intel-dlstreamer
     - linux-firmware
 

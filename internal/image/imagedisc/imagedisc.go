@@ -574,7 +574,29 @@ func diskPartitionCreate(
 	}
 
 	if partitionInfo.FsType == "fat32" || partitionInfo.FsType == "fat16" || partitionInfo.FsType == "vfat" {
-		cmdStr = fmt.Sprintf("mkfs -t vfat %s", diskPartDev)
+		var fatTypeFlag string
+		switch partitionInfo.FsType {
+		case "fat32":
+			fatTypeFlag = "-F 32"
+		case "fat16":
+			fatTypeFlag = "-F 16"
+		default: // "vfat"
+			fatTypeFlag = "" // Let mkfs.vfat auto-decide
+		}
+
+		if partitionInfo.FsLabel != "" {
+			if fatTypeFlag != "" {
+				cmdStr = fmt.Sprintf("mkfs -t vfat %s -n %s %s", fatTypeFlag, partitionInfo.FsLabel, diskPartDev)
+			} else {
+				cmdStr = fmt.Sprintf("mkfs -t vfat -n %s %s", partitionInfo.FsLabel, diskPartDev)
+			}
+		} else {
+			if fatTypeFlag != "" {
+				cmdStr = fmt.Sprintf("mkfs -t vfat %s %s", fatTypeFlag, diskPartDev)
+			} else {
+				cmdStr = fmt.Sprintf("mkfs -t vfat %s", diskPartDev)
+			}
+		}
 		_, err := shell.ExecCmd(cmdStr, true, shell.HostPath, nil)
 		if err != nil {
 			log.Errorf("Failed to format partition %d with fs type %s: %v", partitionNum, partitionInfo.FsType, err)
@@ -590,8 +612,16 @@ func diskPartitionCreate(
 		case "ext4":
 			additionalFlags = "-b 4096 -O none,sparse_super,large_file,filetype,resize_inode,dir_index,ext_attr,has_journal,extent,huge_file,flex_bg,metadata_csum,64bit,dir_nlink,extra_isize"
 		}
-		if additionalFlags != "" {
+		var labelFlag string
+		if partitionInfo.FsLabel != "" {
+			labelFlag = fmt.Sprintf("-L %s", partitionInfo.FsLabel)
+		}
+		if additionalFlags != "" && labelFlag != "" {
+			cmdStr = fmt.Sprintf("mkfs -t %s %s %s %s", partitionInfo.FsType, labelFlag, additionalFlags, diskPartDev)
+		} else if additionalFlags != "" {
 			cmdStr = fmt.Sprintf("mkfs -t %s %s %s", partitionInfo.FsType, additionalFlags, diskPartDev)
+		} else if labelFlag != "" {
+			cmdStr = fmt.Sprintf("mkfs -t %s %s %s", partitionInfo.FsType, labelFlag, diskPartDev)
 		} else {
 			cmdStr = fmt.Sprintf("mkfs -t %s %s", partitionInfo.FsType, diskPartDev)
 		}
@@ -601,7 +631,11 @@ func diskPartitionCreate(
 			return "", fmt.Errorf("failed to format partition %d with fs type %s: %w", partitionNum, partitionInfo.FsType, err)
 		}
 	} else if partitionInfo.FsType == "linux-swap" {
-		cmdStr = fmt.Sprintf("mkswap %s", diskPartDev)
+		if partitionInfo.FsLabel != "" {
+			cmdStr = fmt.Sprintf("mkswap -L %s %s", partitionInfo.FsLabel, diskPartDev)
+		} else {
+			cmdStr = fmt.Sprintf("mkswap %s", diskPartDev)
+		}
 		_, err := shell.ExecCmd(cmdStr, true, shell.HostPath, nil)
 		if err != nil {
 			log.Errorf("Failed to format partition %d with fs type %s: %v", partitionNum, partitionInfo.FsType, err)
