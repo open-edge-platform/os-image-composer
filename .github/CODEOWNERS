@@ -10,7 +10,7 @@
 * @open-edge-platform/os-image-composer-maintain
 
 # CI files
-
+.github/ @adimoft @daveroge @shanedonohue @manilk1x @open-edge-platform/os-image-composer-maintain
 
 # documentation content
 /docs @open-edge-platform/open-edge-platform-docs-write
