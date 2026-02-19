@@ -188,6 +188,7 @@ func (p *ubuntu) installHostDependency() error {
 		"ubuntu-keyring": "ubuntu-keyring",   // For Ubuntu repository GPG keys
 		"bootctl":        "systemd-boot-efi", // For bootctl on Ubuntu hosts
 	}
+
 	hostPkgManager, err := system.GetHostOsPkgManager()
 	if err != nil {
 		return fmt.Errorf("failed to get host package manager: %w", err)
