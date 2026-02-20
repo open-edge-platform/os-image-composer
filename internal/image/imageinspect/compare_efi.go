@@ -465,7 +465,7 @@ func compareUUIDReferences(a, b []UUIDReference) []UUIDRefChange {
 				MismatchTo: refB.Mismatch,
 			})
 		case refA != nil && refB != nil:
-			if refA.Mismatch != refB.Mismatch {
+			if refA.Mismatch != refB.Mismatch || refA.Context != refB.Context {
 				changes = append(changes, UUIDRefChange{
 					UUID:         uuid,
 					Status:       "modified",
@@ -474,16 +474,6 @@ func compareUUIDReferences(a, b []UUIDReference) []UUIDRefChange {
 					MismatchFrom: refA.Mismatch,
 					MismatchTo:   refB.Mismatch,
 				})
-			}
-			if refA.Context != refB.Context {
-				if refA.Mismatch == refB.Mismatch {
-					changes = append(changes, UUIDRefChange{
-						UUID:        uuid,
-						Status:      "modified",
-						ContextFrom: refA.Context,
-						ContextTo:   refB.Context,
-					})
-				}
 			}
 		}
 	}

@@ -1014,6 +1014,10 @@ func TestCompareUUIDReferences_Branches(t *testing.T) {
 	if !ok || mismatchChanged.Status != "modified" || mismatchChanged.MismatchFrom != false || mismatchChanged.MismatchTo != true {
 		t.Fatalf("unexpected mismatch-changed UUID entry: %+v", mismatchChanged)
 	}
+	// When both mismatch and context change, the single entry must carry both pieces.
+	if mismatchChanged.ContextFrom != "kernel_cmdline" || mismatchChanged.ContextTo != "root_device" {
+		t.Fatalf("expected context change to be captured when mismatch also differs: %+v", mismatchChanged)
+	}
 
 	contextChanged, ok := byUUID["00000000-0000-0000-0000-000000000003"]
 	if !ok || contextChanged.Status != "modified" || contextChanged.ContextFrom != "grub_search" || contextChanged.ContextTo != "kernel_cmdline" {
