@@ -349,6 +349,11 @@ func findAllCandidates(parent ospackage.PackageInfo, depName string, all []ospac
 func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospackage.PackageInfo, bool) {
 	var candidates []ospackage.PackageInfo
 	for _, pi := range all {
+		// 0) canonical package name from <name> element (e.g. "ntfs-3g")
+		if pi.PkgName != "" && pi.PkgName == want {
+			candidates = append(candidates, pi)
+			break
+		}
 		// 1) exact name, e.g. acct-205-25.azl3.noarch.rpm
 		if pi.Name == want {
 			candidates = append(candidates, pi)

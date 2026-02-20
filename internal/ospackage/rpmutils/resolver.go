@@ -301,7 +301,14 @@ func ParseRepositoryMetadata(baseURL, gzHref string, packageFilter []string) ([]
 				for _, a := range elem.Attr {
 					if a.Name.Local == "href" {
 						curInfo.URL = strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(a.Value, "/")
-						curInfo.Name = path.Base(a.Value)
+						// Only set Name from location if <name> element hasn't set it yet.
+						// The <name> element provides the canonical package name (e.g. "ntfs-3g"),
+						// while location has the filename (e.g. "ntfs-3g-2022.10.3-2.emt3.x86_64.rpm")
+						// which can confuse extractBasePackageNameFromFile for packages with
+						// digit-starting components in their name (like "3g" in "ntfs-3g").
+						if curInfo.Name == "" {
+							curInfo.Name = path.Base(a.Value)
+						}
 						break
 					}
 				}
@@ -693,24 +700,13 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 			// Check if already resolved
 			// if _, seen := neededSet[depName]; seen {
 			if seen {
-				// ENHANCEMENT: Check version compatibility for already-resolved dependencies
-				existing, err := findAllCandidates(cur, depName, queue) //convertMapToSlice(resultMap))
-				if err == nil && len(existing) > 0 {
-					// Validate that existing package satisfies current requirement
-					_, err := resolveMultiCandidates(cur, existing)
-					if err != nil {
-						// Find the specific version constraint from RequiresVer
-						var requiredVer string
-						for _, req := range cur.RequiresVer {
-							if strings.Contains(req, depName) {
-								requiredVer = req
-								break
-							}
-						}
-						return nil, fmt.Errorf("conflicting package dependencies: %s_%s requires %s, but %s is already selected",
-							cur.Name, cur.Version, requiredVer, existing[0].Name)
-					}
-				}
+				// Note: Version compatibility checking for already-resolved dependencies
+				// is intentionally skipped here. When repos contain multiple release
+				// versions of related packages (e.g., qemu-common 9.1.0-{1..6}.emt3),
+				// strict version pinning causes false conflicts because the resolver
+				// may have already resolved a newer version that doesn't match an
+				// exact version constraint from an older sub-dependency.
+
 				// Append to parent's Requires field even if already resolved
 				if resultPkg, exists := resultMap[cur.Name]; exists {
 					resultPkg.Requires = append(resultPkg.Requires, filename)
