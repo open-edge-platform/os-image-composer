@@ -893,11 +893,15 @@ func renderBootloaderConfigDiffText(w io.Writer, diff *BootloaderConfigDiff, ind
 					fmt.Fprintf(w, "%s    initrd: %s -> %s\n", indent, change.InitrdFrom, change.InitrdTo)
 				}
 				if change.CmdlineFrom != change.CmdlineTo {
-					if len(change.CmdlineFrom) > 80 {
-						fmt.Fprintf(w, "%s    cmdline: %s... -> %s...\n", indent, change.CmdlineFrom[:77], change.CmdlineTo[:77])
-					} else {
-						fmt.Fprintf(w, "%s    cmdline: %s -> %s\n", indent, change.CmdlineFrom, change.CmdlineTo)
+					fromCmdline := change.CmdlineFrom
+					toCmdline := change.CmdlineTo
+					if len(fromCmdline) > 80 {
+						fromCmdline = fromCmdline[:77] + "..."
 					}
+					if len(toCmdline) > 80 {
+						toCmdline = toCmdline[:77] + "..."
+					}
+					fmt.Fprintf(w, "%s    cmdline: %s -> %s\n", indent, fromCmdline, toCmdline)
 				}
 			}
 		}
