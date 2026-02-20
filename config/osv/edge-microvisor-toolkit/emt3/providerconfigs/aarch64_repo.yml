@@ -1,0 +1,13 @@
+# Edge Microvisor Toolkit 3.0 Repository Configuration
+name: "Edge Microvisor Toolkit 3.0 ARM"
+type: "rpm"  # Repository type: rpm or deb
+#baseURL: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpm/3.0"
+#baseURL: "https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpms/3.0/base"
+baseURL: "https://af01p-fm.devtools.intel.com/artifactory/open_network_platform-fm-local/3.0"
+component: "emt3.0-base-arm"  # Repository component/section identifier
+gpgCheck: false  # Enabled with Intel GPG key
+repoGPGCheck: false  # Enabled with Intel GPG key
+enabled: false
+#gpgKey: "https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/INTEL-RPM-GPG-KEY"
+# Repository configuration URL (for reference): https://raw.githubusercontent.com/open-edge-platform/edge-microvisor-toolkit/refs/heads/3.0/SPECS/edge-repos/edge-base.repo
+buildPath: "./builds/emt3"  # Will be replaced with temp_dir/builds/emt3 at runtime

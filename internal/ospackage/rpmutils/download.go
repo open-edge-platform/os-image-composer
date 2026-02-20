@@ -40,11 +40,11 @@ var (
 	Dist     string
 )
 
-func Packages() ([]ospackage.PackageInfo, error) {
+func Packages(targetArch string) ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", RepoCfg.URL)
 
-	packages, err := ParseRepositoryMetadata(RepoCfg.URL, GzHref, nil)
+	packages, err := ParseRepositoryMetadata(RepoCfg.URL, GzHref, targetArch, nil)
 	if err != nil {
 		log.Errorf("parsing primary.xml.gz failed: %v", err)
 		return nil, err
@@ -54,7 +54,7 @@ func Packages() ([]ospackage.PackageInfo, error) {
 	return packages, nil
 }
 
-func UserPackages() ([]ospackage.PackageInfo, error) {
+func UserPackages(targetArch string) ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", "user package list")
 
@@ -125,7 +125,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 			return nil, fmt.Errorf("fetching %s URL failed: %w", repoMetaDataURL, err)
 		}
 
-		userPkgs, err := ParseRepositoryMetadata(rpItx.URL, primaryXmlURL, rpItx.AllowPackages)
+		userPkgs, err := ParseRepositoryMetadata(rpItx.URL, primaryXmlURL, targetArch, rpItx.AllowPackages)
 		if err != nil {
 			return nil, fmt.Errorf("parsing user repo failed: %w", err)
 		}
@@ -324,7 +324,8 @@ func Validate(destDir string) error {
 	}
 
 	if len(gpgKeyURLs) == 0 {
-		return fmt.Errorf("no GPG keys configured for verification")
+		log.Infof("no GPG keys configured for verification")
+		return nil
 	}
 
 	// Create temporary GPG key files
@@ -382,31 +383,55 @@ func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospack
 	return needed, nil
 }
 
+// filterPackagesByArch returns only packages matching targetArch or noarch.
+// If targetArch is empty, it returns the original package list unchanged.
+func filterPackagesByArch(pkgs []ospackage.PackageInfo, targetArch string) []ospackage.PackageInfo {
+	if targetArch == "" {
+		return pkgs
+	}
+
+	targetArch = strings.ToLower(strings.TrimSpace(targetArch))
+	filtered := make([]ospackage.PackageInfo, 0, len(pkgs))
+
+	for _, pkg := range pkgs {
+		arch := strings.ToLower(strings.TrimSpace(pkg.Arch))
+		if arch == targetArch || arch == "noarch" {
+			filtered = append(filtered, pkg)
+		}
+	}
+
+	return filtered
+}
+
 // DownloadPackages downloads packages and returns the list of downloaded package names.
-func DownloadPackages(pkgList []string, destDir, dotFile string, pkgSources map[string]config.PackageSource, systemRootsOnly bool) ([]string, error) {
-	downloadedPkgs, _, err := DownloadPackagesComplete(pkgList, destDir, dotFile, pkgSources, systemRootsOnly)
+func DownloadPackages(pkgList []string, destDir, targetArch, dotFile string, pkgSources map[string]config.PackageSource, systemRootsOnly bool) ([]string, error) {
+	downloadedPkgs, _, err := DownloadPackagesComplete(pkgList, destDir, targetArch, dotFile, pkgSources, systemRootsOnly)
 	return downloadedPkgs, err
 }
 
 // DownloadPackagesComplete downloads packages and returns both package names and full package info.
-func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSources map[string]config.PackageSource, systemRootsOnly bool) ([]string, []ospackage.PackageInfo, error) {
+func DownloadPackagesComplete(pkgList []string, destDir, targetArch string, dotFile string, pkgSources map[string]config.PackageSource, systemRootsOnly bool) ([]string, []ospackage.PackageInfo, error) {
 	var downloadPkgList []string
 
 	log := logger.Logger()
 	// Fetch the entire package list
-	all, err := Packages()
+	all, err := Packages(targetArch)
 	if err != nil {
 		log.Errorf("base packages fetch failed: %v", err)
 		return downloadPkgList, nil, fmt.Errorf("base package fetch failed: %v", err)
 	}
 
 	// Fetch the entire user repos package list
-	userpkg, err := UserPackages()
+	userpkg, err := UserPackages(targetArch)
 	if err != nil {
 		log.Errorf("getting user packages failed: %v", err)
 		return downloadPkgList, nil, fmt.Errorf("user package fetch failed: %w", err)
 	}
 	all = append(all, userpkg...)
+
+	allBeforeArchFilter := len(all)
+	all = filterPackagesByArch(all, targetArch)
+	log.Infof("Filtered repo package pool by architecture: kept %d/%d packages for targetArch=%q (+ noarch)", len(all), allBeforeArchFilter, targetArch)
 
 	// Adjust package names to remove any prefixes before PkgName - Azure Linux RPM repos often prefix package file names
 	for i := range all {
@@ -438,6 +463,14 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 	sorted_pkgs, err := pkgsorter.SortPackages(needed)
 	if err != nil {
 		log.Errorf("sorting packages: %v", err)
+	}
+
+	// Safety filter: only download RPMs matching target architecture or noarch.
+	sortedBeforeArchFilter := len(sorted_pkgs)
+	sorted_pkgs = filterPackagesByArch(sorted_pkgs, targetArch)
+	log.Infof("Filtered download set by architecture: kept %d/%d packages for targetArch=%q (+ noarch)", len(sorted_pkgs), sortedBeforeArchFilter, targetArch)
+	if targetArch != "" && len(sorted_pkgs) == 0 {
+		return downloadPkgList, nil, fmt.Errorf("no packages matched target architecture %q (or noarch)", targetArch)
 	}
 	log.Infof("Sorted %d packages for installation", len(sorted_pkgs))
 

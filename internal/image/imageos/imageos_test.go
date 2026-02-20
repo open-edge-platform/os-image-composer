@@ -93,6 +93,10 @@ func (m *MockChrootEnv) GetTargetOsPkgType() string {
 	return "deb"
 }
 
+func (m *MockChrootEnv) GetTargetArch() string {
+	return "x86_64"
+}
+
 // Implement all required interface methods as stubs
 func (m *MockChrootEnv) GetTargetOsConfigDir() string              { return "/tmp/config" }
 func (m *MockChrootEnv) GetTargetOsReleaseVersion() string         { return "1.0" }

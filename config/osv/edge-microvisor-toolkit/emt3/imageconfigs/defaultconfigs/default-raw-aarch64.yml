@@ -1,5 +1,5 @@
 image:
-  name: emt3-default-x86_64
+  name: emt3-default-aarch64
   version: "1.0.0"
 
 target:
@@ -86,7 +86,6 @@ systemConfig:
     - platform-observability-agent
     - platform-telemetry-agent
     - platform-update-agent
-    - in-band-manageability
     - reporting-agent
 
     # tinker tools

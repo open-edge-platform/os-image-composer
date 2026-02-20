@@ -81,6 +81,10 @@ func (m *mockChrootEnv) GetTargetOsPkgType() string {
 	return m.pkgType
 }
 
+func (m *mockChrootEnv) GetTargetArch() string {
+	return "x86_64"
+}
+
 func (m *mockChrootEnv) GetTargetOsConfigDir() string {
 	// Mock implementation: return a default config dir
 	return filepath.Join(m.chrootEnvRoot, "config")

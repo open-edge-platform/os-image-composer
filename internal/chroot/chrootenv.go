@@ -32,6 +32,7 @@ type ChrootEnvInterface interface {
 	GetChrootEnvRoot() string
 	GetChrootImageBuildDir() string
 	GetTargetOsPkgType() string
+	GetTargetArch() string
 	GetTargetOsConfigDir() string
 	GetTargetOsReleaseVersion() string
 	GetChrootPkgCacheDir() string
@@ -58,6 +59,7 @@ type ChrootEnv struct {
 	ChrootImageBuildDir string
 	ChrootBuilder       chrootbuild.ChrootBuilderInterface
 	TargetOs            string // Store targetOs for package manager selection
+	TargetArch          string // Store targetArch for package manager selection
 }
 
 func NewChrootEnv(targetOs, targetDist, targetArch string) (*ChrootEnv, error) {
@@ -96,7 +98,9 @@ func (chrootEnv *ChrootEnv) GetChrootImageBuildDir() string {
 func (chrootEnv *ChrootEnv) GetTargetOsPkgType() string {
 	return chrootEnv.ChrootBuilder.GetTargetOsPkgType()
 }
-
+func (chrootEnv *ChrootEnv) GetTargetArch() string {
+	return chrootEnv.ChrootBuilder.GetTargetArch()
+}
 func (chrootEnv *ChrootEnv) GetTargetOsConfigDir() string {
 	return chrootEnv.ChrootBuilder.GetTargetOsConfigDir()
 }

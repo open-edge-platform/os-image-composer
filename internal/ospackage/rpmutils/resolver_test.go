@@ -328,7 +328,7 @@ func TestParsePrimary(t *testing.T) {
 			defer server.Close()
 
 			// Test ParseRepositoryMetadata
-			packages, err := ParseRepositoryMetadata(server.URL+"/", tt.filename, nil)
+			packages, err := ParseRepositoryMetadata(server.URL+"/", tt.filename, "x86_64", nil)
 
 			if tt.expectedError {
 				if err == nil {

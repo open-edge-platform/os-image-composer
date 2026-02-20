@@ -32,6 +32,7 @@ var log = logger.Logger()
 
 type ChrootBuilderInterface interface {
 	GetTargetOsPkgType() string
+	GetTargetArch() string
 	GetTargetOsConfigDir() string
 	GetChrootBuildDir() string
 	GetChrootPkgCacheDir() string
@@ -125,6 +126,17 @@ func (chrootBuilder *ChrootBuilder) GetTargetOsPkgType() string {
 		return "unknown"
 	}
 	if s, ok := pkgType.(string); ok {
+		return s
+	}
+	return "unknown"
+}
+
+func (chrootBuilder *ChrootBuilder) GetTargetArch() string {
+	arch, ok := chrootBuilder.TargetOsConfig["arch"]
+	if !ok {
+		return "unknown"
+	}
+	if s, ok := arch.(string); ok {
 		return s
 	}
 	return "unknown"
@@ -229,7 +241,9 @@ func (chrootBuilder *ChrootBuilder) downloadChrootEnvPackages() ([]string, []str
 	var pkgsList []string
 	var allPkgsList []string
 
+	targetArch := chrootBuilder.GetTargetArch()
 	pkgType := chrootBuilder.GetTargetOsPkgType()
+
 	essentialPkgsList, err := chrootBuilder.GetChrootEnvEssentialPackageList()
 	if err != nil {
 		return pkgsList, allPkgsList, fmt.Errorf("failed to get essential packages list: %w", err)
@@ -250,7 +264,7 @@ func (chrootBuilder *ChrootBuilder) downloadChrootEnvPackages() ([]string, []str
 	dotFilePath := filepath.Join(chrootBuilder.ChrootPkgCacheDir, "chrootpkgs.dot")
 
 	if pkgType == "rpm" {
-		allPkgsList, err = rpmutils.DownloadPackages(pkgsList, chrootBuilder.ChrootPkgCacheDir, dotFilePath, nil, false)
+		allPkgsList, err = rpmutils.DownloadPackages(pkgsList, chrootBuilder.ChrootPkgCacheDir, targetArch, dotFilePath, nil, false)
 		if err != nil {
 			return pkgsList, allPkgsList, fmt.Errorf("failed to download chroot environment packages: %w", err)
 		}
