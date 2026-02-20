@@ -383,6 +383,26 @@ func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospack
 	return needed, nil
 }
 
+// filterPackagesByArch returns only packages matching targetArch or noarch.
+// If targetArch is empty, it returns the original package list unchanged.
+func filterPackagesByArch(pkgs []ospackage.PackageInfo, targetArch string) []ospackage.PackageInfo {
+	if targetArch == "" {
+		return pkgs
+	}
+
+	targetArch = strings.ToLower(strings.TrimSpace(targetArch))
+	filtered := make([]ospackage.PackageInfo, 0, len(pkgs))
+
+	for _, pkg := range pkgs {
+		arch := strings.ToLower(strings.TrimSpace(pkg.Arch))
+		if arch == targetArch || arch == "noarch" {
+			filtered = append(filtered, pkg)
+		}
+	}
+
+	return filtered
+}
+
 // DownloadPackages downloads packages and returns the list of downloaded package names.
 func DownloadPackages(pkgList []string, destDir, targetArch, dotFile string, pkgSources map[string]config.PackageSource, systemRootsOnly bool) ([]string, error) {
 	downloadedPkgs, _, err := DownloadPackagesComplete(pkgList, destDir, targetArch, dotFile, pkgSources, systemRootsOnly)
@@ -408,6 +428,10 @@ func DownloadPackagesComplete(pkgList []string, destDir, targetArch string, dotF
 		return downloadPkgList, nil, fmt.Errorf("user package fetch failed: %w", err)
 	}
 	all = append(all, userpkg...)
+
+	allBeforeArchFilter := len(all)
+	all = filterPackagesByArch(all, targetArch)
+	log.Infof("Filtered repo package pool by architecture: kept %d/%d packages for targetArch=%q (+ noarch)", len(all), allBeforeArchFilter, targetArch)
 
 	// Adjust package names to remove any prefixes before PkgName - Azure Linux RPM repos often prefix package file names
 	for i := range all {
@@ -439,6 +463,14 @@ func DownloadPackagesComplete(pkgList []string, destDir, targetArch string, dotF
 	sorted_pkgs, err := pkgsorter.SortPackages(needed)
 	if err != nil {
 		log.Errorf("sorting packages: %v", err)
+	}
+
+	// Safety filter: only download RPMs matching target architecture or noarch.
+	sortedBeforeArchFilter := len(sorted_pkgs)
+	sorted_pkgs = filterPackagesByArch(sorted_pkgs, targetArch)
+	log.Infof("Filtered download set by architecture: kept %d/%d packages for targetArch=%q (+ noarch)", len(sorted_pkgs), sortedBeforeArchFilter, targetArch)
+	if targetArch != "" && len(sorted_pkgs) == 0 {
+		return downloadPkgList, nil, fmt.Errorf("no packages matched target architecture %q (or noarch)", targetArch)
 	}
 	log.Infof("Sorted %d packages for installation", len(sorted_pkgs))
 
