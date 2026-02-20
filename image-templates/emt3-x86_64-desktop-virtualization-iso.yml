@@ -1,0 +1,320 @@
+# ============================================================================
+# EMT Desktop Virtualization (IDV) ISO Image Template
+# ============================================================================
+#
+# This template is derived from the Edge Desktop Virtualization project:
+#   Repo:   https://github.com/open-edge-platform/edge-desktop-virtualization
+#   Branch: emt-dv-iso-latest
+#   Path:   emt-dv-iso/
+#
+# Key IDV source references:
+#   idv.json:          emt-dv-iso/idv.json           — EMT image config (package lists, kernel, SELinux)
+#   build_idv_iso.sh:  emt-dv-iso/build_idv_iso.sh   — Standalone build script (DEFAULT_TAG, build flow)
+#   README.md:         emt-dv-iso/README.md           — Build instructions and prerequisites
+#
+# The IDV image provides QEMU/KVM desktop virtualization with Intel graphics
+# SR-IOV (i915), enabling GPU-accelerated virtual desktops on Intel platforms.
+# ============================================================================
+
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Edge Microvisor Toolkit 3 Desktop Virtualization (IDV) ISO image with graphics SR-IOV, QEMU/KVM, and X11 display for GPU-virtualized desktop workflows"
+  use_cases:
+    - "desktop virtualization"
+    - "graphics SR-IOV"
+    - "GPU passthrough"
+    - "virtual desktop infrastructure"
+    - "QEMU/KVM virtualization"
+    - "bootable installer"
+  keywords:
+    - idv
+    - desktop-virtualization
+    - sriov
+    - gpu
+    - qemu
+    - kvm
+    - libvirt
+    - xorg
+    - iso
+    - installer
+    - emt3
+    - microvisor
+    - i915
+
+image:
+  # Ref: idv.json → SystemConfigs[0].Name = "EMT-Desktop-Virtualization"
+  name: emt3-x86_64-desktop-virtualization
+  version: "1.0.0"
+
+target:
+  # Ref: build_idv_iso.sh → GIT_REPO points to edge-microvisor-toolkit
+  os: edge-microvisor-toolkit
+  # Ref: build_idv_iso.sh → DEFAULT_TAG=3.0.20251204 (EMT 3.x release)
+  dist: emt3
+  # Ref: README.md → build targets x86_64 ISO
+  arch: x86_64
+  # Ref: build_idv_iso.sh → "sudo make iso ..." / idv.json used with "make iso" command
+  # Ref: README.md → "Step 5: Build the ISO for desktop virtualization (IDV)"
+  imageType: iso
+
+# ============================================================================
+# System Configuration
+# ============================================================================
+# Ref: idv.json → SystemConfigs[0] — single system config for the IDV image
+systemConfig:
+  # Ref: idv.json → "Name": "EMT-Desktop-Virtualization"
+  name: EMT-Desktop-Virtualization
+  description: >-
+    EMT Desktop Virtualization (IDV) ISO with Intel graphics SR-IOV support.
+    Derived from edge-desktop-virtualization/emt-dv-iso/idv.json.
+
+  # Ref: idv.json → uses grub2-mkconfig package list, indicating GRUB-based EFI boot
+  # Ref: idv.json → PackageLists includes "packagelists/grub2-mkconfig.json"
+  bootloader:
+    bootType: efi
+    provider: grub
+
+  # Ref: No immutability/read-only root in the IDV config — desktop virtualization
+  # requires a writable root filesystem for KVM, libvirt, and X11 runtime state
+  immutability:
+    enabled: false
+
+  # ============================================================================
+  # Packages
+  # ============================================================================
+  # All packages are sourced from idv.json → PackageLists[] and Packages[].
+  # Each group below maps to one entry in idv.json → PackageLists[].
+  # The EMT package list JSON files are at:
+  #   edge-microvisor-toolkit/toolkit/imageconfigs/packagelists/<name>.json
+  # ============================================================================
+  packages:
+
+    # --------------------------------------------------------------------------
+    # grub2-mkconfig (bootloader)
+    # Ref: idv.json → PackageLists[0] = "packagelists/grub2-mkconfig.json"
+    # Contains: ["grub2"]
+    # Note: "grub2-mkconfig is packaged with the grub2 base package. Images that
+    #        boot for the first time using the mkconfig flow must therefore have
+    #        grub2 installed by the tools." (from grub2-mkconfig.json _comment)
+    # --------------------------------------------------------------------------
+    - grub2
+
+    # --------------------------------------------------------------------------
+    # core-packages-image (essential boot & system packages)
+    # Ref: idv.json → PackageLists[3] = "packagelists/core-packages-image.json"
+    # Contains: ["shim", "efibootmgr", "grub2-efi-binary", "ca-certificates",
+    #            "cronie-anacron", "logrotate", "core-packages-base-image",
+    #            "dracut-vrf", "dracut-systemd-cryptsetup", "initramfs",
+    #            "shadow-utils"]
+    # --------------------------------------------------------------------------
+    - shim                        # UEFI shim bootloader for Secure Boot chain
+    - efibootmgr                  # EFI Boot Manager utility
+    - grub2-efi-binary            # GRUB2 EFI binary for UEFI boot
+    - ca-certificates             # Root CA certificates for TLS verification
+    - cronie-anacron              # Cron job scheduler with anacron support
+    - logrotate                   # Log rotation utility
+    - core-packages-base-image   # EMT base image meta-package
+    - dracut-vrf                  # Dracut module for VRF (Virtual Routing and Forwarding)
+    - dracut-systemd-cryptsetup   # Dracut module for LUKS disk encryption via systemd
+    - initramfs                   # Initial RAM filesystem generation
+    - shadow-utils                # User/group management (useradd, groupadd, etc.)
+
+    # --------------------------------------------------------------------------
+    # developer-packages (build tools and utilities)
+    # Ref: idv.json → PackageLists[1] = "packagelists/developer-packages.json"
+    # Contains: ["build-essential", "cmake", "createrepo_c", "curl-devel",
+    #            "device-mapper", "flex", "fuse-devel", "git", "golang",
+    #            "iputils", "less", "linux-firmware", "net-tools", "ninja-build",
+    #            "parted", "pciutils", "python3-pip", "tar", "texinfo",
+    #            "usbutils", "wget"]
+    # --------------------------------------------------------------------------
+    - build-essential             # C/C++ compiler and essential build tools (gcc, make, etc.)
+    - cmake                       # Cross-platform build system generator
+    - createrepo_c                # RPM repository metadata generator
+    - curl-devel                  # libcurl development headers for HTTP client support
+    - device-mapper               # Kernel device-mapper support (LVM, dm-crypt)
+    - flex                        # Fast lexical analyzer generator
+    - fuse-devel                  # FUSE filesystem development headers
+    - git                         # Distributed version control system
+    - golang                      # Go programming language toolchain
+    - iputils                     # Network utilities (ping, arping, tracepath)
+    - less                        # Terminal pager for viewing file contents
+    - linux-firmware              # Hardware firmware blobs for various devices
+    - net-tools                   # Legacy networking utilities (ifconfig, netstat, route)
+    - ninja-build                 # Small build system with a focus on speed
+    - parted                      # Disk partition manipulation tool
+    - pciutils                    # PCI bus inspection utilities (lspci)
+    - python3-pip                 # Python package installer
+    - tar                         # Archive utility
+    - texinfo                     # Documentation system for on-line information
+    - usbutils                    # USB device inspection utilities (lsusb)
+    - wget                        # HTTP/FTP file downloader
+
+    # --------------------------------------------------------------------------
+    # core-tools-packages (essential command-line tools)
+    # Ref: idv.json → PackageLists[4] = "packagelists/core-tools-packages.json"
+    # Contains: ["dnf", "vim", "wget"]
+    # Note: wget already listed above in developer-packages; schema enforces uniqueItems
+    # --------------------------------------------------------------------------
+    - dnf                         # RPM package manager (successor to yum)
+    - vim                         # Vi Improved text editor
+
+    # --------------------------------------------------------------------------
+    # ssh-server (remote access)
+    # Ref: idv.json → PackageLists[5] = "packagelists/ssh-server.json"
+    # Contains: ["openssh-server"]
+    # --------------------------------------------------------------------------
+    - openssh-server              # OpenSSH server daemon for remote shell access
+
+    # --------------------------------------------------------------------------
+    # virtualization-host-full-packages (QEMU/KVM hypervisor stack)
+    # Ref: idv.json → PackageLists[2] = "packagelists/virtualization-host-full-packages.json"
+    # Contains: ["swtpm-tools", "libvirt", "pulseaudio", "qemu-kvm",
+    #            "qemu-with-ui", "qemu-audio-pa"]
+    # This is the core of the IDV image — provides GPU-virtualized QEMU/KVM
+    # desktops with audio and display passthrough.
+    # --------------------------------------------------------------------------
+    - swtpm-tools                 # Software TPM emulation tools for VM trusted platform module
+    - libvirt                     # Virtualization API and daemon (manages QEMU/KVM VMs)
+    - pulseaudio                  # Audio server for sound routing to/from VMs
+    - qemu-kvm                    # QEMU with KVM acceleration — the core hypervisor
+    - qemu-with-ui                # QEMU built with graphical UI (GTK/SDL) for VM display
+    - qemu-audio-pa               # QEMU PulseAudio backend for VM audio output
+
+    # --------------------------------------------------------------------------
+    # qemu-guest-packages (guest VM support)
+    # Ref: idv.json → PackageLists[6] = "packagelists/qemu-guest-packages.json"
+    # Contains: ["qemu-guest-agent", "dracut-virtio"]
+    # --------------------------------------------------------------------------
+    - qemu-guest-agent            # Agent for host-guest communication (shutdown, freeze, etc.)
+    - dracut-virtio               # Dracut module for VirtIO device drivers in initramfs
+
+    # --------------------------------------------------------------------------
+    # xorg-x11-packages (X11 display server and window manager)
+    # Ref: idv.json → PackageLists[7] = "packagelists/xorg-x11-packages.json"
+    # Contains: ["openbox", "xterm", "xorg-x11-server-Xorg", "xorg-x11-apps",
+    #            "xorg-x11-server-utils", "xorg-x11-xinit", "xorg-x11-drv-libinput",
+    #            "xorg-x11-util-macros", "xorg-x11-xkb-utils", "freefont"]
+    # Provides the graphical display stack for SR-IOV virtual desktop rendering.
+    # --------------------------------------------------------------------------
+    - openbox                     # Lightweight X11 window manager for VM display sessions
+    - xterm                       # X11 terminal emulator
+    - xorg-x11-server-Xorg        # X.Org X11 display server (renders GPU output)
+    - xorg-x11-apps               # Standard X11 applications (xeyes, xclock, etc.)
+    - xorg-x11-server-utils       # X server utilities (xrandr, xset, xdpyinfo)
+    - xorg-x11-xinit              # X11 session startup (startx, xinit)
+    - xorg-x11-drv-libinput       # X11 input driver via libinput (keyboard, mouse, touch)
+    - xorg-x11-util-macros        # X11 build utility macros
+    - xorg-x11-xkb-utils          # X Keyboard Extension utilities (setxkbmap, xkbcomp)
+    - freefont                    # Free Unicode fonts for X11 display
+
+    # --------------------------------------------------------------------------
+    # selinux-full (mandatory access control)
+    # Ref: idv.json → PackageLists[8] = "packagelists/selinux-full.json"
+    # Contains: ["selinux-policy", "selinux-policy-devel",
+    #            "policycoreutils-python-utils", "checkpolicy", "secilc",
+    #            "setools-console"]
+    # Note: SELinux is set to permissive mode via kernel cmdline (enforcing=0).
+    #       See idv.json → KernelCommandLine.SELinux = "permissive"
+    # --------------------------------------------------------------------------
+    - selinux-policy              # Base SELinux policy package
+    - selinux-policy-devel        # SELinux policy development tools
+    - policycoreutils-python-utils # SELinux policy management Python utilities (semanage, audit2allow)
+    - checkpolicy                 # SELinux policy compiler
+    - secilc                      # SELinux CIL (Common Intermediate Language) compiler
+    - setools-console             # SELinux policy analysis tools (sesearch, seinfo)
+
+    # --------------------------------------------------------------------------
+    # intel-gpu-base (Intel GPU firmware and drivers)
+    # Ref: idv.json → PackageLists[9] = "packagelists/intel-gpu-base.json"
+    # Contains: ["kernel-drivers-gpu", "linux-firmware-i915", "linux-firmware-ice",
+    #            "intel-npu-firmware"]
+    # Critical for SR-IOV GPU virtualization — provides i915 driver and firmware.
+    # --------------------------------------------------------------------------
+    - kernel-drivers-gpu          # Intel GPU kernel driver modules (i915 SR-IOV capable)
+    - linux-firmware-i915         # Intel i915 GPU firmware blobs (GuC, HuC, DMC)
+    - linux-firmware-ice          # Intel ICE network adapter firmware
+    - intel-npu-firmware          # Intel Neural Processing Unit firmware
+
+    # --------------------------------------------------------------------------
+    # drtm (Dynamic Root of Trust for Measurement)
+    # Ref: idv.json → PackageLists[10] = "packagelists/drtm.json"
+    # Contains: ["tboot", "tpm2-tools", "tpm2-tss"]
+    # Provides hardware-based platform integrity measurement via TPM 2.0.
+    # --------------------------------------------------------------------------
+    - tboot                       # Trusted Boot — Intel TXT-based measured launch
+    - tpm2-tools                  # TPM 2.0 command-line tools
+    - tpm2-tss                    # TPM 2.0 Software Stack (TSS) libraries
+
+    # --------------------------------------------------------------------------
+    # virt-guest-packages (hypervisor guest support modules)
+    # Ref: idv.json → PackageLists[11] = "packagelists/virt-guest-packages.json"
+    # Contains: ["dracut-hyperv", "dracut-virtio", "dracut-xen"]
+    # Note: dracut-virtio already included via qemu-guest-packages above;
+    #       schema enforces uniqueItems so it is not duplicated here.
+    # --------------------------------------------------------------------------
+    - dracut-hyperv               # Dracut module for Hyper-V guest drivers
+    - dracut-xen                  # Dracut module for Xen guest drivers
+
+    # --------------------------------------------------------------------------
+    # intel-wireless (WiFi firmware and regulatory data)
+    # Ref: idv.json → PackageLists[12] = "packagelists/intel-wireless.json"
+    # Contains: ["linux-firmware-iwlwifi", "wireless-regdb"]
+    # --------------------------------------------------------------------------
+    - linux-firmware-iwlwifi      # Intel WiFi adapter firmware (iwlwifi driver)
+    - wireless-regdb              # Wireless regulatory database (country-specific channel rules)
+
+    # --------------------------------------------------------------------------
+    # IDV-specific additional packages
+    # Ref: idv.json → Packages[] (inline, not from a packagelist JSON file)
+    # These are listed directly in the "Packages" array of the IDV system config
+    # and provide IDV-specific filesystem, networking, and GPU diagnostic tools.
+    # --------------------------------------------------------------------------
+    - lsb-release                 # Linux Standard Base version reporting utility
+    - nbd                         # Network Block Device — enables remote block device access for VMs
+    - ntfs-3g                     # NTFS filesystem read/write driver (FUSE-based, for Windows VM disks)
+    - ntfs-3g-system-compression  # NTFS system compression support (Windows 10+ compact OS)
+    - ntfs-3g-libs                # NTFS-3G shared libraries
+    - wpa_supplicant              # WPA/WPA2/WPA3 WiFi authentication supplicant (added in PR #67)
+    - igt-gpu-tools               # Intel GPU Tools — diagnostics and testing for i915 SR-IOV VFs
+
+  # ============================================================================
+  # Kernel Configuration
+  # ============================================================================
+  # Ref: idv.json → KernelCommandLine.ExtraCommandLine and KernelOptions
+  # Ref: idv.json → "KernelOptions": { "default": "kernel" }
+  # Ref: idv.json → KernelCommandLine.SELinux = "permissive" → mapped to enforcing=0
+  kernel:
+    # Ref: idv.json → KernelOptions.default = "kernel"
+    name: kernel
+    # Ref: idv.json → KernelCommandLine.ExtraCommandLine:
+    #   "udmabuf.list_limit=8192 i915.enable_guc=3 i915.max_vfs=7
+    #    intel_iommu=on i915.force_probe=*"
+    # Ref: idv.json → KernelCommandLine.SELinux = "permissive" → enforcing=0
+    #
+    # Parameter breakdown:
+    #   console=ttyS0,115200    — Serial console output at 115200 baud
+    #   console=tty0            — Also output to the display console
+    #   udmabuf.list_limit=8192 — Increase UDMA buffer list limit for GPU SR-IOV display buffers
+    #   i915.enable_guc=3       — Enable both GuC submission (1) + HuC authentication (2) = 3
+    #   i915.max_vfs=7          — Create up to 7 SR-IOV Virtual Functions on the i915 GPU
+    #   intel_iommu=on          — Enable Intel IOMMU/VT-d for device passthrough to VMs
+    #   i915.force_probe=*      — Force i915 driver to probe all supported/unsupported GPU PCI IDs
+    #   enforcing=0             — SELinux permissive mode (logs violations but does not block)
+    cmdline: "console=ttyS0,115200 console=tty0 udmabuf.list_limit=8192 i915.enable_guc=3 i915.max_vfs=7 intel_iommu=on i915.force_probe=* enforcing=0"
+    packages:
+      - kernel                    # Default EMT kernel package
+
+  # ============================================================================
+  # Additional Files
+  # ============================================================================
+  # Ref: idv.json → AdditionalFiles:
+  #   "additionalconfigs/99-dhcp-en.network": "/etc/systemd/network/99-dhcp-en.network"
+  # Provides automatic DHCP networking on all Ethernet interfaces via systemd-networkd.
+  # Ref: idv.json → PostInstallScripts[0].Path =
+  #   "additionalconfigs/configure-systemd-networkd-client-identifier.sh"
+  #   (post-install script is handled separately by the provider; the network
+  #    config file is deployed here)
+  additionalFiles:
+    - local: ../additionalfiles/99-dhcp-en.network
+      final: /etc/systemd/network/99-dhcp-en.network
