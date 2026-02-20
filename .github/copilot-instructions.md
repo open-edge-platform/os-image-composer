@@ -14,14 +14,16 @@ Data flow: CLI → Config loads template → Provider.Init → Provider.PreProce
 
 ## Build and Test
 
-Always use **Earthly** for builds and testing. Do not run `go build` or `go test` directly.
+Always use **Earthly** for builds and testing when available. If Earthly is not configured in your environment, you can fall back to standard Go commands:
 
-| Task | Command |
-|------|---------|
-| Build | `earthly +build` |
-| Test (fast) | `earthly +test-quick` |
-| Test (coverage) | `earthly +test` |
-| Lint | `earthly +lint` |
+| Task | Earthly (preferred) | Go fallback |
+|------|---------------------|-------------|
+| Build | `earthly +build` | `go build ./...` |
+| Test (fast) | `earthly +test-quick` | `go test ./...` |
+| Test (coverage) | `earthly +test` | `go test -coverprofile=coverage.out ./...` |
+| Lint | `earthly +lint` | `golangci-lint run` |
+
+Note: CI runs Earthly, so always verify with `earthly +test` and `earthly +lint` before opening a PR if possible, to avoid CI failures.
 
 Coverage threshold is enforced in CI and auto-ratcheted — see `.coverage-threshold` for the current value
 
