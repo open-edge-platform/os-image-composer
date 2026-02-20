@@ -48,6 +48,8 @@ image:
 
 target:
   # Ref: build_idv_iso.sh → GIT_REPO points to edge-microvisor-toolkit
+  # Packages are pulled from the EMT 3.0 RPM repository:
+  #   https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpms/3.0/base
   os: edge-microvisor-toolkit
   # Ref: build_idv_iso.sh → DEFAULT_TAG=3.0.20251204 (EMT 3.x release)
   dist: emt3
