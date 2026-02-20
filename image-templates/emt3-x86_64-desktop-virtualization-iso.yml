@@ -48,6 +48,8 @@ image:
 
 target:
   # Ref: build_idv_iso.sh → GIT_REPO points to edge-microvisor-toolkit
+  # Packages are pulled from the EMT 3.0 RPM repository:
+  #   https://files-rs.edgeorchestration.intel.com/files-edge-orch/microvisor/rpms/3.0/base
   os: edge-microvisor-toolkit
   # Ref: build_idv_iso.sh → DEFAULT_TAG=3.0.20251204 (EMT 3.x release)
   dist: emt3
@@ -139,7 +141,6 @@ systemConfig:
     - golang                      # Go programming language toolchain
     - iputils                     # Network utilities (ping, arping, tracepath)
     - less                        # Terminal pager for viewing file contents
-    - linux-firmware              # Hardware firmware blobs for various devices
     - net-tools                   # Legacy networking utilities (ifconfig, netstat, route)
     - ninja-build                 # Small build system with a focus on speed
     - parted                      # Disk partition manipulation tool
@@ -229,12 +230,7 @@ systemConfig:
     # Ref: idv.json → PackageLists[9] = "packagelists/intel-gpu-base.json"
     # Contains: ["kernel-drivers-gpu", "linux-firmware-i915", "linux-firmware-ice",
     #            "intel-npu-firmware"]
-    # Critical for SR-IOV GPU virtualization — provides i915 driver and firmware.
     # --------------------------------------------------------------------------
-    - kernel-drivers-gpu          # Intel GPU kernel driver modules (i915 SR-IOV capable)
-    - linux-firmware-i915         # Intel i915 GPU firmware blobs (GuC, HuC, DMC)
-    - linux-firmware-ice          # Intel ICE network adapter firmware
-    - intel-npu-firmware          # Intel Neural Processing Unit firmware
 
     # --------------------------------------------------------------------------
     # drtm (Dynamic Root of Trust for Measurement)
@@ -261,7 +257,6 @@ systemConfig:
     # Ref: idv.json → PackageLists[12] = "packagelists/intel-wireless.json"
     # Contains: ["linux-firmware-iwlwifi", "wireless-regdb"]
     # --------------------------------------------------------------------------
-    - linux-firmware-iwlwifi      # Intel WiFi adapter firmware (iwlwifi driver)
     - wireless-regdb              # Wireless regulatory database (country-specific channel rules)
 
     # --------------------------------------------------------------------------
@@ -304,6 +299,15 @@ systemConfig:
     cmdline: "console=ttyS0,115200 console=tty0 udmabuf.list_limit=8192 i915.enable_guc=3 i915.max_vfs=7 intel_iommu=on i915.force_probe=* enforcing=0"
     packages:
       - kernel                    # Default EMT kernel package
+      # --- intel-gpu-base (Ref: idv.json → PackageLists[9]) ---
+      - kernel-drivers-gpu          # Intel GPU kernel driver modules (i915 SR-IOV capable)
+      - linux-firmware-i915         # Intel i915 GPU firmware blobs (GuC, HuC, DMC)
+      - linux-firmware-ice          # Intel ICE network adapter firmware
+      - intel-npu-firmware          # Intel Neural Processing Unit firmware
+      # --- developer-packages (Ref: idv.json → PackageLists[1]) ---
+      - linux-firmware              # Hardware firmware blobs for various devices
+      # --- intel-wireless (Ref: idv.json → PackageLists[12]) ---
+      - linux-firmware-iwlwifi      # Intel WiFi adapter firmware (iwlwifi driver)
 
   # ============================================================================
   # Additional Files
