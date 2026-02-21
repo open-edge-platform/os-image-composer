@@ -80,6 +80,7 @@ systemConfig:
     - dracut
     - systemd-boot
     - elxr-archive-keyring
+    - systemd-timesyncd
 
   additionalFiles:
     - local: ../additionalfiles/dhcp.network

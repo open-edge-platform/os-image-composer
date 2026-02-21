@@ -89,6 +89,7 @@ systemConfig:
     - dracut-virtio
     - dracut-xen
     - veritysetup
+    - systemd-resolved
 
   additionalFiles:
     - local: ../additionalfiles/99-dhcp-en.network
@@ -101,3 +102,8 @@ systemConfig:
     packages:
      - kernel
     uki: true
+
+  configurations:
+    # Set up ssh directories with correct permissions
+    - cmd: "mkdir -m 755 -p /opt/var/lib/sshd"
+    - cmd: "printf 'd /run/sshd 0755 root root -\\n' > /etc/tmpfiles.d/sshd.conf"
