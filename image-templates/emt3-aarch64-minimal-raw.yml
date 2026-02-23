@@ -25,6 +25,7 @@ target:
   arch: aarch64 # Target OS architecture
   imageType: raw # Image type, valid value: [raw, iso].
 
+
 disk:
   name: Minimal_Raw # 1:1 mapping to the systemConfigs name
   artifacts:
@@ -60,3 +61,38 @@ systemConfig:
 
   immutability:
     enabled: false # default is true, overridden to false here
+
+  packages:
+    - dbus
+    - dracut-hostonly
+    - dracut-idpf
+    - dracut-iscsi
+    - e2fsprogs
+    - filesystem
+    - grub2
+    - grub2-efi-binary
+    - iana-etc
+    - initramfs
+    - iproute
+    - iputils
+    - irqbalance
+    - iscsi-initiator-utils
+    - k8s-offload
+    - ncurses-libs
+    - openssl
+    - p4cp-nws
+    - p4sde
+    - rpm
+    - rpm-libs
+    - shadow-utils
+    - shim
+    - sudo
+      #- systemd
+      #- systemd-networkd
+      #- systemd-resolved
+      #- systemd-udev
+    - tdnf
+    - tdnf-plugin-repogpgcheck
+    - util-linux
+    - vim
+    - zlib
