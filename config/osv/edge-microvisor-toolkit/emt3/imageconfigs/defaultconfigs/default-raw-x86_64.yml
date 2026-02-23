@@ -34,7 +34,7 @@ disk:
       end: 2561MiB
       fsType: ext4
       mountPoint: /
-      mountOptions: defaults, ro
+      mountOptions: defaults
 
     - id: roothashmap
       type: linux
@@ -136,6 +136,7 @@ systemConfig:
     - moby-engine
     - docker-cli
     - docker-compose
+    - systemd-resolved
 
   additionalFiles:
     - local: ../additionalfiles/99-dhcp-en.network
@@ -151,3 +152,8 @@ systemConfig:
     uki: true
     packages:
       - kernel-drivers-gpu
+
+  configurations:
+    # Set up ssh directories with correct permissions
+    - cmd: "mkdir -m 755 -p /opt/var/lib/sshd"
+    - cmd: "printf 'd /run/sshd 0755 root root -\\n' > /etc/tmpfiles.d/sshd.conf"

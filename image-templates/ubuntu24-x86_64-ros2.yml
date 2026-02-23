@@ -36,6 +36,7 @@ systemConfig:
     - cryptsetup-bin
     - openssh-server
     - systemd-resolved
+    - systemd-timesyncd
     # ROS2
     - ros-jazzy-ros-base
     - ros-jazzy-rmw-cyclonedds-cpp
