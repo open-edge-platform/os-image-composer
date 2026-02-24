@@ -19,7 +19,8 @@ A command-line tool for building custom Linux images from pre-built packages. De
 
 ### 1. Build the Tool
 
-Requires Go 1.24+ on Ubuntu 24.04 (recommended).
+Requires Go 1.24+.
+Recommended Ubuntu 24.04
 
 ```bash
 git clone https://github.com/open-edge-platform/os-image-composer.git
