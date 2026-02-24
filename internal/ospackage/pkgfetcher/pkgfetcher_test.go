@@ -1,15 +1,44 @@
 package pkgfetcher
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/open-edge-platform/os-image-composer/internal/utils/network"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+type partialErrorReader struct {
+	content []byte
+	read    bool
+}
+
+func (r *partialErrorReader) Read(p []byte) (int, error) {
+	if !r.read {
+		r.read = true
+		n := copy(p, r.content)
+		return n, nil
+	}
+	return 0, errors.New("simulated stream failure")
+}
+
+func (r *partialErrorReader) Close() error {
+	return nil
+}
 
 // TestFetchPackages_Success tests successful package downloads
 func TestFetchPackages_Success(t *testing.T) {
@@ -426,5 +455,157 @@ func TestFetchPackages_NoRetryOnPermanentError(t *testing.T) {
 
 	if requestCount != 1 {
 		t.Errorf("Expected exactly 1 attempt for 404 response, got %d", requestCount)
+	}
+}
+
+func TestDownloadWithRetry_TransientThenSuccess(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "pkgfetcher_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	var requestCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		current := atomic.AddInt32(&requestCount, 1)
+		if current <= 2 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer server.Close()
+
+	destPath := filepath.Join(tempDir, "retry-direct.rpm")
+	client := network.GetSecureHTTPClient()
+
+	err = downloadWithRetry(client, server.URL+"/retry-direct.rpm", destPath, 0)
+	if err != nil {
+		t.Fatalf("downloadWithRetry should succeed after transient failures: %v", err)
+	}
+
+	if got := atomic.LoadInt32(&requestCount); got != 3 {
+		t.Fatalf("expected 3 attempts, got %d", got)
+	}
+
+	if _, statErr := os.Stat(destPath); os.IsNotExist(statErr) {
+		t.Fatalf("expected file to be created")
+	}
+}
+
+func TestDownloadWithRetry_EmptyBodyFailsAfterRetries(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "pkgfetcher_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	var requestCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requestCount, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	destPath := filepath.Join(tempDir, "empty-body.rpm")
+	client := network.GetSecureHTTPClient()
+
+	err = downloadWithRetry(client, server.URL+"/empty-body.rpm", destPath, 1)
+	if err == nil {
+		t.Fatalf("expected error when response body is empty")
+	}
+
+	if got := atomic.LoadInt32(&requestCount); got != int32(maxDownloadAttempts) {
+		t.Fatalf("expected %d attempts, got %d", maxDownloadAttempts, got)
+	}
+}
+
+func TestDownloadWithRetry_RetryOnContentLengthMistmatch(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "pkgfetcher_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	var requestCount int32
+	client := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			attempt := atomic.AddInt32(&requestCount, 1)
+			if attempt == 1 {
+				return &http.Response{
+					StatusCode:    http.StatusOK,
+					Status:        "200 OK",
+					Body:          io.NopCloser(strings.NewReader("abc")),
+					ContentLength: 10,
+					Header:        make(http.Header),
+					Request:       req,
+				}, nil
+			}
+
+			return &http.Response{
+				StatusCode:    http.StatusOK,
+				Status:        "200 OK",
+				Body:          io.NopCloser(strings.NewReader("0123456789")),
+				ContentLength: 10,
+				Header:        make(http.Header),
+				Request:       req,
+			}, nil
+		}),
+	}
+
+	destPath := filepath.Join(tempDir, "content-length-mismatch.rpm")
+	err = downloadWithRetry(client, "http://example.test/content-length-mismatch.rpm", destPath, -1)
+	if err != nil {
+		t.Fatalf("expected retry to recover from content-length mismatch, got: %v", err)
+	}
+
+	if got := atomic.LoadInt32(&requestCount); got != 2 {
+		t.Fatalf("expected 2 attempts (mismatch + success), got %d", got)
+	}
+
+	content, readErr := os.ReadFile(destPath)
+	if readErr != nil {
+		t.Fatalf("failed to read downloaded file: %v", readErr)
+	}
+	if string(content) != "0123456789" {
+		t.Fatalf("unexpected final content: %q", string(content))
+	}
+}
+
+func TestDownloadWithRetry_RemovaPartialFileOnError(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "pkgfetcher_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	var requestCount int32
+	client := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			atomic.AddInt32(&requestCount, 1)
+			return &http.Response{
+				StatusCode:    http.StatusOK,
+				Status:        "200 OK",
+				Body:          &partialErrorReader{content: []byte("partial")},
+				ContentLength: -1,
+				Header:        make(http.Header),
+				Request:       req,
+			}, nil
+		}),
+	}
+
+	destPath := filepath.Join(tempDir, "partial-file.rpm")
+	err = downloadWithRetry(client, "http://example.test/partial-file.rpm", destPath, -1)
+	if err == nil {
+		t.Fatalf("expected error when stream fails after partial write")
+	}
+
+	if got := atomic.LoadInt32(&requestCount); got != int32(maxDownloadAttempts) {
+		t.Fatalf("expected %d attempts, got %d", maxDownloadAttempts, got)
+	}
+
+	if _, statErr := os.Stat(destPath); !os.IsNotExist(statErr) {
+		t.Fatalf("expected partial file to be removed, statErr=%v", statErr)
 	}
 }
