@@ -69,11 +69,24 @@ func downloadWithRetry(client *http.Client, url, destPath string, threadcontext 
 				writtenBytes, copyErr := io.Copy(out, resp.Body)
 				if copyErr != nil {
 					lastErr = copyErr
+					if removeErr := os.Remove(destPath); removeErr != nil && !os.IsNotExist(removeErr) {
+						log.Warnf("failed to remove partial file %s: %v", destPath, removeErr)
+					}
 					return
 				}
-				// writtenBytes zero means empty Body, so retry
-				if writtenBytes == 0 {
-					lastErr = fmt.Errorf("empty response body")
+
+				if writtenBytes == 0 || (resp.ContentLength >= 0 && writtenBytes != resp.ContentLength) {
+					expectedBytes := "unknown"
+					if resp.ContentLength >= 0 {
+						expectedBytes = fmt.Sprintf("%d", resp.ContentLength)
+					}
+
+					lastErr = fmt.Errorf("incomplete response body: got %d bytes, expected %s", writtenBytes, expectedBytes)
+					log.Warnf("response body validation failed for %s: got %d bytes, expected %s; removing %s", url, writtenBytes, expectedBytes, destPath)
+					if removeErr := os.Remove(destPath); removeErr != nil && !os.IsNotExist(removeErr) {
+						log.Warnf("failed to remove incomplete file %s: %v", destPath, removeErr)
+					}
+					return
 				}
 
 				lastErr = nil
@@ -83,7 +96,7 @@ func downloadWithRetry(client *http.Client, url, destPath string, threadcontext 
 				return nil
 			}
 
-			if !shouldRetryHTTPStatus(resp.StatusCode) {
+			if resp.StatusCode != http.StatusOK && !shouldRetryHTTPStatus(resp.StatusCode) {
 				return lastErr
 			}
 		}
