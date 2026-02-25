@@ -119,7 +119,7 @@ runs:
       uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c  # v46.0.5
 
     - name: Cache Trivy vulnerability database
-      uses: actions/cache@4b0cf6cc4619e737324ddfcec08fff2413359514 #v3.0.0
+      uses: actions/cache@v3
       with:
         path: ~/.cache/trivy
         key: trivy-db-${{ runner.os }}-${{ hashFiles('**/trivy-db/**') }}
