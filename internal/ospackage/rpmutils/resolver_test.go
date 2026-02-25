@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/open-edge-platform/os-image-composer/internal/config"
@@ -580,5 +581,50 @@ func TestGetRepoMetaDataURL(t *testing.T) {
 					tt.baseURL, tt.repoMetaXmlPath, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestParseRepositoryMetadata_RetryTransientFailure(t *testing.T) {
+	var requestCount int32
+	xmlContent := `<?xml version="1.0" encoding="UTF-8"?><metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="1"><package type="rpm"><name>bash</name><arch>x86_64</arch><location href="bash-5.1-8.el9.x86_64.rpm"/></package></metadata>`
+	compressed := compressGzip(t, xmlContent)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		current := atomic.AddInt32(&requestCount, 1)
+		if current <= 2 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(compressed)
+	}))
+	defer server.Close()
+
+	pkgs, err := ParseRepositoryMetadata(server.URL+"/", "primary.xml.gz", nil)
+	if err != nil {
+		t.Fatalf("expected retry to succeed, got error: %v", err)
+	}
+	if len(pkgs) != 1 {
+		t.Fatalf("expected 1 package, got %d", len(pkgs))
+	}
+	if atomic.LoadInt32(&requestCount) != 3 {
+		t.Fatalf("expected 3 requests, got %d", atomic.LoadInt32(&requestCount))
+	}
+}
+
+func TestFetchPrimaryURL_NoRetryOnPermanentFailure(t *testing.T) {
+	var requestCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requestCount, 1)
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	_, err := FetchPrimaryURL(server.URL + "/repodata/repomd.xml")
+	if err == nil {
+		t.Fatalf("expected error for permanent 404 response")
+	}
+	if atomic.LoadInt32(&requestCount) != 1 {
+		t.Fatalf("expected 1 request for permanent error, got %d", atomic.LoadInt32(&requestCount))
 	}
 }
