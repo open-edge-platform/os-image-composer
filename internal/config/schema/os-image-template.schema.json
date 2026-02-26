@@ -257,8 +257,8 @@
         "bootloader": { "$ref": "#/$defs/Bootloader" },
         "packages": {
           "type": "array",
-          "description": "List of packages to include in the system",
-          "items": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9+_.:~-]*[A-Za-z0-9+])?$" },
+          "description": "List of packages to include in the system (supports glob patterns like wayland* and libva*)",
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9+_.:~*?\\[\\]-]*$" },
           "uniqueItems": true
         },
         "additionalFiles": {
@@ -349,7 +349,8 @@
           "description": "Optional: specific packages to include from this repository (package pinning)",
           "items": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9+_.:~*?\\[\\]-]*$"
           }
         }
       },
