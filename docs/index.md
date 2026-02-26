@@ -46,6 +46,7 @@ includes the version number (from the `--version` parameter), the build date
 ```bash
 # Default build
 earthly +build
+```
 
 | Guide | Description |
 |-------|-------------|

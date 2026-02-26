@@ -643,7 +643,7 @@ The image template file (YAML) defines everything that goes into a custom OS
 image. A minimal template requires only `image` and `target`; the remaining
 sections are merged from the OS-specific default template at build time.
 
-**Minimal example:**
+**Minimal example** (only the two required sections):
 
 ```yaml
 image:
@@ -655,13 +655,6 @@ target:
   dist: azl3
   arch: x86_64
   imageType: raw
-
-systemConfig:
-  name: edge
-  packages:
-    - openssh-server
-    - docker-ce
-    - vim
 ```
 
 **Top-level sections:**

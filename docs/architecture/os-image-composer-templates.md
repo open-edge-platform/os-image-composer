@@ -48,8 +48,11 @@ merged result is validated against a JSON schema before the build begins.
 Default templates live at:
 
 ```text
-config/osv/<distribution>/<dist>/imageconfigs/defaultconfigs/default-<imageType>-<arch>.yml
+config/osv/<target.os>/<target.dist>/imageconfigs/defaultconfigs/default-<imageType>-<arch>.yml
 ```
+
+> **Note:** `imageType: img` maps to `default-initrd-<arch>.yml` (there is no
+> `default-img-` filename).
 
 You never need to edit defaults. Start from one of the examples in
 `image-templates/` and override only what you need.
@@ -162,7 +165,7 @@ Target platform. All four fields are required.
 | `edge-microvisor-toolkit` | `emt3` |
 | `wind-river-elxr` | `elxr12` |
 | `ubuntu` | Any (e.g., `ubuntu24`) |
-| `redhat-compatible-distro` | Any (e.g., `rcd1`) |
+| `redhat-compatible-distro` | Any (e.g., `el10`) |
 
 ```yaml
 target:
@@ -311,11 +314,12 @@ and must be unique within the list.
 | `uki` | bool | Enable Unified Kernel Image (typically set by defaults) |
 
 ```yaml
-kernel:
-  version: "6.14"
-  cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
-  packages:
-    - linux-image-generic-hwe-24.04
+systemConfig:
+  kernel:
+    version: "6.14"
+    cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+    packages:
+      - linux-image-generic-hwe-24.04
 ```
 
 #### `systemConfig.bootloader`
@@ -344,11 +348,12 @@ signing.
 > `enabled` must be `true`.
 
 ```yaml
-immutability:
-  enabled: true
-  secureBootDBKey: /path/to/db.key
-  secureBootDBCrt: /path/to/db.crt
-  secureBootDBCer: /path/to/db.cer
+systemConfig:
+  immutability:
+    enabled: true
+    secureBootDBKey: /path/to/db.key
+    secureBootDBCrt: /path/to/db.crt
+    secureBootDBCer: /path/to/db.cer
 ```
 
 #### `systemConfig.users[]`
@@ -357,7 +362,7 @@ immutability:
 |-------|------|----------|-------------|
 | `name` | string | **Yes** | Username |
 | `password` | string | No | Password (plain text or pre-hashed with `$` prefix) |
-| `hash_algo` | string | No | Hash algorithm (`sha512`, `bcrypt`) |
+| `hash_algo` | string | No | Hash algorithm: `bcrypt`, `sha512`, `sha256`, `md5` (md5 is insecure — avoid in production) |
 | `passwordMaxAge` | int | No | Max password age in days |
 | `startupScript` | string | No | Script to run on login |
 | `groups` | string[] | No | Additional groups |
@@ -366,14 +371,15 @@ immutability:
 | `shell` | string | No | Login shell (e.g., `/bin/bash`) |
 
 ```yaml
-users:
-  - name: admin
-    password: "changeme"
-    sudo: true
-    groups: [docker, wheel]
-    shell: /bin/bash
-  - name: service-account
-    shell: /usr/sbin/nologin
+systemConfig:
+  users:
+    - name: admin
+      password: "changeme"
+      sudo: true
+      groups: [docker, wheel]
+      shell: /bin/bash
+      - name: service-account
+      shell: /usr/sbin/nologin
 ```
 
 #### `systemConfig.initramfs`
@@ -394,11 +400,12 @@ Copy host files into the image at build time.
 | `final` | string | Destination path inside the image |
 
 ```yaml
-additionalFiles:
-  - local: files/dhcp.network
-    final: /etc/systemd/network/dhcp.network
-  - local: files/motd
-    final: /etc/motd
+systemConfig:
+  additionalFiles:
+    - local: files/dhcp.network
+      final: /etc/systemd/network/dhcp.network
+    - local: files/motd
+      final: /etc/motd
 ```
 
 #### `systemConfig.configurations[]`
@@ -410,9 +417,10 @@ Shell commands executed inside the chroot during the configuration stage.
 | `cmd` | string | Shell command to execute |
 
 ```yaml
-configurations:
-  - cmd: systemctl enable docker
-  - cmd: echo "BuildDate=$(date)" >> /etc/image-info
+systemConfig:
+  configurations:
+    - cmd: systemctl enable docker
+    - cmd: echo "BuildDate=$(date)" >> /etc/image-info
 ```
 
 ---
