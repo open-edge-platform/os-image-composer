@@ -49,8 +49,6 @@ disk:
       end: "0"  # Uses remaining space until end of disk
       fsType: ext4
       mountPoint: /opt
-packages:
-  - efibootmgr
 
 systemConfig:
   name: Default_Raw
