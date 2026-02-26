@@ -123,6 +123,7 @@ systemConfig: # Required
     # intel-wireless
     - linux-firmware-iwlwifi
     - wireless-regdb
+    - efibootmgr
 
   additionalFiles:
     - local: ../additionalfiles/99-dhcp-en.network
