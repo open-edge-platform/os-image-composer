@@ -137,7 +137,6 @@ systemConfig:
     - docker-cli
     - docker-compose
     - systemd-resolved
-    - efibootmgr
 
   additionalFiles:
     - local: ../additionalfiles/99-dhcp-en.network
