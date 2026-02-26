@@ -9,6 +9,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path"
@@ -23,6 +24,67 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/network"
 )
+
+const (
+	metadataMaxDownloadAttempts = 3
+	metadataRetryBackoff        = 500 * time.Millisecond
+)
+
+func shouldRetryMetadataStatus(statusCode int) bool {
+	switch statusCode {
+	case http.StatusRequestTimeout,
+		http.StatusTooEarly,
+		http.StatusTooManyRequests,
+		http.StatusInternalServerError,
+		http.StatusBadGateway,
+		http.StatusServiceUnavailable,
+		http.StatusGatewayTimeout:
+		return true
+	default:
+		return false
+	}
+}
+
+func fetchURLWithRetry(client *http.Client, targetURL, resourceName string) ([]byte, error) {
+	log := logger.Logger()
+
+	backoff := metadataRetryBackoff
+	var lastErr error
+
+	for attempt := 1; attempt <= metadataMaxDownloadAttempts; attempt++ {
+		resp, err := client.Get(targetURL)
+		if err != nil {
+			lastErr = err
+		} else {
+			if resp.StatusCode != http.StatusOK {
+				resp.Body.Close()
+				if shouldRetryMetadataStatus(resp.StatusCode) {
+					lastErr = fmt.Errorf("transient status: %s", resp.Status)
+				} else {
+					return nil, fmt.Errorf("GET %s: bad status: %s", targetURL, resp.Status)
+				}
+			} else {
+				body, readErr := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				if readErr != nil {
+					lastErr = readErr
+				} else {
+					return body, nil
+				}
+			}
+		}
+
+		if attempt == metadataMaxDownloadAttempts {
+			break
+		}
+
+		log.Warnf("attempt %d/%d downloading %s failed: %v; retrying in %s", attempt, metadataMaxDownloadAttempts, resourceName, lastErr, backoff)
+		time.Sleep(backoff)
+		backoff *= 2
+	}
+
+	return nil, fmt.Errorf("GET %s failed after %d attempts: %w", targetURL, metadataMaxDownloadAttempts, lastErr)
+}
 
 // extractBaseRequirement takes a potentially complex requirement string
 // and returns only the base package/capability name.
@@ -199,16 +261,10 @@ func ParseRepositoryMetadata(baseURL, gzHref string, packageFilter []string) ([]
 	}
 
 	client := network.NewSecureHTTPClient()
-	resp, err := client.Get(fullURL)
+	// First, fetch compressed XML with retry on transient failures
+	compressedData, err := fetchURLWithRetry(client, fullURL, "repository metadata")
 	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	// First, save the compressed XML file
-	compressedData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read compressed data: %w", err)
+		return nil, fmt.Errorf("failed to fetch compressed metadata: %w", err)
 	}
 
 	// Save the original compressed file
@@ -497,16 +553,9 @@ func FetchPrimaryURL(repomdURL string) (string, error) {
 	log := logger.Logger()
 
 	client := network.NewSecureHTTPClient()
-	resp, err := client.Get(repomdURL)
+	repomdData, err := fetchURLWithRetry(client, repomdURL, "repomd.xml")
 	if err != nil {
-		return "", fmt.Errorf("GET %s: %w", repomdURL, err)
-	}
-	defer resp.Body.Close()
-
-	// Read and save the repomd.xml content
-	repomdData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read repomd.xml: %w", err)
+		return "", err
 	}
 
 	// Save repomd.xml file using same pattern as debutils
