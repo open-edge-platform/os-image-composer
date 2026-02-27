@@ -122,10 +122,10 @@ To learn about patterns that work well as templates, see
 Templates support simple variable substitution using the `${variable_name}`
 syntax. When building an image from a template, you can provide values for
 these variables. See the
-[Build Specification File](./os-image-composer-cli-specification.md#build-specification-file)
+[Image Template File](./os-image-composer-cli-specification.md#image-template-file)
 in the
 [command-line reference](./os-image-composer-cli-specification.md)
-for the complete structure of build specifications.
+for the complete template structure.
 
 ## Using Templates to Build Images
 
@@ -157,9 +157,9 @@ Templates in the OS Image Composer tool are stored in two main locations:
 To find out how variables affect each build stage, see
 [Build Stages in Detail](./os-image-composer-build-process.md#build-stages-in-detail).
 
-For details on customizations that you can apply, see the
-[Configuration Stage](./os-image-composer-build-process.md#4-configuration-stage)
-of the build process.
+For details on customizations that you can apply, see
+[Build Stages in Detail](./os-image-composer-build-process.md#build-stages-in-detail)
+in the build process documentation.
 
 ## Package Repositories
 
