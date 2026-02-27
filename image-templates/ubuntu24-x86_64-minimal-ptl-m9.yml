@@ -227,7 +227,7 @@ systemConfig:
     - build-essential
     - apt-transport-https
     - default-jre
-      #- docker-compose
+    #- docker-compose
     - git-lfs
     - gnuplot
     - lbzip2
