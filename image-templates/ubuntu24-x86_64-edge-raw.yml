@@ -59,6 +59,7 @@ systemConfig:
     - cryptsetup-bin
     - openssh-server
     - systemd-resolved
+    - systemd-timesyncd
 
   kernel:
     version: "6.14"
