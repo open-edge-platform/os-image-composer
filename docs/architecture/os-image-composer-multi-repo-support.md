@@ -11,10 +11,8 @@ components. This document describes the key aspects of the multiple package repo
   repositories, enabling the OS Image Composer tool to access and pull custom
   packages that are unavailable in the base repository.
 - **Package conflict priority consideration**: Outlines how the tool determines
-  which package to use when duplicates exist across repositories using
-  per-repository `priority`.
-- **Allow-list support**: Describes `allowPackages` (white list) to restrict
-  which packages are indexed from a repository.
+  which package to use when duplicates exist across repositories, prioritizing
+  the  user-specified order and base repository integrity.
 - **Architectural design**: Describes how the design extends the tool's package
   and dependency pre-download framework to resolve dependencies without relying
   on package managers like APT or
@@ -40,7 +38,6 @@ components. This document describes the key aspects of the multiple package repo
       - [Example 4: Unresolvable dependency](#example-4-unresolvable-dependency)
       - [Example 5: Conflicting dependency versions](#example-5-conflicting-dependency-versions)
     - [Benefits of Repository Affinity](#benefits-of-repository-affinity)
-- [AllowPackages White List](#allowpackages-white-list)
 - [Architectural Design](#architectural-design)
   - [Single Repository Support](#single-repository-support)
   - [Multiple Repositories Support](#multiple-repositories-support)
@@ -53,27 +50,16 @@ You can specify additional package repositories in the OS Image Composer user
 template. Here's an example:
 
 ```yaml
-packageRepositories:
-  - codename: "repoA"
-    url: "https://repo.example.com/os/base"
-    pkey: "https://repo.example.com/keys/RPM-GPG-KEY"
-    priority: 1001
-    allowPackages:
-      - kernel-6.17.11
-      - kernel-drivers-gpu-6.17.11
-      - libva*
-      - wayland*
+...
+additionalrepo:
+   intel1: "https://www.intel.com/repo1"  # Add new package repo URL
+   intel2: "https://www.intel.com/repo2"  # Add another new package repo URL
 
-  - codename: "repoB"
-    url: "https://repo2.example.com/os/extra"
-    pkey: "https://repo2.example.com/keys/RPM-GPG-KEY"
-    priority: 500
-
-systemConfig:
-  packages:
-    - kernel-6.17.11
-    - libva-utils
-    - my-custom-package
+packages:
+   - intelpackage01   # Package from intel1 repo
+   - intelpackage02   # Package from intel2 repo
+   - systemd-boot     # Package from base repo
+...
 ```
 
 Each repository must follow the standard Debian or RPM structure, including all
@@ -87,78 +73,61 @@ setup references:
 ## Package Conflict Priority Consideration
 
 When multiple repositories contain packages with the same name, the OS Image
-Composer tool uses repository `priority` to select candidates.
+Composer tool uses a simple two-rule priority system for package selection.
 
 ### Priority Rules
 
-The OS Image Composer tool follows these rules:
+The OS Image Composer tool follows these straightforward rules to resolve
+package conflicts:
 
-1. **Higher numeric priority wins**: repositories with higher `priority`
-  values are preferred.
-2. **Version tie-breaker**: when candidates are in the same priority class,
-  the resolver picks the most suitable version (usually the newest one that
-  satisfies constraints).
-3. **Repository affinity for dependencies**: when possible, dependencies are
-  chosen from the same repository family as the parent package.
+1. **Version Priority**: If the same package exists in multiple repositories
+   with different versions, the tool always selects the package with the latest
+   version number, regardless of which repository contains it.
 
-Debian resolver supports additional APT-like priority behavior:
+2. **Repository Order Priority**: If the same package exists in multiple
+   repositories with identical versions, the OS Image Composer tool follows
+   the following priority order:
 
-- `priority < 0`: block packages from that repository
-- `priority = 990`: prefer over default repos
-- `priority = 1000`: install even if version is lower
-- `priority > 1000`: force preference
+   - Base OS repository (highest priority)
+   - Additional repositories in the order they appear in configuration
 
 ### Resolution Process
 
 Decision Flow:
 
-1. Gather all matching candidates across configured repositories.
-2. Apply repository `priority` rules.
-3. Apply version constraints from dependency metadata.
-4. Select candidate with best priority/constraint fit; use repository affinity
-  for transitive dependencies when available.
+1. Check if package versions differ → Select latest version
+2. If versions are identical → Follow repository priority order:
+
+   - Base OS repository
+   - intel1 (first additional repo in config)
+   - intel2 (second additional repo in config)
+   - ... (subsequent repos in config order)
 
 ### Conflict Resolution Examples
 
 #### Example 1: Different versions across repositories
 
-- repoA (`priority: 1001`) contains: `curl-7.68.0`
-- repoB (`priority: 500`) contains: `curl-8.0.1`
-- **Result**: repoA candidate is preferred because repository priority is
-  higher.
+- Base repo contains: `curl-7.68.0`
+- intel1 repo contains: `curl-8.0.1`
+- **Result**: The tool selects `curl-8.0.1` from intel1 (latest version rule).
 
 #### Example 2: Same version in multiple repositories
 
-- repoA (`priority: 900`) contains: `mypackage-1.0.0`
-- repoB (`priority: 900`) contains: `mypackage-1.0.0`
-- **Result**: resolver uses tie-breakers (version/equivalent candidate and
-  repository affinity when resolving dependencies).
+- Base repo contains: `mypackage-1.0.0`
+- intel1 repo contains: `mypackage-1.0.0`
+- intel2 repo contains: `mypackage-1.0.0`
+- **Result**: The tool selects `mypackage-1.0.0` from base repo (repository
+  order priority).
 
 #### Example 3: Mixed scenario
 
-- repoA (`priority: -1`) contains: `testpackage-2.0.0`
-- repoB (`priority: 500`) contains: `testpackage-1.5.0`
-- **Result**: repoA package is blocked due to negative priority; repoB package
-  is selected.
+- intel1 repo contains: `testpackage-2.0.0`
+- intel2 repo contains: `testpackage-1.5.0`
+- **Result**: The tool selects `testpackage-2.0.0` from intel1 (latest version
+  rule).
 
-These priority semantics provide explicit control for pinning, preference, and
-blocking behavior in multi-repo builds.
-
-## AllowPackages White List
-
-`allowPackages` is an optional per-repository white list in
-`packageRepositories`.
-
-- If omitted or empty, all packages from that repository metadata are eligible.
-- If provided, only matching package names are indexed from that repository.
-- Matching supports:
-  - exact names (for example `spice-server`)
-  - prefix/version pin patterns (for example `kernel-6.17.11`)
-  - glob patterns (for example `libva*`, `wayland*`)
-
-This filtering happens during repository metadata parsing, before package
-matching and dependency resolution. It is useful for tightening repository
-scope and reducing accidental package selection.
+This simplified priority system ensures you always get the most recent package
+versions while maintaining predictable behavior for identical versions.
 
 ### Dependencies Package
 
