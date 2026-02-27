@@ -76,6 +76,7 @@ systemConfig:
   immutability:
     enabled: false # default is true, overridden to false here  
   packages:    
+    - sqlite
     - curl
     - nano
     - paho-mqtt-c
