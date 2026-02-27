@@ -258,8 +258,9 @@ func (p *RCD) downloadImagePkgs(template *config.ImageTemplate) error {
 	rpmutils.GzHref = p.gzHref
 	rpmutils.Dist = template.Target.Dist
 	rpmutils.UserRepo = template.GetPackageRepositories()
+	targetArch := p.chrootEnv.GetTargetArch()
 
-	fullPkgList, fullPkgListBom, err := rpmutils.DownloadPackagesComplete(pkgList, pkgCacheDir, template.DotFilePath, pkgSources, template.DotSystemOnly)
+	fullPkgList, fullPkgListBom, err := rpmutils.DownloadPackagesComplete(pkgList, pkgCacheDir, targetArch, template.DotFilePath, pkgSources, template.DotSystemOnly)
 	if err != nil {
 		return fmt.Errorf("failed to download packages: %w", err)
 	}
