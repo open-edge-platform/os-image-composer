@@ -309,7 +309,7 @@ func findAllCandidates(parent ospackage.PackageInfo, depName string, all []ospac
 	for _, pi := range all {
 		// Extract the base package name (everything before the first '-' that starts a version)
 		baseName := extractBasePackageNameFromFile(pi.Name)
-		if baseName == depName {
+		if baseName == depName || pi.PkgName == depName {
 			candidates = append(candidates, pi)
 		}
 	}
@@ -355,8 +355,8 @@ func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospac
 			break
 		}
 		cleanName := extractBasePackageNameFromFile(pi.Name)
-		// 2) base name, e.g. acct
-		if cleanName == want {
+		// 2) base name, e.g. acct, or canonical name from XML metadata
+		if cleanName == want || pi.PkgName == want {
 			candidates = append(candidates, pi)
 			continue
 		}
