@@ -13,6 +13,10 @@ image-creation workflow.
 - [Using Templates to Build Images](#using-templates-to-build-images)
 - [Template Storage](#template-storage)
 - [Template Variables](#template-variables)
+- [Package Repositories](#package-repositories)
+  - [Repository Fields](#repository-fields)
+  - [Priority Behavior](#priority-behavior)
+  - [AllowPackages White List](#allowpackages-white-list)
 - [Best Practices](#best-practices)
   - [Template Organization](#template-organization)
   - [Template Design](#template-design)
@@ -92,6 +96,22 @@ systemConfig:
   kernel:
     version: "6.12"
     cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
+
+# Optional additional repositories
+packageRepositories:
+  - codename: emtNext
+    url: https://example.com/rpms/next/base
+    pkey: https://example.com/RPM-GPG-KEY
+    priority: 1001
+    allowPackages:
+      - kernel-6.17.11
+      - kernel-drivers-gpu-6.17.11
+      - libva*
+
+  - codename: edgeai
+    url: https://example2.com/edgeai/
+    pkey: https://example2.com/edgeai/GPG-PUB-KEY.gpg
+    priority: 500
 ```
 
 To learn about patterns that work well as templates, see
@@ -140,6 +160,48 @@ To find out how variables affect each build stage, see
 For details on customizations that you can apply, see
 [Build Stages in Detail](./os-image-composer-build-process.md#build-stages-in-detail)
 in the build process documentation.
+
+## Package Repositories
+
+Use `packageRepositories` to add extra Debian or RPM repositories to a build.
+Each entry defines where to fetch package metadata and how candidates are
+selected when the same package exists in multiple repositories.
+
+### Repository Fields
+
+- `codename`: repository identifier.
+- `url`: repository base URL.
+- `pkey`: GPG key URL (or trusted marker for supported Debian flows).
+- `priority`: numeric repository preference used in conflict resolution.
+- `allowPackages`: optional package white list for metadata filtering.
+
+### Priority Behavior
+
+`priority` is evaluated during package candidate selection across repositories.
+
+- Higher numeric values are preferred.
+- Debian resolver also supports APT-like behavior:
+  - `< 0`: block packages from that repository
+  - `990`: prefer over default repositories
+  - `1000`: install even if lower version
+  - `> 1000`: force preference
+
+When candidates have equivalent priority, version constraints and dependency
+context determine the final package choice.
+
+### AllowPackages White List
+
+`allowPackages` limits which package names are indexed from a specific
+repository.
+
+- If omitted or empty, all repository packages are eligible.
+- If present, only matching package names are indexed.
+- Supported matching modes:
+  - exact name (for example `spice-server`)
+  - prefix/version pin (for example `kernel-6.17.11`)
+  - glob patterns (for example `libva*`, `wayland*`)
+
+Filtering happens at metadata-parse time, before dependency resolution.
 
 ## Best Practices
 
