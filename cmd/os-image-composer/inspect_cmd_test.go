@@ -98,6 +98,16 @@ func TestCreateInspectCommand(t *testing.T) {
 		}
 	})
 
+	t.Run("ExtractSBOMFlagOptionalValue", func(t *testing.T) {
+		extractFlag := cmd.Flags().Lookup("extract-sbom")
+		if extractFlag == nil {
+			t.Fatal("--extract-sbom flag should be registered")
+		}
+		if extractFlag.NoOptDefVal != "." {
+			t.Fatalf("expected --extract-sbom NoOptDefVal '.', got %q", extractFlag.NoOptDefVal)
+		}
+	})
+
 	t.Run("ArgsValidation", func(t *testing.T) {
 		if cmd.Args == nil {
 			t.Fatal("Args validator should be set")
@@ -200,6 +210,91 @@ func TestWriteExtractedSBOM(t *testing.T) {
 			t.Fatalf("written SBOM content mismatch")
 		}
 	})
+
+	t.Run("EmptyOutPathDefaultsToCurrentDirectory", func(t *testing.T) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("failed to get cwd: %v", err)
+		}
+
+		tmpDir := t.TempDir()
+		if err := os.Chdir(tmpDir); err != nil {
+			t.Fatalf("failed to chdir to temp dir: %v", err)
+		}
+		t.Cleanup(func() {
+			_ = os.Chdir(cwd)
+		})
+
+		sbom := imageinspect.SBOMSummary{
+			Present:  true,
+			FileName: "spdx_manifest_default.json",
+			Content:  []byte(`{"packages":[]}`),
+		}
+
+		err = writeExtractedSBOM(sbom, "")
+		if err != nil {
+			t.Fatalf("writeExtractedSBOM returned error: %v", err)
+		}
+
+		data, readErr := os.ReadFile(filepath.Join(tmpDir, sbom.FileName))
+		if readErr != nil {
+			t.Fatalf("failed to read default-path SBOM file: %v", readErr)
+		}
+		if string(data) != string(sbom.Content) {
+			t.Fatalf("written SBOM content mismatch")
+		}
+	})
+}
+
+func TestInspectCommand_ExtractSBOMWithoutValue(t *testing.T) {
+	defer resetInspectFlags()
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+	tmpDir := t.TempDir()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to chdir to temp dir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(cwd)
+	})
+
+	newInspector = func(hash bool) inspector {
+		return &fakeInspector{
+			summary: &imageinspect.ImageSummary{
+				File: "fake.img",
+				SBOM: imageinspect.SBOMSummary{
+					Present:  true,
+					FileName: "spdx_manifest_rpm_demo.json",
+					Content:  []byte(`{"packages":[]}`),
+				},
+			},
+		}
+	}
+	newInspectorWithSBOM = func(hash bool, inspectSBOM bool) inspector {
+		return &fakeInspector{
+			summary: &imageinspect.ImageSummary{
+				File: "fake.img",
+				SBOM: imageinspect.SBOMSummary{
+					Present:  true,
+					FileName: "spdx_manifest_rpm_demo.json",
+					Content:  []byte(`{"packages":[]}`),
+				},
+			},
+		}
+	}
+
+	cmd := createInspectCommand()
+	_, err = execCmd(t, cmd, "--extract-sbom", "fake.img")
+	if err != nil {
+		t.Fatalf("expected inspect with bare --extract-sbom to succeed, got: %v", err)
+	}
+
+	if _, statErr := os.Stat(filepath.Join(tmpDir, "spdx_manifest_rpm_demo.json")); statErr != nil {
+		t.Fatalf("expected extracted SBOM file in current directory, stat err: %v", statErr)
+	}
 }
 
 func TestExecuteInspect_DirectCall(t *testing.T) {

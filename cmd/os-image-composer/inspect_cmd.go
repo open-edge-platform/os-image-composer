@@ -65,6 +65,9 @@ func createInspectCommand() *cobra.Command {
 
 	inspectCmd.Flags().StringVar(&sbomOutPath, "extract-sbom", "",
 		"Extract embedded SPDX manifest (if present) to this file or directory path")
+	if extractFlag := inspectCmd.Flags().Lookup("extract-sbom"); extractFlag != nil {
+		extractFlag.NoOptDefVal = "."
+	}
 
 	return inspectCmd
 }
@@ -75,7 +78,13 @@ func executeInspect(cmd *cobra.Command, args []string) error {
 	imageFile := args[0]
 	log.Infof("Inspecting image file: %s", imageFile)
 
-	inspectSBOM := strings.TrimSpace(sbomOutPath) != ""
+	extractFlagSet := cmd.Flags().Changed("extract-sbom")
+	resolvedSBOMOutPath := strings.TrimSpace(sbomOutPath)
+	if extractFlagSet && resolvedSBOMOutPath == "" {
+		resolvedSBOMOutPath = "."
+	}
+
+	inspectSBOM := extractFlagSet || resolvedSBOMOutPath != ""
 	inspector := newInspector(false)
 	if inspectSBOM {
 		inspector = newInspectorWithSBOM(false, true)
@@ -87,7 +96,7 @@ func executeInspect(cmd *cobra.Command, args []string) error {
 	}
 
 	if inspectSBOM {
-		if err := writeExtractedSBOM(inspectionResults.SBOM, sbomOutPath); err != nil {
+		if err := writeExtractedSBOM(inspectionResults.SBOM, resolvedSBOMOutPath); err != nil {
 			return fmt.Errorf("failed to extract SBOM: %w", err)
 		}
 	}
@@ -109,7 +118,7 @@ func writeExtractedSBOM(sbom imageinspect.SBOMSummary, outPath string) error {
 
 	outPath = strings.TrimSpace(outPath)
 	if outPath == "" {
-		return nil
+		outPath = "."
 	}
 
 	fileName := sbom.FileName
