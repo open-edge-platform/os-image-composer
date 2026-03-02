@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -15,8 +17,13 @@ import (
 // resetInspectFlags resets inspect flags to defaults.
 func resetInspectFlags() {
 	outputFormat = "text"
+	prettyJSON = false
+	sbomOutPath = ""
 	newInspector = func(hash bool) inspector {
 		return imageinspect.NewDiskfsInspector(hash)
+	}
+	newInspectorWithSBOM = func(hash bool, inspectSBOM bool) inspector {
+		return imageinspect.NewDiskfsInspectorWithOptions(hash, inspectSBOM)
 	}
 }
 
@@ -128,12 +135,71 @@ func TestInspectCommand_HelpOutput(t *testing.T) {
 		"inspect",
 		"IMAGE_FILE",
 		"--format",
+		"--extract-sbom",
 	}
 	for _, s := range expected {
 		if !strings.Contains(out, s) {
 			t.Errorf("help output should contain %q", s)
 		}
 	}
+}
+
+func TestWriteExtractedSBOM(t *testing.T) {
+	t.Run("NoSBOMPresent_NoWrite", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		err := writeExtractedSBOM(imageinspect.SBOMSummary{}, tmpDir)
+		if err == nil {
+			t.Fatalf("expected error when SBOM is not present")
+		}
+		if !strings.Contains(err.Error(), "embedded SBOM not found") {
+			t.Fatalf("expected missing SBOM error, got: %v", err)
+		}
+	})
+
+	t.Run("WritesToDirectory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		sbom := imageinspect.SBOMSummary{
+			Present:  true,
+			FileName: "spdx_manifest_deb_demo.json",
+			Content:  []byte(`{"packages":[]}`),
+		}
+
+		err := writeExtractedSBOM(sbom, tmpDir)
+		if err != nil {
+			t.Fatalf("writeExtractedSBOM returned error: %v", err)
+		}
+
+		outFile := filepath.Join(tmpDir, sbom.FileName)
+		data, readErr := os.ReadFile(outFile)
+		if readErr != nil {
+			t.Fatalf("failed to read written SBOM file: %v", readErr)
+		}
+		if string(data) != string(sbom.Content) {
+			t.Fatalf("written SBOM content mismatch")
+		}
+	})
+
+	t.Run("WritesToExplicitFile", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		outFile := filepath.Join(tmpDir, "custom-spdx.json")
+		sbom := imageinspect.SBOMSummary{
+			Present: true,
+			Content: []byte(`{"packages":[{"name":"acl"}]}`),
+		}
+
+		err := writeExtractedSBOM(sbom, outFile)
+		if err != nil {
+			t.Fatalf("writeExtractedSBOM returned error: %v", err)
+		}
+
+		data, readErr := os.ReadFile(outFile)
+		if readErr != nil {
+			t.Fatalf("failed to read written SBOM file: %v", readErr)
+		}
+		if string(data) != string(sbom.Content) {
+			t.Fatalf("written SBOM content mismatch")
+		}
+	})
 }
 
 func TestExecuteInspect_DirectCall(t *testing.T) {
