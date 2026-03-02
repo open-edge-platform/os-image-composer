@@ -94,12 +94,12 @@ Composer tool uses repository `priority` to select candidates.
 The OS Image Composer tool follows these rules:
 
 1. **Higher numeric priority wins**: repositories with higher `priority`
-  values are preferred.
+    values are preferred.
 2. **Version tie-breaker**: when candidates are in the same priority class,
-  the resolver picks the most suitable version (usually the newest one that
-  satisfies constraints).
+    the resolver picks the most suitable version (usually the newest one that
+    satisfies constraints).
 3. **Repository affinity for dependencies**: when possible, dependencies are
-  chosen from the same repository family as the parent package.
+    chosen from the same repository family as the parent package.
 
 Debian resolver supports additional APT-like priority behavior:
 
@@ -136,13 +136,18 @@ Decision Flow:
 
 #### Example 3: Mixed scenario
 
-- repoA (`priority: -1`) contains: `testpackage-2.0.0`
+- repoA (`priority: -1`, Debian/APT-based builds only) contains: `testpackage-2.0.0`
 - repoB (`priority: 500`) contains: `testpackage-1.5.0`
-- **Result**: repoA package is blocked due to negative priority; repoB package
-  is selected.
+- **Result (Debian/APT)**: repoA package is blocked due to APT's negative-priority
+  semantics; repoB package is selected.
+- **Result (RPM-based)**: RPM tooling does not treat negative priorities as a
+  hard block. For RPM-based builds, use non-negative priorities together with
+  `allowPackages` (or omit the repository) to prevent selection from a repo.
 
-These priority semantics provide explicit control for pinning, preference, and
-blocking behavior in multi-repo builds.
+These priority semantics provide explicit control for pinning and preference in
+multi-repo builds. Repository blocking via negative priority is a Debian/APT-
+specific behavior; RPM-based builds should rely on priorities and `allowPackages`
+for equivalent control.
 
 ## AllowPackages White List
 

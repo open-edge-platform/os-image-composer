@@ -171,7 +171,8 @@ selected when the same package exists in multiple repositories.
 
 - `codename`: repository identifier.
 - `url`: repository base URL.
-- `pkey`: GPG key URL (or trusted marker for supported Debian flows).
+- `component`: optional Debian component (for example, `main`, `universe`) for multi-component repositories.
+- `pkey`: GPG key reference; supports `http://`/`https://` URLs, `file://` URLs, absolute local paths, or `[trusted=yes]` for supported Debian flows.
 - `priority`: numeric repository preference used in conflict resolution.
 - `allowPackages`: optional package white list for metadata filtering.
 
