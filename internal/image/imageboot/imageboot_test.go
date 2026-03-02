@@ -1298,7 +1298,7 @@ func TestUpdateInitramfsForGrub_UpdateInitramfsFails(t *testing.T) {
 	template := &config.ImageTemplate{
 		SystemConfig: config.SystemConfig{
 			Kernel: config.KernelConfig{
-				EnableExtraModules: "",
+				EnableExtraModules: "intel_vpu",
 			},
 		},
 	}
@@ -1306,6 +1306,7 @@ func TestUpdateInitramfsForGrub_UpdateInitramfsFails(t *testing.T) {
 	originalExecutor := shell.Default
 	defer func() { shell.Default = originalExecutor }()
 	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "echo 'intel_vpu' >> /etc/initramfs-tools/modules", Output: "", Error: nil},
 		{Pattern: "command -v update-initramfs", Output: "/usr/sbin/update-initramfs\n", Error: nil},
 		{Pattern: "update-initramfs -u -k " + kernelVersion, Output: "", Error: fmt.Errorf("update-initramfs failed")},
 	}
@@ -1375,6 +1376,25 @@ func TestUpdateInitramfsForGrub_ModuleAddFailsContinues(t *testing.T) {
 	err := updateInitramfsForGrub(tmpDir, kernelVersion, template)
 	if err != nil {
 		t.Errorf("Expected no error (should continue after module add failure), got: %v", err)
+	}
+}
+
+func TestUpdateInitramfsForGrub_EmptyExtraModulesReturnsNil(t *testing.T) {
+	tmpDir := t.TempDir()
+	kernelVersion := "5.15.0-73-generic"
+
+	template := &config.ImageTemplate{
+		SystemConfig: config.SystemConfig{
+			Kernel: config.KernelConfig{
+				EnableExtraModules: "",
+			},
+		},
+	}
+
+	// No mock commands needed - function should return early without executing any commands
+	err := updateInitramfsForGrub(tmpDir, kernelVersion, template)
+	if err != nil {
+		t.Errorf("Expected nil when EnableExtraModules is empty, got: %v", err)
 	}
 }
 

@@ -563,7 +563,9 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 			for originalPath, backupPath := range backupPaths {
 				if _, err := os.Stat(backupPath); err == nil {
 					if err := file.CopyFile(backupPath, originalPath, "", false); err == nil {
-						shell.ExecCmd("rm -f "+backupPath, true, shell.HostPath, nil)
+						if _, err := shell.ExecCmd("rm -f "+backupPath, true, shell.HostPath, nil); err != nil {
+							log.Debugf("Failed to remove backup file %s: %v", backupPath, err)
+						}
 						log.Debugf("Restored original binary: %s", originalPath)
 					}
 				}
@@ -651,7 +653,9 @@ exit 0
 							// Replace with dummy script that does nothing
 							dummyContent := "#!/bin/sh\necho \"Initramfs generation temporarily disabled during package installation\"\nexit 0\n"
 							if err := file.Write(dummyContent, binaryPath); err == nil {
-								shell.ExecCmd("chmod +x "+binaryPath, true, shell.HostPath, nil)
+								if _, err := shell.ExecCmd("chmod +x "+binaryPath, true, shell.HostPath, nil); err != nil {
+									log.Debugf("Failed to chmod +x %s: %v", binaryPath, err)
+								}
 								log.Debugf("Temporarily replaced %s with dummy binary", binary)
 								initramfsBinariesReplaced = true
 							}
