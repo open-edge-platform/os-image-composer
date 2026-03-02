@@ -44,7 +44,7 @@ func Packages() ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", RepoCfg.URL)
 
-	packages, err := ParseRepositoryMetadata(RepoCfg.URL, GzHref)
+	packages, err := ParseRepositoryMetadata(RepoCfg.URL, GzHref, nil)
 	if err != nil {
 		log.Errorf("parsing primary.xml.gz failed: %v", err)
 		return nil, err
@@ -59,40 +59,52 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 	log.Infof("fetching packages from %s", "user package list")
 
 	repoList := make([]struct {
-		id       string
-		codename string
-		url      string
-		pkey     string
+		id            string
+		codename      string
+		url           string
+		pkey          string
+		allowPackages []string
 	}, len(UserRepo))
 	for i, repo := range UserRepo {
 		repoList[i] = struct {
-			id       string
-			codename string
-			url      string
-			pkey     string
+			id            string
+			codename      string
+			url           string
+			pkey          string
+			allowPackages []string
 		}{
-			id:       fmt.Sprintf("rpmcustrepo%d", i+1),
-			codename: repo.Codename,
-			url:      repo.URL,
-			pkey:     repo.PKey,
+			id:            fmt.Sprintf("rpmcustrepo%d", i+1),
+			codename:      repo.Codename,
+			url:           repo.URL,
+			pkey:          repo.PKey,
+			allowPackages: repo.AllowPackages,
 		}
 	}
 
-	var userRepo []RepoConfig
+	type RepoConfigWithPackages struct {
+		RepoConfig
+		AllowPackages []string
+	}
+
+	var userRepo []RepoConfigWithPackages
 	for _, repoItem := range repoList {
 		id := repoItem.id
 		codename := repoItem.codename
 		baseURL := repoItem.url
 		pkey := repoItem.pkey
+		allowPackages := repoItem.allowPackages
 
-		repo := RepoConfig{
-			Name:         id,
-			GPGCheck:     true,
-			RepoGPGCheck: true,
-			Enabled:      true,
-			GPGKey:       pkey,
-			URL:          baseURL,
-			Section:      fmt.Sprintf("[%s]", codename),
+		repo := RepoConfigWithPackages{
+			RepoConfig: RepoConfig{
+				Name:         id,
+				GPGCheck:     true,
+				RepoGPGCheck: true,
+				Enabled:      true,
+				GPGKey:       pkey,
+				URL:          baseURL,
+				Section:      fmt.Sprintf("[%s]", codename),
+			},
+			AllowPackages: allowPackages,
 		}
 
 		userRepo = append(userRepo, repo)
@@ -113,7 +125,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 			return nil, fmt.Errorf("fetching %s URL failed: %w", repoMetaDataURL, err)
 		}
 
-		userPkgs, err := ParseRepositoryMetadata(rpItx.URL, primaryXmlURL)
+		userPkgs, err := ParseRepositoryMetadata(rpItx.URL, primaryXmlURL, rpItx.AllowPackages)
 		if err != nil {
 			return nil, fmt.Errorf("parsing user repo failed: %w", err)
 		}
@@ -256,7 +268,7 @@ func createTempGPGKeyFiles(gpgKeyURLs []string) (keyPaths []string, cleanup func
 		log.Infof("fetched GPG key %d (%d bytes) from %s", i+1, len(keyBytes), gpgKeyURL)
 
 		// Create temp file with unique pattern
-		tmp, err := os.CreateTemp("", fmt.Sprintf("azurelinux-gpg-%d-*.asc", i))
+		tmp, err := os.CreateTemp("", fmt.Sprintf("rpm-gpg-%d-*.asc", i))
 		if err != nil {
 			// Cleanup any files created so far
 			for _, f := range tempFiles {
@@ -396,6 +408,16 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 	}
 	all = append(all, userpkg...)
 
+	// Adjust package names to remove any prefixes before PkgName - Azure Linux RPM repos often prefix package file names
+	for i := range all {
+		// Find where the package name starts in the full name
+		if idx := strings.Index(all[i].Name, all[i].PkgName); idx > 0 {
+			// Remove the prefix by taking substring from where PkgName starts
+			all[i].Name = all[i].Name[idx:]
+		}
+		// If PkgName is not found or is at the beginning, keep the original Name
+	}
+
 	// Match the packages in the template against all the packages
 	req, err := MatchRequested(pkgList, all)
 	if err != nil {
@@ -430,8 +452,7 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 		}
 	}
 
-	// Extract URLs and build download list using URL basenames
-	// (files are saved by URL basename, e.g., "SymCrypt-106.0.1-1.emt3.x86_64.rpm")
+	// Extract URLs
 	urls := make([]string, len(sorted_pkgs))
 	for i, pkg := range sorted_pkgs {
 		urls[i] = pkg.URL

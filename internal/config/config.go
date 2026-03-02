@@ -42,12 +42,13 @@ type DiskConfig struct {
 }
 
 type PackageRepository struct {
-	ID        string `yaml:"id,omitempty"`        // Auto-assigned
-	Codename  string `yaml:"codename"`            // Repository identifier/codename
-	URL       string `yaml:"url"`                 // Repository base URL
-	PKey      string `yaml:"pkey"`                // Public GPG key URL for verification
-	Component string `yaml:"component,omitempty"` // Repository component (e.g., "main", "restricted")
-	Priority  int    `yaml:"priority,omitempty"`  // Repository priority (higher numbers = higher priority)
+	ID            string   `yaml:"id,omitempty"`            // Auto-assigned
+	Codename      string   `yaml:"codename"`                // Repository identifier/codename
+	URL           string   `yaml:"url"`                     // Repository base URL
+	PKey          string   `yaml:"pkey"`                    // Public GPG key URL for verification
+	Component     string   `yaml:"component,omitempty"`     // Repository component (e.g., "main", "restricted")
+	Priority      int      `yaml:"priority,omitempty"`      // Repository priority (higher numbers = higher priority)
+	AllowPackages []string `yaml:"allowPackages,omitempty"` // Optional: specific packages to include from this repo (pinning)
 }
 
 // ProviderRepoConfig represents the repository configuration for a provider
@@ -176,6 +177,7 @@ type PartitionInfo struct {
 	Type         string   `yaml:"type"`         // Type: partition type (e.g., "esp", "linux-root-amd64")
 	TypeGUID     string   `yaml:"typeUUID"`     // TypeGUID: GPT type GUID for the partition (e.g., "8300" for Linux filesystem)
 	FsType       string   `yaml:"fsType"`       // FsType: filesystem type (e.g., "ext4", "xfs", etc.);
+	FsLabel      string   `yaml:"fsLabel"`      // FsLabel: filesystem label (e.g., "cloudimg-rootfs")
 	Start        string   `yaml:"start"`        // Start: start offset of the partition; can be a absolute size (e.g., "512MiB")
 	End          string   `yaml:"end"`          // End: end offset of the partition; can be a absolute size (e.g., "2GiB") or "0" for the end of the disk
 	MountPoint   string   `yaml:"mountPoint"`   // MountPoint: optional mount point for the partition (e.g., "/boot", "/rootfs")

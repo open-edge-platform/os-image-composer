@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+---
+
+name: Post-Merge CI Pipeline
+permissions:
+  contents: read
+
+on:   # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - main
+      - release-*
+  workflow_dispatch:
+jobs:
+  post-merge:
+    permissions:
+      contents: read
+      security-events: write
+      id-token: write
+    uses: open-edge-platform/orch-ci/.github/workflows/post-merge.yml@c8c1792b4f2e2934ffc459bb1b981bc26ddaa39a  # 2026.0.12
+    with:
+      run_build: false
+      run_version_check: false
+      run_version_dev: false
+      run_dep_version_check: false
+      run_version_tag: true
+      run_docker_build: false
+      run_docker_push: false
+      run_helm_build: false
+      run_helm_push: false
+      prefix_tag_separator: "/"
+      trivy_image_skip: "ghcr.io/dependabot/dependabot-updater-core:latest"
+    secrets:
+      SYS_EMF_GH_TOKEN: ${{ secrets.SYS_EMF_GH_TOKEN }}
+      NO_AUTH_ECR_PUSH_USERNAME: ${{ secrets.NO_AUTH_ECR_PUSH_USERNAME }}
+      NO_AUTH_ECR_PUSH_PASSWD: ${{ secrets.NO_AUTH_ECR_PUSH_PASSWD }}
+      MSTEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}

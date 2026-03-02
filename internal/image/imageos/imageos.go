@@ -178,6 +178,12 @@ func (imageOs *ImageOs) InstallImageOs(diskPathIdMap map[string]string) (version
 		return
 	}
 
+	log.Infof("Image Kernel symlinks creation...")
+	if err := fixKernelSymlinks(imageOs.installRoot); err != nil {
+		// Don't fail the build if symlink fix fails, just warn as some distros may not need it
+		log.Warnf("Failed to fix kernel symlinks: %v (continuing anyway)", err)
+	}
+
 	log.Infof("Image system configuration...")
 	if err = updateImageConfig(imageOs.installRoot, diskPathIdMap, imageOs.template); err != nil {
 		err = fmt.Errorf("failed to update image config: %w", err)
@@ -522,6 +528,7 @@ func preImageOsInstall(installRoot string, template *config.ImageTemplate) error
 
 func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.ImageTemplate) error {
 	pkgType := imageOs.chrootEnv.GetTargetOsPkgType()
+
 	if pkgType == "rpm" {
 		if err := imageOs.initImageRpmDb(installRoot, template); err != nil {
 			return fmt.Errorf("failed to initialize RPM database: %w", err)
@@ -1656,7 +1663,7 @@ func configUserStartupScript(installRoot string, user config.UserConfig) error {
 func (imageOs *ImageOs) generateSBOM(installRoot string, template *config.ImageTemplate) (string, error) {
 	pkgType := imageOs.chrootEnv.GetTargetOsPkgType()
 	sBomFNm := rpmutils.GenerateSPDXFileName(template.GetImageName())
-	cmd := "rpm -qa --queryformat '%{NAME}\\n'"
+	cmd := "rpm -qa"
 	if pkgType == "deb" {
 		cmd = "dpkg -l | awk '/^ii/ {print $2}'"
 		sBomFNm = debutils.GenerateSPDXFileName(template.GetImageName())
@@ -1675,20 +1682,25 @@ func (imageOs *ImageOs) generateSBOM(installRoot string, template *config.ImageT
 	// Create a map of normalized package names from installed packages for faster lookup
 	installedPkgMap := make(map[string]bool)
 	for _, pkg := range installRootPkgs {
-		// For DEB packages, remove architecture tag (e.g., ":amd64") if present
+		// Remove architecture tag (e.g., ":amd64") if present
 		normalizedPkg := pkg
-		if pkgType == "deb" {
-			if colonIndex := strings.Index(pkg, ":"); colonIndex != -1 {
-				normalizedPkg = pkg[:colonIndex]
-			}
+		if colonIndex := strings.Index(pkg, ":"); colonIndex != -1 {
+			normalizedPkg = pkg[:colonIndex]
 		}
 		installedPkgMap[normalizedPkg] = true
 	}
 
 	var finalPkgs []ospackage.PackageInfo
 	for _, pkg := range downloadedPkgs {
-		// pkg.Name is the clean canonical package name (e.g., "SymCrypt", "bash")
-		if installedPkgMap[pkg.Name] {
+		// Normalize package name by removing file extensions
+		normalizedName := pkg.Name
+		if strings.HasSuffix(normalizedName, ".rpm") {
+			normalizedName = strings.TrimSuffix(normalizedName, ".rpm")
+		} else if strings.HasSuffix(normalizedName, ".deb") {
+			normalizedName = strings.TrimSuffix(normalizedName, ".deb")
+		}
+
+		if installedPkgMap[normalizedName] {
 			finalPkgs = append(finalPkgs, pkg)
 		}
 	}
@@ -1709,4 +1721,102 @@ func (imageOs *ImageOs) generateSBOM(installRoot string, template *config.ImageT
 	}
 
 	return result, nil
+}
+
+// isSymlink checks if a given path is a symbolic link
+func isSymlink(path string) (bool, error) {
+	fileInfo, err := os.Lstat(path)
+	if err != nil {
+		return false, err
+	}
+	return fileInfo.Mode()&os.ModeSymlink != 0, nil
+}
+
+// fixKernelSymlinks ensures that /boot/vmlinuz-{version} symlinks exist
+// pointing to /lib/modules/{version}/vmlinuz. This is normally done by the
+// kernel package's post-install script, but that may not run properly in chroot.
+func fixKernelSymlinks(installRoot string) error {
+	log.Debug("Creating kernel symlinks if needed")
+	bootDir := filepath.Join(installRoot, "boot")
+	libModulesDir := filepath.Join(installRoot, "lib", "modules")
+
+	// Check if boot directory exists
+	if _, err := os.Stat(bootDir); os.IsNotExist(err) {
+		log.Debugf("boot directory does not exist at %s, skipping symlink fix", bootDir)
+		return nil
+	}
+
+	// Check if destination directory already has vmlinuz files - if so, ignore and return
+	bootEntries, err := os.ReadDir(bootDir)
+	if err == nil {
+		for _, entry := range bootEntries {
+			if strings.HasPrefix(entry.Name(), "vmlinuz") {
+				log.Debugf("Found existing vmlinuz file in boot directory: %s, skipping kernel symlink creation", entry.Name())
+				return nil
+			}
+		}
+	}
+
+	// Check if lib/modules directory exists
+	if _, err := os.Stat(libModulesDir); os.IsNotExist(err) {
+		log.Debugf("lib/modules directory does not exist at %s, skipping symlink fix", libModulesDir)
+		return nil
+	}
+
+	// Read lib/modules directory to find kernel versions
+	entries, err := os.ReadDir(libModulesDir)
+	if err != nil {
+		return fmt.Errorf("failed to read lib/modules directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		kernelVersion := entry.Name()
+
+		// Skip non-kernel version directories (like "build", "source", etc.)
+		if !strings.Contains(kernelVersion, ".") {
+			log.Debugf("Skipping non-version directory: %s", kernelVersion)
+			continue
+		}
+
+		kernelSourcePath := filepath.Join(libModulesDir, kernelVersion, "vmlinuz")
+		kernelBootLink := filepath.Join(bootDir, "vmlinuz-"+kernelVersion)
+
+		// Check if the source file exists
+		if _, err := os.Stat(kernelSourcePath); os.IsNotExist(err) {
+			log.Debugf("vmlinuz file not found at %s, skipping symlink creation", kernelSourcePath)
+			continue
+		}
+
+		// Check if symlink already exists
+		if _, err := os.Lstat(kernelBootLink); err == nil {
+			// Symlink or file already exists
+			if isSymlink, _ := isSymlink(kernelBootLink); isSymlink {
+				log.Debugf("vmlinuz symlink already exists at %s", kernelBootLink)
+				continue
+			}
+
+			// If it's not a symlink, try to replace it
+			log.Debugf("Non-symlink file exists at %s, removing it", kernelBootLink)
+			if err := os.Remove(kernelBootLink); err != nil {
+				log.Warnf("Failed to remove file at %s: %v", kernelBootLink, err)
+				continue
+			}
+		}
+
+		// Create the symlink - use relative path from /boot to /lib/modules
+		relPath := filepath.Join("..", "..", "lib", "modules", kernelVersion, "vmlinuz")
+		if err := os.Symlink(relPath, kernelBootLink); err != nil {
+			log.Warnf("Failed to create symlink from %s to %s: %v", kernelBootLink, relPath, err)
+			// Don't fail, continue with other kernel versions
+			continue
+		}
+
+		log.Infof("Created vmlinuz symlink for kernel %s: %s -> %s", kernelVersion, kernelBootLink, relPath)
+	}
+	log.Debug("Finished creating kernel symlinks")
+	return nil
 }

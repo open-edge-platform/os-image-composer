@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: (C) 2026 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+---
+
+name: Pre-Merge CI Pipeline
+permissions:
+  contents: read
+
+on:  # yamllint disable-line rule:truthy
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+jobs:
+  pre-merge:
+    permissions:
+      contents: read
+    uses: open-edge-platform/orch-ci/.github/workflows/pre-merge.yml@c8c1792b4f2e2934ffc459bb1b981bc26ddaa39a  # 2026.0.12
+    with:
+      run_version_check: false
+      run_reuse_check: false
+      run_security_scans: true
+      run_dep_version_check: false
+      run_build: false
+      run_lint: false
+      run_test: false
+      run_validate_clean_folder: false
+      run_docker_build: false
+      bootstrap_tools: "go,gotools,nodejs"
+      trivy_config_path: trivy.yaml
