@@ -72,6 +72,7 @@ systemConfig:
     - initramfs
     - shadow-utils
     - coreutils
+    - openssh-server
     - systemd-resolved
 
   additionalFiles:
