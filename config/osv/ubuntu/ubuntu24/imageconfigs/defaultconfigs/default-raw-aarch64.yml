@@ -34,7 +34,7 @@ disk:
       end: 4557MiB  # 513MiB + 4044MiB (4238528512 bytes) = 4557MiB
       fsType: ext4
       mountPoint: /
-      mountOptions: defaults, ro
+      mountOptions: defaults
 
     - id: roothashmap
       type: linux

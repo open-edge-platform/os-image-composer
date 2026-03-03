@@ -43,7 +43,7 @@ func TestGenerateAptSourcesContent(t *testing.T) {
 		{
 			name:     "empty repositories",
 			repos:    []PackageRepository{},
-			expected: []string{"# Package repositories generated from image template configuration"},
+			expected: []string{},
 		},
 		{
 			name: "single repository with basic config",
@@ -57,7 +57,6 @@ func TestGenerateAptSourcesContent(t *testing.T) {
 			},
 			expected: []string{
 				"deb https://apt.repos.intel.com/openvino/2025 noble main",
-				"# Repository: intel-repo",
 			},
 		},
 		{
@@ -73,8 +72,7 @@ func TestGenerateAptSourcesContent(t *testing.T) {
 				},
 			},
 			expected: []string{
-				"deb [signed-by=/usr/share/keyrings/GPG-PUB-KEY-INTEL-SED.gpg] https://eci.intel.com/sed-repos/noble noble main",
-				"# Repository: sed-repo (Priority: 1000)",
+				"deb https://eci.intel.com/sed-repos/noble noble main",
 			},
 		},
 		{
@@ -137,27 +135,27 @@ func TestExtractGPGKeyFilename(t *testing.T) {
 		{
 			name:     "Intel GPG key - extract filename first",
 			keyURL:   "https://eci.intel.com/sed-repos/gpg-keys/GPG-PUB-KEY-INTEL-SED.gpg",
-			expected: "/usr/share/keyrings/GPG-PUB-KEY-INTEL-SED.gpg",
+			expected: "/etc/apt/trusted.gpg.d/GPG-PUB-KEY-INTEL-SED.gpg",
 		},
 		{
 			name:     "generic GPG key",
 			keyURL:   "https://example.com/keys/repo-key.gpg",
-			expected: "/usr/share/keyrings/repo-key.gpg",
+			expected: "/etc/apt/trusted.gpg.d/repo-key.gpg",
 		},
 		{
 			name:     "ASC key converted to GPG",
 			keyURL:   "https://example.com/keys/repo-key.asc",
-			expected: "/usr/share/keyrings/repo-key.gpg",
+			expected: "/etc/apt/trusted.gpg.d/repo-key.gpg",
 		},
 		{
 			name:     "no extension",
 			keyURL:   "https://example.com/keys/mykey",
-			expected: "/usr/share/keyrings/mykey.gpg",
+			expected: "/etc/apt/trusted.gpg.d/mykey.gpg",
 		},
 		{
 			name:     "another intel key",
 			keyURL:   "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB",
-			expected: "/usr/share/keyrings/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB.gpg",
+			expected: "/etc/apt/trusted.gpg.d/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB.gpg",
 		},
 	}
 

@@ -115,11 +115,10 @@ func TestIntegrationAptSourcesGeneration(t *testing.T) {
 
 	contentStr := string(content)
 
-	// Check for expected content
+	// Check for expected content - simple deb lines without signed-by directives
 	expectedLines := []string{
-		"# Package repositories generated from image template configuration",
-		"deb [signed-by=/usr/share/keyrings/GPG-PUB-KEY-INTEL-SED.gpg] https://eci.intel.com/sed-repos/noble sed main",
-		"deb [signed-by=/usr/share/keyrings/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB.gpg] https://apt.repos.intel.com/openvino/2025 ubuntu24 main contrib",
+		"deb https://eci.intel.com/sed-repos/noble sed main",
+		"deb https://apt.repos.intel.com/openvino/2025 ubuntu24 main contrib",
 	}
 
 	for _, expectedLine := range expectedLines {
@@ -200,7 +199,7 @@ func TestIntegrationAptPreferencesGeneration(t *testing.T) {
 		case strings.Contains(file.Final, "no-priority-repo"):
 			// Updated: filename now includes URL domain for uniqueness
 			noPriorityPrefsFile = &template.SystemConfig.AdditionalFiles[i]
-		case strings.HasPrefix(file.Final, "/usr/share/keyrings/"):
+		case strings.HasPrefix(file.Final, "/etc/apt/trusted.gpg.d/"):
 			gpgKeyCount++
 		}
 	}
@@ -229,7 +228,7 @@ func TestIntegrationAptPreferencesGeneration(t *testing.T) {
 	}
 
 	sourcesStr := string(sourcesContent)
-	if !strings.Contains(sourcesStr, "deb [signed-by=/usr/share/keyrings/GPG-PUB-KEY-INTEL-SED.gpg] https://eci.intel.com/sed-repos/noble sed main") {
+	if !strings.Contains(sourcesStr, "deb https://eci.intel.com/sed-repos/noble sed main") {
 		t.Error("Sources file missing expected SED repository line")
 	}
 
