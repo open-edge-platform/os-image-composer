@@ -6,10 +6,11 @@ This tutorial assumes you have already built a base OS image using **OS Image Co
 ---
 
 ## 1. Prerequisites
-- Add DL Streamer and Docker based packages as part of OS Image Composer build process using its [Multiple Package Repository Support](../architecture/os-image-composer-multi-repo-support.md) feature
-- OS with Docker Engine installed via and running
-- (Optional) Corporate proxy details if you are behind a proxy
-- For DL Streamer section: Check whether Intel® DL Streamer is installed by verifying that `/opt/intel/dlstreamer` exists (for example, run `ls /opt/intel/dlstreamer`). If the directory is present, DL Streamer is installed
+- Add the DL Streamer and Docker-based packages in the OS Image Composer build configuration using its [Multiple Package Repository Support](../architecture/os-image-composer-multi-repo-support.md) feature
+
+  After the image is built and the system is booted, verify the runtime environment.
+  First, confirm that Docker Engine is installed and running.
+  Next, confirm that Intel DL Streamer is installed by checking that the directory slash opt slash intel slash dlstreamer exists.
 
 ---
 
@@ -215,6 +216,7 @@ Use these examples to extend your application beyond basic face detection into:
 ## 7. License
 
 This guide contains example commands and scripts provided for convenience. Review third‑party container/images licenses before redistribution.
+
 
 
 
