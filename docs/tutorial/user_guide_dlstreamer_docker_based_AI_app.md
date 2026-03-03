@@ -67,7 +67,7 @@ sudo docker run -d --name ollama \
   --memory="4g" --cpus="1" \
   -e HTTP_PROXY="<HTTP_PROXY_URL>" \
   -e HTTPS_PROXY="<HTTPS_PROXY_URL>" \
-  -e NO_PROXY="localhost,127.0.0.1,0.0.0.0,::1,*.localhost" \
+  -e NO_PROXY="<NO_PROXY_LIST>" \
   ollama/ollama
 ```
 
