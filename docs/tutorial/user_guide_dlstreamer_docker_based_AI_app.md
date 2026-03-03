@@ -107,6 +107,13 @@ wget -P /images/known https://raw.githubusercontent.com/ageitgey/face_recognitio
 # Unknown images
 wget -P /images/unknown https://raw.githubusercontent.com/ageitgey/face_recognition/master/examples/two_people.jpg
 wget -P /images/unknown https://raw.githubusercontent.com/ageitgey/face_recognition/master/examples/alex-lacamoire.png
+
+# Note: For production or security-sensitive environments, verify downloaded files.
+# Example (replace <EXPECTED_SHA256_* > with known-good hashes):
+# echo "<EXPECTED_SHA256_BIDEN>  /images/known/biden.jpg" | sha256sum -c -
+# echo "<EXPECTED_SHA256_OBAMA>  /images/known/obama.jpg" | sha256sum -c -
+# echo "<EXPECTED_SHA256_TWO_PEOPLE>  /images/unknown/two_people.jpg" | sha256sum -c -
+# echo "<EXPECTED_SHA256_ALEX_LACAMOIRE>  /images/unknown/alex-lacamoire.png" | sha256sum -c -
 ```
 
 ### 4.3 Match faces (inside container)
