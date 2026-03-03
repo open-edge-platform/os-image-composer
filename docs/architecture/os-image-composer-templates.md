@@ -13,7 +13,7 @@ For a conceptual overview of how templates fit into the build pipeline, see
 - [Image Template Reference](#image-template-reference)
   - [Table of Contents](#table-of-contents)
   - [How Templates Work](#how-templates-work)
-  - [Quick-Start Example](#quick-start-example)
+  - [Quick Start Example](#quick-start-example)
   - [Top-Level Structure](#top-level-structure)
   - [Field Reference](#field-reference)
     - [`metadata`](#metadata)
@@ -54,10 +54,10 @@ config/osv/<target.os>/<target.dist>/imageconfigs/defaultconfigs/default-<imageT
 > **Note:** `imageType: img` maps to `default-initrd-<arch>.yml` (there is no
 > `default-img-` filename).
 
-You never need to edit defaults. Start from one of the examples in
+You do not need to edit the defaults. You can start from one of the examples in
 `image-templates/` and override only what you need.
 
-## Quick-Start Example
+## Quick Start Example
 
 A minimal user template only needs `image`, `target`, and optionally
 `systemConfig` with extra packages:
@@ -103,7 +103,7 @@ systemConfig:   # Required in merged template - packages, kernel, users, etc.
   ...
 ```
 
-> **User templates** require only `image` and `target`. The remaining sections
+> **Note:** **User templates** require only `image` and `target`. The remaining sections
 > are merged from the default template if omitted.
 
 ---
@@ -284,7 +284,7 @@ for detailed configuration guidance.
 
 System configuration - packages, kernel, users, bootloader, build-time
 commands, and more. Required in the final merged template, but optional in
-user templates (defaults provide a complete base).
+user templates (as defaults already provide a complete base).
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -344,7 +344,7 @@ signing.
 | `secureBootDBCrt` | string | Conditional | Certificate in PEM format (`.crt` or `.pem`) |
 | `secureBootDBCer` | string | Conditional | Certificate in DER format (`.cer`) |
 
-> If **any** Secure Boot field is provided, **all three** must be provided and
+> **Note:** If **any** Secure Boot field is provided, **all three** must be provided and
 > `enabled` must be `true`.
 
 ```yaml
