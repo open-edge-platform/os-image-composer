@@ -187,7 +187,5 @@ func (rawMaker *RawMaker) BuildRawImage() error {
 		// Don't fail the build if SBOM copy fails, just log warning
 	}
 
-	rawMaker.template.MarkBuildFinished()
-
 	return nil
 }

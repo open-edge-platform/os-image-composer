@@ -326,13 +326,13 @@ func (t *ImageTemplate) GetPureImageBuildDuration() time.Duration {
 	return t.pureBuildDuration
 }
 
-// StartBuildTimeline starts the overall build timeline.
-func (t *ImageTemplate) StartBuildTimeline() {
+// StartBuildTimeline starts the overall build timeline at the provided timestamp.
+func (t *ImageTemplate) StartBuildTimeline(buildTimelineStart time.Time) {
 	if t == nil {
 		return
 	}
 
-	t.buildTimelineStart = time.Now()
+	t.buildTimelineStart = buildTimelineStart
 	t.buildFinishedAt = time.Time{}
 }
 

@@ -15,12 +15,6 @@ import (
 func PrintImageDirectorySummary(
 	imageBuildDir,
 	imageType string,
-	startToDownloadImagePkgsTime,
-	downloadImagePkgsTime,
-	downloadImagePkgsToPureBuildTime,
-	pureImageBuildTime,
-	convertImageTime time.Duration,
-	convertImageFileToFinishTime time.Duration,
 ) {
 	log := logger.Logger()
 
@@ -63,7 +57,46 @@ func PrintImageDirectorySummary(
 
 	// Print image type
 	log.Infof("  Image Type:   %s", imageType)
+	log.Info("")
+	log.Info("  Generated Artifacts (including SBOM):")
 
+	// Print each artifact with size
+	for _, filename := range imageFiles {
+		fullPath := filepath.Join(imageBuildDir, filename)
+		fileInfo, err := os.Stat(fullPath)
+		var sizeStr string
+		if err == nil {
+			sizeMB := float64(fileInfo.Size()) / (1024 * 1024)
+			if sizeMB > 1024 {
+				sizeStr = fmt.Sprintf("%.2f GB", sizeMB/1024)
+			} else {
+				sizeStr = fmt.Sprintf("%.2f MB", sizeMB)
+			}
+		} else {
+			sizeStr = "unknown"
+		}
+
+		log.Infof("    • %s (%s)", filename, sizeStr)
+		log.Infof("      %s", fullPath)
+		log.Info("")
+	}
+
+	log.Info("════════════════════════════════════════════════════════════════════════════")
+	log.Info("")
+}
+
+// PrintImageBuildingTiming displays timing information
+// for each stage of the image build process
+func PrintImageBuildingTiming(
+	imageType string,
+	startToDownloadImagePkgsTime,
+	downloadImagePkgsTime,
+	downloadImagePkgsToPureBuildTime,
+	pureImageBuildTime,
+	convertImageTime time.Duration,
+	convertImageFileToFinishTime time.Duration,
+) {
+	log := logger.Logger()
 	timingRows := []struct {
 		stage    string
 		duration time.Duration
@@ -129,30 +162,4 @@ func PrintImageDirectorySummary(
 		log.Infof("  | %-*s | %-*s |", stageWidth, "Total Time", durationWidth, totalDurationText)
 		log.Info(border)
 	}
-	log.Info("")
-	log.Info("  Generated Artifacts (including SBOM):")
-
-	// Print each artifact with size
-	for _, filename := range imageFiles {
-		fullPath := filepath.Join(imageBuildDir, filename)
-		fileInfo, err := os.Stat(fullPath)
-		var sizeStr string
-		if err == nil {
-			sizeMB := float64(fileInfo.Size()) / (1024 * 1024)
-			if sizeMB > 1024 {
-				sizeStr = fmt.Sprintf("%.2f GB", sizeMB/1024)
-			} else {
-				sizeStr = fmt.Sprintf("%.2f MB", sizeMB)
-			}
-		} else {
-			sizeStr = "unknown"
-		}
-
-		log.Infof("    • %s (%s)", filename, sizeStr)
-		log.Infof("      %s", fullPath)
-		log.Info("")
-	}
-
-	log.Info("════════════════════════════════════════════════════════════════════════════")
-	log.Info("")
 }

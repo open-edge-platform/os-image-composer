@@ -150,7 +150,7 @@ func (p *Emt) buildRawImage(template *config.ImageTemplate) error {
 	providerId := system.GetProviderId(template.Target.OS, template.Target.Dist, template.Target.Arch)
 	imageBuildDir := filepath.Join(globalWorkDir, providerId, "imagebuild", template.GetSystemConfigName())
 
-	displayImageArtifacts(imageBuildDir, "RAW", template)
+	displayImageArtifacts(imageBuildDir, "RAW")
 
 	return nil
 }
@@ -180,7 +180,7 @@ func (p *Emt) buildInitrdImage(template *config.ImageTemplate) error {
 	providerId := system.GetProviderId(template.Target.OS, template.Target.Dist, template.Target.Arch)
 	imageBuildDir := filepath.Join(globalWorkDir, providerId, "imagebuild", template.GetSystemConfigName())
 
-	displayImageArtifacts(imageBuildDir, "IMG", template)
+	displayImageArtifacts(imageBuildDir, "IMG")
 
 	return nil
 }
@@ -210,7 +210,7 @@ func (p *Emt) buildIsoImage(template *config.ImageTemplate) error {
 	providerId := system.GetProviderId(template.Target.OS, template.Target.Dist, template.Target.Arch)
 	imageBuildDir := filepath.Join(globalWorkDir, providerId, "imagebuild", template.GetSystemConfigName())
 
-	displayImageArtifacts(imageBuildDir, "ISO", template)
+	displayImageArtifacts(imageBuildDir, "ISO")
 
 	return nil
 }
@@ -328,21 +328,9 @@ func loadRepoConfigFromYAML(dist, arch string) (rpmutils.RepoConfig, error) {
 }
 
 // displayImageArtifacts displays all image artifacts in the build directory
-func displayImageArtifacts(imageBuildDir, imageType string, template *config.ImageTemplate) {
-	startToDownloadImagePkgsDuration := template.GetDurationStartToDownloadImagePkgs()
-	downloadImagePkgsToPureBuildDuration := template.GetDurationDownloadImagePkgsToPureBuild()
-	pureImageBuildDuration := template.GetPureImageBuildDuration()
-	downloadImagePkgsDuration := template.GetDownloadImagePkgsDuration()
-	convertImageDuration := template.GetConvertImageDuration()
-	convertImageFileToFinishDuration := template.GetDurationConvertImageFileToFinish()
+func displayImageArtifacts(imageBuildDir, imageType string) {
 	display.PrintImageDirectorySummary(
 		imageBuildDir,
 		imageType,
-		startToDownloadImagePkgsDuration,
-		downloadImagePkgsDuration,
-		downloadImagePkgsToPureBuildDuration,
-		pureImageBuildDuration,
-		convertImageDuration,
-		convertImageFileToFinishDuration,
 	)
 }

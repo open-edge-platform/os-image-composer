@@ -179,8 +179,6 @@ func (initrdMaker *InitrdMaker) BuildInitrdImage() (err error) {
 		log.Infof("Initrd image build completed successfully: %s", initrdMaker.InitrdFilePath)
 	}
 
-	initrdMaker.template.MarkBuildFinished()
-
 	return nil
 }
 

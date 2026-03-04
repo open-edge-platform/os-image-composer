@@ -116,8 +116,6 @@ func (isoMaker *IsoMaker) BuildIsoImage() (err error) {
 		log.Infof("Pure ISO image build time: %s", pureImageBuildDuration.Round(time.Millisecond))
 	}
 
-	isoMaker.template.MarkBuildFinished()
-
 	log.Infof("ISO image build completed successfully: %s", isoFilePath)
 
 	return nil
