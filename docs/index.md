@@ -52,7 +52,7 @@ For build options (Earthly, Debian package) and prerequisite details, see the
 
 ## Get Help
 
-- Run `./os-image-composer --help`
+- Run `os-image-composer --help` (using the binary path from your install method)
 - [Start a discussion](https://github.com/open-edge-platform/os-image-composer/discussions)
 - [Troubleshoot build issues](./architecture/os-image-composer-build-process.md#troubleshooting-build-issues)
 
