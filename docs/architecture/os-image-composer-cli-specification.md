@@ -226,6 +226,7 @@ os-image-composer inspect [flags] IMAGE_FILE
 | ---- | ----------- |
 | `--format STRING` | Output format: `text`, `json`, or `yaml` (default: `text`) |
 | `--pretty` | Pretty-print JSON output (only for `--format=json`; default: `false`) |
+| `--extract-sbom FILE` | Extracts SBOM and saves the output in FILE, default filename is used if FILE is not specified |
 
 **Description:**
 
@@ -266,6 +267,9 @@ os-image-composer inspect --format=json --pretty my-image.raw
 
 # Inspect and output YAML
 os-image-composer inspect --format=yaml my-image.raw
+
+# Inspect and extract SPDX data from an IMAGE
+os-image-composer inspect my-image.raw --extract-sbom my-sbom.json
 ```
 
 ### Compare Command
@@ -280,13 +284,15 @@ os-image-composer compare [flags] IMAGE_FILE1 IMAGE_FILE2
 
 - `IMAGE_FILE1` - Path to the first RAW image file (required)
 - `IMAGE_FILE2` - Path to the second RAW image file (required)
+- `SPDX_FILE1` - Path to the first SPDX JSON file (required if `--mode=spdx`)
+- `SPDX_FILE2` - Path to the second SPDX JSON file (required if `--mode=spdx`)
 
 **Flags:**
 
 | Flag | Description |
 | ---- | ----------- |
 | `--format STRING` | Output format: `text` or `json` (default: `text`) |
-| `--mode STRING` | Compare mode: `diff` (partition/FS changes), `summary` (high-level counts), or `full` (complete image metadata). Default: `diff` for text, `full` for JSON |
+| `--mode STRING` | Compare mode: `diff` (partition/FS changes), `summary` (high-level counts), `full` (complete image metadata) or `spdx` (compare SBOM differences). Default: `diff` for text, `full` for JSON |
 | `--pretty` | Pretty-print JSON output (only for `--format=json`; default: `false`) |
 | `--hash-images` | Perform image hashing for verifying binary identical image (default `false`) |
 
@@ -319,6 +325,7 @@ The compare command performs a deep structural comparison of two images and repo
 - `diff`: Detailed changes (partitions, filesystems, EFI binaries)
 - `summary`: High-level counts (added, removed, modified counts)
 - `full`: Complete image metadata plus all diffs
+- `spdx`: Compares two SPDX JSON files
 
 **Output:**
 
@@ -343,6 +350,9 @@ os-image-composer compare --format=json --mode=diff image-v1.raw image-v2.raw
 
 # Perform comparison with image hashing enabled with details text diff
 os-image-composer compare --hash-images=true image-v1.raw image-v2.raw
+
+# Perform SPDX comparison
+os-image-composer compare --format=json --mode=spdx spdx-file1.json spdx-file2.json
 ```
 
 ### Cache Command
