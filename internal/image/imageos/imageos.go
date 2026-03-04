@@ -967,7 +967,7 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 		if _, err := os.Stat(kernelPath); err == nil {
 			log.Infof("kernelPath  Exists at %s", kernelPath)
 		} else {
-			log.Warjf("kernelPath does not exist at %s", kernelPath)
+			log.Warnf("kernelPath does not exist at %s", kernelPath)
 		}
 
 		if _, err := os.Stat(initrdPath); err == nil {
