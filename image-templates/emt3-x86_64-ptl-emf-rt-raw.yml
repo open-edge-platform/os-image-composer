@@ -48,7 +48,6 @@ packageRepositories:
       - cifs-utils
       - opencl-headers
       - linuxptp
-      - libva-utils
       - pulseaudio
       - libsndfile
       # Dependencies for gstreamer1-plugins-base
@@ -208,9 +207,6 @@ systemConfig:
     # ssh server
     - openssh-server
 
-    # virtualization host
-    - qemu-kvm
-
     # agent packages
     - hardware-discovery-agent
     - cluster-agent
@@ -262,7 +258,6 @@ systemConfig:
     # vpro amt
     - platform-manageability-agent
     - rpc
-    - intel-lms
 
     # docker
     - moby-engine
@@ -349,7 +344,6 @@ systemConfig:
     - dmidecode
     - cvt
     - xorg-x11-xinit
-    - unzip
     - alsa-lib
     - libvpl
     - wayland*
