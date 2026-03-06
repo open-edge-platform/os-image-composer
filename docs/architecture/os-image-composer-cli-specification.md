@@ -39,7 +39,8 @@
 
 `os-image-composer` is a command-line tool for generating custom images for
 different operating systems, including
-Azure Linux, Wind River eLxr, RCD, and Edge Microvisor Toolkit.
+Azure Linux, Wind River eLxr, RCD, and
+[Edge Microvisor Toolkit](https://docs.openedgeplatform.intel.com/2026.0/edge-microvisor-toolkit/index.html).
 The tool provides a flexible approach to creating and configuring
 production-ready OS images with precise customization.
 
@@ -80,7 +81,7 @@ flowchart TD
     Cache --> CacheOps[Clean Cache]
 
     Commands -->|version| Version[Show Version Info]
-    
+
     Commands -->|install-completion| Completion[Install Shell Completion]
 
     %% Styling
@@ -691,7 +692,7 @@ automation:
    ```bash
    # Check free space in workspace directory
    df -h ./workspace
-   
+
    # Check free space in cache directory
    df -h ./cache
    ```
@@ -708,7 +709,7 @@ automation:
    ```bash
    # Show current configuration
    os-image-composer config show
-   
+
    # Initialize with defaults
    os-image-composer config init
    ```
