@@ -116,6 +116,11 @@ systemConfig:
     - libselinux-utils
     # - selinux-policy-targeted
 
+    # --- NETWORK ---
+    - NetworkManager
+    - NetworkManager-libnm
+    # - NetworkManager-tui
+
   additionalFiles:
     - local: ../additionalfiles/99-dhcp-en.network
       final: /etc/systemd/network/99-dhcp-en.network
