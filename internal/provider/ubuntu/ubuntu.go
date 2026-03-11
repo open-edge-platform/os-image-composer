@@ -284,12 +284,13 @@ func (p *ubuntu) downloadImagePkgs(template *config.ImageTemplate) error {
 		}
 		baseURL := strings.TrimPrefix(strings.TrimPrefix(userRepo.URL, "http://"), "https://")
 		userRepoList = append(userRepoList, debutils.Repository{
-			ID:        fmt.Sprintf("user-%s", baseURL),
-			Codename:  userRepo.Codename,
-			URL:       userRepo.URL,
-			PKey:      userRepo.PKey,
-			Component: userRepo.Component,
-			Priority:  userRepo.Priority,
+			ID:            fmt.Sprintf("user-%s", baseURL),
+			Codename:      userRepo.Codename,
+			URL:           userRepo.URL,
+			PKey:          userRepo.PKey,
+			Component:     userRepo.Component,
+			Priority:      userRepo.Priority,
+			AllowPackages: userRepo.AllowPackages,
 		})
 	}
 
