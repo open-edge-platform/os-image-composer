@@ -1378,6 +1378,7 @@ func TestIsSameFSFamily(t *testing.T) {
 		{"squashfs-squashfs", "squashfs", "squashfs", true},
 		{"squashfs-ext4", "squashfs", "ext4", false},
 		{"empty-empty", "", "", true},
+		{"whitespace-squashfs", " squashfs ", "squashfs", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1474,10 +1475,25 @@ func TestEnrichFilesystemFromRaw_KeepsCorrectVFAT(t *testing.T) {
 	const partStartSector = 2048
 	const sectorSize = 512
 	const partOff = partStartSector * sectorSize
-	bufSize := partOff + 4096
+	bufSize := partOff + 8192
 	buf := make([]byte, bufSize)
 
-	// Place FAT boot signature 0x55AA at offset 510
+	// Build a minimal valid FAT32 BPB so readFATBootSector does not reject it.
+	// BPB_BytsPerSec at offset 11 (uint16 LE) = 512
+	binary.LittleEndian.PutUint16(buf[partOff+11:partOff+13], 512)
+	// BPB_SecPerClus at offset 13 = 8
+	buf[partOff+13] = 8
+	// BPB_RsvdSecCnt at offset 14 (uint16 LE) = 32
+	binary.LittleEndian.PutUint16(buf[partOff+14:partOff+16], 32)
+	// BPB_NumFATs at offset 16 = 2
+	buf[partOff+16] = 2
+	// BPB_RootEntCnt at offset 17 (uint16 LE) = 0 (FAT32)
+	binary.LittleEndian.PutUint16(buf[partOff+17:partOff+19], 0)
+	// BPB_TotSec32 at offset 32 (uint32 LE) = 1048576 (~512MB)
+	binary.LittleEndian.PutUint32(buf[partOff+32:partOff+36], 1048576)
+	// BPB_FATSz32 at offset 36 (uint32 LE) = 1024
+	binary.LittleEndian.PutUint32(buf[partOff+36:partOff+40], 1024)
+	// FAT boot signature 0x55AA at offset 510
 	buf[partOff+510] = 0x55
 	buf[partOff+511] = 0xAA
 
@@ -1496,7 +1512,10 @@ func TestEnrichFilesystemFromRaw_KeepsCorrectVFAT(t *testing.T) {
 		LogicalSectorSize: sectorSize,
 	}
 
-	_ = enrichFilesystemFromRaw(img, &p, pt)
+	err := enrichFilesystemFromRaw(img, &p, pt)
+	if err != nil {
+		t.Fatalf("enrichFilesystemFromRaw error: %v", err)
+	}
 
 	if p.Filesystem.Type != "vfat" {
 		t.Fatalf("expected filesystem type to remain vfat, got %q", p.Filesystem.Type)

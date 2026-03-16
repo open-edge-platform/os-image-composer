@@ -348,7 +348,7 @@ func isSameFSFamily(a, b string) bool {
 	if isVFATLike(a) && isVFATLike(b) {
 		return true
 	}
-	return strings.EqualFold(a, b)
+	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
 }
 
 // filesystemTypeLabel maps a diskfs filesystem.Type to a string label.
