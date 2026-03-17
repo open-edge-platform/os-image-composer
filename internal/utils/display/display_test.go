@@ -89,7 +89,7 @@ func TestPrintImageDirectorySummary_WithArtifacts(t *testing.T) {
 
 func TestPrintImageBuildingTiming_NoVisibleRows(t *testing.T) {
 	logs := captureLogs(t, func() {
-		display.PrintImageBuildingTiming("raw", 0, 0, 0, 0, 0, 0)
+		display.PrintImageBuildingTiming("raw", 0, 0, 0, 0, 0, 0, 0)
 	})
 
 	if strings.Contains(logs, "Build Timings:") {
@@ -103,10 +103,11 @@ func TestPrintImageBuildingTiming_TableIncludesVisibleRowsAndTotal(t *testing.T)
 			"iso",
 			1500*time.Millisecond,
 			0,
+			500*time.Millisecond,
 			250*time.Millisecond,
 			2*time.Second,
 			0,
-			1250*time.Millisecond,
+			750*time.Millisecond,
 		)
 	})
 
@@ -119,6 +120,7 @@ func TestPrintImageBuildingTiming_TableIncludesVisibleRowsAndTotal(t *testing.T)
 
 	visibleStages := []string{
 		"Initialization and Configuration",
+		"Chroot Package Download",
 		"Chroot Env Initialization",
 		"Image Build",
 		"Finalization and Clean Up",
@@ -129,7 +131,7 @@ func TestPrintImageBuildingTiming_TableIncludesVisibleRowsAndTotal(t *testing.T)
 		}
 	}
 
-	hiddenStages := []string{"Package Download", "Image Conversion"}
+	hiddenStages := []string{"| Package Download ", "| Image Conversion "}
 	for _, stage := range hiddenStages {
 		if strings.Contains(logs, stage) {
 			t.Fatalf("expected zero-duration stage %q to be hidden", stage)
