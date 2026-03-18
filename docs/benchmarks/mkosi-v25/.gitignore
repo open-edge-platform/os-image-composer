@@ -1,0 +1,8 @@
+# mkosi build artifacts
+tools/
+*.raw
+*.efi
+*.initrd
+*.vmlinuz
+*.manifest
+minimal-os-image-ubuntu_*

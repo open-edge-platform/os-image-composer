@@ -1,0 +1,7 @@
+// Proxy settings for apt inside the build chroot.
+// Adjust or remove this file if building on a direct internet connection.
+Acquire::http::Proxy "http://proxy.example.com:911";
+Acquire::https::Proxy "http://proxy.example.com:912";
+
+// Prefer package maintainer versions for modified configuration files
+DPkg::Options:: "--force-confnew";

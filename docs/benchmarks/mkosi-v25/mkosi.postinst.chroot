@@ -1,0 +1,40 @@
+#!/bin/bash
+set -euo pipefail
+
+# Post-install configuration to match OIC ubuntu24-x86_64-minimal-raw image
+# Runs inside the image root via mkosi-chroot (writable filesystem).
+# mkosi v25 already installs from noble + noble-updates + noble-security,
+# so no apt upgrade needed (unlike v12).
+
+# Enable systemd-networkd for DHCP networking
+systemctl enable systemd-networkd || true
+systemctl enable systemd-resolved || true
+systemctl enable systemd-timesyncd || true
+
+# Enable SSH server
+systemctl enable ssh || true
+
+# Enable serial console
+systemctl enable serial-getty@ttyS0.service || true
+
+# SECURITY WARNING:
+# Removes root password for passwordless login to match OIC benchmark defaults.
+# This is INSECURE and must NOT be used for production images.
+# Set SKIP_INSECURE_ROOT_PASSWORD=1 to disable this behavior.
+if [ "${SKIP_INSECURE_ROOT_PASSWORD:-0}" != "1" ]; then
+    echo "WARNING: Removing root password for benchmark image (INSECURE, for testing only)." >&2
+    passwd -d root 2>/dev/null || true
+fi
+
+# Add fstab entry for userdata partition (mounted at /opt)
+if ! grep -q "userdata" /etc/fstab 2>/dev/null; then
+    cat >> /etc/fstab <<'EOF'
+# userdata partition (added by mkosi postinst to match OIC layout)
+/dev/disk/by-partlabel/userdata  /opt  ext4  defaults  0  2
+EOF
+fi
+
+# Create the /opt mount point
+mkdir -p /opt
+
+echo "Post-install configuration complete."

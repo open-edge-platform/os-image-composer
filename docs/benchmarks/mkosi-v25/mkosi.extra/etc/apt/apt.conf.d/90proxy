@@ -1,0 +1,4 @@
+// Proxy settings persisted in the final image.
+// Adjust or remove this file if building on a direct internet connection.
+Acquire::http::Proxy "http://proxy.example.com:911";
+Acquire::https::Proxy "http://proxy.example.com:912";

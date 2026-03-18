@@ -18,6 +18,46 @@ image:
   name: minimal-os-image-ubuntu
   version: "24.04"
 
+# Full disk config copied from default-raw-x86_64.yml with compression removed
+# for fair benchmark comparison with mkosi (default is gz).
+# The disk section fully replaces the default during merge, so all fields are required.
+disk:
+  name: minimal
+  artifacts:
+    - type: raw
+  size: 6GiB
+  partitionTableType: gpt
+  partitions:
+    - id: boot
+      type: esp
+      flags:
+        - esp
+        - boot
+      start: 1MiB
+      end: 513MiB
+      fsType: fat32
+      mountPoint: /boot/efi
+      mountOptions: umask=0077
+    - id: rootfs
+      type: linux-root-amd64
+      start: 513MiB
+      end: 4557MiB
+      fsType: ext4
+      mountPoint: /
+      mountOptions: defaults
+    - id: roothashmap
+      type: linux
+      start: 4557MiB
+      end: 5057MiB
+      fsType: ext4
+      mountPoint: none
+    - id: userdata
+      type: linux
+      start: 5057MiB
+      end: "0"
+      fsType: ext4
+      mountPoint: /opt
+
 target:
   os: ubuntu
   dist: ubuntu24
