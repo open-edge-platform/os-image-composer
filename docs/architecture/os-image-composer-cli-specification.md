@@ -39,7 +39,8 @@
 
 `os-image-composer` is a command-line tool for generating custom images for
 different operating systems, including
-Azure Linux, Wind River eLxr, RCD, and Edge Microvisor Toolkit.
+Azure Linux, Wind River eLxr, RCD, and
+[Edge Microvisor Toolkit](https://docs.openedgeplatform.intel.com/2026.0/edge-microvisor-toolkit/index.html).
 The tool provides a flexible approach to creating and configuring
 production-ready OS images with precise customization.
 
@@ -80,7 +81,7 @@ flowchart TD
     Cache --> CacheOps[Clean Cache]
 
     Commands -->|version| Version[Show Version Info]
-    
+
     Commands -->|install-completion| Completion[Install Shell Completion]
 
     %% Styling
@@ -226,6 +227,7 @@ os-image-composer inspect [flags] IMAGE_FILE
 | ---- | ----------- |
 | `--format STRING` | Output format: `text`, `json`, or `yaml` (default: `text`) |
 | `--pretty` | Pretty-print JSON output (only for `--format=json`; default: `false`) |
+| `--extract-sbom FILE` | Extracts SBOM and saves the output in FILE, default filename is used if FILE is not specified |
 
 **Description:**
 
@@ -266,6 +268,9 @@ os-image-composer inspect --format=json --pretty my-image.raw
 
 # Inspect and output YAML
 os-image-composer inspect --format=yaml my-image.raw
+
+# Inspect and extract SPDX data from an IMAGE
+os-image-composer inspect my-image.raw --extract-sbom my-sbom.json
 ```
 
 ### Compare Command
@@ -280,13 +285,15 @@ os-image-composer compare [flags] IMAGE_FILE1 IMAGE_FILE2
 
 - `IMAGE_FILE1` - Path to the first RAW image file (required)
 - `IMAGE_FILE2` - Path to the second RAW image file (required)
+- `SPDX_FILE1` - Path to the first SPDX JSON file (required if `--mode=spdx`)
+- `SPDX_FILE2` - Path to the second SPDX JSON file (required if `--mode=spdx`)
 
 **Flags:**
 
 | Flag | Description |
 | ---- | ----------- |
 | `--format STRING` | Output format: `text` or `json` (default: `text`) |
-| `--mode STRING` | Compare mode: `diff` (partition/FS changes), `summary` (high-level counts), or `full` (complete image metadata). Default: `diff` for text, `full` for JSON |
+| `--mode STRING` | Compare mode: `diff` (partition/FS changes), `summary` (high-level counts), `full` (complete image metadata) or `spdx` (compare SBOM differences). Default: `diff` for text, `full` for JSON |
 | `--pretty` | Pretty-print JSON output (only for `--format=json`; default: `false`) |
 | `--hash-images` | Perform image hashing for verifying binary identical image (default `false`) |
 
@@ -319,6 +326,7 @@ The compare command performs a deep structural comparison of two images and repo
 - `diff`: Detailed changes (partitions, filesystems, EFI binaries)
 - `summary`: High-level counts (added, removed, modified counts)
 - `full`: Complete image metadata plus all diffs
+- `spdx`: Compares two SPDX JSON files
 
 **Output:**
 
@@ -343,6 +351,9 @@ os-image-composer compare --format=json --mode=diff image-v1.raw image-v2.raw
 
 # Perform comparison with image hashing enabled with details text diff
 os-image-composer compare --hash-images=true image-v1.raw image-v2.raw
+
+# Perform SPDX comparison
+os-image-composer compare --format=json --mode=spdx spdx-file1.json spdx-file2.json
 ```
 
 ### Cache Command
@@ -639,50 +650,38 @@ logging:
 
 ### Image Template File
 
-The image template file (YAML format) defines the specifications for a single image build.
-With this file, you can define exactly what goes into your custom OS image,
-including packages, configurations, and customizations.
+The image template file (YAML) defines everything that goes into a custom OS
+image. A minimal template requires only `image` and `target`; the remaining
+sections are merged from the OS-specific default template at build time.
 
-**Example Template:**
+**Minimal example** (only the two required sections):
 
 ```yaml
 image:
-  # Basic image identification
-  name: edge-device-image                    # Name of the resulting image
-  version: "1.2.0"                           # Version for tracking and naming
+  name: edge-device-image
+  version: "1.2.0"
 
 target:
-  # Target OS and image configuration
-  os: azure-linux                            # Base operating system
-  dist: azl3                                 # Distribution identifier
-  arch: x86_64                               # Target architecture
-  imageType: raw                             # Output format (supported: raw, iso only)
-
-systemConfig:
-  # System configuration
-  name: edge                                 # Configuration name
-  description: Edge device image with Microvisor support
-
-  # Package configuration
-  packages:                                  # Packages to install
-    - openssh-server
-    - docker-ce
-    - vim
-    - curl
-    - wget
-
-  # Kernel configuration
-  kernel:
-    version: "6.12"                          # Kernel version to include
-    cmdline: "quiet splash"                  # Additional kernel command-line parameters
+  os: azure-linux
+  dist: azl3
+  arch: x86_64
+  imageType: raw
 ```
 
-See also:
+**Top-level sections:**
 
-- [Common Build Patterns](./os-image-composer-build-process.md#common-build-patterns)
-  for example image templates
-- [Template Structure](./os-image-composer-templates.md#template-structure)
-  for detailed template documentation
+| Section | Required | Description |
+|---------|----------|-------------|
+| `metadata` | No | AI-searchable discovery metadata (ignored by build engine) |
+| `image` | **Yes** | Image name and version |
+| `target` | **Yes** | OS, distribution, architecture, image type |
+| `disk` | No | Disk size, partitions, output artifact formats |
+| `packageRepositories` | No | Additional package repositories |
+| `systemConfig` | No (user) / **Yes** (merged) | Packages, kernel, users, bootloader, immutability, build commands |
+
+For the complete field-by-field reference including all nested fields, valid
+values, validation rules, and merge behavior, see the
+[Image Template Reference](./os-image-composer-templates.md).
 
 ## Exit Codes
 
@@ -703,7 +702,7 @@ automation:
    ```bash
    # Check free space in workspace directory
    df -h ./workspace
-   
+
    # Check free space in cache directory
    df -h ./cache
    ```
@@ -720,7 +719,7 @@ automation:
    ```bash
    # Show current configuration
    os-image-composer config show
-   
+
    # Initialize with defaults
    os-image-composer config init
    ```
