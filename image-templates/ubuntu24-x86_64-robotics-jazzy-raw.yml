@@ -241,11 +241,13 @@ systemConfig:
     - cmd: "echo 'source /opt/ros/jazzy/setup.bash' >> /etc/bash.bashrc"
     - cmd: "echo 'export ROS_DOMAIN_ID=45' >> /etc/bash.bashrc"
 
-    # ── Post-deployment APT pinning (protects against bad upgrades) ──
-    # ECI origin pin: prefer ECI packages over Ubuntu defaults
-    - cmd: "printf 'Package: *\\nPin: origin eci.intel.com\\nPin-Priority: 1000\\n\\nPackage: libflann*\\nPin: version 1.19.*\\nPin-Priority: -1\\n\\nPackage: flann*\\nPin: version 1.19.*\\nPin-Priority: -1\\n' > /etc/apt/preferences.d/isar"
-    # AMR origin pin: prefer AMR packages above ECI
-    - cmd: "printf 'Package: *\\nPin: origin amrdocs.intel.com\\nPin-Priority: 1001\\n' > /etc/apt/preferences.d/amr"
+    # ── Post-deployment APT version pinning (protects against bad upgrades) ──
+    # Note: Origin-based priority pins (ECI=1000, AMR=1001) are auto-generated
+    # by the provider from packageRepositories.priority fields.
+    # Only version-specific pins that the provider cannot generate are listed here.
+    #
+    # Block old FLANN 1.19.x from ECI (prefer Ubuntu's FLANN 1.9.2)
+    - cmd: "printf 'Package: libflann*\\nPin: version 1.19.*\\nPin-Priority: -1\\n\\nPackage: flann*\\nPin: version 1.19.*\\nPin-Priority: -1\\n' > /etc/apt/preferences.d/eci-flann-block"
     # Pin OneAPI runtime deps to 2025.3.*
     - cmd: "printf 'Package: intel-oneapi-runtime-*\\nPin: version 2025.3.*\\nPin-Priority: 1001\\n' > /etc/apt/preferences.d/oneapi"
     # OpenVINO version pins (match init_jazzy.sh exactly)
@@ -267,7 +269,7 @@ systemConfig:
     # then disables itself.
     - cmd: "printf '#!/bin/bash\\nset -euo pipefail\\nexport DEBIAN_FRONTEND=noninteractive\\nmkdir -p /etc/apt/keyrings\\ncurl -sSf https://librealsense.intel.com/Debian/librealsense.pgp -o /etc/apt/keyrings/librealsense.pgp\\necho \"deb [signed-by=/etc/apt/keyrings/librealsense.pgp] https://librealsense.intel.com/Debian/apt-repo noble main\" > /etc/apt/sources.list.d/librealsense.list\\napt-get update\\napt-get install -y librealsense2-dkms librealsense2\\nsystemctl disable install-librealsense.service\\nrm -f /usr/local/bin/install-librealsense.sh\\n' > /usr/local/bin/install-librealsense.sh"
     - cmd: "chmod 755 /usr/local/bin/install-librealsense.sh"
-    - cmd: "printf '[Unit]\\nDescription=Install Intel RealSense packages (first boot)\\nAfter=network-online.target\\nWants=network-online.target\\nConditionPathExists=/usr/local/bin/install-librealsense.sh\\n\\n[Service]\\nType=oneshot\\nExecStart=/usr/local/bin/install-librealsense.sh\\nEnvironment=DEBIAN_FRONTEND=noninteractive\\nTimeoutStartSec=300\\n\\n[Install]\\nWantedBy=multi-user.target\\n' > /etc/systemd/system/install-librealsense.service"
+    - cmd: "printf '[Unit]\\nDescription=Install Intel RealSense packages (first boot)\\nAfter=network-online.target\\nWants=network-online.target\\nConditionPathExists=/usr/local/bin/install-librealsense.sh\\n\\n[Service]\\nType=oneshot\\nExecStart=/usr/local/bin/install-librealsense.sh\\nEnvironment=DEBIAN_FRONTEND=noninteractive\\nTimeoutStartSec=0\\n\\n[Install]\\nWantedBy=multi-user.target\\n' > /etc/systemd/system/install-librealsense.service"
     - cmd: "systemctl enable install-librealsense.service"
 
     # ── Enable required services ────────────────────────────────────
