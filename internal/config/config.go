@@ -45,7 +45,8 @@ type DiskConfig struct {
 type PackageRepository struct {
 	ID            string   `yaml:"id,omitempty"`            // Auto-assigned
 	Codename      string   `yaml:"codename"`                // Repository identifier/codename
-	URL           string   `yaml:"url"`                     // Repository base URL
+	URL           string   `yaml:"url,omitempty"`           // Repository base URL
+	Path          string   `yaml:"path,omitempty"`          // Local directory path for file-based repositories
 	PKey          string   `yaml:"pkey"`                    // Public GPG key URL for verification
 	Component     string   `yaml:"component,omitempty"`     // Repository component (e.g., "main", "restricted")
 	Priority      int      `yaml:"priority,omitempty"`      // Repository priority (higher numbers = higher priority)
@@ -901,4 +902,15 @@ func (i *ImmutabilityConfig) UnmarshalYAML(unmarshal func(interface{}) error) er
 // WasProvided returns true if the immutability section was explicitly defined in YAML
 func (i *ImmutabilityConfig) WasProvided() bool {
 	return i.wasProvided
+}
+
+// ValidatePackageRepository validates that either URL or Path is provided
+func (pr *PackageRepository) ValidatePackageRepository() error {
+	if pr.URL == "" && pr.Path == "" {
+		return fmt.Errorf("repository '%s': either 'url' or 'path' must be provided", pr.Codename)
+	}
+	if pr.URL != "" && pr.Path != "" {
+		return fmt.Errorf("repository '%s': cannot specify both 'url' and 'path', choose one", pr.Codename)
+	}
+	return nil
 }

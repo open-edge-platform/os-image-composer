@@ -111,6 +111,13 @@ func VerifyAll(paths []string, pubkeyPaths []string, workers int) []Result {
 
 // verifyWithGoRpm uses go-rpm to GPG-check + MD5-check a single file.
 func verifyWithGoRpm(rpmPath, pubkeyPath string) error {
+	log := logger.Logger()
+	//ignore verification if trusted=yes
+	if pubkeyPath == "[trusted=yes]" {
+		log.Infof("Repository marked (%s) as [trusted=yes], skipping Release file signature verification", rpmPath)
+		return nil
+	}
+
 	// load the keyring
 	keyringFile, err := os.Open(pubkeyPath)
 	if err != nil {

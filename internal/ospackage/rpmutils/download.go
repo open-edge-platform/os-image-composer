@@ -27,6 +27,7 @@ type RepoConfig struct {
 	Section      string // raw section header
 	Name         string // human-readable name from name=
 	URL          string
+	Path         string
 	GPGCheck     bool
 	RepoGPGCheck bool
 	Enabled      bool
@@ -62,6 +63,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 		id            string
 		codename      string
 		url           string
+		path          string
 		pkey          string
 		allowPackages []string
 	}, len(UserRepo))
@@ -70,12 +72,14 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 			id            string
 			codename      string
 			url           string
+			path          string
 			pkey          string
 			allowPackages []string
 		}{
 			id:            fmt.Sprintf("rpmcustrepo%d", i+1),
 			codename:      repo.Codename,
 			url:           repo.URL,
+			path:          repo.Path,
 			pkey:          repo.PKey,
 			allowPackages: repo.AllowPackages,
 		}
@@ -91,6 +95,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 		id := repoItem.id
 		codename := repoItem.codename
 		baseURL := repoItem.url
+		path := repoItem.path
 		pkey := repoItem.pkey
 		allowPackages := repoItem.allowPackages
 
@@ -102,6 +107,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 				Enabled:      true,
 				GPGKey:       pkey,
 				URL:          baseURL,
+				Path:         path,
 				Section:      fmt.Sprintf("[%s]", codename),
 			},
 			AllowPackages: allowPackages,
@@ -113,7 +119,6 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 	metadataXmlPath := "repodata/repomd.xml"
 	var allUserPackages []ospackage.PackageInfo
 	for _, rpItx := range userRepo {
-
 		repoMetaDataURL := GetRepoMetaDataURL(rpItx.URL, metadataXmlPath)
 		if repoMetaDataURL == "" {
 			log.Errorf("invalid repo metadata URL: %s/%s, skipping", rpItx.URL, metadataXmlPath)
@@ -217,8 +222,8 @@ func createTempGPGKeyFiles(gpgKeyURLs []string) (keyPaths []string, cleanup func
 	// Download and create temp files for each GPG key
 	for i, gpgKeyURL := range gpgKeyURLs {
 
-		if gpgKeyURL == "<PUBLIC_KEY_URL>" || gpgKeyURL == "" {
-			log.Warnf("GPG key URL %d is empty, skipping", i+1)
+		if gpgKeyURL == "<PUBLIC_KEY_URL>" || gpgKeyURL == "" || gpgKeyURL == "[trusted=yes]" {
+			log.Warnf("GPG key URL %d is empty or marked as trusted, skipping", i+1)
 			continue
 		}
 

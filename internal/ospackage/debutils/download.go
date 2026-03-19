@@ -26,6 +26,7 @@ type Repository struct {
 	ID            string
 	Codename      string
 	URL           string
+	Path          string
 	PKey          string
 	Component     string
 	Priority      int
@@ -185,6 +186,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 			ID:            fmt.Sprintf("%s%d", repoGroup+"-"+baseURL, i+1),
 			Codename:      repo.Codename,
 			URL:           repo.URL,
+			Path:          repo.Path,
 			PKey:          repo.PKey,
 			Component:     repo.Component,
 			Priority:      repo.Priority,
