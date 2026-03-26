@@ -187,6 +187,52 @@ func isDebPackageCacheOutdated(requiredPackages []string, cacheDir string) (bool
 	return len(missing) > 0, missing, cachedFiles, nil
 }
 
+// clearDebMetadataCache removes packages.parsed.json from every configured repo
+// build-path so that metadata is re-fetched on the next run.
+func clearDebMetadataCache() {
+	log := logger.Logger()
+
+	buildPaths := make([]string, 0, 1+len(RepoCfgs))
+	if RepoCfg.BuildPath != "" {
+		buildPaths = append(buildPaths, RepoCfg.BuildPath)
+	}
+	for _, rc := range RepoCfgs {
+		if rc.BuildPath != "" {
+			buildPaths = append(buildPaths, rc.BuildPath)
+		}
+	}
+
+	for _, dir := range buildPaths {
+		cacheFile := filepath.Join(dir, "packages.parsed.json")
+		if err := os.Remove(cacheFile); err != nil && !os.IsNotExist(err) {
+			log.Warnf("failed to remove DEB metadata cache %s: %v", cacheFile, err)
+			continue
+		}
+		log.Infof("removed DEB metadata cache: %s", cacheFile)
+	}
+}
+
+// clearDebPackageCache removes all .deb files from cacheDir and invalidates
+// the per-repo metadata cache (packages.parsed.json) so that a full re-download
+// including fresh repository metadata is performed on the next run.
+func clearDebPackageCache(cacheDir string) error {
+	log := logger.Logger()
+	pattern := filepath.Join(cacheDir, "*.deb")
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return fmt.Errorf("glob %q: %w", pattern, err)
+	}
+	for _, f := range files {
+		if err := os.Remove(f); err != nil {
+			return fmt.Errorf("removing cached file %s: %w", f, err)
+		}
+		log.Debugf("removed stale cached file: %s", filepath.Base(f))
+	}
+	log.Infof("cleared %d stale DEB files from cache directory %s", len(files), cacheDir)
+	clearDebMetadataCache()
+	return nil
+}
+
 func buildDebPackageInfosFromCache(cacheDir string, cachedFiles []string) []ospackage.PackageInfo {
 	infos := make([]ospackage.PackageInfo, 0, len(cachedFiles))
 	for _, file := range cachedFiles {
@@ -589,6 +635,9 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 			return cachedFiles, buildDebPackageInfosFromCache(absDestDir, cachedFiles), nil
 		} else if len(missingRequired) > 0 {
 			log.Infof("DEB package cache is outdated; missing required packages: %v", missingRequired)
+			if clearErr := clearDebPackageCache(absDestDir); clearErr != nil {
+				log.Warnf("Failed to clear DEB package cache: %v", clearErr)
+			}
 		}
 	}
 

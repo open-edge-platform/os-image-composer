@@ -432,6 +432,51 @@ func isRPMPackageCacheOutdated(requiredPackages []string, cacheDir string) (bool
 	return len(missing) > 0, missing, cachedFiles, nil
 }
 
+// clearRPMMetadataCache removes primary.parsed.json and primary.location.json
+// from the metadata cache directory derived from the configured repo URL so that
+// repository metadata is re-fetched on the next run.
+func clearRPMMetadataCache() {
+	log := logger.Logger()
+
+	if RepoCfg.URL == "" {
+		return
+	}
+
+	metaDirName := generateRPMMetadataDir(RepoCfg.URL)
+	metaDir := filepath.Join(config.TempDir(), "builds", metaDirName)
+
+	for _, name := range []string{"primary.parsed.json", "primary.location.json"} {
+		f := filepath.Join(metaDir, name)
+		if err := os.Remove(f); err != nil && !os.IsNotExist(err) {
+			log.Warnf("failed to remove RPM metadata cache %s: %v", f, err)
+			continue
+		}
+		log.Infof("removed RPM metadata cache: %s", f)
+	}
+}
+
+// clearRPMPackageCache removes all .rpm files from cacheDir and invalidates
+// the repository metadata cache (primary.parsed.json, primary.location.json)
+// so that a full re-download including fresh repository metadata is performed
+// on the next run.
+func clearRPMPackageCache(cacheDir string) error {
+	log := logger.Logger()
+	pattern := filepath.Join(cacheDir, "*.rpm")
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return fmt.Errorf("glob %q: %w", pattern, err)
+	}
+	for _, f := range files {
+		if err := os.Remove(f); err != nil {
+			return fmt.Errorf("removing cached file %s: %w", f, err)
+		}
+		log.Debugf("removed stale cached file: %s", filepath.Base(f))
+	}
+	log.Infof("cleared %d stale RPM files from cache directory %s", len(files), cacheDir)
+	clearRPMMetadataCache()
+	return nil
+}
+
 func buildRPMPackageInfosFromCache(cacheDir string, cachedFiles []string) []ospackage.PackageInfo {
 	infos := make([]ospackage.PackageInfo, 0, len(cachedFiles))
 	for _, file := range cachedFiles {
@@ -469,6 +514,9 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 			return cachedFiles, buildRPMPackageInfosFromCache(absDestDir, cachedFiles), nil
 		} else if len(missingRequired) > 0 {
 			log.Infof("RPM package cache is outdated; missing required packages: %v", missingRequired)
+			if clearErr := clearRPMPackageCache(absDestDir); clearErr != nil {
+				log.Warnf("Failed to clear RPM package cache: %v", clearErr)
+			}
 		}
 	}
 

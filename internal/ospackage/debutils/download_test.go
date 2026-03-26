@@ -362,6 +362,93 @@ func TestIsDebPackageCacheOutdated(t *testing.T) {
 	}
 }
 
+func TestClearDebPackageCache(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(dir string)
+		wantLeft []string // non-.deb files that must survive
+	}{
+		{
+			name: "clears all deb files",
+			setup: func(dir string) {
+				_ = os.WriteFile(filepath.Join(dir, "bash_1.0_amd64.deb"), []byte("x"), 0644)
+				_ = os.WriteFile(filepath.Join(dir, "curl_1.0_amd64.deb"), []byte("x"), 0644)
+			},
+		},
+		{
+			name: "leaves non-deb files untouched",
+			setup: func(dir string) {
+				_ = os.WriteFile(filepath.Join(dir, "bash_1.0_amd64.deb"), []byte("x"), 0644)
+				_ = os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("x"), 0644)
+			},
+			wantLeft: []string{"notes.txt"},
+		},
+		{
+			name:  "empty cache dir is a no-op",
+			setup: func(dir string) {},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tt.setup(dir)
+
+			if err := clearDebPackageCache(dir); err != nil {
+				t.Fatalf("clearDebPackageCache() unexpected error: %v", err)
+			}
+
+			debs, _ := filepath.Glob(filepath.Join(dir, "*.deb"))
+			if len(debs) != 0 {
+				t.Errorf("expected no .deb files after clear, got %v", debs)
+			}
+
+			for _, name := range tt.wantLeft {
+				if _, statErr := os.Stat(filepath.Join(dir, name)); os.IsNotExist(statErr) {
+					t.Errorf("expected file %s to survive cache clear, but it was removed", name)
+				}
+			}
+		})
+	}
+}
+
+func TestClearDebMetadataCache(t *testing.T) {
+	origRepoCfg := RepoCfg
+	origRepoCfgs := RepoCfgs
+	defer func() {
+		RepoCfg = origRepoCfg
+		RepoCfgs = origRepoCfgs
+	}()
+
+	metaDir1 := t.TempDir()
+	metaDir2 := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(metaDir1, "packages.parsed.json"), []byte("{}"), 0644); err != nil {
+		t.Fatalf("failed to write metadata cache: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(metaDir2, "packages.parsed.json"), []byte("{}"), 0644); err != nil {
+		t.Fatalf("failed to write metadata cache: %v", err)
+	}
+
+	RepoCfg = RepoConfig{BuildPath: metaDir1}
+	RepoCfgs = []RepoConfig{{BuildPath: metaDir2}}
+
+	pkgDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(pkgDir, "bash_1.0_amd64.deb"), []byte("x"), 0644); err != nil {
+		t.Fatalf("failed to write deb: %v", err)
+	}
+
+	if err := clearDebPackageCache(pkgDir); err != nil {
+		t.Fatalf("clearDebPackageCache() unexpected error: %v", err)
+	}
+
+	for i, dir := range []string{metaDir1, metaDir2} {
+		f := filepath.Join(dir, "packages.parsed.json")
+		if _, statErr := os.Stat(f); !os.IsNotExist(statErr) {
+			t.Errorf("expected packages.parsed.json in build path %d (%s) to be removed", i, dir)
+		}
+	}
+}
+
 // TestUserPackages tests the UserPackages function
 func TestUserPackages(t *testing.T) {
 	// Save original values
