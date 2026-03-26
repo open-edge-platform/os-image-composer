@@ -55,16 +55,6 @@ func Packages() ([]ospackage.PackageInfo, error) {
 	return packages, nil
 }
 
-func createTemporaryRepository(sourcePath, repoName string) (string, error) {
-	// Create temp directory structure
-	// tempRepoPath := filepath.Join("/tmp", fmt.Sprintf("rpmrepo_%s_%d", repoName, time.Now().Unix()))
-
-	// Copy RPM files from source to temp directory
-	// Run createrepo_c command to generate metadata
-	// Return the new repository path
-	return "", fmt.Errorf("createTemporaryRepository not implemented yet")
-}
-
 func LocalUserPackages() ([]ospackage.PackageInfo, error) {
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", "local user package list")
@@ -145,10 +135,12 @@ func LocalUserPackages() ([]ospackage.PackageInfo, error) {
 		repoMetaDataPath := filepath.Join(rpItx.Path, "repodata/repomd.xml")
 		if _, err := os.Stat(repoMetaDataPath); os.IsNotExist(err) {
 			// Not a proper repo - need to create one
-			tempRepoPath, err := createTemporaryRepository(rpItx.Path, rpItx.Name)
+			tempRepoPath, _, cleanup, err := CreateTemporaryRepository(rpItx.Path, rpItx.Name)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create temporary repository: %w", err)
 			}
+			// Store cleanup function for later use if needed
+			_ = cleanup
 			// Update the path to point to the new temp repo
 			rpItx.Path = tempRepoPath
 		}
@@ -623,10 +615,12 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 //     repoMetaDataPath := filepath.Join(rpItx.Path, "repodata/repomd.xml")
 //     if _, err := os.Stat(repoMetaDataPath); os.IsNotExist(err) {
 //         // Not a proper repo - need to create one
-//         tempRepoPath, err := createTemporaryRepository(rpItx.Path, rpItx.Name)
+//         tempRepoPath, _, cleanup, err := CreateTemporaryRepository(rpItx.Path, rpItx.Name)
 //         if err != nil {
 //             return nil, fmt.Errorf("failed to create temporary repository: %w", err)
 //         }
+//         // Store cleanup function for later use if needed
+//         _ = cleanup
 //         // Update the path to point to the new temp repo
 //         rpItx.Path = tempRepoPath
 //     }
