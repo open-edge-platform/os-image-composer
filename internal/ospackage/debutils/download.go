@@ -169,6 +169,67 @@ func BuildRepoConfigs(userRepoList []Repository, arch string) ([]RepoConfig, err
 	return userRepo, nil
 }
 
+func LocalUserPackages() ([]ospackage.PackageInfo, error) {
+	log := logger.Logger()
+	log.Infof("fetching packages from %s", "local user package list")
+
+	var repoList []Repository
+	repoGroup := "custrepo"
+	for i, repo := range UserRepo {
+		// if baseURL is a placeholder, dont process it
+		if repo.Path == "<PATH>" || repo.Path == "" {
+			continue
+		}
+
+		tempRepoPath, tempUrl, cleanup, err := CreateTemporaryRepository(repo.Path, repo.ID)
+		if err != nil {
+			log.Errorf("failed to create temporary DEB repository: %v", err)
+			return nil, fmt.Errorf("failed to create temporary DEB repository: %w", err)
+		}
+
+		// Add cleanup to be called later
+		defer cleanup()
+
+		// Update repository URL to use HTTP server
+		repo.Path = tempRepoPath
+		repo.URL = tempUrl
+		log.Debugf("updated repository URL to: %s", tempUrl)
+
+		// Verify HTTP server is working by fetching Debian Packages file
+		packagesURL := repo.URL + "/dists/stable/main/binary-amd64/Packages"
+		log.Infof("verifying HTTP server by fetching: %s", packagesURL)
+
+		client := &http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Get(packagesURL)
+		if err != nil {
+			log.Debugf("yockgen: failed to verify HTTP server - could not fetch Packages: %v", err)
+		} else {
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				log.Debugf("yockgen: failed to verify HTTP server - Packages returned status %d", resp.StatusCode)
+			} else {
+				log.Debugf("yockgen: HTTP server verification successful - Packages accessible at %s", packagesURL)
+			}
+		}
+
+		// return nil, fmt.Errorf("yockgen: local path %s not yet implemented", repo.Path)
+
+		baseURL := strings.TrimPrefix(strings.TrimPrefix(repo.URL, "http://"), "https://")
+		repoList = append(repoList, Repository{
+			ID:            fmt.Sprintf("%s%d", repoGroup+"-"+baseURL, i+1),
+			Codename:      repo.Codename,
+			URL:           repo.URL,
+			Path:          repo.Path,
+			PKey:          repo.PKey,
+			Component:     repo.Component,
+			Priority:      repo.Priority,
+			AllowPackages: repo.AllowPackages,
+		})
+	}
+
+	return []ospackage.PackageInfo{}, nil
+}
+
 func UserPackages() ([]ospackage.PackageInfo, error) {
 
 	log := logger.Logger()
@@ -181,6 +242,7 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 		if repo.URL == "<URL>" || repo.URL == "" {
 			continue
 		}
+
 		baseURL := strings.TrimPrefix(strings.TrimPrefix(repo.URL, "http://"), "https://")
 		repoList = append(repoList, Repository{
 			ID:            fmt.Sprintf("%s%d", repoGroup+"-"+baseURL, i+1),
@@ -463,6 +525,14 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 		return downloadPkgList, nil, fmt.Errorf("user package fetch failed: %w", err)
 	}
 	all = append(all, userpkg...)
+
+	// Adding local repo packages
+	localRepoPkgs, err := LocalUserPackages()
+	if err != nil {
+		log.Errorf("getting local repo packages failed: %v", err)
+		return downloadPkgList, nil, fmt.Errorf("local repo package fetch failed: %w", err)
+	}
+	all = append(all, localRepoPkgs...)
 
 	// Match the packages in the template against all the packages
 	req, err := MatchRequested(pkgList, all)
