@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/open-edge-platform/os-image-composer/internal/config"
@@ -63,7 +64,222 @@ var (
 	Architecture string
 	UserRepo     []config.PackageRepository
 	ReportPath   = "builds"
+
+	urlExistenceCacheMu     sync.Mutex
+	urlExistenceCache       map[string]bool
+	urlExistenceCacheLoaded bool
 )
+
+const urlExistenceCacheFileName = "url_exists_cache.json"
+
+func urlExistenceCacheFilePath() string {
+	return filepath.Join(config.TempDir(), "builds", urlExistenceCacheFileName)
+}
+
+func loadURLExistenceCacheLocked() {
+	if urlExistenceCacheLoaded {
+		return
+	}
+	urlExistenceCacheLoaded = true
+	urlExistenceCache = make(map[string]bool)
+
+	cacheFile := urlExistenceCacheFilePath()
+	data, err := os.ReadFile(cacheFile)
+	if err != nil {
+		return
+	}
+
+	if err := json.Unmarshal(data, &urlExistenceCache); err != nil {
+		urlExistenceCache = make(map[string]bool)
+	}
+}
+
+func getURLExistenceFromCache(url string) (bool, bool) {
+	urlExistenceCacheMu.Lock()
+	defer urlExistenceCacheMu.Unlock()
+
+	loadURLExistenceCacheLocked()
+	val, ok := urlExistenceCache[url]
+	return val, ok
+}
+
+func saveURLExistenceToCache(url string, exists bool) {
+	log := logger.Logger()
+
+	urlExistenceCacheMu.Lock()
+	defer urlExistenceCacheMu.Unlock()
+
+	loadURLExistenceCacheLocked()
+	urlExistenceCache[url] = exists
+
+	cacheFile := urlExistenceCacheFilePath()
+	if err := os.MkdirAll(filepath.Dir(cacheFile), 0755); err != nil {
+		log.Warnf("failed to create URL existence cache directory: %v", err)
+		return
+	}
+
+	data, err := json.Marshal(urlExistenceCache)
+	if err != nil {
+		log.Warnf("failed to marshal URL existence cache: %v", err)
+		return
+	}
+
+	if err := os.WriteFile(cacheFile, data, 0644); err != nil {
+		log.Warnf("failed to persist URL existence cache: %v", err)
+	}
+}
+
+func extractDebPackageNameFromFile(fileName string) string {
+	base := strings.TrimSuffix(fileName, ".deb")
+	if idx := strings.Index(base, "_"); idx > 0 {
+		return base[:idx]
+	}
+	return base
+}
+
+func parseDebFileName(fileName string) (string, string) {
+	base := strings.TrimSuffix(fileName, ".deb")
+	parts := strings.Split(base, "_")
+	if len(parts) >= 2 {
+		return parts[0], parts[1]
+	}
+	return base, ""
+}
+
+func isDebRequirementInCache(
+	required string,
+	cachedPackageNames map[string]struct{},
+	cachedPackageInfos []ospackage.PackageInfo,
+) bool {
+	required = strings.TrimSpace(required)
+	requiredName := strings.TrimSpace(CleanDependencyName(required))
+	if requiredName == "" {
+		return true
+	}
+
+	if pkg, found := ResolveTopPackageConflicts(required, cachedPackageInfos); found && pkg.Name != "" {
+		return true
+	}
+
+	if requiredName != required {
+		if pkg, found := ResolveTopPackageConflicts(requiredName, cachedPackageInfos); found && pkg.Name != "" {
+			return true
+		}
+	}
+
+	if _, ok := cachedPackageNames[requiredName]; ok {
+		return true
+	}
+
+	for cachedName := range cachedPackageNames {
+		if matchesPackageFilter(cachedName, []string{requiredName}) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isDebPackageCacheOutdated(requiredPackages []string, cacheDir string) (bool, []string, []string, error) {
+	pattern := filepath.Join(cacheDir, "*.deb")
+	cachedPaths, err := filepath.Glob(pattern)
+	if err != nil {
+		return false, nil, nil, fmt.Errorf("glob %q: %w", pattern, err)
+	}
+
+	cachedPackageNames := make(map[string]struct{}, len(cachedPaths))
+	cachedPackageInfos := make([]ospackage.PackageInfo, 0, len(cachedPaths))
+	cachedFiles := make([]string, 0, len(cachedPaths))
+	for _, p := range cachedPaths {
+		base := filepath.Base(p)
+		cachedFiles = append(cachedFiles, base)
+		name, version := parseDebFileName(base)
+		cachedPackageNames[name] = struct{}{}
+		cachedPackageInfos = append(cachedPackageInfos, ospackage.PackageInfo{
+			Name:    name,
+			Version: version,
+			URL:     p,
+			Type:    "deb",
+		})
+	}
+
+	missingSet := make(map[string]struct{})
+	var missing []string
+	for _, req := range requiredPackages {
+		req = strings.TrimSpace(req)
+		if req == "" {
+			continue
+		}
+		if isDebRequirementInCache(req, cachedPackageNames, cachedPackageInfos) {
+			continue
+		}
+		if _, seen := missingSet[req]; seen {
+			continue
+		}
+		missingSet[req] = struct{}{}
+		missing = append(missing, req)
+	}
+
+	return len(missing) > 0, missing, cachedFiles, nil
+}
+
+// clearDebMetadataCache removes packages.parsed.json from every configured repo
+// build-path so that metadata is re-fetched on the next run.
+func clearDebMetadataCache() {
+	log := logger.Logger()
+
+	buildPaths := make([]string, 0, 1+len(RepoCfgs))
+	if RepoCfg.BuildPath != "" {
+		buildPaths = append(buildPaths, RepoCfg.BuildPath)
+	}
+	for _, rc := range RepoCfgs {
+		if rc.BuildPath != "" {
+			buildPaths = append(buildPaths, rc.BuildPath)
+		}
+	}
+
+	for _, dir := range buildPaths {
+		cacheFile := filepath.Join(dir, "packages.parsed.json")
+		if err := os.Remove(cacheFile); err != nil && !os.IsNotExist(err) {
+			log.Warnf("failed to remove DEB metadata cache %s: %v", cacheFile, err)
+			continue
+		}
+		log.Infof("removed DEB metadata cache: %s", cacheFile)
+	}
+}
+
+// clearDebPackageCache removes all .deb files from cacheDir and invalidates
+// the per-repo metadata cache (packages.parsed.json) so that a full re-download
+// including fresh repository metadata is performed on the next run.
+func clearDebPackageCache(cacheDir string) error {
+	log := logger.Logger()
+	pattern := filepath.Join(cacheDir, "*.deb")
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return fmt.Errorf("glob %q: %w", pattern, err)
+	}
+	for _, f := range files {
+		if err := os.Remove(f); err != nil {
+			return fmt.Errorf("removing cached file %s: %w", f, err)
+		}
+		log.Debugf("removed stale cached file: %s", filepath.Base(f))
+	}
+	log.Infof("cleared %d stale DEB files from cache directory %s", len(files), cacheDir)
+	clearDebMetadataCache()
+	return nil
+}
+
+func buildDebPackageInfosFromCache(cacheDir string, cachedFiles []string) []ospackage.PackageInfo {
+	infos := make([]ospackage.PackageInfo, 0, len(cachedFiles))
+	for _, file := range cachedFiles {
+		infos = append(infos, ospackage.PackageInfo{
+			Name: extractDebPackageNameFromFile(file),
+			Type: "deb",
+			URL:  filepath.Join(cacheDir, file),
+		})
+	}
+	return infos
+}
 
 // Packages returns the list of base packages
 func Packages() ([]ospackage.PackageInfo, error) {
@@ -219,6 +435,10 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 // returns true if the file exists (status 200).
 // Optimized to handle timeouts and slow server responses.
 func checkFileExists(url string) (bool, error) {
+	if exists, ok := getURLExistenceFromCache(url); ok {
+		return exists, nil
+	}
+
 	// Create a context with timeout for the request
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -260,9 +480,11 @@ func checkFileExists(url string) (bool, error) {
 	switch {
 	case resp.StatusCode == http.StatusOK:
 		// File exists, all good
+		saveURLExistenceToCache(url, true)
 		return true, nil
 	case resp.StatusCode >= 400 && resp.StatusCode < 500:
 		// Client errors (404, 403, etc.) - treat as file not found
+		saveURLExistenceToCache(url, false)
 		return false, nil
 	case resp.StatusCode >= 500:
 		// Server errors - treat as temporary issue, file might exist
@@ -435,10 +657,28 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 	var downloadPkgList []string
 
 	log := logger.Logger()
+	absDestDir, err := filepath.Abs(destDir)
+	if err != nil {
+		return downloadPkgList, nil, fmt.Errorf("resolving cache directory: %w", err)
+	}
+
+	if len(pkgList) > 0 {
+		cacheOutdated, missingRequired, cachedFiles, cacheErr := isDebPackageCacheOutdated(pkgList, absDestDir)
+		if cacheErr != nil {
+			log.Warnf("Failed to evaluate DEB package cache state: %v", cacheErr)
+		} else if !cacheOutdated {
+			log.Infof("DEB package cache is up-to-date; all %d required packages are available locally", len(pkgList))
+			return cachedFiles, buildDebPackageInfosFromCache(absDestDir, cachedFiles), nil
+		} else if len(missingRequired) > 0 {
+			log.Infof("DEB package cache is outdated; missing required packages: %v", missingRequired)
+			if clearErr := clearDebPackageCache(absDestDir); clearErr != nil {
+				log.Warnf("Failed to clear DEB package cache: %v", clearErr)
+			}
+		}
+	}
 
 	// Fetch the entire base package list from multiple repositories if configured
 	var all []ospackage.PackageInfo
-	var err error
 
 	if len(RepoCfgs) > 0 {
 		// Use multiple repositories
@@ -501,10 +741,6 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 	}
 
 	// Ensure dest directory exists
-	absDestDir, err := filepath.Abs(destDir)
-	if err != nil {
-		return downloadPkgList, nil, fmt.Errorf("resolving cache directory: %w", err)
-	}
 	if err := os.MkdirAll(absDestDir, 0755); err != nil {
 		return downloadPkgList, nil, fmt.Errorf("creating cache directory %s: %w", absDestDir, err)
 	}
