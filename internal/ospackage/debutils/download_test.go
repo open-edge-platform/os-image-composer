@@ -379,6 +379,26 @@ func TestIsDebPackageCacheOutdated_VersionPinnedRequirement(t *testing.T) {
 	}
 }
 
+func TestIsDebPackageCacheOutdated_EpochPinnedRequirement(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "qemu-system_9.1.0+git20251029-ppa1-noble3_amd64.deb"), []byte("x"), 0644); err != nil {
+		t.Fatalf("failed to write cached deb: %v", err)
+	}
+
+	outdated, missing, _, err := isDebPackageCacheOutdated(
+		[]string{"qemu-system_4:9.1.0+git20251029-ppa1-noble3"},
+		tmpDir,
+	)
+	if err != nil {
+		t.Fatalf("isDebPackageCacheOutdated returned error: %v", err)
+	}
+
+	if outdated {
+		t.Fatalf("expected epoch-pinned requirement to be satisfied from cache, missing=%v", missing)
+	}
+}
+
 func TestClearDebPackageCache(t *testing.T) {
 	tests := []struct {
 		name     string

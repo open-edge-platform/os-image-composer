@@ -146,38 +146,138 @@ func parseDebFileName(fileName string) (string, string) {
 	return base, ""
 }
 
+func stripDebEpoch(version string) string {
+	version = strings.TrimSpace(version)
+	if idx := strings.Index(version, ":"); idx > 0 {
+		return version[idx+1:]
+	}
+	return version
+}
+
+func requirementCandidates(required string) []string {
+	required = strings.TrimSpace(required)
+	if required == "" {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	candidates := make([]string, 0, 4)
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return
+		}
+		if _, ok := seen[s]; ok {
+			return
+		}
+		seen[s] = struct{}{}
+		candidates = append(candidates, s)
+	}
+
+	add(required)
+	add(CleanDependencyName(required))
+
+	if idx := strings.Index(required, "_"); idx > 0 {
+		pkgName := strings.TrimSpace(required[:idx])
+		version := strings.TrimSpace(required[idx+1:])
+		add(pkgName)
+		if version != "" {
+			add(pkgName + "_" + stripDebEpoch(version))
+		}
+	}
+
+	return candidates
+}
+
 func isDebRequirementInCache(
 	required string,
 	cachedPackageNames map[string]struct{},
 	cachedPackageInfos []ospackage.PackageInfo,
 ) bool {
 	required = strings.TrimSpace(required)
-	requiredName := strings.TrimSpace(CleanDependencyName(required))
-	if requiredName == "" {
+	if required == "" {
 		return true
 	}
 
-	if pkg, found := ResolveTopPackageConflicts(required, cachedPackageInfos); found && pkg.Name != "" {
+	candidates := requirementCandidates(required)
+	if len(candidates) == 0 {
 		return true
 	}
 
-	if requiredName != required {
-		if pkg, found := ResolveTopPackageConflicts(requiredName, cachedPackageInfos); found && pkg.Name != "" {
+	for _, cand := range candidates {
+		if pkg, found := ResolveTopPackageConflicts(cand, cachedPackageInfos); found && pkg.Name != "" {
 			return true
 		}
 	}
 
-	if _, ok := cachedPackageNames[requiredName]; ok {
-		return true
+	for _, cand := range candidates {
+		candName := cand
+		if idx := strings.Index(candName, "_"); idx > 0 {
+			candName = candName[:idx]
+		}
+		candName = strings.TrimSpace(candName)
+		if candName == "" {
+			continue
+		}
+		if _, ok := cachedPackageNames[candName]; ok {
+			return true
+		}
 	}
 
-	for cachedName := range cachedPackageNames {
-		if matchesPackageFilter(cachedName, []string{requiredName}) {
-			return true
+	for _, cand := range candidates {
+		candName := cand
+		if idx := strings.Index(candName, "_"); idx > 0 {
+			candName = candName[:idx]
+		}
+		candName = strings.TrimSpace(candName)
+		if candName == "" {
+			continue
+		}
+		for cachedName := range cachedPackageNames {
+			if matchesPackageFilter(cachedName, []string{candName}) {
+				return true
+			}
 		}
 	}
 
 	return false
+}
+
+func debMetadataBuildPaths() []string {
+	buildPaths := make([]string, 0, 1+len(RepoCfgs))
+	seen := make(map[string]struct{})
+	add := func(path string) {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			return
+		}
+		if _, ok := seen[path]; ok {
+			return
+		}
+		seen[path] = struct{}{}
+		buildPaths = append(buildPaths, path)
+	}
+
+	add(RepoCfg.BuildPath)
+	for _, rc := range RepoCfgs {
+		add(rc.BuildPath)
+	}
+
+	return buildPaths
+}
+
+func loadDebPackageInfosFromMetadataCache() []ospackage.PackageInfo {
+	var infos []ospackage.PackageInfo
+	for _, dir := range debMetadataBuildPaths() {
+		cacheFile := filepath.Join(dir, "packages.parsed.json")
+		cached, err := loadParsedPackageCache(cacheFile)
+		if err != nil || cached == nil || len(cached.Packages) == 0 {
+			continue
+		}
+		infos = append(infos, cached.Packages...)
+	}
+
+	return infos
 }
 
 func isDebPackageCacheOutdated(requiredPackages []string, cacheDir string) (bool, []string, []string, error) {
@@ -187,20 +287,50 @@ func isDebPackageCacheOutdated(requiredPackages []string, cacheDir string) (bool
 		return false, nil, nil, fmt.Errorf("glob %q: %w", pattern, err)
 	}
 
+	metadataInfos := loadDebPackageInfosFromMetadataCache()
+	cachedFileSet := make(map[string]struct{}, len(cachedPaths))
 	cachedPackageNames := make(map[string]struct{}, len(cachedPaths))
 	cachedPackageInfos := make([]ospackage.PackageInfo, 0, len(cachedPaths))
 	cachedFiles := make([]string, 0, len(cachedPaths))
 	for _, p := range cachedPaths {
 		base := filepath.Base(p)
 		cachedFiles = append(cachedFiles, base)
-		name, version := parseDebFileName(base)
-		cachedPackageNames[name] = struct{}{}
-		cachedPackageInfos = append(cachedPackageInfos, ospackage.PackageInfo{
-			Name:    name,
-			Version: version,
-			URL:     p,
-			Type:    "deb",
-		})
+		cachedFileSet[base] = struct{}{}
+	}
+
+	// Preferred path: use previously parsed local metadata and only keep entries
+	// that have a corresponding .deb in the cache directory.
+	for _, pkg := range metadataInfos {
+		if pkg.Name == "" || pkg.URL == "" {
+			continue
+		}
+		base := filepath.Base(pkg.URL)
+		if _, ok := cachedFileSet[base]; !ok {
+			continue
+		}
+		cachedPackageInfos = append(cachedPackageInfos, pkg)
+		cachedPackageNames[pkg.Name] = struct{}{}
+		if pkg.Version != "" {
+			cachedPackageNames[pkg.Name+"_"+stripDebEpoch(pkg.Version)] = struct{}{}
+		}
+	}
+
+	// Fallback path when metadata cache is unavailable: derive minimal info from files.
+	if len(cachedPackageInfos) == 0 {
+		for _, p := range cachedPaths {
+			base := filepath.Base(p)
+			name, version := parseDebFileName(base)
+			if name == "" {
+				continue
+			}
+			cachedPackageNames[name] = struct{}{}
+			cachedPackageInfos = append(cachedPackageInfos, ospackage.PackageInfo{
+				Name:    name,
+				Version: version,
+				URL:     p,
+				Type:    "deb",
+			})
+		}
 	}
 
 	missingSet := make(map[string]struct{})
@@ -228,17 +358,7 @@ func isDebPackageCacheOutdated(requiredPackages []string, cacheDir string) (bool
 func clearDebMetadataCache() {
 	log := logger.Logger()
 
-	buildPaths := make([]string, 0, 1+len(RepoCfgs))
-	if RepoCfg.BuildPath != "" {
-		buildPaths = append(buildPaths, RepoCfg.BuildPath)
-	}
-	for _, rc := range RepoCfgs {
-		if rc.BuildPath != "" {
-			buildPaths = append(buildPaths, rc.BuildPath)
-		}
-	}
-
-	for _, dir := range buildPaths {
+	for _, dir := range debMetadataBuildPaths() {
 		cacheFile := filepath.Join(dir, "packages.parsed.json")
 		if err := os.Remove(cacheFile); err != nil && !os.IsNotExist(err) {
 			log.Warnf("failed to remove DEB metadata cache %s: %v", cacheFile, err)
