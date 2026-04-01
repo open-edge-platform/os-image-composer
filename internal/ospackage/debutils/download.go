@@ -59,6 +59,7 @@ type pkgChecksum struct {
 var (
 	RepoCfg      RepoConfig
 	RepoCfgs     []RepoConfig // Support for multiple repositories
+	UserRepoCfgs []RepoConfig // Populated from UserRepo packageRepositories
 	PkgChecksum  []pkgChecksum
 	GzHref       string
 	Architecture string
@@ -68,12 +69,30 @@ var (
 	urlExistenceCacheMu     sync.Mutex
 	urlExistenceCache       map[string]bool
 	urlExistenceCacheLoaded bool
+
+	packageListURLCacheMu     sync.Mutex
+	packageListURLCache       map[string]string
+	packageListURLCacheLoaded bool
 )
 
 const urlExistenceCacheFileName = "url_exists_cache.json"
+const packageListURLCacheFileName = "package_list_url_cache.json"
 
 func urlExistenceCacheFilePath() string {
 	return filepath.Join(config.TempDir(), "builds", urlExistenceCacheFileName)
+}
+
+func packageListURLCacheFilePath() string {
+	return filepath.Join(config.TempDir(), "builds", packageListURLCacheFileName)
+}
+
+func packageListURLCacheKey(baseURL, codename, arch, component string) string {
+	return strings.Join([]string{
+		strings.TrimSpace(baseURL),
+		strings.TrimSpace(codename),
+		strings.TrimSpace(arch),
+		strings.TrimSpace(component),
+	}, "|")
 }
 
 func loadURLExistenceCacheLocked() {
@@ -126,6 +145,63 @@ func saveURLExistenceToCache(url string, exists bool) {
 
 	if err := os.WriteFile(cacheFile, data, 0644); err != nil {
 		log.Warnf("failed to persist URL existence cache: %v", err)
+	}
+}
+
+func loadPackageListURLCacheLocked() {
+	if packageListURLCacheLoaded {
+		return
+	}
+	packageListURLCacheLoaded = true
+	packageListURLCache = make(map[string]string)
+
+	cacheFile := packageListURLCacheFilePath()
+	data, err := os.ReadFile(cacheFile)
+	if err != nil {
+		return
+	}
+
+	if err := json.Unmarshal(data, &packageListURLCache); err != nil {
+		packageListURLCache = make(map[string]string)
+	}
+}
+
+func getPackageListURLFromCache(baseURL, codename, arch, component string) (string, bool) {
+	packageListURLCacheMu.Lock()
+	defer packageListURLCacheMu.Unlock()
+
+	loadPackageListURLCacheLocked()
+	url, ok := packageListURLCache[packageListURLCacheKey(baseURL, codename, arch, component)]
+	if !ok || strings.TrimSpace(url) == "" {
+		return "", false
+	}
+	return url, true
+}
+
+func savePackageListURLToCache(baseURL, codename, arch, component, packageListURL string) {
+	log := logger.Logger()
+
+	packageListURLCacheMu.Lock()
+	defer packageListURLCacheMu.Unlock()
+
+	loadPackageListURLCacheLocked()
+	key := packageListURLCacheKey(baseURL, codename, arch, component)
+	packageListURLCache[key] = packageListURL
+
+	cacheFile := packageListURLCacheFilePath()
+	if err := os.MkdirAll(filepath.Dir(cacheFile), 0755); err != nil {
+		log.Warnf("failed to create package-list URL cache directory: %v", err)
+		return
+	}
+
+	data, err := json.Marshal(packageListURLCache)
+	if err != nil {
+		log.Warnf("failed to marshal package-list URL cache: %v", err)
+		return
+	}
+
+	if err := os.WriteFile(cacheFile, data, 0644); err != nil {
+		log.Warnf("failed to persist package-list URL cache: %v", err)
 	}
 }
 
@@ -244,7 +320,7 @@ func isDebRequirementInCache(
 }
 
 func debMetadataBuildPaths() []string {
-	buildPaths := make([]string, 0, 1+len(RepoCfgs))
+	buildPaths := make([]string, 0, 1+len(RepoCfgs)+len(UserRepoCfgs))
 	seen := make(map[string]struct{})
 	add := func(path string) {
 		path = strings.TrimSpace(path)
@@ -260,6 +336,9 @@ func debMetadataBuildPaths() []string {
 
 	add(RepoCfg.BuildPath)
 	for _, rc := range RepoCfgs {
+		add(rc.BuildPath)
+	}
+	for _, rc := range UserRepoCfgs {
 		add(rc.BuildPath)
 	}
 
@@ -504,10 +583,13 @@ func BuildRepoConfigs(userRepoList []Repository, arch string) ([]RepoConfig, err
 	return userRepo, nil
 }
 
-func UserPackages() ([]ospackage.PackageInfo, error) {
-
-	log := logger.Logger()
-	log.Infof("fetching packages from %s", "user package list")
+// initializeUserRepoCfgs builds the UserRepoCfgs from UserRepo without fetching package metadata.
+// This is called early to ensure UserRepoCfgs is available before cache checks.
+func initializeUserRepoCfgs() error {
+	// UserRepoCfgs is already initialized, skip
+	if len(UserRepoCfgs) > 0 {
+		return nil
+	}
 
 	var repoList []Repository
 	repoGroup := "custrepo"
@@ -528,18 +610,32 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 		})
 	}
 
-	// If no valid repositories were found (all were placeholders), return empty package list
+	// If no valid repositories were found (all were placeholders), nothing to do
 	if len(repoList) == 0 {
-		return []ospackage.PackageInfo{}, nil
+		return nil
 	}
 
 	userRepo, err := BuildRepoConfigs(repoList, Architecture)
 	if err != nil {
-		return nil, fmt.Errorf("building user repo configs failed: %w", err)
+		return fmt.Errorf("building user repo configs failed: %w", err)
+	}
+	UserRepoCfgs = userRepo
+
+	return nil
+}
+
+func UserPackages() ([]ospackage.PackageInfo, error) {
+
+	log := logger.Logger()
+	log.Infof("fetching packages from %s", "user package list")
+
+	// Initialize UserRepoCfgs early if not already done
+	if err := initializeUserRepoCfgs(); err != nil {
+		return nil, err
 	}
 
 	var allUserPackages []ospackage.PackageInfo
-	for _, rpItx := range userRepo {
+	for _, rpItx := range UserRepoCfgs {
 
 		userPkgs, err := ParseRepositoryMetadata(rpItx.PkgPrefix, rpItx.PkgList, rpItx.ReleaseFile, rpItx.ReleaseSign, rpItx.PbGPGKey, rpItx.BuildPath, rpItx.Arch, rpItx.AllowPackages)
 		if err != nil {
@@ -777,6 +873,13 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 	var downloadPkgList []string
 
 	log := logger.Logger()
+
+	// Initialize user repo configs early so they are available for cache metadata lookup
+	if err := initializeUserRepoCfgs(); err != nil {
+		log.Warnf("Failed to initialize user repo configs: %v", err)
+		// Continue anyway; user repos are optional
+	}
+
 	absDestDir, err := filepath.Abs(destDir)
 	if err != nil {
 		return downloadPkgList, nil, fmt.Errorf("resolving cache directory: %w", err)

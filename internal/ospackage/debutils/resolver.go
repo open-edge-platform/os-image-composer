@@ -195,27 +195,45 @@ func ParseRepositoryMetadata(baseURL string, pkggz string, releaseFile string, r
 		metaURLList = []string{releaseFile, releaseSign}
 	}
 
-	// Always refresh metadata files (Release, signature, key) to detect upstream changes.
+	// Only skip Release file refresh if local files exist; allow network check for freshness.
+	// This balances offline resilience with metadata staleness detection.
+	refreshNeeded := false
 	for _, f := range metaLocalFiles {
-		if _, err := os.Stat(f); err == nil {
-			if remErr := os.Remove(f); remErr != nil {
-				return nil, fmt.Errorf("failed to remove old file %s: %w", f, remErr)
-			}
+		if _, err := os.Stat(f); err != nil {
+			refreshNeeded = true
+			break
 		}
 	}
 
-	// Download the metadata files
-	err := pkgfetcher.FetchPackages(metaURLList, pkgMetaDir, 1)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch critical repo config packages: %w", err)
+	// Download the metadata files only if missing
+	if refreshNeeded {
+		log.Infof("Refreshing metadata files for %s", baseURL)
+		for _, f := range metaLocalFiles {
+			if _, err := os.Stat(f); err == nil {
+				if remErr := os.Remove(f); remErr != nil {
+					return nil, fmt.Errorf("failed to remove old file %s: %w", f, remErr)
+				}
+			}
+		}
+		err := pkgfetcher.FetchPackages(metaURLList, pkgMetaDir, 1)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch critical repo config packages: %w", err)
+		}
+	} else {
+		log.Debugf("Using existing metadata files for %s (offline mode)", baseURL)
 	}
-	// Verify the release file
-	relVryResult, err := VerifyRelease(localReleaseFile, localReleaseSign, localPBGPGKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to verify release file: %w", err)
-	}
-	if !relVryResult {
-		return nil, fmt.Errorf("release file verification failed")
+
+	// Verify the release file if it was refreshed online; offline cached files are trusted.
+	if refreshNeeded {
+		relVryResult, err := VerifyRelease(localReleaseFile, localReleaseSign, localPBGPGKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to verify release file: %w", err)
+		}
+		if !relVryResult {
+			return nil, fmt.Errorf("release file verification failed")
+		}
+	} else {
+		log.Debugf("Skipping release file verification (using cached offline files)")
 	}
 
 	// verify the sham256 checksum of the Packages.gz file

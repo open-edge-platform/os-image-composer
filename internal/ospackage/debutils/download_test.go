@@ -22,6 +22,13 @@ func resetURLExistenceCacheForTest(t *testing.T) {
 	urlExistenceCacheMu.Unlock()
 
 	_ = os.Remove(urlExistenceCacheFilePath())
+
+	packageListURLCacheMu.Lock()
+	packageListURLCache = nil
+	packageListURLCacheLoaded = false
+	packageListURLCacheMu.Unlock()
+
+	_ = os.Remove(packageListURLCacheFilePath())
 }
 
 // TestPackages tests the Packages function
@@ -655,6 +662,40 @@ func TestCheckFileExists_UsesCacheOffline(t *testing.T) {
 	}
 	if !second {
 		t.Fatalf("expected cached checkFileExists to return true")
+	}
+}
+
+func TestGetPackagesNames_UsesCachedURLOffline(t *testing.T) {
+	resetURLExistenceCacheForTest(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/dists/stable/main/binary-amd64/Packages.gz" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+
+	baseURL := server.URL
+	first, err := GetPackagesNames(baseURL, "stable", "amd64", "main")
+	if err != nil {
+		t.Fatalf("first GetPackagesNames failed: %v", err)
+	}
+	if first == "" {
+		t.Fatalf("expected first GetPackagesNames to return URL")
+	}
+
+	server.Close()
+
+	second, err := GetPackagesNames(baseURL, "stable", "amd64", "main")
+	if err != nil {
+		t.Fatalf("second GetPackagesNames should use cache and work offline: %v", err)
+	}
+	if second == "" {
+		t.Fatalf("expected cached GetPackagesNames to return URL")
+	}
+	if second != first {
+		t.Fatalf("expected cached URL %q, got %q", first, second)
 	}
 }
 
