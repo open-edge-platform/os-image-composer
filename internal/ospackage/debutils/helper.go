@@ -1,6 +1,7 @@
 package debutils
 
 import (
+	"compress/gzip"
 	"fmt"
 	"net/http"
 	"os"
@@ -20,9 +21,10 @@ func GenerateSPDXFileName(repoNm string) string {
 	return SPDXFileNm
 }
 
-// CreateTemporaryRepository creates a temporary Debian repository from a source directory containing .deb files
+// CreateTemporaryRepository creates a temporary Debian repository from a source directory containing .deb files.
+// arch is the target architecture (e.g. "amd64", "arm64") used to create the binary-<arch> metadata directory.
 // Returns: repository path, HTTP server URL, cleanup function, and error
-func CreateTemporaryRepository(sourcePath, repoName string) (repoPath, serverURL string, cleanup func(), err error) {
+func CreateTemporaryRepository(sourcePath, repoName, arch string) (repoPath, serverURL string, cleanup func(), err error) {
 	log := logger.Logger()
 
 	// Validate input path
@@ -61,8 +63,8 @@ func CreateTemporaryRepository(sourcePath, repoName string) (repoPath, serverURL
 		return "", "", nil, fmt.Errorf("failed to create pool directory: %w", err)
 	}
 
-	// Create dists/stable/main/binary-amd64 subdirectory for metadata
-	distsPath := filepath.Join(tempRepoPath, "dists", "stable", "main", "binary-amd64")
+	// Create dists/stable/main/binary-<arch> subdirectory for metadata
+	distsPath := filepath.Join(tempRepoPath, "dists", "stable", "main", "binary-"+arch)
 	if err := os.MkdirAll(distsPath, 0755); err != nil {
 		// Clean up on failure
 		os.RemoveAll(tempRepoPath)
@@ -97,14 +99,67 @@ func CreateTemporaryRepository(sourcePath, repoName string) (repoPath, serverURL
 
 	log.Debugf("dpkg-scanpackages output: %s", output)
 
-	// Create Release file
+	// Verify Packages file was created
+	if _, err := os.Stat(packagesPath); os.IsNotExist(err) {
+		os.RemoveAll(tempRepoPath)
+		return "", "", nil, fmt.Errorf("repository metadata was not created properly: missing %s", packagesPath)
+	}
+
+	// Gzip the Packages file to create Packages.gz (required by ParseRepositoryMetadata)
+	packagesGzPath := packagesPath + ".gz"
+	packagesData, readErr := os.ReadFile(packagesPath)
+	if readErr != nil {
+		os.RemoveAll(tempRepoPath)
+		return "", "", nil, fmt.Errorf("failed to read Packages file: %w", readErr)
+	}
+	gzFile, createErr := os.Create(packagesGzPath)
+	if createErr != nil {
+		os.RemoveAll(tempRepoPath)
+		return "", "", nil, fmt.Errorf("failed to create Packages.gz file: %w", createErr)
+	}
+	gzWriter := gzip.NewWriter(gzFile)
+	if _, writeErr := gzWriter.Write(packagesData); writeErr != nil {
+		gzFile.Close()
+		os.RemoveAll(tempRepoPath)
+		return "", "", nil, fmt.Errorf("failed to write Packages.gz: %w", writeErr)
+	}
+	if closeErr := gzWriter.Close(); closeErr != nil {
+		gzFile.Close()
+		os.RemoveAll(tempRepoPath)
+		return "", "", nil, fmt.Errorf("failed to finalize Packages.gz: %w", closeErr)
+	}
+	gzFile.Close()
+
+	// Compute SHA256 checksums and file sizes for the Release file
+	packagesHash, hashErr := computeFileSHA256(packagesPath)
+	if hashErr != nil {
+		os.RemoveAll(tempRepoPath)
+		return "", "", nil, fmt.Errorf("failed to compute Packages checksum: %w", hashErr)
+	}
+	packagesGzHash, gzHashErr := computeFileSHA256(packagesGzPath)
+	if gzHashErr != nil {
+		os.RemoveAll(tempRepoPath)
+		return "", "", nil, fmt.Errorf("failed to compute Packages.gz checksum: %w", gzHashErr)
+	}
+	packagesStat, statErr := os.Stat(packagesPath)
+	if statErr != nil {
+		os.RemoveAll(tempRepoPath)
+		return "", "", nil, fmt.Errorf("failed to stat Packages file: %w", statErr)
+	}
+	packagesGzStat, gzStatErr := os.Stat(packagesGzPath)
+	if gzStatErr != nil {
+		os.RemoveAll(tempRepoPath)
+		return "", "", nil, fmt.Errorf("failed to stat Packages.gz file: %w", gzStatErr)
+	}
+
+	// Create Release file with SHA256 checksums so VerifyPackagegz can validate the download
 	releasePath := filepath.Join(tempRepoPath, "dists", "stable", "Release")
-	releaseContent := fmt.Sprintf(`Suite: stable
-Codename: stable
-Components: main
-Architectures: amd64
-Date: %s
-`, time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 MST"))
+	releaseContent := fmt.Sprintf("Suite: stable\nCodename: stable\nComponents: main\nArchitectures: %s\nDate: %s\nSHA256:\n %s %d main/binary-%s/Packages\n %s %d main/binary-%s/Packages.gz\n",
+		arch,
+		time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 MST"),
+		packagesHash, packagesStat.Size(), arch,
+		packagesGzHash, packagesGzStat.Size(), arch,
+	)
 
 	if err := os.WriteFile(releasePath, []byte(releaseContent), 0644); err != nil {
 		// Clean up on failure
@@ -112,16 +167,7 @@ Date: %s
 		return "", "", nil, fmt.Errorf("failed to create Release file: %w", err)
 	}
 
-	log.Infof("generated repository metadata for %s", tempRepoPath)
-
-	// Verify that the repository structure was created correctly
-	if _, err := os.Stat(packagesPath); os.IsNotExist(err) {
-		// Clean up on failure
-		os.RemoveAll(tempRepoPath)
-		return "", "", nil, fmt.Errorf("repository metadata was not created properly: missing %s", packagesPath)
-	}
-
-	log.Infof("verified repository metadata exists: %s", packagesPath)
+	log.Infof("generated repository metadata with checksums for %s", tempRepoPath)
 
 	// Start HTTP server to serve the repository
 	serverURL, serverCleanup, err := network.ServeRepositoryHTTP(tempRepoPath)
@@ -137,26 +183,26 @@ Date: %s
 		os.RemoveAll(tempRepoPath) // Then remove repository directory
 	}
 
-	// Verify HTTP server is working by fetching Packages file
-	packagesURL := serverURL + "/dists/stable/main/binary-amd64/Packages"
-	log.Infof("verifying HTTP server by fetching: %s", packagesURL)
+	// Verify HTTP server is working by fetching Packages.gz
+	packagesGzURL := serverURL + "/dists/stable/main/binary-" + arch + "/Packages.gz"
+	log.Infof("verifying HTTP server by fetching: %s", packagesGzURL)
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(packagesURL)
+	resp, err := client.Get(packagesGzURL)
 	if err != nil {
 		// Clean up if verification fails
 		cleanup()
-		return "", "", nil, fmt.Errorf("failed to verify HTTP server - could not fetch Packages: %w", err)
+		return "", "", nil, fmt.Errorf("failed to verify HTTP server - could not fetch Packages.gz: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		// Clean up if verification fails
 		cleanup()
-		return "", "", nil, fmt.Errorf("failed to verify HTTP server - Packages returned status %d", resp.StatusCode)
+		return "", "", nil, fmt.Errorf("failed to verify HTTP server - Packages.gz returned status %d", resp.StatusCode)
 	}
 
-	log.Infof("HTTP server verification successful - Packages accessible at %s", packagesURL)
+	log.Infof("HTTP server verification successful - Packages.gz accessible at %s", packagesGzURL)
 	log.Infof("successfully created and serving temporary DEB repository: %s", tempRepoPath)
 
 	return tempRepoPath, serverURL, cleanup, nil

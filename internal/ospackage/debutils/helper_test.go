@@ -100,7 +100,7 @@ func TestCreateTemporaryRepositorySuccess(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockCommands)
 
 	// Test CreateTemporaryRepository
-	repoPath, serverURL, cleanup, err := CreateTemporaryRepository(tempDir, "testrepo")
+	repoPath, serverURL, cleanup, err := CreateTemporaryRepository(tempDir, "testrepo", "amd64")
 
 	// Note: Since we're using mocked shell commands, the actual repository structure
 	// won't be created. We're testing the function logic, not the actual file operations.
@@ -135,7 +135,7 @@ func TestCreateTemporaryRepositorySuccess(t *testing.T) {
 func TestCreateTemporaryRepositoryNonExistentDirectory(t *testing.T) {
 	nonExistentPath := "/path/that/does/not/exist"
 
-	_, _, _, err := CreateTemporaryRepository(nonExistentPath, "testrepo")
+	_, _, _, err := CreateTemporaryRepository(nonExistentPath, "testrepo", "amd64")
 
 	if err == nil {
 		t.Error("Expected error for non-existent directory")
@@ -164,7 +164,7 @@ func TestCreateTemporaryRepositoryNoDEBFiles(t *testing.T) {
 		}
 	}
 
-	_, _, _, err = CreateTemporaryRepository(tempDir, "testrepo")
+	_, _, _, err = CreateTemporaryRepository(tempDir, "testrepo", "amd64")
 
 	if err == nil {
 		t.Error("Expected error when no DEB files found")
@@ -209,7 +209,7 @@ func TestCreateTemporaryRepositoryDpkgScanpackagesFailure(t *testing.T) {
 	}
 	shell.Default = shell.NewMockExecutor(mockCommands)
 
-	_, _, _, err = CreateTemporaryRepository(tempDir, "testrepo")
+	_, _, _, err = CreateTemporaryRepository(tempDir, "testrepo", "amd64")
 
 	if err == nil {
 		t.Error("Expected error when dpkg-scanpackages fails")
@@ -254,7 +254,7 @@ func TestCreateTemporaryRepositorySpecialCharacters(t *testing.T) {
 	}
 	shell.Default = shell.NewMockExecutor(mockCommands)
 
-	repoPath, _, cleanup, err := CreateTemporaryRepository(tempDir, "repo-with-special_chars")
+	repoPath, _, cleanup, err := CreateTemporaryRepository(tempDir, "repo-with-special_chars", "amd64")
 
 	// Note: With mocked commands, the actual file creation doesn't happen,
 	// so we expect this to fail with metadata creation error
@@ -309,7 +309,7 @@ func TestCreateTemporaryRepositoryCleanup(t *testing.T) {
 	}
 	shell.Default = shell.NewMockExecutor(mockCommands)
 
-	repoPath, _, cleanup, err := CreateTemporaryRepository(tempDir, "cleanuptest")
+	repoPath, _, cleanup, err := CreateTemporaryRepository(tempDir, "cleanuptest", "amd64")
 
 	// Note: Since we're using mocked commands, the actual repository structure
 	// won't be created and the function will fail during file verification.
@@ -368,7 +368,7 @@ func TestCreateTemporaryRepositoryUniqueDirectories(t *testing.T) {
 	shell.Default = shell.NewMockExecutor(mockCommands)
 
 	// Create two repositories with slight time difference
-	_, _, cleanup1, err1 := CreateTemporaryRepository(tempDir, "unique1")
+	_, _, cleanup1, err1 := CreateTemporaryRepository(tempDir, "unique1", "amd64")
 
 	// Note: With mocked commands, both calls will fail during metadata verification
 	// We're testing that different repository names are used in the paths
@@ -380,7 +380,7 @@ func TestCreateTemporaryRepositoryUniqueDirectories(t *testing.T) {
 	// Sleep briefly to ensure different timestamps
 	time.Sleep(1 * time.Millisecond)
 
-	_, _, cleanup2, err2 := CreateTemporaryRepository(tempDir, "unique2")
+	_, _, cleanup2, err2 := CreateTemporaryRepository(tempDir, "unique2", "amd64")
 	if err2 == nil {
 		defer cleanup2()
 	}

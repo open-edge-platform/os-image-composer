@@ -169,65 +169,47 @@ func BuildRepoConfigs(userRepoList []Repository, arch string) ([]RepoConfig, err
 	return userRepo, nil
 }
 
-func LocalUserPackages() ([]ospackage.PackageInfo, error) {
+func LocalUserPackages() ([]ospackage.PackageInfo, func(), error) {
 	log := logger.Logger()
-	log.Infof("fetching packages from %s", "local user package list")
+	log.Infof("fetching packages from local user package list")
 
-	var repoList []Repository
-	repoGroup := "custrepo"
+	var allLocalPackages []ospackage.PackageInfo
+	var cleanups []func()
+	combinedCleanup := func() {
+		for _, fn := range cleanups {
+			fn()
+		}
+	}
+
 	for i, repo := range UserRepo {
-		// if baseURL is a placeholder, dont process it
 		if repo.Path == "<PATH>" || repo.Path == "" {
 			continue
 		}
 
-		tempRepoPath, tempUrl, cleanup, err := CreateTemporaryRepository(repo.Path, repo.ID)
+		repoName := fmt.Sprintf("localrepo%d", i+1)
+		_, tempURL, cleanup, err := CreateTemporaryRepository(repo.Path, repoName, Architecture)
 		if err != nil {
-			log.Errorf("failed to create temporary DEB repository: %v", err)
-			return nil, fmt.Errorf("failed to create temporary DEB repository: %w", err)
+			combinedCleanup()
+			log.Errorf("failed to create temporary DEB repository for %s: %v", repo.Path, err)
+			return nil, nil, fmt.Errorf("failed to create temporary DEB repository for %s: %w", repo.Path, err)
 		}
+		cleanups = append(cleanups, cleanup)
 
-		// Add cleanup to be called later
-		defer cleanup()
+		component := "main"
+		pkggz := fmt.Sprintf("%s/dists/stable/%s/binary-%s/Packages.gz", tempURL, component, Architecture)
+		releaseFile := fmt.Sprintf("%s/dists/stable/Release", tempURL)
+		buildPath := filepath.Join(config.TempDir(), "builds", fmt.Sprintf("%s_%s_%s", repoName, Architecture, component))
 
-		// Update repository URL to use HTTP server
-		repo.Path = tempRepoPath
-		repo.URL = tempUrl
-		log.Debugf("updated repository URL to: %s", tempUrl)
-
-		// Verify HTTP server is working by fetching Debian Packages file
-		packagesURL := repo.URL + "/dists/stable/main/binary-amd64/Packages"
-		log.Infof("verifying HTTP server by fetching: %s", packagesURL)
-
-		client := &http.Client{Timeout: 5 * time.Second}
-		resp, err := client.Get(packagesURL)
+		localPkgs, err := ParseRepositoryMetadata(tempURL, pkggz, releaseFile, "", "[trusted=yes]", buildPath, Architecture, repo.AllowPackages)
 		if err != nil {
-			log.Debugf("yockgen: failed to verify HTTP server - could not fetch Packages: %v", err)
-		} else {
-			defer resp.Body.Close()
-			if resp.StatusCode != 200 {
-				log.Debugf("yockgen: failed to verify HTTP server - Packages returned status %d", resp.StatusCode)
-			} else {
-				log.Debugf("yockgen: HTTP server verification successful - Packages accessible at %s", packagesURL)
-			}
+			combinedCleanup()
+			log.Errorf("failed to parse local DEB repository %s: %v", repo.Path, err)
+			return nil, nil, fmt.Errorf("failed to parse local DEB repository %s: %w", repo.Path, err)
 		}
-
-		// return nil, fmt.Errorf("yockgen: local path %s not yet implemented", repo.Path)
-
-		baseURL := strings.TrimPrefix(strings.TrimPrefix(repo.URL, "http://"), "https://")
-		repoList = append(repoList, Repository{
-			ID:            fmt.Sprintf("%s%d", repoGroup+"-"+baseURL, i+1),
-			Codename:      repo.Codename,
-			URL:           repo.URL,
-			Path:          repo.Path,
-			PKey:          repo.PKey,
-			Component:     repo.Component,
-			Priority:      repo.Priority,
-			AllowPackages: repo.AllowPackages,
-		})
+		allLocalPackages = append(allLocalPackages, localPkgs...)
 	}
 
-	return []ospackage.PackageInfo{}, nil
+	return allLocalPackages, combinedCleanup, nil
 }
 
 func UserPackages() ([]ospackage.PackageInfo, error) {
@@ -527,10 +509,13 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 	all = append(all, userpkg...)
 
 	// Adding local repo packages
-	localRepoPkgs, err := LocalUserPackages()
+	localRepoPkgs, localRepoCleanup, err := LocalUserPackages()
 	if err != nil {
 		log.Errorf("getting local repo packages failed: %v", err)
 		return downloadPkgList, nil, fmt.Errorf("local repo package fetch failed: %w", err)
+	}
+	if localRepoCleanup != nil {
+		defer localRepoCleanup()
 	}
 	all = append(all, localRepoPkgs...)
 

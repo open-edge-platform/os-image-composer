@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -56,131 +55,64 @@ func Packages() ([]ospackage.PackageInfo, error) {
 	return packages, nil
 }
 
-func LocalUserPackages() ([]ospackage.PackageInfo, error) {
+func LocalUserPackages() ([]ospackage.PackageInfo, func(), error) {
 	log := logger.Logger()
-	log.Infof("fetching packages from %s", "local user package list")
+	log.Infof("fetching packages from local user package list")
 
-	repoList := make([]struct {
-		id            string
-		codename      string
-		url           string
-		path          string
-		pkey          string
-		allowPackages []string
-	}, len(UserRepo))
+	var allLocalPackages []ospackage.PackageInfo
+	var cleanups []func()
+	combinedCleanup := func() {
+		for _, fn := range cleanups {
+			fn()
+		}
+	}
+
 	for i, repo := range UserRepo {
-		// skipping non-local repos for now - we only want to process local file path repos in this function
-		// , and the non-local ones will be processed in UserPackages()
 		if repo.Path == "" {
 			continue
 		}
-		repoList[i] = struct {
-			id            string
-			codename      string
-			url           string
-			path          string
-			pkey          string
-			allowPackages []string
-		}{
-			id:            fmt.Sprintf("rpmlocrepo%d", i+1),
-			codename:      repo.Codename,
-			url:           repo.URL,
-			path:          repo.Path,
-			pkey:          repo.PKey,
-			allowPackages: repo.AllowPackages,
-		}
-	}
 
-	// log.Debugf("yockgen %v", repoList)
-	// return nil, fmt.Errorf("yockgen local user packages not implemented yet")
+		repoName := fmt.Sprintf("rpmlocrepo%d", i+1)
+		var repoURL string
 
-	type RepoConfigWithPackages struct {
-		RepoConfig
-		AllowPackages []string
-	}
-
-	var localRepo []RepoConfigWithPackages
-	for _, repoItem := range repoList {
-		id := repoItem.id
-		codename := repoItem.codename
-		baseURL := repoItem.url
-		path := repoItem.path
-		pkey := repoItem.pkey
-		allowPackages := repoItem.allowPackages
-
-		repo := RepoConfigWithPackages{
-			RepoConfig: RepoConfig{
-				Name:         id,
-				GPGCheck:     true,
-				RepoGPGCheck: true,
-				Enabled:      true,
-				GPGKey:       pkey,
-				URL:          baseURL,
-				Path:         path,
-				Section:      fmt.Sprintf("[%s]", codename),
-			},
-			AllowPackages: allowPackages,
-		}
-
-		localRepo = append(localRepo, repo)
-	}
-
-	// metadataXmlPath := "repodata/repomd.xml"
-	// var allLocalPackages []ospackage.PackageInfo
-	for _, rpItx := range localRepo {
-		if rpItx.Path == "" {
-			continue
-		}
-
-		// Check if it's a proper repository
-		repoMetaDataPath := filepath.Join(rpItx.Path, "repodata/repomd.xml")
+		// Check if it's already a proper repository with repodata metadata
+		repoMetaDataPath := filepath.Join(repo.Path, "repodata/repomd.xml")
 		if _, err := os.Stat(repoMetaDataPath); os.IsNotExist(err) {
-			// Not a proper repo - need to create one
-			tempRepoPath, tempUrl, cleanup, err := CreateTemporaryRepository(rpItx.Path, rpItx.Name)
+			// Not a proper repo - copy RPMs, generate metadata, and serve over HTTP
+			_, tempURL, cleanup, err := CreateTemporaryRepository(repo.Path, repoName)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create temporary repository: %w", err)
+				combinedCleanup()
+				return nil, nil, fmt.Errorf("failed to create temporary RPM repository for %s: %w", repo.Path, err)
 			}
-			// Store cleanup function for later use if needed
-			_ = cleanup
-			// Update the path to point to the new temp repo
-			rpItx.Path = tempRepoPath
-			rpItx.URL = tempUrl
+			cleanups = append(cleanups, cleanup)
+			repoURL = tempURL
+		} else {
+			// Already a proper repo - serve it directly over HTTP
+			tempURL, serverCleanup, err := network.ServeRepositoryHTTP(repo.Path)
+			if err != nil {
+				combinedCleanup()
+				return nil, nil, fmt.Errorf("failed to serve local RPM repository %s via HTTP: %w", repo.Path, err)
+			}
+			cleanups = append(cleanups, serverCleanup)
+			repoURL = tempURL
 		}
 
-		// Verify HTTP server is working by fetching repomd.xml
-		repomdURL := rpItx.URL + "/repodata/repomd.xml"
-		log.Infof("verifying HTTP server by fetching: %s", repomdURL)
-
-		client := &http.Client{Timeout: 5 * time.Second}
-		resp, err := client.Get(repomdURL)
+		repomdURL := repoURL + "/repodata/repomd.xml"
+		primaryXmlURL, err := FetchPrimaryURL(repomdURL)
 		if err != nil {
-			log.Debug("yockgen: failed to verify HTTP server - could not fetch repomd.xml: %w", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 200 {
-			log.Debug("yockgen: failed to verify HTTP server - repomd.xml returned status %d", resp.StatusCode)
+			combinedCleanup()
+			return nil, nil, fmt.Errorf("fetching primary XML URL from %s failed: %w", repomdURL, err)
 		}
 
-		log.Debugf("yockgen: HTTP server verification successful - repomd.xml accessible at %s", repomdURL)
-
-		// // For local repositories, construct file path directly
-		// primaryXmlPath, err := FetchLocalPrimaryURL(repoMetaDataPath)
-		// if err != nil {
-		// 	return nil, fmt.Errorf("fetching local primary URL from %s failed: %w", repoMetaDataPath, err)
-		// }
-
-		// // Use file:// scheme for local parsing
-		// fileURL := fmt.Sprintf("file://%s", rpItx.Path)
-		// localPkgs, err := ParseLocalRepositoryMetadata(fileURL, primaryXmlPath, rpItx.AllowPackages)
-		// if err != nil {
-		// 	return nil, fmt.Errorf("parsing local repo failed: %w", err)
-		// }
-		// allLocalPackages = append(allLocalPackages, localPkgs...)
+		localPkgs, err := ParseRepositoryMetadata(repoURL, primaryXmlURL, repo.AllowPackages)
+		if err != nil {
+			combinedCleanup()
+			return nil, nil, fmt.Errorf("parsing local RPM repository %s failed: %w", repo.Path, err)
+		}
+		allLocalPackages = append(allLocalPackages, localPkgs...)
 	}
 
-	return []ospackage.PackageInfo{}, nil
-	//return allLocalPackages, nil
+	return allLocalPackages, combinedCleanup, nil
 }
 
 func UserPackages() ([]ospackage.PackageInfo, error) {
@@ -542,10 +474,13 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 	all = append(all, userpkg...)
 
 	// Adding local repo packages
-	localRepoPkgs, err := LocalUserPackages()
+	localRepoPkgs, localRepoCleanup, err := LocalUserPackages()
 	if err != nil {
 		log.Errorf("getting local repo packages failed: %v", err)
 		return downloadPkgList, nil, fmt.Errorf("local repo package fetch failed: %w", err)
+	}
+	if localRepoCleanup != nil {
+		defer localRepoCleanup()
 	}
 	all = append(all, localRepoPkgs...)
 
