@@ -311,16 +311,26 @@ func Validate(destDir string) error {
 
 	// Add main repo GPG key
 	if RepoCfg.GPGKey != "" {
-		gpgKeyURLs = append(gpgKeyURLs, RepoCfg.GPGKey)
+		gpgKeyURLs = append(gpgKeyURLs, splitGPGKeyURLs(RepoCfg.GPGKey)...)
 	}
 
 	// Add user repo GPG keys
 	for _, userRepo := range UserRepo {
+		// Collect keys from both PKey (string) and PKeys (array)
+		var userKeys []string
+
 		if userRepo.PKey != "" {
-			gpgKeyURLs = append(gpgKeyURLs, userRepo.PKey)
-		} else {
+			userKeys = append(userKeys, splitGPGKeyURLs(userRepo.PKey)...)
+		}
+		if len(userRepo.PKeys) > 0 {
+			userKeys = append(userKeys, userRepo.PKeys...)
+		}
+
+		if len(userKeys) == 0 {
 			return fmt.Errorf("no GPG key URL configured for user repo: %s", userRepo.URL)
 		}
+
+		gpgKeyURLs = append(gpgKeyURLs, userKeys...)
 	}
 
 	if len(gpgKeyURLs) == 0 {
@@ -360,6 +370,22 @@ func Validate(destDir string) error {
 	log.Info("all RPMs verified successfully")
 
 	return nil
+}
+
+func splitGPGKeyURLs(value string) []string {
+	parts := strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || r == '\n' || r == '\r'
+	})
+
+	urls := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			urls = append(urls, part)
+		}
+	}
+
+	return urls
 }
 
 func Resolve(req []ospackage.PackageInfo, all []ospackage.PackageInfo) ([]ospackage.PackageInfo, error) {
