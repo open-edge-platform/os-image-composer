@@ -377,7 +377,10 @@
           }
         }
       },
-      "required": ["codename", "path", "url"],
+      "oneOf": [
+        { "required": ["codename", "path"] },
+        { "required": ["codename", "url"] }
+      ],
       "anyOf": [
         { "required": ["pkey"] },
         { "required": ["pkeys"] }
