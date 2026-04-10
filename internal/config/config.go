@@ -47,6 +47,7 @@ type PackageRepository struct {
 	Codename      string   `yaml:"codename"`                // Repository identifier/codename
 	URL           string   `yaml:"url"`                     // Repository base URL
 	PKey          string   `yaml:"pkey"`                    // Public GPG key URL for verification
+	PKeys         []string `yaml:"pkeys,omitempty"`         // Multiple public GPG key URLs for verification
 	Component     string   `yaml:"component,omitempty"`     // Repository component (e.g., "main", "restricted")
 	Priority      int      `yaml:"priority,omitempty"`      // Repository priority (higher numbers = higher priority)
 	AllowPackages []string `yaml:"allowPackages,omitempty"` // Optional: specific packages to include from this repo (pinning)
@@ -54,19 +55,20 @@ type PackageRepository struct {
 
 // ProviderRepoConfig represents the repository configuration for a provider
 type ProviderRepoConfig struct {
-	Name         string `yaml:"name"`
-	Type         string `yaml:"type"` // Repository type: "rpm" or "deb"
-	BaseURL      string `yaml:"baseURL"`
-	PkgPrefix    string `yaml:"pkgPrefix"`
-	ReleaseFile  string `yaml:"releaseFile"`
-	ReleaseSign  string `yaml:"releaseSign"`
-	PbGPGKey     string `yaml:"pbGPGKey"` // For DEB repositories (eLxr)
-	GPGKey       string `yaml:"gpgKey"`   // For RPM repositories (azl, emt)
-	GPGCheck     bool   `yaml:"gpgCheck"`
-	RepoGPGCheck bool   `yaml:"repoGPGCheck"`
-	Enabled      bool   `yaml:"enabled"`
-	Component    string `yaml:"component"` // Repository component/section identifier
-	BuildPath    string `yaml:"buildPath"`
+	Name         string   `yaml:"name"`
+	Type         string   `yaml:"type"` // Repository type: "rpm" or "deb"
+	BaseURL      string   `yaml:"baseURL"`
+	PkgPrefix    string   `yaml:"pkgPrefix"`
+	ReleaseFile  string   `yaml:"releaseFile"`
+	ReleaseSign  string   `yaml:"releaseSign"`
+	PbGPGKey     string   `yaml:"pbGPGKey"` // For DEB repositories (eLxr)
+	GPGKey       string   `yaml:"gpgKey"`   // For RPM repositories (azl, emt)
+	GPGKeys      []string `yaml:"gpgKeys,omitempty"`
+	GPGCheck     bool     `yaml:"gpgCheck"`
+	RepoGPGCheck bool     `yaml:"repoGPGCheck"`
+	Enabled      bool     `yaml:"enabled"`
+	Component    string   `yaml:"component"` // Repository component/section identifier
+	BuildPath    string   `yaml:"buildPath"`
 }
 
 // ProviderRepoConfigs represents multiple repository configurations for a provider
@@ -97,6 +99,8 @@ type ImageTemplate struct {
 	downloadPkgsDuration time.Duration
 	convertImageStart    time.Time
 	convertImageDuration time.Duration
+	chrootPkgDlStart     time.Time
+	chrootPkgDlDuration  time.Duration
 	buildTimelineStart   time.Time
 	buildFinishedAt      time.Time
 }
@@ -362,6 +366,26 @@ func (t *ImageTemplate) FinishDownloadImagePkgsTimer() {
 	}
 
 	t.downloadPkgsDuration = time.Since(t.downloadPkgsStart)
+	t.chrootPkgDlStart = time.Now()
+	t.chrootPkgDlDuration = 0
+}
+
+// FinishChrootPkgDownloadTimer stores elapsed chroot package download wait time if tracking was started.
+func (t *ImageTemplate) FinishChrootPkgDownloadTimer() {
+	if t == nil || t.chrootPkgDlStart.IsZero() {
+		return
+	}
+
+	t.chrootPkgDlDuration = time.Since(t.chrootPkgDlStart)
+}
+
+// GetChrootPkgDownloadDuration returns tracked chroot package download wait duration.
+func (t *ImageTemplate) GetChrootPkgDownloadDuration() time.Duration {
+	if t == nil {
+		return 0
+	}
+
+	return t.chrootPkgDlDuration
 }
 
 // GetDownloadImagePkgsDuration returns tracked downloadImagePkgs duration.
@@ -397,6 +421,13 @@ func (t *ImageTemplate) GetDurationDownloadImagePkgsToPureBuild() time.Duration 
 	d := t.pureBuildStart.Sub(downloadEnd)
 	if d < 0 {
 		return 0
+	}
+
+	if t.chrootPkgDlDuration > 0 {
+		d -= t.chrootPkgDlDuration
+		if d < 0 {
+			return 0
+		}
 	}
 
 	return d
@@ -835,13 +866,26 @@ func (prc *ProviderRepoConfig) ToRepoConfigData(arch string) (repoType, name, ur
 			url = prc.BaseURL
 		}
 
-		// Handle GPG key URL construction
-		gpgKey = prc.GPGKey
-		if !strings.HasPrefix(gpgKey, "http") && gpgKey != "" {
-			// For relative GPG key paths, use the constructed repository URL
-			gpgKey = fmt.Sprintf("%s/%s", url, gpgKey)
+		gpgKeyValues := make([]string, 0, len(prc.GPGKeys)+1)
+		if len(prc.GPGKeys) > 0 {
+			gpgKeyValues = append(gpgKeyValues, prc.GPGKeys...)
 		}
-		// If gpgKey starts with http, use it as-is
+		if prc.GPGKey != "" {
+			gpgKeyValues = append(gpgKeyValues, prc.GPGKey)
+		}
+
+		resolvedKeys := make([]string, 0, len(gpgKeyValues))
+		for _, keyURL := range gpgKeyValues {
+			keyURL = strings.TrimSpace(keyURL)
+			if keyURL == "" {
+				continue
+			}
+			if !strings.HasPrefix(keyURL, "http") {
+				keyURL = fmt.Sprintf("%s/%s", url, keyURL)
+			}
+			resolvedKeys = append(resolvedKeys, keyURL)
+		}
+		gpgKey = strings.Join(resolvedKeys, ",")
 
 		// DEB-specific fields are empty for RPM
 		pkgPrefix = ""
