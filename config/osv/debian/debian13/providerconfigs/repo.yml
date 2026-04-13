@@ -5,7 +5,7 @@ repositories:
     pkgPrefix: "http://deb.debian.org/debian"
     releaseFile: "http://deb.debian.org/debian/dists/trixie/Release"
     releaseSign: "http://deb.debian.org/debian/dists/trixie/Release.gpg"
-    pbGPGKey: "/data/os-image-composer/config/osv/debian/debian13/providerconfigs/debian-trixie-keyring.gpg"
+    pbGPGKey: "https://ftp-master.debian.org/keys/archive-key-13.asc"
     gpgCheck: true
     repoGPGCheck: true
     enabled: true
@@ -17,7 +17,7 @@ repositories:
     pkgPrefix: "http://deb.debian.org/debian-security"
     releaseFile: "http://deb.debian.org/debian-security/dists/trixie-security/Release"
     releaseSign: "http://deb.debian.org/debian-security/dists/trixie-security/Release.gpg"
-    pbGPGKey: "/data/os-image-composer/config/osv/debian/debian13/providerconfigs/debian-trixie-keyring.gpg"
+    pbGPGKey: "https://ftp-master.debian.org/keys/archive-key-13-security.asc"
     gpgCheck: true
     repoGPGCheck: true
     enabled: true
@@ -29,7 +29,7 @@ repositories:
     pkgPrefix: "http://deb.debian.org/debian"
     releaseFile: "http://deb.debian.org/debian/dists/trixie-updates/Release"
     releaseSign: "http://deb.debian.org/debian/dists/trixie-updates/Release.gpg"
-    pbGPGKey: "/data/os-image-composer/config/osv/debian/debian13/providerconfigs/debian-trixie-keyring.gpg"
+    pbGPGKey: "https://ftp-master.debian.org/keys/archive-key-13.asc"
     gpgCheck: true
     repoGPGCheck: true
     enabled: true
