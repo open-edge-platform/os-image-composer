@@ -91,6 +91,16 @@ func TestUserPackages(t *testing.T) {
 			},
 			expectError: true, // Will fail due to network call
 		},
+		{
+			name: "local repository is handled elsewhere",
+			userRepos: []config.PackageRepository{
+				{
+					Path: "/tmp/local-rpm-repo",
+					PKey: "[trusted=yes]",
+				},
+			},
+			expectError: false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -542,6 +552,41 @@ func TestValidate(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestValidateSkipsLocalRepoRPMs(t *testing.T) {
+	originalRepoCfg := rpmutils.RepoCfg
+	originalUserRepo := rpmutils.UserRepo
+	defer func() {
+		rpmutils.RepoCfg = originalRepoCfg
+		rpmutils.UserRepo = originalUserRepo
+	}()
+
+	destDir := t.TempDir()
+	localRepoDir := t.TempDir()
+
+	localRPMName := "dummyapp-1.0.0-1.x86_64.rpm"
+	destRPMPath := filepath.Join(destDir, localRPMName)
+	localRPMPath := filepath.Join(localRepoDir, localRPMName)
+
+	if err := os.WriteFile(destRPMPath, []byte("unsigned local rpm"), 0644); err != nil {
+		t.Fatalf("failed to create destination RPM: %v", err)
+	}
+	if err := os.WriteFile(localRPMPath, []byte("unsigned local rpm"), 0644); err != nil {
+		t.Fatalf("failed to create local repo RPM: %v", err)
+	}
+
+	rpmutils.RepoCfg = rpmutils.RepoConfig{}
+	rpmutils.UserRepo = []config.PackageRepository{
+		{
+			Path: localRepoDir,
+			PKey: "[trusted=yes]",
+		},
+	}
+
+	if err := rpmutils.Validate(destDir); err != nil {
+		t.Fatalf("Validate should skip local repo RPM verification, got: %v", err)
 	}
 }
 
