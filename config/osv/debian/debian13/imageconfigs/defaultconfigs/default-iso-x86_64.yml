@@ -20,24 +20,47 @@ systemConfig:
     enabled: false
 
   packages:
+    - apt
     - base-files
-    - systemd-boot
-    - dracut-core
-    - systemd
-    - openssh-server
-    - systemd-resolved
-    - systemd-timesyncd
+    - bash
+    - cryptsetup-bin
+    - dhcpcd-base
+    - eject
+    - efibootmgr
     - grub-efi-amd64-bin
     - grub-pc-bin
     - grub2-common
+    - systemd-boot
+    - dracut-core
+    - init
+    - iproute2
+    - iputils-ping
+    - less
+    - locales
+    - lsb-release
+    - mawk
+    - netcat-openbsd
+    - netplan.io
+    - openssh-server
+    - procps
+    - sensible-utils
+    - sudo
+    - systemd
+    - systemd-resolved
+    - systemd-timesyncd
+    - vim-tiny
+    - whiptail
     - xorriso
+
+
+
 
   additionalFiles:
     - local: ../additionalfiles/debian-trixie.list
       final: /etc/apt/sources.list.d/debian-trixie.list
 
   kernel:
-    version: "6.13"
+    version: "6.12.74"
     cmdline: "console=ttyS0,115200 console=tty0 loglevel=7"
     packages:
-      - linux-image-generic
+      - linux-image-amd64
