@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/open-edge-platform/os-image-composer/internal/config"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
@@ -63,72 +62,101 @@ func TestGenerateSPDXFileName(t *testing.T) {
 	}
 }
 
-// TestCreateTemporaryRepositorySuccess tests CreateTemporaryRepository with valid DEB files
-func TestCreateTemporaryRepositorySuccess(t *testing.T) {
-	// Save original shell executor and restore after test
+// TestCreateTemporaryRepositoryPackagesFileMissing verifies that CreateTemporaryRepository
+// returns an error when dpkg-scanpackages exits successfully but does not produce the
+// expected Packages file on disk.
+func TestCreateTemporaryRepositoryPackagesFileMissing(t *testing.T) {
 	originalExecutor := shell.Default
 	defer func() { shell.Default = originalExecutor }()
 
-	// Create temporary directory with mock DEB files for testing
 	tempDir, err := os.MkdirTemp("", "debtest_")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tempDir)
 
-	// Create fake DEB files
-	debFiles := []string{"package1_1.0_amd64.deb", "package2_2.0_all.deb"}
-	for _, debFile := range debFiles {
+	for _, debFile := range []string{"package1_1.0_amd64.deb", "package2_2.0_all.deb"} {
 		debPath := filepath.Join(tempDir, debFile)
 		if err := os.WriteFile(debPath, []byte("fake deb content"), 0644); err != nil {
 			t.Fatalf("Failed to create fake DEB file %s: %v", debFile, err)
 		}
 	}
 
-	// Mock shell commands for dpkg-scanpackages
-	mockCommands := []shell.MockCommand{
-		{
-			Pattern: "cp " + tempDir + "/*.deb",
-			Output:  "",
-			Error:   nil,
-		},
-		{
-			Pattern: "dpkg-scanpackages",
-			Output:  "Successfully created Packages file",
-			Error:   nil,
-		},
-	}
-	shell.Default = shell.NewMockExecutor(mockCommands)
+	shell.Default = shell.NewMockExecutor([]shell.MockCommand{
+		{Pattern: "dpkg-scanpackages", Output: "", Error: nil},
+	})
 
-	// Test CreateTemporaryRepository
-	repoPath, serverURL, cleanup, err := CreateTemporaryRepository(tempDir, "testrepo", "amd64")
+	_, _, _, err = CreateTemporaryRepository(tempDir, "testrepo", "amd64")
 
-	// Note: Since we're using mocked shell commands, the actual repository structure
-	// won't be created. We're testing the function logic, not the actual file operations.
-	// In this case, the function should fail because the mocked dpkg-scanpackages
-	// doesn't actually create the Packages file that the function checks for.
-
-	// For mocked tests, we expect an error because the Packages file check will fail
 	if err == nil {
-		// If no error, verify basic return values
-		if repoPath == "" {
-			t.Error("Expected non-empty repository path")
+		t.Fatal("Expected error about missing Packages file")
+	}
+	if !strings.Contains(err.Error(), "repository metadata was not created properly") {
+		t.Errorf("Expected 'repository metadata was not created properly' error, got: %v", err)
+	}
+}
+
+// scanpackagesExecutor implements shell.Executor to simulate dpkg-scanpackages by writing
+// an empty Packages file at the output path encoded in the command string. This allows the
+// full post-command code path (Packages.gz, Release, HTTP server) to be exercised without
+// requiring dpkg-scanpackages to be installed.
+type scanpackagesExecutor struct{}
+
+func (e *scanpackagesExecutor) ExecCmd(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	if strings.Contains(cmdStr, "dpkg-scanpackages") {
+		// Command format: "cd <dir> && dpkg-scanpackages pool/main /dev/null > <packagesPath>"
+		if parts := strings.SplitN(cmdStr, " > ", 2); len(parts) == 2 {
+			if err := os.WriteFile(strings.TrimSpace(parts[1]), []byte(""), 0644); err != nil {
+				return "", fmt.Errorf("test executor: failed to create Packages file: %w", err)
+			}
 		}
-		if serverURL == "" {
-			t.Error("Expected non-empty server URL")
-		}
-		if cleanup == nil {
-			t.Error("Expected non-nil cleanup function")
-		}
-		// Clean up
-		if cleanup != nil {
-			cleanup()
-		}
-	} else {
-		// Expected behavior with mocked commands - file check fails
-		if !strings.Contains(err.Error(), "repository metadata was not created properly") {
-			t.Errorf("Expected error about metadata creation, got: %v", err)
-		}
+	}
+	return "", nil
+}
+
+func (e *scanpackagesExecutor) ExecCmdSilent(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	return e.ExecCmd(cmdStr, sudo, chrootPath, envVal)
+}
+
+func (e *scanpackagesExecutor) ExecCmdWithStream(cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	return e.ExecCmd(cmdStr, sudo, chrootPath, envVal)
+}
+
+func (e *scanpackagesExecutor) ExecCmdWithInput(inputStr string, cmdStr string, sudo bool, chrootPath string, envVal []string) (string, error) {
+	return e.ExecCmd(cmdStr, sudo, chrootPath, envVal)
+}
+
+// TestCreateTemporaryRepositorySuccess exercises the full happy path: DEB files are copied,
+// a Packages file is generated, Packages.gz and Release are created, an HTTP server is
+// started, and the server is verified to be reachable before returning.
+func TestCreateTemporaryRepositorySuccess(t *testing.T) {
+	originalExecutor := shell.Default
+	defer func() { shell.Default = originalExecutor }()
+
+	tempDir, err := os.MkdirTemp("", "debtest_success_")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	debPath := filepath.Join(tempDir, "package1_1.0_amd64.deb")
+	if err := os.WriteFile(debPath, []byte("fake deb content"), 0644); err != nil {
+		t.Fatalf("Failed to create DEB file: %v", err)
+	}
+
+	shell.Default = &scanpackagesExecutor{}
+
+	repoPath, serverURL, cleanup, err := CreateTemporaryRepository(tempDir, "testrepo", "amd64")
+	if err != nil {
+		t.Fatalf("Expected success, got error: %v", err)
+	}
+	defer cleanup()
+
+	if repoPath == "" {
+		t.Error("Expected non-empty repository path")
+	}
+	if !strings.HasPrefix(serverURL, "http://localhost:") {
+		t.Errorf("Expected server URL starting with 'http://localhost:', got: %s", serverURL)
 	}
 }
 
@@ -334,98 +362,60 @@ func TestCreateTemporaryRepositoryCleanup(t *testing.T) {
 	}
 }
 
-// TestCreateTemporaryRepositoryUniqueDirectories tests that concurrent calls create unique directories
+// TestCreateTemporaryRepositoryUniqueDirectories tests that successive calls create unique directories
 func TestCreateTemporaryRepositoryUniqueDirectories(t *testing.T) {
-	// Save original shell executor and restore after test
 	originalExecutor := shell.Default
 	defer func() { shell.Default = originalExecutor }()
 
-	// Create temporary directory with mock DEB files
 	tempDir, err := os.MkdirTemp("", "debtest_unique_")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tempDir)
 
-	// Create fake DEB file
 	debPath := filepath.Join(tempDir, "package1_1.0_amd64.deb")
 	if err := os.WriteFile(debPath, []byte("fake deb content"), 0644); err != nil {
 		t.Fatalf("Failed to create fake DEB file: %v", err)
 	}
 
-	// Mock shell commands
-	mockCommands := []shell.MockCommand{
-		{
-			Pattern: "cp",
-			Output:  "",
-			Error:   nil,
-		},
-		{
-			Pattern: "dpkg-scanpackages",
-			Output:  "Successfully created Packages file",
-			Error:   nil,
-		},
+	shell.Default = &scanpackagesExecutor{}
+
+	repoPath1, _, cleanup1, err := CreateTemporaryRepository(tempDir, "unique1", "amd64")
+	if err != nil {
+		t.Fatalf("First call failed: %v", err)
 	}
-	shell.Default = shell.NewMockExecutor(mockCommands)
+	defer cleanup1()
 
-	// Create two repositories with slight time difference
-	_, _, cleanup1, err1 := CreateTemporaryRepository(tempDir, "unique1", "amd64")
-
-	// Note: With mocked commands, both calls will fail during metadata verification
-	// We're testing that different repository names are used in the paths
-
-	if err1 == nil {
-		defer cleanup1()
+	repoPath2, _, cleanup2, err := CreateTemporaryRepository(tempDir, "unique2", "amd64")
+	if err != nil {
+		t.Fatalf("Second call failed: %v", err)
 	}
+	defer cleanup2()
 
-	// Sleep briefly to ensure different timestamps
-	time.Sleep(1 * time.Millisecond)
-
-	_, _, cleanup2, err2 := CreateTemporaryRepository(tempDir, "unique2", "amd64")
-	if err2 == nil {
-		defer cleanup2()
+	if repoPath1 == repoPath2 {
+		t.Errorf("Expected unique repository paths, got identical paths: %s", repoPath1)
 	}
-
-	// Both should fail with metadata creation error (expected with mocking)
-	if err1 != nil && !strings.Contains(err1.Error(), "repository metadata was not created properly") {
-		t.Errorf("First call should fail with metadata error, got: %v", err1)
-	}
-	if err2 != nil && !strings.Contains(err2.Error(), "repository metadata was not created properly") {
-		t.Errorf("Second call should fail with metadata error, got: %v", err2)
-	}
-
-	// Test that the repository paths would be different (from the temp directory structure)
-	// Even though the function fails, the initial path creation should use unique names
-	t.Log("This test verifies unique temporary directory naming with mocked commands")
 }
 
 func TestCreateTemporaryRepositoryCopyFileFails(t *testing.T) {
-	originalExecutor := shell.Default
-	defer func() { shell.Default = originalExecutor }()
-
 	tempDir, err := os.MkdirTemp("", "debtest_copy_")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tempDir)
 
-	// Create a fake DEB file so the source-check passes
+	// Create a directory with a .deb suffix so copyFile fails when trying to copy it.
 	debPath := filepath.Join(tempDir, "package_1.0_amd64.deb")
-	if err := os.WriteFile(debPath, []byte("fake deb content"), 0644); err != nil {
-		t.Fatalf("Failed to create fake DEB file: %v", err)
+	if err := os.Mkdir(debPath, 0755); err != nil {
+		t.Fatalf("Failed to create fake DEB directory: %v", err)
 	}
-
-	// Mock cp to fail
-	shell.Default = shell.NewMockExecutor([]shell.MockCommand{
-		{Pattern: "cp", Output: "", Error: fmt.Errorf("permission denied")},
-	})
 
 	_, _, _, err = CreateTemporaryRepository(tempDir, "testrepo", "amd64")
 	if err == nil {
-		t.Fatal("Expected error when cp fails")
+		t.Fatal("Expected error when DEB copy fails")
 	}
-	if !strings.Contains(err.Error(), "failed to copy DEB files") {
-		t.Errorf("Expected 'failed to copy DEB files' error, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to copy DEB file") {
+		t.Errorf("Expected 'failed to copy DEB file' error, got: %v", err)
 	}
 }
 

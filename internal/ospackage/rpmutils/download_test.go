@@ -590,6 +590,57 @@ func TestValidateSkipsLocalRepoRPMs(t *testing.T) {
 	}
 }
 
+func TestValidateTrustedYesSkipsRPMVerification(t *testing.T) {
+	originalRepoCfg := rpmutils.RepoCfg
+	originalUserRepo := rpmutils.UserRepo
+	defer func() {
+		rpmutils.RepoCfg = originalRepoCfg
+		rpmutils.UserRepo = originalUserRepo
+	}()
+
+	destDir := t.TempDir()
+	rpmPath := filepath.Join(destDir, "unsigned.rpm")
+	if err := os.WriteFile(rpmPath, []byte("unsigned rpm"), 0644); err != nil {
+		t.Fatalf("failed to create RPM: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		repoCfg  rpmutils.RepoConfig
+		userRepo []config.PackageRepository
+	}{
+		{
+			name:    "main repo GPGKey is trusted=yes",
+			repoCfg: rpmutils.RepoConfig{GPGKey: "[trusted=yes]"},
+		},
+		{
+			name:    "non-local user repo PKey is trusted=yes",
+			repoCfg: rpmutils.RepoConfig{},
+			userRepo: []config.PackageRepository{
+				{URL: "https://example.com/repo", PKey: "[trusted=yes]"},
+			},
+		},
+		{
+			name:    "multiple truested=yes keys",
+			repoCfg: rpmutils.RepoConfig{GPGKey: "[trusted=yes]"},
+			userRepo: []config.PackageRepository{
+				{URL: "https://example.com/repo", PKey: "[trusted=yes]"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rpmutils.RepoCfg = tt.repoCfg
+			rpmutils.UserRepo = tt.userRepo
+
+			if err := rpmutils.Validate(destDir); err != nil {
+				t.Errorf("Validate should skip verification for [trusted=yes], got: %v", err)
+			}
+		})
+	}
+}
+
 func TestResolve(t *testing.T) {
 	testCases := []struct {
 		name        string

@@ -269,6 +269,10 @@ func parseYAMLTemplate(data []byte, validateFull bool) (*ImageTemplate, error) {
 		return nil, fmt.Errorf("template parsing failed: invalid structure: %w", err)
 	}
 
+	if err := template.validatePackageRepositories(); err != nil {
+		return nil, err
+	}
+
 	return &template, nil
 }
 
@@ -946,6 +950,16 @@ func (i *ImmutabilityConfig) UnmarshalYAML(unmarshal func(interface{}) error) er
 // WasProvided returns true if the immutability section was explicitly defined in YAML
 func (i *ImmutabilityConfig) WasProvided() bool {
 	return i.wasProvided
+}
+
+func (t *ImageTemplate) validatePackageRepositories() error {
+	for _, repo := range t.PackageRepositories {
+		if err := repo.ValidatePackageRepository(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // ValidatePackageRepository validates that either URL or Path is provided

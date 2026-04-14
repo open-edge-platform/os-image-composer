@@ -2,6 +2,7 @@ package rpmutils
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -877,8 +878,8 @@ func CreateTemporaryRepository(sourcePath, repoName string) (repoPath, serverURL
 	log.Infof("found %d RPM files in source directory: %s", len(rpmFiles), sourcePath)
 
 	// Create temporary repository directory
-	tempRepoPath := filepath.Join("/tmp", fmt.Sprintf("rpmrepo_%s_%d", repoName, time.Now().Unix()))
-	if err := os.MkdirAll(tempRepoPath, 0755); err != nil {
+	tempRepoPath, err := os.MkdirTemp("", fmt.Sprintf("rpmrepo_%s_*", repoName))
+	if err != nil {
 		return "", "", nil, fmt.Errorf("failed to create temporary repository directory: %w", err)
 	}
 
@@ -892,12 +893,14 @@ func CreateTemporaryRepository(sourcePath, repoName string) (repoPath, serverURL
 
 	log.Infof("created temporary repository directory: %s", tempRepoPath)
 
-	// Copy all RPM files from source to Packages subdirectory
-	copyCmd := fmt.Sprintf("cp %s/*.rpm %s/", sourcePath, packagesPath)
-	if _, err := shell.ExecCmd(copyCmd, false, shell.HostPath, nil); err != nil {
-		// Clean up on failure
-		os.RemoveAll(tempRepoPath)
-		return "", "", nil, fmt.Errorf("failed to copy RPM files to temporary repository: %w", err)
+	// Copy all RPM files from source to Packages subdirectory without shelling out.
+	for _, rpmFile := range rpmFiles {
+		dstPath := filepath.Join(packagesPath, filepath.Base(rpmFile))
+		if err := copyFile(rpmFile, dstPath); err != nil {
+			// Clean up on failure
+			os.RemoveAll(tempRepoPath)
+			return "", "", nil, fmt.Errorf("failed to copy RPM file %s to temporary repository: %w", rpmFile, err)
+		}
 	}
 
 	log.Infof("copied RPM files from %s to %s", sourcePath, packagesPath)
@@ -961,4 +964,29 @@ func CreateTemporaryRepository(sourcePath, repoName string) (repoPath, serverURL
 
 	log.Infof("successfully created and serving temporary RPM repository: %s", tempRepoPath)
 	return tempRepoPath, serverURL, cleanup, nil
+}
+
+func copyFile(srcPath, dstPath string) error {
+	src, err := os.Open(srcPath)
+	if err != nil {
+		return fmt.Errorf("failed to open source file %s: %w", srcPath, err)
+	}
+	defer src.Close()
+
+	srcInfo, err := src.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat source file %s: %w", srcPath, err)
+	}
+
+	dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, srcInfo.Mode())
+	if err != nil {
+		return fmt.Errorf("failed to create destination file %s: %w", dstPath, err)
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return fmt.Errorf("failed to copy file data from %s to %s: %w", srcPath, dstPath, err)
+	}
+
+	return nil
 }

@@ -2427,6 +2427,55 @@ systemConfig:
 	}
 }
 
+func TestLoadTemplateRejectsInvalidPackageRepository(t *testing.T) {
+	yamlContent := `image:
+  name: test-invalid-repo
+  version: "1.0.0"
+
+target:
+  os: azure-linux
+  dist: azl3
+  arch: x86_64
+  imageType: raw
+
+packageRepositories:
+  - codename: "invalid-repo"
+    url: "https://example.com/repo"
+    path: "/tmp/repo"
+    pkey: "https://example.com/key.pub"
+
+systemConfig:
+  name: test
+  packages:
+    - test-package
+  kernel:
+    version: "6.12"
+    cmdline: "quiet"
+`
+
+	tmpFile, err := os.CreateTemp("", "test-invalid-repo-*.yml")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	if err := tmpFile.Chmod(0600); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpFile.Name())
+		t.Fatalf("failed to set temp file permissions: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(yamlContent); err != nil {
+		tmpFile.Close()
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	tmpFile.Close()
+
+	_, err = LoadTemplate(tmpFile.Name(), false)
+	if err == nil {
+		t.Fatal("expected LoadTemplate to reject invalid package repository configuration")
+	}
+}
+
 func TestGlobalConfigSaveWithCreateDirectory(t *testing.T) {
 	config := &GlobalConfig{
 		Workers:   4,

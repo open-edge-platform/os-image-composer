@@ -117,6 +117,25 @@ func TestServeRepositoryHTTP_InvalidDirectory(t *testing.T) {
 	}
 }
 
+func TestServeRepositoryHTTP_PathIsFile(t *testing.T) {
+	tempFile, err := os.CreateTemp(t.TempDir(), "repo-file-*.txt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	if err := tempFile.Close(); err != nil {
+		t.Fatalf("failed to close temp file: %v", err)
+	}
+
+	_, _, err = ServeRepositoryHTTP(tempFile.Name())
+	if err == nil {
+		t.Fatalf("expected error for file path, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "repository path is not a directory") {
+		t.Fatalf("expected non-directory error, got: %v", err)
+	}
+}
+
 func TestServeRepositoryHTTP_Cleanup(t *testing.T) {
 	repoDir := t.TempDir()
 

@@ -77,15 +77,20 @@ func LocalUserPackages() ([]ospackage.PackageInfo, func(), error) {
 
 		// Check if it's already a proper repository with repodata metadata
 		repoMetaDataPath := filepath.Join(repo.Path, "repodata/repomd.xml")
-		if _, err := os.Stat(repoMetaDataPath); os.IsNotExist(err) {
-			// Not a proper repo - copy RPMs, generate metadata, and serve over HTTP
-			_, tempURL, cleanup, err := CreateTemporaryRepository(repo.Path, repoName)
-			if err != nil {
+		if _, err := os.Stat(repoMetaDataPath); err != nil {
+			if os.IsNotExist(err) {
+				// Not a proper repo - copy RPMs, generate metadata, and serve over HTTP
+				_, tempURL, cleanup, err := CreateTemporaryRepository(repo.Path, repoName)
+				if err != nil {
+					combinedCleanup()
+					return nil, nil, fmt.Errorf("failed to create temporary RPM repository for %s: %w", repo.Path, err)
+				}
+				cleanups = append(cleanups, cleanup)
+				repoURL = tempURL
+			} else {
 				combinedCleanup()
-				return nil, nil, fmt.Errorf("failed to create temporary RPM repository for %s: %w", repo.Path, err)
+				return nil, nil, fmt.Errorf("failed to access local RPM repository metadata %s: %w", repoMetaDataPath, err)
 			}
-			cleanups = append(cleanups, cleanup)
-			repoURL = tempURL
 		} else {
 			// Already a proper repo - serve it directly over HTTP
 			tempURL, serverCleanup, err := network.ServeRepositoryHTTP(repo.Path)
@@ -460,6 +465,19 @@ func Validate(destDir string) error {
 		return fmt.Errorf("no GPG keys configured for verification")
 	}
 
+	// If every configured key is the [trusted=yes] sentinel, skip RPM signature verification.
+	allTrusted := true
+	for _, url := range gpgKeyURLs {
+		if url != "[trusted=yes]" {
+			allTrusted = false
+			break
+		}
+	}
+	if allTrusted {
+		log.Infof("all repositories are marked [trusted=yes], skipping RPM signature verification")
+		return nil
+	}
+
 	// Create temporary GPG key files
 	gpgKeyPaths, cleanup, err := createTempGPGKeyFiles(gpgKeyURLs)
 	if err != nil {
@@ -636,26 +654,3 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 
 	return downloadPkgList, needed, nil
 }
-
-// In LocalUserPackages(), before the main processing loop:
-// for _, rpItx := range localRepo {
-//     if rpItx.Path == "" {
-//         continue
-//     }
-//
-//     // Check if it's a proper repository
-//     repoMetaDataPath := filepath.Join(rpItx.Path, "repodata/repomd.xml")
-//     if _, err := os.Stat(repoMetaDataPath); os.IsNotExist(err) {
-//         // Not a proper repo - need to create one
-//         tempRepoPath, _, cleanup, err := CreateTemporaryRepository(rpItx.Path, rpItx.Name)
-//         if err != nil {
-//             return nil, fmt.Errorf("failed to create temporary repository: %w", err)
-//         }
-//         // Store cleanup function for later use if needed
-//         _ = cleanup
-//         // Update the path to point to the new temp repo
-//         rpItx.Path = tempRepoPath
-//     }
-//
-//     // Continue with existing repo processing...
-// }

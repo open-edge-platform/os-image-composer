@@ -3,6 +3,7 @@ package debutils
 import (
 	"compress/gzip"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -50,8 +51,8 @@ func CreateTemporaryRepository(sourcePath, repoName, arch string) (repoPath, ser
 	log.Infof("found %d DEB files in source directory: %s", len(debFiles), sourcePath)
 
 	// Create temporary repository directory with Debian structure
-	tempRepoPath := filepath.Join("/tmp", fmt.Sprintf("debrepo_%s_%d", repoName, time.Now().Unix()))
-	if err := os.MkdirAll(tempRepoPath, 0755); err != nil {
+	tempRepoPath, err := os.MkdirTemp("", fmt.Sprintf("debrepo_%s_*", repoName))
+	if err != nil {
 		return "", "", nil, fmt.Errorf("failed to create temporary repository directory: %w", err)
 	}
 
@@ -73,12 +74,14 @@ func CreateTemporaryRepository(sourcePath, repoName, arch string) (repoPath, ser
 
 	log.Infof("created temporary repository directory: %s", tempRepoPath)
 
-	// Copy all DEB files from source to pool/main directory
-	copyCmd := fmt.Sprintf("cp %s/*.deb %s/", sourcePath, poolPath)
-	if _, err := shell.ExecCmd(copyCmd, false, shell.HostPath, nil); err != nil {
-		// Clean up on failure
-		os.RemoveAll(tempRepoPath)
-		return "", "", nil, fmt.Errorf("failed to copy DEB files to temporary repository: %w", err)
+	// Copy all DEB files from source to pool/main directory without shelling out.
+	for _, debFile := range debFiles {
+		dstPath := filepath.Join(poolPath, filepath.Base(debFile))
+		if err := copyFile(debFile, dstPath); err != nil {
+			// Clean up on failure
+			os.RemoveAll(tempRepoPath)
+			return "", "", nil, fmt.Errorf("failed to copy DEB file %s to temporary repository: %w", debFile, err)
+		}
 	}
 
 	log.Infof("copied DEB files from %s to %s", sourcePath, poolPath)
@@ -206,4 +209,29 @@ func CreateTemporaryRepository(sourcePath, repoName, arch string) (repoPath, ser
 	log.Infof("successfully created and serving temporary DEB repository: %s", tempRepoPath)
 
 	return tempRepoPath, serverURL, cleanup, nil
+}
+
+func copyFile(srcPath, dstPath string) error {
+	src, err := os.Open(srcPath)
+	if err != nil {
+		return fmt.Errorf("failed to open source file %s: %w", srcPath, err)
+	}
+	defer src.Close()
+
+	srcInfo, err := src.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat source file %s: %w", srcPath, err)
+	}
+
+	dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, srcInfo.Mode())
+	if err != nil {
+		return fmt.Errorf("failed to create destination file %s: %w", dstPath, err)
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return fmt.Errorf("failed to copy file data from %s to %s: %w", srcPath, dstPath, err)
+	}
+
+	return nil
 }
