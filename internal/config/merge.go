@@ -456,6 +456,12 @@ func mergePackages(defaultPackages, userPackages []string) []string {
 		}
 	}
 
+
+	log.Info("mergePackages: default=%d user=%d merged=%d\n", len(defaultPackages), len(userPackages), len(mergedPackages))
+	for i, p := range mergedPackages {
+		log.Infof("  merged[%d]=%q\n", i, p)
+	}
+
 	return mergedPackages
 }
 
