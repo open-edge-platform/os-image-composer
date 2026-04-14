@@ -1429,24 +1429,29 @@ func TestRPMCreateTemporaryRepositoryNoRPMFiles(t *testing.T) {
 }
 
 func TestRPMCreateTemporaryRepositoryCopyFails(t *testing.T) {
-	origShell := shell.Default
-	defer func() { shell.Default = origShell }()
-
 	tmpDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(tmpDir, "pkg.rpm"), []byte("fake rpm"), 0644); err != nil {
+	rpmPath := filepath.Join(tmpDir, "pkg.rpm")
+	if err := os.WriteFile(rpmPath, []byte("fake rpm"), 0644); err != nil {
 		t.Fatalf("failed to create rpm file: %v", err)
 	}
 
-	shell.Default = shell.NewMockExecutor([]shell.MockCommand{
-		{Pattern: "cp .*[.]rpm", Output: "", Error: fmt.Errorf("permission denied")},
-	})
+	// CreateTemporaryRepository now copies files via copyFile(), so force a real
+	// read failure by removing read permissions from the source RPM.
+	if err := os.Chmod(rpmPath, 0000); err != nil {
+		t.Fatalf("failed to chmod rpm file: %v", err)
+	}
+	defer func() {
+		if chmodErr := os.Chmod(rpmPath, 0644); chmodErr != nil {
+			t.Fatalf("failed to restore rpm file permissions: %v", chmodErr)
+		}
+	}()
 
 	_, _, _, err := CreateTemporaryRepository(tmpDir, "myrepo")
 	if err == nil {
-		t.Fatal("expected error when cp fails")
+		t.Fatal("expected error when RPM copy fails")
 	}
-	if !strings.Contains(err.Error(), "failed to copy RPM files") {
-		t.Errorf("expected 'failed to copy RPM files' error, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to copy RPM file") {
+		t.Errorf("expected 'failed to copy RPM file' error, got: %v", err)
 	}
 }
 
