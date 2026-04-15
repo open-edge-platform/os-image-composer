@@ -1072,14 +1072,13 @@ func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospac
 		}
 		// 4) prefix by want.release ("acl-2.3.1-2.")
 		if strings.HasPrefix(pi.Name, want+".") {
-                        // Extract string after "." and compare with pi.Version
-                        if dashIdx := strings.LastIndex(want, "."); dashIdx != -1 {
-                                verStr := want[dashIdx+1:]
-                                if strings.Contains(pi.Version, verStr) {
-                                        candidates = append(candidates, pi)
-                                        continue
-                                }
-                        }
+			suffix := strings.TrimPrefix(pi.Name, want+".") // e.g. "10" or "defs"
+			if len(suffix) > 0 && suffix[0] >= '0' && suffix[0] <= '9' {
+				// treat as versioned dotted-variant like python3.10
+				candidates = append(candidates, pi)
+				continue
+			}
+			// otherwise ignore dotted names like login.defs for want=login
 		}
 		// 5) Debian package format (packagename_version_arch.deb)
 		if strings.HasPrefix(pi.Name, want+"_") {
