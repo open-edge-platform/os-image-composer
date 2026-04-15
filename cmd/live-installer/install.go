@@ -105,6 +105,13 @@ func dependencyCheck(targetOs string) error {
 			"veritysetup": "cryptsetup", // For the veritysetup command
 			//"sbsign":      "sbsigntools", // For the UKI image creation
 		}
+        case "debian":
+                dependencyInfo = map[string]string{
+                        "mmdebstrap":  "mmdebstrap", // For the chroot env build
+                        "mkfs.fat":    "dosfstools", // For the FAT32 boot partition creation
+                        "veritysetup": "cryptsetup", // For the veritysetup command
+                        //"sbsign":      "sbsigntools", // For the UKI image creation
+                }
 	default:
 		return fmt.Errorf("unsupported target OS for dependency check: %s", targetOs)
 	}
