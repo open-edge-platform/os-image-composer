@@ -51,6 +51,9 @@ systemConfig:
     - dhcpcd-base
     - eject
     - efibootmgr
+    - firmware-intel-graphics
+    - firmware-intel-misc
+    - firmware-iwlwifi
     - grub-efi-amd64-bin
     - grub-pc-bin
     - grub2-common
@@ -63,6 +66,7 @@ systemConfig:
     - locales
     - lsb-release
     - mawk
+    - wireless-regdb
     - netcat-openbsd
     - netplan.io
     - openssh-server
@@ -72,7 +76,7 @@ systemConfig:
     - systemd
     - systemd-resolved
     - systemd-timesyncd
-    - vim-tiny
+    - vim
     - whiptail
     - xorriso
 
