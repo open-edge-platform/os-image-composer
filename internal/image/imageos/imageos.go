@@ -1121,7 +1121,7 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 			log.Warnf("Primary bootloader copy failed (%v). Retrying with signed EFI: %s", err, signedSrc)
 
 			if err2 := copyBootloader(installRoot, signedSrc, dstBootloader); err2 != nil {
-				return fmt.Errorf("failed to copy bootloader (unsigned: %s -> %s): %w; and signed attempt (signed: %s -> %s) failed: %v",srcBootloader, dstBootloader, err,signedSrc, dstBootloader, err2)
+				return fmt.Errorf("failed to copy bootloader (unsigned: %s -> %s): %w; and signed attempt (signed: %s -> %s) failed: %v", srcBootloader, dstBootloader, err, signedSrc, dstBootloader, err2)
 			}
 		}
 		log.Debugf("Bootloader copied successfully to:", dstBootloader)
