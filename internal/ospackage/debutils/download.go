@@ -474,7 +474,6 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 	all = append(all, userpkg...)
 	log.Infof("Total package index size after merging base+user repos: %d", len(all))
 
-
 	want := "login"
 	found := false
 	for _, p := range all {
@@ -488,7 +487,6 @@ func DownloadPackagesComplete(pkgList []string, destDir, dotFile string, pkgSour
 	if !found {
 		log.Warnf("Package index does NOT contain %q (after base+user repo merge)", want)
 	}
-
 
 	// Match the packages in the template against all the packages
 	req, err := MatchRequested(pkgList, all)

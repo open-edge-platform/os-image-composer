@@ -219,18 +219,18 @@ func (p *debian13) PostProcess(template *config.ImageTemplate, err error) error 
 
 func (p *debian13) installHostDependency() error {
 	var dependencyInfo = map[string]string{
-		"mmdebstrap":          "mmdebstrap",             // For the chroot env build
-		"mkfs.fat":            "dosfstools",             // For the FAT32 boot partition creation
-		"mformat":             "mtools",                 // For writing files to FAT32 partition
-		"xorriso":             "xorriso",                // For ISO image creation
-		"qemu-img":            "qemu-utils",             // For image file format conversion
-		"ukify":               "systemd-ukify",          // For the UKI image creation
-		"grub-mkimage":        "grub-common",            // For ISO image UEFI Grub binary creation
-		"veritysetup":         "cryptsetup",             // For the veritysetup command
-		"sbsign":              "sbsigntool",             // For the UKI image creation
-		"debian-keyring":      "debian-archive-keyring", // For Debian repository GPG keys
-		"bootctl":             "systemd-boot-efi",       // For bootctl on Debian/Ubuntu hosts
-		"dpkg-scanpackages":   "dpkg-dev",               // For scanning Package index on Ubuntu host
+		"mmdebstrap":        "mmdebstrap",             // For the chroot env build
+		"mkfs.fat":          "dosfstools",             // For the FAT32 boot partition creation
+		"mformat":           "mtools",                 // For writing files to FAT32 partition
+		"xorriso":           "xorriso",                // For ISO image creation
+		"qemu-img":          "qemu-utils",             // For image file format conversion
+		"ukify":             "systemd-ukify",          // For the UKI image creation
+		"grub-mkimage":      "grub-common",            // For ISO image UEFI Grub binary creation
+		"veritysetup":       "cryptsetup",             // For the veritysetup command
+		"sbsign":            "sbsigntool",             // For the UKI image creation
+		"debian-keyring":    "debian-archive-keyring", // For Debian repository GPG keys
+		"bootctl":           "systemd-boot-efi",       // For bootctl on Debian/Ubuntu hosts
+		"dpkg-scanpackages": "dpkg-dev",               // For scanning Package index on Ubuntu host
 	}
 	hostPkgManager, err := system.GetHostOsPkgManager()
 	if err != nil {
