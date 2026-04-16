@@ -128,6 +128,10 @@ func (isoMaker *IsoMaker) buildInitrd(template *config.ImageTemplate) error {
 			return fmt.Errorf("failed to get initrd template: %w", err)
 		}
 
+		if err := ValidateAdditionalFiles(initrdTemplate); err != nil {
+			return fmt.Errorf("ISO build prerequisites not met: %w", err)
+		}
+
 		isoMaker.InitrdMaker, err = initrdmaker.NewInitrdMaker(isoMaker.ChrootEnv, initrdTemplate)
 		if err != nil {
 			return fmt.Errorf("failed to create initrd maker: %w", err)
@@ -161,6 +165,59 @@ func (isoMaker *IsoMaker) getInitrdTemplate(template *config.ImageTemplate) (*co
 	}
 
 	return initrdTemplate, nil
+}
+
+// ValidateISOPrerequisites checks that all prerequisites for an ISO build are
+// met before starting expensive operations. Call this early (before provider init
+// or package download) to fail fast on missing files like live-installer.
+func ValidateISOPrerequisites(template *config.ImageTemplate) error {
+	initrdTemplateFilePath, err := template.GetInitramfsTemplate()
+	if err != nil {
+		return fmt.Errorf("failed to resolve initramfs template: %w", err)
+	}
+
+	initrdTemplate, err := config.LoadAndMergeTemplate(initrdTemplateFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to load initrd template for validation: %w", err)
+	}
+
+	return ValidateAdditionalFiles(initrdTemplate)
+}
+
+// ValidateAdditionalFiles checks that all additional files referenced in the
+// template exist before starting expensive build operations. This catches
+// missing dependencies like the live-installer binary early.
+func ValidateAdditionalFiles(template *config.ImageTemplate) error {
+	for _, fileInfo := range template.SystemConfig.AdditionalFiles {
+		if fileInfo.Local == "" || fileInfo.Final == "" {
+			continue
+		}
+
+		if filepath.IsAbs(fileInfo.Local) {
+			if _, err := os.Stat(fileInfo.Local); err != nil {
+				return fmt.Errorf("required file not found: %s (target: %s)", fileInfo.Local, fileInfo.Final)
+			}
+			continue
+		}
+
+		found := false
+		for _, tmplPath := range template.PathList {
+			candidatePath := filepath.Join(filepath.Dir(tmplPath), fileInfo.Local)
+			if _, err := os.Stat(candidatePath); err == nil {
+				found = true
+				break
+			}
+		}
+		if !found {
+			if strings.Contains(fileInfo.Local, "live-installer") {
+				return fmt.Errorf("live-installer binary not found (referenced as %s). "+
+					"Build it first: go build -buildmode=pie -o ./build/live-installer ./cmd/live-installer",
+					fileInfo.Local)
+			}
+			return fmt.Errorf("required additional file not found: %s (target: %s)", fileInfo.Local, fileInfo.Final)
+		}
+	}
+	return nil
 }
 
 func (isoMaker *IsoMaker) copyConfigFilesToIso(template *config.ImageTemplate, installRoot string) error {
