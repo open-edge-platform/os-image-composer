@@ -42,14 +42,6 @@
         "@modelcontextprotocol/server-sequential-thinking"
       ]
     },
-    "docker": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "docker-mcp"
-      ]
-    },
     "memory": {
       "type": "stdio",
       "command": "npx",
