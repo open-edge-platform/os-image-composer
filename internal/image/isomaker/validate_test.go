@@ -69,7 +69,7 @@ func TestValidateAdditionalFiles(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorMsg:    "required file not found",
+			errorMsg:    "live-installer binary not found",
 		},
 		{
 			name: "relative_path_exists",
@@ -170,6 +170,62 @@ func TestValidateAdditionalFiles(t *testing.T) {
 			},
 			expectError: true,
 			errorMsg:    "go build -buildmode=pie",
+		},
+		{
+			name: "nil_template",
+			template:    nil,
+			expectError: true,
+			errorMsg:    "template cannot be nil",
+		},
+		{
+			name: "relative_path_empty_pathlist",
+			template: &config.ImageTemplate{
+				PathList: []string{},
+				SystemConfig: config.SystemConfig{
+					AdditionalFiles: []config.AdditionalFileInfo{
+						{Local: "../some-file", Final: "/etc/some-file"},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "required additional file not found",
+		},
+		{
+			name: "local_points_to_directory",
+			template: &config.ImageTemplate{
+				SystemConfig: config.SystemConfig{
+					AdditionalFiles: []config.AdditionalFileInfo{
+						{Local: tempDir, Final: "/usr/bin/something"},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "path is a directory",
+		},
+		{
+			name: "absolute_path_missing_live_installer_hint",
+			template: &config.ImageTemplate{
+				SystemConfig: config.SystemConfig{
+					AdditionalFiles: []config.AdditionalFileInfo{
+						{Local: "/nonexistent/path/live-installer", Final: "/usr/bin/live-installer"},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "go build -buildmode=pie",
+		},
+		{
+			name: "relative_directory_as_file",
+			template: &config.ImageTemplate{
+				PathList: []string{templatePath},
+				SystemConfig: config.SystemConfig{
+					AdditionalFiles: []config.AdditionalFileInfo{
+						{Local: "..", Final: "/usr/bin/something"},
+					},
+				},
+			},
+			expectError: true,
+			errorMsg:    "path is a directory",
 		},
 	}
 

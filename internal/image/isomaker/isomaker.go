@@ -1,7 +1,9 @@
 package isomaker
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -188,36 +190,71 @@ func ValidateISOPrerequisites(template *config.ImageTemplate) error {
 // template exist before starting expensive build operations. This catches
 // missing dependencies like the live-installer binary early.
 func ValidateAdditionalFiles(template *config.ImageTemplate) error {
+	if template == nil {
+		return fmt.Errorf("template cannot be nil")
+	}
+
 	for _, fileInfo := range template.SystemConfig.AdditionalFiles {
 		if fileInfo.Local == "" || fileInfo.Final == "" {
 			continue
 		}
 
 		if filepath.IsAbs(fileInfo.Local) {
-			if _, err := os.Stat(fileInfo.Local); err != nil {
-				return fmt.Errorf("required file not found: %s (target: %s)", fileInfo.Local, fileInfo.Final)
+			if err := checkFileExists(fileInfo.Local); err != nil {
+				return liveInstallerHintOrError(fileInfo.Local, fileInfo.Final, err)
 			}
 			continue
 		}
 
+		var lastErr error
 		found := false
 		for _, tmplPath := range template.PathList {
 			candidatePath := filepath.Join(filepath.Dir(tmplPath), fileInfo.Local)
-			if _, err := os.Stat(candidatePath); err == nil {
+			if err := checkFileExists(candidatePath); err == nil {
 				found = true
 				break
+			} else if !errors.Is(err, fs.ErrNotExist) {
+				lastErr = err
 			}
 		}
 		if !found {
-			if strings.Contains(fileInfo.Local, "live-installer") {
-				return fmt.Errorf("live-installer binary not found (referenced as %s). "+
-					"Build it first: go build -buildmode=pie -o ./build/live-installer ./cmd/live-installer",
-					fileInfo.Local)
+			if lastErr != nil {
+				return fmt.Errorf("cannot access additional file %s: %w", fileInfo.Local, lastErr)
 			}
-			return fmt.Errorf("required additional file not found: %s (target: %s)", fileInfo.Local, fileInfo.Final)
+			return liveInstallerHintOrError(fileInfo.Local, fileInfo.Final, nil)
 		}
 	}
 	return nil
+}
+
+// checkFileExists verifies the path exists and is a regular file (not a directory).
+func checkFileExists(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return fmt.Errorf("path is a directory, expected a regular file: %s", path)
+	}
+	return nil
+}
+
+// liveInstallerHintOrError returns an actionable error with build instructions
+// if the missing file is live-installer, otherwise a generic missing file error.
+func liveInstallerHintOrError(local, final string, wrapped error) error {
+	if isLiveInstaller(local) || isLiveInstaller(final) {
+		return fmt.Errorf("live-installer binary not found (referenced as %s). "+
+			"Build it first: go build -buildmode=pie -o ./build/live-installer ./cmd/live-installer",
+			local)
+	}
+	if wrapped != nil {
+		return fmt.Errorf("required file not accessible: %s (target: %s): %w", local, final, wrapped)
+	}
+	return fmt.Errorf("required additional file not found: %s (target: %s)", local, final)
+}
+
+func isLiveInstaller(path string) bool {
+	return strings.Contains(path, "live-installer")
 }
 
 func (isoMaker *IsoMaker) copyConfigFilesToIso(template *config.ImageTemplate, installRoot string) error {
