@@ -56,7 +56,7 @@ disk:
       type: xbootldr
       start: 101MiB
       end: 1024MiB 
-      fsType: vfat
+      fsType: ext4
       mountPoint: /boot
       mountOptions: defaults
 

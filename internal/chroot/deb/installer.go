@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
@@ -19,10 +20,54 @@ type DebInstallerInterface interface {
 }
 
 type DebInstaller struct {
+	targetArch string
 }
 
 func NewDebInstaller() *DebInstaller {
 	return &DebInstaller{}
+}
+
+func normalizeDebArch(targetArch string) (string, error) {
+	switch targetArch {
+	case "amd64", "x86_64":
+		return "amd64", nil
+	case "arm64", "aarch64":
+		return "arm64", nil
+	default:
+		return "", fmt.Errorf("unsupported architecture: %s", targetArch)
+	}
+}
+
+func normalizeRuntimeArch(goArch string) (string, error) {
+	switch goArch {
+	case "amd64":
+		return "amd64", nil
+	case "arm64":
+		return "arm64", nil
+	default:
+		return "", fmt.Errorf("unsupported host architecture: %s", goArch)
+	}
+}
+
+func (debInstaller *DebInstaller) validateCrossArchDeps(targetArch string) error {
+	hostArch, err := normalizeRuntimeArch(runtime.GOARCH)
+	if err != nil {
+		return err
+	}
+
+	if hostArch == targetArch {
+		return nil
+	}
+
+	hasArchTest, err := shell.IsCommandExist("arch-test", shell.HostPath)
+	if err != nil {
+		return fmt.Errorf("failed to check host dependency 'arch-test' for cross-architecture build (host=%s target=%s): %w", hostArch, targetArch, err)
+	}
+	if !hasArchTest {
+		return fmt.Errorf("cross-architecture build requested (host=%s target=%s) but required host dependency 'arch-test' is missing; install it with: sudo apt-get install -y arch-test", hostArch, targetArch)
+	}
+
+	return nil
 }
 
 func (debInstaller *DebInstaller) cleanupOnSuccess(repoPath string, err *error) {
@@ -50,14 +95,12 @@ func (debInstaller *DebInstaller) UpdateLocalDebRepo(repoPath, targetArch string
 		return fmt.Errorf("repository path cannot be empty")
 	}
 
-	switch targetArch {
-	case "amd64", "x86_64":
-		targetArch = "amd64"
-	case "arm64", "aarch64":
-		targetArch = "arm64"
-	default:
-		return fmt.Errorf("unsupported architecture: %s", targetArch)
+	normalizedArch, err := normalizeDebArch(targetArch)
+	if err != nil {
+		return err
 	}
+	targetArch = normalizedArch
+	debInstaller.targetArch = normalizedArch
 
 	metaDataPath := filepath.Join(repoPath,
 		fmt.Sprintf("dists/stable/main/binary-%s", targetArch), "Packages.gz")
@@ -92,6 +135,13 @@ func (debInstaller *DebInstaller) InstallDebPkg(targetOsConfigDir, chrootEnvPath
 		return fmt.Errorf("invalid parameters: chrootEnvPath, chrootPkgCacheDir, and pkgsList cannot be empty")
 	}
 
+	// Prefer the normalized architecture set by UpdateLocalDebRepo.
+	// Fall back to amd64 for defensive compatibility in unit tests.
+	debArch := debInstaller.targetArch
+	if debArch == "" {
+		debArch = "amd64"
+	}
+
 	// from local.list
 	repoPath := "/cdrom/cache-repo"
 	pkgListStr := strings.Join(pkgsList, ",")
@@ -100,6 +150,12 @@ func (debInstaller *DebInstaller) InstallDebPkg(targetOsConfigDir, chrootEnvPath
 	if _, err := os.Stat(localRepoConfigPath); os.IsNotExist(err) {
 		log.Errorf("Local repository config file does not exist: %s", localRepoConfigPath)
 		return fmt.Errorf("local repository config file does not exist: %s", localRepoConfigPath)
+	}
+	suite := detectDebSuiteFromSourcesList(localRepoConfigPath)
+
+	if err := debInstaller.validateCrossArchDeps(debArch); err != nil {
+		log.Errorf("Missing host dependencies for cross-architecture chroot build: %v", err)
+		return err
 	}
 
 	if err := mount.MountPath(chrootPkgCacheDir, repoPath, "--bind"); err != nil {
@@ -129,11 +185,12 @@ func (debInstaller *DebInstaller) InstallDebPkg(targetOsConfigDir, chrootEnvPath
 		"--aptopt=Dpkg::Options::=--force-confdef "+
 		"--aptopt=Dpkg::Options::=--force-confold "+
 		"--aptopt=APT::Get::Assume-Yes=true "+
+		"--architectures=%s "+
 		"--hook-dir=/usr/share/mmdebstrap/hooks/file-mirror-automount "+
 		"--include=%s "+
 		"--verbose --debug "+
-		"-- bookworm %s %s",
-		pkgListStr, chrootEnvPath, localRepoConfigPath)
+		"-- %s %s %s",
+		debArch, pkgListStr, suite, chrootEnvPath, localRepoConfigPath)
 
 	// Set environment variables to ensure non-interactive installation
 	envVars := []string{
@@ -148,4 +205,41 @@ func (debInstaller *DebInstaller) InstallDebPkg(targetOsConfigDir, chrootEnvPath
 	}
 
 	return nil
+}
+
+func detectDebSuiteFromSourcesList(sourcesListPath string) string {
+	const defaultSuite = "stable"
+
+	content, err := os.ReadFile(sourcesListPath)
+	if err != nil {
+		log.Warnf("Failed to read local sources list %s, defaulting suite to %s: %v", sourcesListPath, defaultSuite, err)
+		return defaultSuite
+	}
+
+	for _, rawLine := range strings.Split(string(content), "\n") {
+		line := strings.TrimSpace(rawLine)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 3 || fields[0] != "deb" {
+			continue
+		}
+
+		idx := 1
+		if strings.HasPrefix(fields[idx], "[") {
+			for idx < len(fields) && !strings.HasSuffix(fields[idx], "]") {
+				idx++
+			}
+			idx++
+		}
+
+		if idx+1 < len(fields) {
+			return fields[idx+1]
+		}
+	}
+
+	log.Warnf("Could not determine suite from %s, defaulting to %s", sourcesListPath, defaultSuite)
+	return defaultSuite
 }

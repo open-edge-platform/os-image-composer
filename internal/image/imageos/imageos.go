@@ -26,6 +26,7 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/utils/mount"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
 	"github.com/open-edge-platform/os-image-composer/internal/utils/slice"
+	"github.com/open-edge-platform/os-image-composer/internal/utils/system"
 )
 
 type ImageOsInterface interface {
@@ -246,21 +247,32 @@ func (imageOs *ImageOs) initRootfsForDeb(installRoot string) error {
 		log.Errorf("Local repository config file does not exist: %s", localRepoConfigHostPath)
 		return fmt.Errorf("local repository config file does not exist: %s", localRepoConfigHostPath)
 	}
+	suite := detectDebSuiteFromSourcesList(localRepoConfigHostPath)
 
 	chrootInstallRoot, err := imageOs.chrootEnv.GetChrootEnvPath(installRoot)
 	if err != nil {
 		return fmt.Errorf("failed to get chroot environment path for install root %s: %w", installRoot, err)
 	}
 
+	// Normalize target architecture for mmdebstrap
+	targetArch := imageOs.template.Target.Arch
+	switch targetArch {
+	case "aarch64":
+		targetArch = "arm64"
+	case "x86_64":
+		targetArch = "amd64"
+	}
+
 	cmd := fmt.Sprintf("mmdebstrap "+
 		"--variant=custom "+
 		"--format=directory "+
+		"--architectures=%s "+
 		"--aptopt=APT::Authentication::Trusted=true "+
 		"--hook-dir=/usr/share/mmdebstrap/hooks/file-mirror-automount "+
 		"--include=%s "+
 		"--verbose --debug "+
-		"-- bookworm %s %s",
-		pkgListStr, chrootInstallRoot, localRepoConfigChrootPath)
+		"-- %s %s %s",
+		targetArch, pkgListStr, suite, chrootInstallRoot, localRepoConfigChrootPath)
 
 	chrootEnvRoot := imageOs.chrootEnv.GetChrootEnvRoot()
 	if _, err = shell.ExecCmdWithStream(cmd, true, chrootEnvRoot, nil); err != nil {
@@ -268,6 +280,43 @@ func (imageOs *ImageOs) initRootfsForDeb(installRoot string) error {
 		return fmt.Errorf("failed to install packages into image: %w", err)
 	}
 	return nil
+}
+
+func detectDebSuiteFromSourcesList(sourcesListPath string) string {
+	const defaultSuite = "stable"
+
+	content, err := os.ReadFile(sourcesListPath)
+	if err != nil {
+		log.Warnf("Failed to read local sources list %s, defaulting suite to %s: %v", sourcesListPath, defaultSuite, err)
+		return defaultSuite
+	}
+
+	for _, rawLine := range strings.Split(string(content), "\n") {
+		line := strings.TrimSpace(rawLine)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 3 || fields[0] != "deb" {
+			continue
+		}
+
+		idx := 1
+		if strings.HasPrefix(fields[idx], "[") {
+			for idx < len(fields) && !strings.HasSuffix(fields[idx], "]") {
+				idx++
+			}
+			idx++
+		}
+
+		if idx+1 < len(fields) {
+			return fields[idx+1]
+		}
+	}
+
+	log.Warnf("Could not determine suite from %s, defaulting to %s", sourcesListPath, defaultSuite)
+	return defaultSuite
 }
 
 func (imageOs *ImageOs) mountSysfsToRootfs(installRoot string) error {
@@ -340,14 +389,15 @@ func (imageOs *ImageOs) mountDiskToChroot(installRoot string, diskPathIdMap map[
 				mountPointInfo["Id"] = diskId
 				mountPointInfo["Path"] = diskPath
 				mountPointInfo["MountPoint"] = filepath.Join(installRoot, partition.MountPoint)
+				// Normalize FAT filesystem types to vfat for Linux mount compatibility
+				fsType := partition.FsType
+				if fsType == "fat32" || fsType == "fat16" {
+					fsType = "vfat"
+				}
 				if partition.MountPoint == "/boot/efi" {
-					if partition.FsType == "fat32" || partition.FsType == "fat16" {
-						mountPointInfo["Flags"] = fmt.Sprintf("-t %s -o umask=0077", "vfat")
-					} else {
-						mountPointInfo["Flags"] = fmt.Sprintf("-t %s -o umask=0077", partition.FsType)
-					}
+					mountPointInfo["Flags"] = fmt.Sprintf("-t %s -o umask=0077", fsType)
 				} else {
-					mountPointInfo["Flags"] = fmt.Sprintf("-t %s", partition.FsType)
+					mountPointInfo["Flags"] = fmt.Sprintf("-t %s", fsType)
 				}
 				mountPointInfoList = append(mountPointInfoList, mountPointInfo)
 			}
@@ -538,6 +588,54 @@ func (imageOs *ImageOs) deInitDebLocalRepoWithinInstallRoot(installRoot string) 
 }
 
 func preImageOsInstall(installRoot string, template *config.ImageTemplate) error {
+	// For Debian-based systems, configure dpkg for target architecture in cross-arch builds
+	if strings.ToLower(template.Target.OS) == "ubuntu" || strings.ToLower(template.Target.OS) == "debian" {
+		// Normalize target architecture for dpkg
+		targetArch := template.Target.Arch
+		switch targetArch {
+		case "aarch64":
+			targetArch = "arm64"
+		case "x86_64":
+			targetArch = "amd64"
+		}
+
+		// Configure dpkg with the target architecture inside the chroot
+		// This is needed for cross-architecture package installations
+		// Set up binfmt_misc for cross-architecture binary execution if needed
+		hostInfo, _ := system.GetHostOsInfo()
+		hostArch := hostInfo["arch"]
+
+		// Normalize host architecture
+		switch hostArch {
+		case "aarch64":
+			hostArch = "arm64"
+		case "x86_64":
+			hostArch = "amd64"
+		}
+
+		// If building for a different architecture, set up binfmt and dpkg
+		if hostArch != targetArch {
+			log.Debugf("Cross-arch build detected: host=%s target=%s, configuring dpkg", hostArch, targetArch)
+
+			// Ensure /proc/sys/fs/binfmt_misc is mounted (needed for QEMU binary execution)
+			binfmtCmd := "mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true"
+			if _, err := shell.ExecCmd(binfmtCmd, true, shell.HostPath, nil); err != nil {
+				log.Debugf("binfmt_misc mount attempt: %v", err)
+			}
+
+			// Add target architecture to dpkg in the chroot
+			dpkgConfigCmd := fmt.Sprintf("dpkg --add-architecture %s 2>/dev/null || true", targetArch)
+			if _, err := shell.ExecCmd(dpkgConfigCmd, true, installRoot, nil); err != nil {
+				log.Debugf("dpkg architecture config: %v", err)
+			}
+
+			// Update apt cache
+			updateAptCmd := "apt-get update 2>/dev/null || true"
+			if _, err := shell.ExecCmd(updateAptCmd, true, installRoot, nil); err != nil {
+				log.Debugf("apt-get update: %v", err)
+			}
+		}
+	}
 	return nil
 }
 
@@ -581,7 +679,7 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 			if slice.Contains(efiVariableAccessPkg, pkg) {
 				// systemd-boot and dracut-core are special cases,
 				// 'Failed to write 'LoaderSystemToken' EFI variable: No such file or directory' error is expected.
-				installCmd := fmt.Sprintf("apt-get install -y %s", pkg)
+				installCmd := fmt.Sprintf("apt-get install -y --no-install-recommends %s", pkg)
 
 				if len(repoSrcList) > 0 {
 					for _, repoSrc := range repoSrcList {
@@ -606,7 +704,7 @@ func (imageOs *ImageOs) installImagePkgs(installRoot string, template *config.Im
 					} else {
 						log.Errorf("Failed to install package %s: %v", pkg, err)
 						log.Errorf("Full apt-get output:\n%s", output)
-						return fmt.Errorf("failed to install package %s: %w", pkg, err)
+						return fmt.Errorf("failed to install package %s: %w\napt output:\n%s", pkg, err, output)
 					}
 				}
 			} else {
@@ -1387,8 +1485,18 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 	var cmd string
 	var backInstallRoot = installRoot
 	exists, _ := shell.IsCommandExist("ukify", installRoot)
-	if !exists {
-		log.Debugf("Ukify not found, running ukify on host")
+
+	// For cross-arch builds, chroot binaries cannot execute on the host.
+	// Fall back to the host ukify even when the binary exists in the chroot.
+	isCrossArch := false
+	hostInfo, hostInfoErr := system.GetHostOsInfo()
+	if hostInfoErr == nil && hostInfo["arch"] != template.Target.Arch {
+		isCrossArch = true
+		log.Debugf("Cross-arch build detected: host=%s target=%s, forcing host ukify", hostInfo["arch"], template.Target.Arch)
+	}
+
+	if !exists || isCrossArch {
+		log.Debugf("Ukify not found or cross-arch build, running ukify on host")
 		kernelPath = filepath.Join(installRoot, kernelPath)
 		initrdPath = filepath.Join(installRoot, initrdPath)
 		outputPath = filepath.Join(installRoot, outputPath)
