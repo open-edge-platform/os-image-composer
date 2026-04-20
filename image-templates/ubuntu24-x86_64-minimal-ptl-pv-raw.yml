@@ -1,3 +1,21 @@
+# AI-searchable metadata for template discovery
+metadata:
+  description: "Ubuntu 24.04 minimal PTL PV desktop image in raw format for Intel PTL development and validation"
+  use_cases:
+    - "PTL platform validation"
+    - "Intel GPU and NPU enablement"
+    - "desktop development"
+    - "raw image deployment"
+  keywords:
+    - ptl
+    - pv
+    - ubuntu
+    - raw
+    - desktop
+    - intel
+    - gpu
+    - npu
+
 image:
   name: minimal-desktop-ubuntu-ptl-pv
   version: "24.04"
