@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# cleanup_workspace.sh
+# cleanup_workspace
 # Unmounts any lingering chroot mounts from interrupted builds and removes
-# the workspace directory. 
+# the workspace directory.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
