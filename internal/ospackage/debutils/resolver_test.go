@@ -655,8 +655,8 @@ func TestResolveTopPackageConflicts(t *testing.T) {
 }
 
 func TestResolveTopPackageConflictsKernelVersionSelection(t *testing.T) {
-	debutils.ConfigureKernelSelection([]string{"linux-image-generic-hwe-24.04"}, "6.17")
-	defer debutils.ConfigureKernelSelection(nil, "")
+	ConfigureKernelSelection([]string{"linux-image-generic-hwe-24.04"}, "6.17")
+	defer ConfigureKernelSelection(nil, "")
 
 	all := []ospackage.PackageInfo{
 		{
@@ -676,7 +676,7 @@ func TestResolveTopPackageConflictsKernelVersionSelection(t *testing.T) {
 		},
 	}
 
-	result, found := debutils.ResolveTopPackageConflicts("linux-image-generic-hwe-24.04", all)
+	result, found := ResolveTopPackageConflicts("linux-image-generic-hwe-24.04", all)
 	if !found {
 		t.Fatal("expected kernel package to be found")
 	}
@@ -686,8 +686,8 @@ func TestResolveTopPackageConflictsKernelVersionSelection(t *testing.T) {
 }
 
 func TestResolveTopPackageConflictsKernelVersionMissing(t *testing.T) {
-	debutils.ConfigureKernelSelection([]string{"linux-image-generic-hwe-24.04"}, "6.17")
-	defer debutils.ConfigureKernelSelection(nil, "")
+	ConfigureKernelSelection([]string{"linux-image-generic-hwe-24.04"}, "6.17")
+	defer ConfigureKernelSelection(nil, "")
 
 	all := []ospackage.PackageInfo{
 		{
@@ -697,15 +697,15 @@ func TestResolveTopPackageConflictsKernelVersionMissing(t *testing.T) {
 		},
 	}
 
-	_, found := debutils.ResolveTopPackageConflicts("linux-image-generic-hwe-24.04", all)
+	_, found := ResolveTopPackageConflicts("linux-image-generic-hwe-24.04", all)
 	if found {
 		t.Fatal("expected kernel package resolution to fail when no candidate matches kernel version")
 	}
 }
 
 func TestResolveTopPackageConflictsKernelVersionPrefixMatch(t *testing.T) {
-	debutils.ConfigureKernelSelection([]string{"linux-image-generic-hwe-24.04"}, "6.17")
-	defer debutils.ConfigureKernelSelection(nil, "")
+	ConfigureKernelSelection([]string{"linux-image-generic-hwe-24.04"}, "6.17")
+	defer ConfigureKernelSelection(nil, "")
 
 	all := []ospackage.PackageInfo{
 		{
@@ -720,7 +720,7 @@ func TestResolveTopPackageConflictsKernelVersionPrefixMatch(t *testing.T) {
 		},
 	}
 
-	result, found := debutils.ResolveTopPackageConflicts("linux-image-generic-hwe-24.04", all)
+	result, found := ResolveTopPackageConflicts("linux-image-generic-hwe-24.04", all)
 	if !found {
 		t.Fatal("expected kernel package to be found")
 	}
@@ -730,8 +730,8 @@ func TestResolveTopPackageConflictsKernelVersionPrefixMatch(t *testing.T) {
 }
 
 func TestResolveTopPackageConflictsKernelVersionWildcardPattern(t *testing.T) {
-	debutils.ConfigureKernelSelection([]string{"linux-image-generic*"}, "6.14")
-	defer debutils.ConfigureKernelSelection(nil, "")
+	ConfigureKernelSelection([]string{"linux-image-generic*"}, "6.14")
+	defer ConfigureKernelSelection(nil, "")
 
 	all := []ospackage.PackageInfo{
 		{
@@ -746,7 +746,7 @@ func TestResolveTopPackageConflictsKernelVersionWildcardPattern(t *testing.T) {
 		},
 	}
 
-	result, found := debutils.ResolveTopPackageConflicts("linux-image-generic-hwe-24.04", all)
+	result, found := ResolveTopPackageConflicts("linux-image-generic-hwe-24.04", all)
 	if !found {
 		t.Fatal("expected kernel wildcard pattern to match package request")
 	}
