@@ -33,7 +33,7 @@ type IsoMaker struct {
 	InitrdMaker   initrdmaker.InitrdMakerInterface
 }
 
-const IsoLabel = "OIC_CDROM"
+const IsoLabel = "ICT_CDROM"
 
 var log = logger.Logger()
 
