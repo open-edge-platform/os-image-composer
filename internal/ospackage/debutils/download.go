@@ -627,8 +627,8 @@ func LocalUserPackages() ([]ospackage.PackageInfo, func(), error) {
 	return allLocalPackages, combinedCleanup, nil
 }
 
-func UserPackages() ([]ospackage.PackageInfo, error) {
-  // UserRepoCfgs is already initialized, skip
+func initializeUserRepoCfgs() error {
+	// UserRepoCfgs is already initialized, skip
 	if len(UserRepoCfgs) > 0 {
 		return nil
 	}
@@ -672,7 +672,6 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 }
 
 func UserPackages() ([]ospackage.PackageInfo, error) {
-
 	log := logger.Logger()
 	log.Infof("fetching packages from %s", "user package list")
 
@@ -683,7 +682,6 @@ func UserPackages() ([]ospackage.PackageInfo, error) {
 
 	var allUserPackages []ospackage.PackageInfo
 	for _, rpItx := range UserRepoCfgs {
-
 		userPkgs, err := ParseRepositoryMetadata(rpItx.PkgPrefix, rpItx.PkgList, rpItx.ReleaseFile, rpItx.ReleaseSign, rpItx.PbGPGKey, rpItx.BuildPath, rpItx.Arch, rpItx.AllowPackages)
 		if err != nil {
 			return nil, fmt.Errorf("parsing user repo failed: %w", err)
