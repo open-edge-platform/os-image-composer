@@ -495,25 +495,23 @@ func mergePackageRepositories(defaultRepos, userRepos []PackageRepository) []Pac
 		return userRepos
 	}
 
-	// Start with a copy of default repos
-	merged := make([]PackageRepository, len(defaultRepos))
-	copy(merged, defaultRepos)
-
-	// For each user repo, override if codename matches a default, otherwise append
+	// Remove all default repos whose codename is explicitly provided by user repos,
+	// then append user repos as-is. This avoids partially overriding repeated
+	// default entries for the same codename (e.g. split components).
+	userCodenames := make(map[string]struct{}, len(userRepos))
 	for _, userRepo := range userRepos {
-		found := false
-		for i, defRepo := range merged {
-			if defRepo.Codename == userRepo.Codename {
-				merged[i] = userRepo
-				found = true
-				break
-			}
-		}
-		if !found {
-			merged = append(merged, userRepo)
-		}
+		userCodenames[userRepo.Codename] = struct{}{}
 	}
 
+	merged := make([]PackageRepository, 0, len(defaultRepos)+len(userRepos))
+	for _, defRepo := range defaultRepos {
+		if _, ok := userCodenames[defRepo.Codename]; ok {
+			continue
+		}
+		merged = append(merged, defRepo)
+	}
+
+	merged = append(merged, userRepos...)
 	return merged
 }
 
