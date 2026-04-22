@@ -10,6 +10,7 @@ import (
 	"github.com/open-edge-platform/os-image-composer/internal/image/isomaker"
 	"github.com/open-edge-platform/os-image-composer/internal/provider"
 	"github.com/open-edge-platform/os-image-composer/internal/provider/azl"
+	"github.com/open-edge-platform/os-image-composer/internal/provider/debian13"
 	"github.com/open-edge-platform/os-image-composer/internal/provider/elxr"
 	"github.com/open-edge-platform/os-image-composer/internal/provider/emt"
 	"github.com/open-edge-platform/os-image-composer/internal/provider/rcd"
@@ -181,6 +182,10 @@ func InitProvider(os, dist, arch string) (provider.Provider, error) {
 	case azl.OsName:
 		if err := azl.Register(os, dist, arch); err != nil {
 			return nil, fmt.Errorf("registering azl provider failed: %v", err)
+		}
+	case debian13.OsName:
+		if err := debian13.Register(os, dist, arch); err != nil {
+			return nil, fmt.Errorf("registering debian13 provider failed: %v", err)
 		}
 	case emt.OsName:
 		if err := emt.Register(os, dist, arch); err != nil {
