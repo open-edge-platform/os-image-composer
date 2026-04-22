@@ -130,17 +130,29 @@ func (debInstaller *DebInstaller) UpdateLocalDebRepo(repoPath, targetArch string
 	return nil
 }
 
-func (debInstaller *DebInstaller) InstallDebPkg(targetOsConfigDir, chrootEnvPath, chrootPkgCacheDir string, pkgsList []string) (err error) {
+func (debInstaller *DebInstaller) InstallDebPkg(
+	targetOsConfigDir, chrootEnvPath, chrootPkgCacheDir string, pkgsList []string,
+) (err error) {
+	return debInstaller.InstallDebPkgWithArch(
+		targetOsConfigDir,
+		chrootEnvPath,
+		chrootPkgCacheDir,
+		pkgsList,
+		debInstaller.targetArch,
+	)
+}
+
+func (debInstaller *DebInstaller) InstallDebPkgWithArch(
+	targetOsConfigDir, chrootEnvPath, chrootPkgCacheDir string, pkgsList []string, targetArch string,
+) (err error) {
 	if chrootEnvPath == "" || chrootPkgCacheDir == "" || len(pkgsList) == 0 {
 		return fmt.Errorf("invalid parameters: chrootEnvPath, chrootPkgCacheDir, and pkgsList cannot be empty")
 	}
-
-	// Prefer the normalized architecture set by UpdateLocalDebRepo.
-	// Fall back to amd64 for defensive compatibility in unit tests.
-	debArch := debInstaller.targetArch
-	if debArch == "" {
-		debArch = "amd64"
+	if targetArch == "" {
+		return fmt.Errorf("failed to install debian packages in chroot environment: target architecture is required")
 	}
+
+	debArch := targetArch
 
 	// from local.list
 	repoPath := "/cdrom/cache-repo"
