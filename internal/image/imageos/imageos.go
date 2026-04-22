@@ -587,9 +587,18 @@ func (imageOs *ImageOs) deInitDebLocalRepoWithinInstallRoot(installRoot string) 
 	return nil
 }
 
+func isDebianBasedTargetOS(targetOS string) bool {
+	switch strings.ToLower(strings.TrimSpace(targetOS)) {
+	case "ubuntu", "debian", "wind-river-elxr", "elxr":
+		return true
+	default:
+		return false
+	}
+}
+
 func preImageOsInstall(installRoot string, template *config.ImageTemplate) error {
 	// For Debian-based systems, configure dpkg for target architecture in cross-arch builds
-	if strings.ToLower(template.Target.OS) == "ubuntu" || strings.ToLower(template.Target.OS) == "debian" {
+	if isDebianBasedTargetOS(template.Target.OS) {
 		// Normalize target architecture for dpkg
 		targetArch := template.Target.Arch
 		switch targetArch {
