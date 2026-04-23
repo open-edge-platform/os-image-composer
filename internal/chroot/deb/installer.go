@@ -61,22 +61,42 @@ func (debInstaller *DebInstaller) validateCrossArchDeps(targetArch string) error
 	}
 
 	type crossArchDep struct {
-		cmd     string // command to check
-		pkg     string // apt package that provides it
+		name string   // human-readable dependency name
+		cmds []string // commands to check (any match passes)
+		pkg  string   // apt package that provides it
 	}
+
+	qemuCmdByArch := map[string]string{
+		"arm64": "qemu-aarch64-static",
+		"amd64": "qemu-x86_64-static",
+	}
+
+	qemuCmd, ok := qemuCmdByArch[targetArch]
+	if !ok {
+		return fmt.Errorf("unsupported target architecture for cross-architecture dependency validation: %s", targetArch)
+	}
+
 	deps := []crossArchDep{
-		{"arch-test", "arch-test"},
-		{"qemu-user-static", "qemu-user-static"},
-		{"update-binfmts", "binfmt-support"},
+		{name: "arch-test", cmds: []string{"arch-test"}, pkg: "arch-test"},
+		{name: qemuCmd, cmds: []string{qemuCmd}, pkg: "qemu-user-static"},
+		{name: "binfmt-support", cmds: []string{"update-binfmts"}, pkg: "binfmt-support"},
 	}
 
 	for _, dep := range deps {
-		exists, err := shell.IsCommandExist(dep.cmd, shell.HostPath)
-		if err != nil {
-			return fmt.Errorf("failed to check host dependency %q for cross-architecture build (host=%s target=%s): %w", dep.cmd, hostArch, targetArch, err)
+		hasAnyCommand := false
+		for _, cmd := range dep.cmds {
+			exists, err := shell.IsCommandExist(cmd, shell.HostPath)
+			if err != nil {
+				return fmt.Errorf("failed to check host dependency %q for cross-architecture build (host=%s target=%s): %w", cmd, hostArch, targetArch, err)
+			}
+			if exists {
+				hasAnyCommand = true
+				break
+			}
 		}
-		if !exists {
-			return fmt.Errorf("cross-architecture build requested (host=%s target=%s) but required host dependency %q is missing; install it with: sudo apt-get install -y %s", hostArch, targetArch, dep.cmd, dep.pkg)
+
+		if !hasAnyCommand {
+			return fmt.Errorf("cross-architecture build requested (host=%s target=%s) but required host dependency %q is missing; install it with: sudo apt-get install -y %s", hostArch, targetArch, dep.name, dep.pkg)
 		}
 	}
 
