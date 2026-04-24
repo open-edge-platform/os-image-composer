@@ -2760,6 +2760,9 @@ func TestBuildImageUKI(t *testing.T) {
 
 			// Create test template
 			template := &config.ImageTemplate{
+				Target: config.TargetInfo{
+					Arch: "x86_64",
+				},
 				SystemConfig: config.SystemConfig{
 					Bootloader: config.Bootloader{
 						Provider: tt.bootloaderType,

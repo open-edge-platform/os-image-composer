@@ -1460,7 +1460,8 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 		return fmt.Errorf("failed to read cmdline file: %w", err)
 	}
 
-	cmdlineStr := string(data)
+	// ukify expects a single line cmdline argument.
+	cmdlineStr := strings.TrimSpace(string(data))
 	if template.IsImmutabilityEnabled() {
 		partData := extractRootHashPH(cmdlineStr)
 		err := prepareVeritySetup(partData, installRoot)
@@ -1474,9 +1475,31 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 		cmdlineStr = replaceRootHashPH(cmdlineStr, rootHashR)
 	}
 
-	// runs on host
+	toRootPath := func(root, p string) string {
+		trimmed := strings.TrimPrefix(filepath.Clean(p), string(filepath.Separator))
+		return filepath.Join(root, trimmed)
+	}
+	compactOutput := func(output string) string {
+		trimmed := strings.TrimSpace(output)
+		if trimmed == "" {
+			return ""
+		}
+		const maxLen = 2048
+		if len(trimmed) <= maxLen {
+			return trimmed
+		}
+		return trimmed[:maxLen] + "..."
+	}
+	wrapUkifyErr := func(prefix string, execErr error, output string) error {
+		out := compactOutput(output)
+		if out == "" {
+			return fmt.Errorf("%s: %w", prefix, execErr)
+		}
+		return fmt.Errorf("%s: %w; ukify output: %s", prefix, execErr, out)
+	}
+
 	var cmd string
-	var backInstallRoot = installRoot
+	backInstallRoot := installRoot
 	exists, _ := shell.IsCommandExist("ukify", installRoot)
 	stubPath, err := getUkifyStubPath(template.Target.Arch)
 	if err != nil {
@@ -1494,12 +1517,16 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 
 	if !exists || isCrossArch {
 		log.Debugf("Ukify not found or cross-arch build, running ukify on host")
-		kernelPath = filepath.Join(installRoot, kernelPath)
-		initrdPath = filepath.Join(installRoot, initrdPath)
-		outputPath = filepath.Join(installRoot, outputPath)
-		osRelease := filepath.Join(installRoot, "/etc/os-release")
-		stubPath = filepath.Join(installRoot, stubPath)
+		kernelPath = toRootPath(installRoot, kernelPath)
+		initrdPath = toRootPath(installRoot, initrdPath)
+		outputPath = toRootPath(installRoot, outputPath)
+		osRelease := toRootPath(installRoot, "/etc/os-release")
+		stubPath = toRootPath(installRoot, stubPath)
 		installRoot = shell.HostPath
+
+		if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+			return fmt.Errorf("failed to create UKI output directory %s: %w", filepath.Dir(outputPath), err)
+		}
 
 		cmd = fmt.Sprintf(
 			"ukify build --linux \"%s\" --initrd \"%s\" --cmdline \"%s\" --stub \"%s\" --os-release @\"%s\" --output \"%s\"",
@@ -1510,8 +1537,11 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 			osRelease,
 			outputPath,
 		)
-
 	} else {
+		if err := os.MkdirAll(filepath.Join(installRoot, filepath.Dir(outputPath)), 0o755); err != nil {
+			return fmt.Errorf("failed to create UKI output directory %s: %w", filepath.Dir(outputPath), err)
+		}
+
 		cmd = fmt.Sprintf(
 			"ukify build --linux \"%s\" --initrd \"%s\" --cmdline \"%s\" --stub \"%s\" --output \"%s\"",
 			kernelPath,
@@ -1522,26 +1552,25 @@ func buildUKI(installRoot, kernelPath, initrdPath, cmdlineFile, outputPath strin
 		)
 	}
 
-	log.Debugf("UKI Executing command:", cmd)
+	log.Debugf("UKI executing command")
 	if template.IsImmutabilityEnabled() {
 		// Set TMPDIR environment variable to use the mounted tmpfs
 		envVars := []string{"TMPDIR=/tmp"}
-		_, err = shell.ExecCmd(cmd, true, installRoot, envVars)
-		if err != nil {
-			log.Errorf("Failed to build UKI with veritysetup: %v failing command: %s", err, cmd)
-			err = fmt.Errorf("failed to build UKI with veritysetup: %w", err)
+		output, execErr := shell.ExecCmd(cmd, true, installRoot, envVars)
+		if execErr != nil {
+			log.Errorf("Failed to build UKI with veritysetup: %v", execErr)
+			err = wrapUkifyErr("failed to build UKI with veritysetup", execErr, output)
 		}
 		installRoot = backInstallRoot
 		removeVerityTmp(installRoot)
 	} else {
-		_, err = shell.ExecCmd(cmd, true, installRoot, nil)
-		if err != nil {
-			log.Errorf("non-immutable: Failed to build UKI: %v failing command %s", err, cmd)
-			err = fmt.Errorf("failed to build UKI: %w", err)
+		output, execErr := shell.ExecCmd(cmd, true, installRoot, nil)
+		if execErr != nil {
+			log.Errorf("non-immutable: Failed to build UKI: %v", execErr)
+			err = wrapUkifyErr("failed to build UKI", execErr, output)
 		} else {
-			log.Infof("non-immutable: Successfully built UKI: %v  command %s", err, cmd)
+			log.Infof("non-immutable: Successfully built UKI")
 		}
-
 	}
 	return err
 }

@@ -200,10 +200,17 @@ func TestInstallDebPkg_MissingLocalRepoConfig(t *testing.T) {
 	originalExecutor := shell.Default
 	defer func() { shell.Default = originalExecutor }()
 	mockExpectedOutput := []shell.MockCommand{
+		{Pattern: "mkdir", Output: "override-test\n", Error: nil},
+		{Pattern: "dpkg-scanpackages", Output: "override-test\n", Error: nil},
 		{Pattern: "mmdebstrap", Output: "override-test\n", Error: fmt.Errorf("command not found")},
 		{Pattern: "rm", Output: "override-test\n", Error: nil},
 	}
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
+
+	// Set targetArch by calling UpdateLocalDebRepo first
+	if err := installer.UpdateLocalDebRepo(chrootPkgCacheDir, "amd64", false); err != nil {
+		t.Fatalf("Failed to update local deb repo: %v", err)
+	}
 
 	// Don't create the local.list file
 	err := installer.InstallDebPkg(targetOsConfigDir, chrootEnvPath, chrootPkgCacheDir, pkgsList)
@@ -298,12 +305,18 @@ func TestInstallDebPkg_ChrootEnvCreation(t *testing.T) {
 	defer func() { shell.Default = originalExecutor }()
 	mockExpectedOutput := []shell.MockCommand{
 		{Pattern: "mkdir", Output: "override-test\n", Error: nil},
+		{Pattern: "dpkg-scanpackages", Output: "override-test\n", Error: nil},
 		{Pattern: "mount", Output: "override-test\n", Error: nil},
 		{Pattern: "umount", Output: "override-test\n", Error: nil},
 		{Pattern: "mmdebstrap", Output: "override-test\n", Error: fmt.Errorf("command not found")},
 		{Pattern: "rm", Output: "override-test\n", Error: nil},
 	}
 	shell.Default = shell.NewMockExecutor(mockExpectedOutput)
+
+	// Set targetArch by calling UpdateLocalDebRepo first
+	if err := installer.UpdateLocalDebRepo(chrootPkgCacheDir, "amd64", false); err != nil {
+		t.Fatalf("Failed to update local deb repo: %v", err)
+	}
 
 	err := installer.InstallDebPkg(tempDir, chrootEnvPath, chrootPkgCacheDir, pkgsList)
 
