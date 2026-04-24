@@ -172,7 +172,7 @@ func TestValidateAdditionalFiles(t *testing.T) {
 			errorMsg:    "go build -buildmode=pie",
 		},
 		{
-			name: "nil_template",
+			name:        "nil_template",
 			template:    nil,
 			expectError: true,
 			errorMsg:    "template cannot be nil",
