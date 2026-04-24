@@ -27,5 +27,3 @@ essential:
 
 packages:
   - mmdebstrap
-  - systemd-ukify
-  - systemd-boot-efi
