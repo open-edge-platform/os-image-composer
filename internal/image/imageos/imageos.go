@@ -11,22 +11,22 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/open-edge-platform/os-image-composer/internal/chroot"
-	"github.com/open-edge-platform/os-image-composer/internal/config"
-	"github.com/open-edge-platform/os-image-composer/internal/config/manifest"
-	"github.com/open-edge-platform/os-image-composer/internal/image/imageboot"
-	"github.com/open-edge-platform/os-image-composer/internal/image/imagedisc"
-	"github.com/open-edge-platform/os-image-composer/internal/image/imagesecure"
-	"github.com/open-edge-platform/os-image-composer/internal/image/imagesign"
-	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
-	"github.com/open-edge-platform/os-image-composer/internal/ospackage/debutils"
-	"github.com/open-edge-platform/os-image-composer/internal/ospackage/rpmutils"
-	"github.com/open-edge-platform/os-image-composer/internal/utils/file"
-	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
-	"github.com/open-edge-platform/os-image-composer/internal/utils/mount"
-	"github.com/open-edge-platform/os-image-composer/internal/utils/shell"
-	"github.com/open-edge-platform/os-image-composer/internal/utils/slice"
-	"github.com/open-edge-platform/os-image-composer/internal/utils/system"
+	"github.com/open-edge-platform/image-composer-tool/internal/chroot"
+	"github.com/open-edge-platform/image-composer-tool/internal/config"
+	"github.com/open-edge-platform/image-composer-tool/internal/config/manifest"
+	"github.com/open-edge-platform/image-composer-tool/internal/image/imageboot"
+	"github.com/open-edge-platform/image-composer-tool/internal/image/imagedisc"
+	"github.com/open-edge-platform/image-composer-tool/internal/image/imagesecure"
+	"github.com/open-edge-platform/image-composer-tool/internal/image/imagesign"
+	"github.com/open-edge-platform/image-composer-tool/internal/ospackage"
+	"github.com/open-edge-platform/image-composer-tool/internal/ospackage/debutils"
+	"github.com/open-edge-platform/image-composer-tool/internal/ospackage/rpmutils"
+	"github.com/open-edge-platform/image-composer-tool/internal/utils/file"
+	"github.com/open-edge-platform/image-composer-tool/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer-tool/internal/utils/mount"
+	"github.com/open-edge-platform/image-composer-tool/internal/utils/shell"
+	"github.com/open-edge-platform/image-composer-tool/internal/utils/slice"
+	"github.com/open-edge-platform/image-composer-tool/internal/utils/system"
 )
 
 type ImageOsInterface interface {
@@ -1194,9 +1194,13 @@ func buildImageUKI(installRoot string, template *config.ImageTemplate) error {
 			log.Infof("Skipping bootloader copy for architecture: %s", template.Target.Arch)
 			return nil
 		}
-
 		if err := copyBootloader(installRoot, srcBootloader, dstBootloader); err != nil {
-			return fmt.Errorf("failed to copy bootloader: %w", err)
+			signedSrc := srcBootloader + ".signed"
+			log.Warnf("Primary bootloader copy failed (%v). Retrying with signed EFI: %s", err, signedSrc)
+
+			if err2 := copyBootloader(installRoot, signedSrc, dstBootloader); err2 != nil {
+				return fmt.Errorf("failed to copy bootloader (unsigned: %s -> %s): %w; and signed attempt (signed: %s -> %s) failed: %v", srcBootloader, dstBootloader, err, signedSrc, dstBootloader, err2)
+			}
 		}
 		log.Debugf("BuildImage UKI: Bootloader copied successfully to %s, from %s:", dstBootloader, srcBootloader)
 	} else {
