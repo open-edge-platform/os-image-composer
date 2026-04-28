@@ -223,6 +223,7 @@ func (p *ubuntu) installHostDependency() error {
 		"mmdebstrap":        "mmdebstrap",       // For the chroot env build
 		"arch-test":         "arch-test",        // Required by mmdebstrap for foreign-architecture bootstrap
 		"qemu-user-static":  "qemu-user-static", // For cross-architecture binary execution support
+		"update-binfmts":    "binfmt-support",   // For registering qemu-user-static with the kernel
 		"mkfs.fat":          "dosfstools",       // For the FAT32 boot partition creation
 		"mformat":           "mtools",           // For writing files to FAT32 partition
 		"xorriso":           "xorriso",          // For ISO image creation
