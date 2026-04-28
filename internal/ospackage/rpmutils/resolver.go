@@ -188,22 +188,38 @@ func GenerateDot(pkgs []ospackage.PackageInfo, file string, pkgSources map[strin
 		if pkg.Name == "" {
 			continue
 		}
-		// Extract clean package name for display (e.g., "libgcrypt" instead of "libgcrypt-1.10.3-1.azl3.x86_64.rpm")
 		// Note: Multiple package versions (e.g., glibc-2.38 and glibc-2.35) will both produce "glibc"
 		// This causes duplicate node declarations in the DOT file, which is valid - GraphViz merges them.
 		// For visualization purposes, we only care about package relationships, not specific versions.
-		cleanName := extractBasePackageNameFromFile(pkg.Name)
+		cleanName := pkg.PkgName
+		if cleanName == "" {
+			// Fallback to Name if PkgName is not set (for backward compatibility with test data)
+			cleanName = pkg.Name
+		}
 		if _, err := fmt.Fprintf(writer, "  \"%s\";\n", cleanName); err != nil {
 			return fmt.Errorf("writing DOT node for %s: %w", cleanName, err)
 		}
-		for _, dep := range pkg.Requires {
+		// Use RequiresPkgNames if available (populated during dependency resolution with canonical names)
+		// Otherwise fall back to Requires with extraction logic for backward compatibility
+		dependencies := pkg.RequiresPkgNames
+		if len(dependencies) == 0 {
+			dependencies = pkg.Requires
+		}
+
+		for _, dep := range dependencies {
 			if dep == "" {
 				continue
 			}
-			// Extract clean dependency name for edges (handles capabilities and package requirements)
-			cleanDep := extractBaseRequirement(dep)
-			// Also trim package filenames (e.g., "glibc-2.38-16.azl3.x86_64.rpm" -> "glibc")
-			cleanDep = extractBasePackageNameFromFile(cleanDep)
+			cleanDep := dep
+
+			// If using fallback Requires field, apply extraction to handle filenames and capabilities
+			if len(pkg.RequiresPkgNames) == 0 {
+				// Extract clean dependency name for edges (handles capabilities and package requirements)
+				cleanDep = extractBaseRequirement(dep)
+				// Also trim package filenames (e.g., "glibc-2.38-16.azl3.x86_64.rpm" -> "glibc")
+				cleanDep = extractBasePackageNameFromFile(cleanDep)
+			}
+
 			edgeKey := cleanName + "|" + cleanDep
 			if edgesWritten[edgeKey] {
 				continue
@@ -791,6 +807,12 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 				// Append to parent's Requires field even if already resolved
 				if resultPkg, exists := resultMap[cur.Name]; exists {
 					resultPkg.Requires = append(resultPkg.Requires, filename)
+					// Also populate RequiresPkgNames with the canonical package name for DOT graph generation
+					if depPkg, depExists := resultMap[filename]; depExists && depPkg.PkgName != "" {
+						resultPkg.RequiresPkgNames = append(resultPkg.RequiresPkgNames, depPkg.PkgName)
+					} else {
+						resultPkg.RequiresPkgNames = append(resultPkg.RequiresPkgNames, filename)
+					}
 				}
 
 				continue
@@ -812,6 +834,12 @@ func ResolveDependencies(requested []ospackage.PackageInfo, all []ospackage.Pack
 				// Update the parent's Requires field with the chosen candidate's name
 				if resultPkg, exists := resultMap[cur.Name]; exists {
 					resultPkg.Requires = append(resultPkg.Requires, chosenCandidate.Name)
+					// Also populate RequiresPkgNames with the canonical package name for DOT graph generation
+					if chosenCandidate.PkgName != "" {
+						resultPkg.RequiresPkgNames = append(resultPkg.RequiresPkgNames, chosenCandidate.PkgName)
+					} else {
+						resultPkg.RequiresPkgNames = append(resultPkg.RequiresPkgNames, chosenCandidate.Name)
+					}
 				}
 
 				// Add chosen candidate to the queue for further processing
