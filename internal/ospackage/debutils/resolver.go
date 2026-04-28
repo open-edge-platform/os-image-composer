@@ -12,10 +12,10 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/open-edge-platform/os-image-composer/internal/config"
-	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
-	"github.com/open-edge-platform/os-image-composer/internal/ospackage/pkgfetcher"
-	"github.com/open-edge-platform/os-image-composer/internal/utils/logger"
+	"github.com/open-edge-platform/image-composer-tool/internal/config"
+	"github.com/open-edge-platform/image-composer-tool/internal/ospackage"
+	"github.com/open-edge-platform/image-composer-tool/internal/ospackage/pkgfetcher"
+	"github.com/open-edge-platform/image-composer-tool/internal/utils/logger"
 )
 
 // VersionConstraint represents a version operator and version pair
@@ -336,16 +336,19 @@ func getRepositoryPriority(packageURL string) int {
 	}
 
 	// Check global RepoCfgs for priority
+	// Normalize trailing slashes before comparing, since user-supplied URLs may include them
+	// but extractRepoBase always returns a URL without a trailing slash.
+	repoBaseNorm := strings.TrimSuffix(repoBase, "/")
 	if len(RepoCfgs) > 0 {
 		for _, repoCfg := range RepoCfgs {
-			if repoCfg.PkgPrefix == repoBase {
+			if strings.TrimSuffix(repoCfg.PkgPrefix, "/") == repoBaseNorm {
 				return repoCfg.Priority
 			}
 		}
 	}
 
 	// Check single RepoCfg for backward compatibility
-	if RepoCfg.PkgPrefix == repoBase {
+	if strings.TrimSuffix(RepoCfg.PkgPrefix, "/") == repoBaseNorm {
 		return RepoCfg.Priority
 	}
 
@@ -1141,8 +1144,13 @@ func ResolveTopPackageConflicts(want string, all []ospackage.PackageInfo) (ospac
 		}
 		// 4) prefix by want.release ("acl-2.3.1-2.")
 		if strings.HasPrefix(pi.Name, want+".") {
-			candidates = append(candidates, pi)
-			continue
+			suffix := strings.TrimPrefix(pi.Name, want+".") // e.g. "10" or "defs"
+			if len(suffix) > 0 && suffix[0] >= '0' && suffix[0] <= '9' {
+				// treat as versioned dotted-variant like python3.10
+				candidates = append(candidates, pi)
+				continue
+			}
+			// otherwise ignore dotted names like login.defs for want=login
 		}
 		// 5) Debian package format (packagename_version_arch.deb)
 		if strings.HasPrefix(pi.Name, want+"_") {
