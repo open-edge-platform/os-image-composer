@@ -190,8 +190,7 @@ disk:
 
   # New: policy-based selection for unattended installs
   selectionPolicy:
-    strategy: largest           # largest | first | by-id | by-serial | by-model
-    match: ""                   # value for by-id / by-serial / by-model
+    strategy: largest           # largest | fastest
     excludeRemovable: true      # skip USB/removable media (default: true)
 
   partitionTableType: gpt
@@ -208,10 +207,12 @@ When `disk.path` is set, the policy is ignored (backward compatible).
 - Add a `DiskSelectionPolicy` struct to the config and a new disk selection
   module in `internal/image/imagedisc/`
 - Reuse the existing `SystemBlockDevices()` enumeration, extending the
-  `lsblk` query to include `SERIAL`, `TRAN` (transport), and `RM` (removable)
-  fields
-- Implement strategy-based selection: `largest`, `first`, `by-id`,
-  `by-serial`, `by-model`
+  `lsblk` query to include `TRAN` (transport), `ROTA` (rotational), and
+  `RM` (removable) fields
+- Implement strategy-based selection:
+  - `largest` — select the disk with the most capacity
+  - `fastest` — prefer NVMe over SATA SSD over HDD (based on transport
+    type and rotational flag)
 - Filter removable devices and ISO installer media (existing logic)
 - When `disk.path` is empty in the live installer, fall back to policy-based
   selection before proceeding to partition creation
@@ -258,12 +259,30 @@ systemConfig:
 - Add `systemd-cryptenroll` to the shell command allowlist (`cryptsetup`
   is already present)
 
+#### Unlock Modes
+
+The encryption configuration supports three unlock modes, determined by the
+combination of `tpmEnroll` and `recoveryKey` flags:
+
+| Mode | Config | Boot Behavior |
+|------|--------|---------------|
+| **TPM auto-unlock** | `tpmEnroll: true` | Passphrase sealed in TPM2 PCRs; disk decrypted automatically at boot with no user interaction. This is the primary production mode for unattended edge nodes. |
+| **Recovery key** | `recoveryKey: true` | A one-time recovery key is generated and saved to the ESP. Used as fallback if TPM unlock fails (e.g., hardware change, firmware update). Requires manual entry. |
+| **Interactive passphrase** | `tpmEnroll: false`, `recoveryKey: false` | User must type a passphrase at the boot prompt. Suitable for development, testing, or systems without TPM2 hardware. |
+
+These modes are **composable** — a production deployment would typically use
+`tpmEnroll: true` + `recoveryKey: true` to get automatic unlock with a
+recovery fallback. A dev/test environment might use only interactive
+passphrase.
+
 #### Security Considerations
 
 - Passphrase for non-TPM scenarios must be provided via template or secure
   input mechanism (never logged)
 - Recovery keys are written only to the ESP, not to the root filesystem
 - TPM enrollment happens after OS installation is complete
+- TPM PCR policy binds the key to specific boot measurements, preventing
+  offline disk extraction attacks
 
 ---
 
@@ -614,7 +633,7 @@ work into the architectural refactor.
 |---|---|---|
 | FDE adds complexity to boot failure debugging | Medium | Recovery key generation; clear error messages; fallback to unencrypted mode |
 | SELinux relabeling at install time is slow for large rootfs | Low | Default to `first-boot` relabeling; `install-time` is opt-in |
-| Disk auto-selection picks the wrong disk | High | Conservative defaults (`excludeRemovable: true`); support `by-id`/`by-serial` for deterministic selection; attended TUI override |
+| Disk auto-selection picks the wrong disk | High | Conservative defaults (`excludeRemovable: true`); `fastest` strategy uses transport type hierarchy; attended TUI override |
 | Phase 5 manifest refactor is invasive | Medium | Deliver as last milestone; phases 1-4 work with existing template structure |
 | TPM2 not available on all target hardware | Low | `tpmEnroll` is optional; LUKS works without TPM (passphrase or recovery key) |
 
