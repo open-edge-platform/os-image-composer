@@ -2,14 +2,14 @@ package deb
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
-	"strings"
 	"github.com/open-edge-platform/image-composer-tool/internal/ospackage/debutils"
 	"github.com/open-edge-platform/image-composer-tool/internal/utils/logger"
 	"github.com/open-edge-platform/image-composer-tool/internal/utils/mount"
 	"github.com/open-edge-platform/image-composer-tool/internal/utils/shell"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 )
 
 var log = logger.Logger()
