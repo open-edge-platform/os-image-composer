@@ -154,6 +154,21 @@ Handles customer customization:
 - Service configuration
 - Application deployment
 
+For air-gapped or offline edge deployments where network connectivity cannot
+be assumed after installation, cloud-init configuration files (`user-data`,
+`meta-data`, `network-config`) can be **injected at build time** via the
+template. The composer embeds them into the image as a NoCloud seed
+directory (`/etc/cloud/seed/nocloud/`), so cloud-init runs locally on first
+boot without requiring a network datasource.
+
+```yaml
+systemConfig:
+  cloudInit:
+    userDataFile: /path/to/user-data
+    metaDataFile: /path/to/meta-data         # optional
+    networkConfigFile: /path/to/network-config  # optional
+```
+
 ---
 
 ## Phased Implementation
@@ -269,7 +284,13 @@ systemConfig:
     mode: enforcing             # enforcing | permissive | disabled
     policy: targeted            # targeted (default) | mls | minimum
     relabel: first-boot         # first-boot (default) | install-time
+    policyFiles:                # optional: customer-provided policy modules
+      - /path/to/custom.pp
 ```
+
+ICT treats `.pp` files as opaque artifacts, copies them into the chroot and installs them via `semodule -i`.
+The `.pp` format is the industry-standard SELinux module format used across
+all major Linux distributions.
 
 #### Approach
 
@@ -280,11 +301,13 @@ systemConfig:
   2. If `relabel: first-boot` → create `/.autorelabel` marker
   3. If `relabel: install-time` → run `setfiles` in the chroot
   4. Auto-inject required SELinux packages for the target OS
+  5. If `policyFiles` are specified, copy each `.pp` file into the chroot
+     and install via `semodule -i`
 - Populate the existing `{{.SELinux}}` boot parameter placeholder:
   - `enforcing` → `security=selinux selinux=1 enforcing=1`
   - `permissive` → `security=selinux selinux=1 enforcing=0`
   - `disabled` → empty string (current behavior)
-- Add `setfiles` and `restorecon` to the shell command allowlist
+- Add `setfiles`, `restorecon`, and `semodule` to the shell command allowlist
 
 ---
 
@@ -303,6 +326,10 @@ appropriate network configuration files for the target OS.
 systemConfig:
   network:
     backend: netplan            # netplan | networkmanager | systemd-networkd
+
+    # NIC selection policy (when interface names vary across hardware)
+    nicPolicy: link-up          # all | link-up | by-name (default: all)
+
     interfaces:
       - name: eth0
         dhcp4: true
@@ -313,16 +340,35 @@ systemConfig:
         nameservers:
           - "8.8.8.8"
           - "8.8.4.4"
+
+    proxy:
+      httpProxy: "http://proxy.corp.example.com:8080"
+      httpsProxy: "http://proxy.corp.example.com:8080"
+      noProxy: "localhost,127.0.0.1,.corp.example.com"
+      # Future: WPAD/DHCP-based automatic proxy discovery
 ```
+
+When `nicPolicy` is `all`, every listed interface is configured. When
+`link-up`, only interfaces with an active link at install time are
+configured (useful when interface names are unpredictable). When `by-name`,
+only explicitly named interfaces are configured (same as current behavior).
+
+**WiFi support** is out of scope for the initial implementation and will be
+addressed in a future iteration.
 
 #### Approach
 
-- Add `NetworkConfig` and `NetworkInterface` structs to `SystemConfig`
+- Add `NetworkConfig`, `NetworkInterface`, and `ProxyConfig` structs to
+  `SystemConfig`
 - Create a new `internal/image/imagenetwork/` package that generates the
   appropriate config files based on the selected backend:
   - **netplan** → `/etc/netplan/01-installer-config.yaml`
   - **systemd-networkd** → `/etc/systemd/network/10-<name>.network`
   - **networkmanager** → `/etc/NetworkManager/system-connections/<name>.nmconnection`
+- Implement NIC discovery using `ip link show` to enumerate interfaces and
+  filter by link state when `nicPolicy: link-up`
+- Generate proxy configuration in `/etc/environment` and backend-specific
+  proxy settings
 - Call network configuration from the OS installation flow after package
   installation
 
@@ -390,7 +436,9 @@ bootloader:
   bootType: efi
   provider: systemd-boot
 
-cloudInit: true
+cloudInit:
+  userDataFile: /payloads/cloud-init/user-data
+  metaDataFile: /payloads/cloud-init/meta-data
 ```
 
 #### ISO Builder Changes
@@ -524,6 +572,10 @@ systemConfig:
     interfaces:
       - name: eth0
         dhcp4: true
+
+  cloudInit:
+    userDataFile: /path/to/user-data
+    metaDataFile: /path/to/meta-data
 
   packages:
     - cloud-init
