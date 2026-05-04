@@ -1299,6 +1299,7 @@ func TestGetSectorOffsetFromSize(t *testing.T) {
 		})
 	}
 }
+
 // TestDiskPartitionsCreate_GPTLabelFailureWithOutput tests the error path when GPT label creation
 // fails and stderr/stdout output is captured, ensuring the output is included in the error message.
 func TestDiskPartitionsCreate_GPTLabelFailureWithOutput(t *testing.T) {
@@ -1412,11 +1413,11 @@ func TestDiskPartitionCreate_SGDiskFailureWithOutput(t *testing.T) {
 			diskPath:     "/dev/sda",
 			partitionNum: 1,
 			partitionInfo: config.PartitionInfo{
-				ID:      "boot",
-				Start:   "0",
-				End:     "1GiB",
-				FsType:  "fat32",
-				Type:    "esp",
+				ID:       "boot",
+				Start:    "0",
+				End:      "1GiB",
+				FsType:   "fat32",
+				Type:     "esp",
 				TypeGUID: "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
 			},
 			sgdiskOutput:   "Error: The specified partition is not unique. Use option -p to point to the partition.",
@@ -1447,11 +1448,11 @@ func TestDiskPartitionCreate_SGDiskFailureWithOutput(t *testing.T) {
 			diskPath:     "/dev/sdb",
 			partitionNum: 1,
 			partitionInfo: config.PartitionInfo{
-				ID:      "data",
-				Start:   "0",
-				End:     "100GiB",
-				FsType:  "ext4",
-				Type:    "linux",
+				ID:       "data",
+				Start:    "0",
+				End:      "100GiB",
+				FsType:   "ext4",
+				Type:     "linux",
 				TypeGUID: "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
 			},
 			sgdiskOutput:   "  \n  Device not found  \n  ",
