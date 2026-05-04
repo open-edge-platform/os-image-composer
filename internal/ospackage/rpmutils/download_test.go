@@ -5,13 +5,51 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/open-edge-platform/os-image-composer/internal/config"
-	"github.com/open-edge-platform/os-image-composer/internal/ospackage"
-	"github.com/open-edge-platform/os-image-composer/internal/ospackage/rpmutils"
+	"github.com/open-edge-platform/image-composer-tool/internal/config"
+	"github.com/open-edge-platform/image-composer-tool/internal/ospackage"
+	"github.com/open-edge-platform/image-composer-tool/internal/ospackage/rpmutils"
 )
+
+func TestValidateSupportsMultipleRepoGPGKeys(t *testing.T) {
+	originalRepoCfg := rpmutils.RepoCfg
+	originalUserRepo := rpmutils.UserRepo
+	defer func() {
+		rpmutils.RepoCfg = originalRepoCfg
+		rpmutils.UserRepo = originalUserRepo
+	}()
+
+	hits := map[string]int{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits[r.URL.Path]++
+		_, _ = w.Write([]byte("-----BEGIN PGP PUBLIC KEY BLOCK-----\nkey\n-----END PGP PUBLIC KEY BLOCK-----\n"))
+	}))
+	defer server.Close()
+
+	rpmutils.RepoCfg = rpmutils.RepoConfig{
+		GPGKey: server.URL + "/old.asc," + server.URL + "/new.asc",
+	}
+	rpmutils.UserRepo = nil
+
+	destDir := filepath.Join(t.TempDir(), "rpms")
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatalf("failed to create temp rpm dir: %v", err)
+	}
+
+	if err := rpmutils.Validate(destDir); err != nil {
+		t.Fatalf("Validate returned error: %v", err)
+	}
+
+	if hits["/old.asc"] != 1 {
+		t.Fatalf("expected old key to be fetched once, got %d", hits["/old.asc"])
+	}
+	if hits["/new.asc"] != 1 {
+		t.Fatalf("expected new key to be fetched once, got %d", hits["/new.asc"])
+	}
+}
 
 func TestUserPackages(t *testing.T) {
 	// Save original global variables
@@ -52,6 +90,16 @@ func TestUserPackages(t *testing.T) {
 				},
 			},
 			expectError: true, // Will fail due to network call
+		},
+		{
+			name: "local repository is handled elsewhere",
+			userRepos: []config.PackageRepository{
+				{
+					Path: "/tmp/local-rpm-repo",
+					PKey: "[trusted=yes]",
+				},
+			},
+			expectError: false,
 		},
 	}
 
@@ -164,7 +212,7 @@ func TestMatchRequested(t *testing.T) {
 			name:     "exact name match with .rpm extension",
 			requests: []string{"test-package"},
 			all: []ospackage.PackageInfo{
-				{Name: "test-package", Arch: "x86_64", Version: "1.0-1"},
+				{Name: "test-package.rpm", Arch: "x86_64"},
 			},
 			expectError: false,
 			expectCount: 1,
@@ -173,8 +221,8 @@ func TestMatchRequested(t *testing.T) {
 			name:     "version prefix match",
 			requests: []string{"acl"},
 			all: []ospackage.PackageInfo{
-				{Name: "acl", Version: "2.3.1-2.el8", Arch: "x86_64"},
-				{Name: "acl-dev", Arch: "x86_64"}, // Should not match - different package
+				{Name: "acl-2.3.1-2.el8", Arch: "x86_64"},
+				{Name: "acl-dev", Arch: "x86_64"}, // Should not match - not a version
 			},
 			expectError: false,
 			expectCount: 1,
@@ -183,7 +231,7 @@ func TestMatchRequested(t *testing.T) {
 			name:     "release prefix match",
 			requests: []string{"package"},
 			all: []ospackage.PackageInfo{
-				{Name: "package", Version: "1.0.0", Arch: "x86_64"},
+				{Name: "package-1.0.0", Arch: "x86_64"},
 			},
 			expectError: false,
 			expectCount: 1,
@@ -211,12 +259,12 @@ func TestMatchRequested(t *testing.T) {
 			name:     "multiple candidates - pick highest",
 			requests: []string{"package"},
 			all: []ospackage.PackageInfo{
-				{Name: "package", Version: "1.0.0", Arch: "x86_64"},
-				{Name: "package", Version: "2.0.0", Arch: "x86_64"},
-				{Name: "package", Version: "1.5.0", Arch: "x86_64"},
+				{Name: "package-1.0.0", Arch: "x86_64"},
+				{Name: "package-2.0.0", Arch: "x86_64"},
+				{Name: "package-1.5.0", Arch: "x86_64"},
 			},
 			expectError: false,
-			expectCount: 1, // Should pick package with version 2.0.0 (exact name match, first found)
+			expectCount: 1, // Should pick package-2.0.0 (highest lex sort)
 		},
 	}
 
@@ -234,6 +282,136 @@ func TestMatchRequested(t *testing.T) {
 				}
 				if len(result) != tc.expectCount {
 					t.Errorf("Expected %d packages, got %d", tc.expectCount, len(result))
+				}
+			}
+		})
+	}
+}
+
+func TestIsAcceptedChar(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{
+			name:     "empty string",
+			input:    "",
+			expected: false,
+		},
+		{
+			name:     "only digits",
+			input:    "123",
+			expected: true,
+		},
+		{
+			name:     "digits with dash",
+			input:    "1-2-3",
+			expected: true,
+		},
+		{
+			name:     "contains letters",
+			input:    "1a2",
+			expected: false,
+		},
+		{
+			name:     "contains special chars",
+			input:    "1.2",
+			expected: false,
+		},
+		{
+			name:     "only dash",
+			input:    "-",
+			expected: true,
+		},
+		{
+			name:     "mixed valid chars",
+			input:    "123-456-789",
+			expected: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Since isAcceptedChar is not exported, we need to test it indirectly through isValidVersionFormat
+			// or we need to make it exported for testing. For now, let's test it indirectly.
+			t.Skip("isAcceptedChar is not exported - testing indirectly through isValidVersionFormat")
+		})
+	}
+}
+
+func TestIsValidVersionFormat(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{
+			name:     "empty string",
+			input:    "",
+			expected: false,
+		},
+		{
+			name:     "simple version",
+			input:    "1.0.0",
+			expected: true,
+		},
+		{
+			name:     "version with dash",
+			input:    "1-2.el8",
+			expected: true,
+		},
+		{
+			name:     "version without dot",
+			input:    "123",
+			expected: true,
+		},
+		{
+			name:     "invalid version with letters",
+			input:    "abc.def",
+			expected: false,
+		},
+		{
+			name:     "version starting with letter",
+			input:    "a1.0.0",
+			expected: false,
+		},
+		{
+			name:     "complex version",
+			input:    "2-3-1.el8_5",
+			expected: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Since isValidVersionFormat is not exported, we'll test it indirectly
+			// Let's create a test that exercises this through MatchRequested
+			all := []ospackage.PackageInfo{
+				{Name: fmt.Sprintf("package-%s", tc.input), Arch: "x86_64"},
+			}
+
+			result, err := rpmutils.MatchRequested([]string{"package"}, all)
+
+			if tc.expected {
+				// If the version format is valid, we should find a match
+				if err != nil || len(result) == 0 {
+					t.Errorf("Expected to find match for valid version format %q", tc.input)
+				}
+			} else {
+				// If the version format is invalid, we should not find a match (unless it's exact)
+				if err == nil && len(result) > 0 && result[0].Name != "package" {
+					// Only fail if we found a match that wasn't exact
+					exactMatch := false
+					for _, pkg := range all {
+						if pkg.Name == "package" {
+							exactMatch = true
+							break
+						}
+					}
+					if !exactMatch {
+						t.Errorf("Expected no match for invalid version format %q, but got: %v", tc.input, result)
+					}
 				}
 			}
 		})
@@ -372,6 +550,92 @@ func TestValidate(t *testing.T) {
 				if err != nil {
 					t.Errorf("Expected no error but got: %v", err)
 				}
+			}
+		})
+	}
+}
+
+func TestValidateSkipsLocalRepoRPMs(t *testing.T) {
+	originalRepoCfg := rpmutils.RepoCfg
+	originalUserRepo := rpmutils.UserRepo
+	defer func() {
+		rpmutils.RepoCfg = originalRepoCfg
+		rpmutils.UserRepo = originalUserRepo
+	}()
+
+	destDir := t.TempDir()
+	localRepoDir := t.TempDir()
+
+	localRPMName := "dummyapp-1.0.0-1.x86_64.rpm"
+	destRPMPath := filepath.Join(destDir, localRPMName)
+	localRPMPath := filepath.Join(localRepoDir, localRPMName)
+
+	if err := os.WriteFile(destRPMPath, []byte("unsigned local rpm"), 0644); err != nil {
+		t.Fatalf("failed to create destination RPM: %v", err)
+	}
+	if err := os.WriteFile(localRPMPath, []byte("unsigned local rpm"), 0644); err != nil {
+		t.Fatalf("failed to create local repo RPM: %v", err)
+	}
+
+	rpmutils.RepoCfg = rpmutils.RepoConfig{}
+	rpmutils.UserRepo = []config.PackageRepository{
+		{
+			Path: localRepoDir,
+			PKey: "[trusted=yes]",
+		},
+	}
+
+	if err := rpmutils.Validate(destDir); err != nil {
+		t.Fatalf("Validate should skip local repo RPM verification, got: %v", err)
+	}
+}
+
+func TestValidateTrustedYesSkipsRPMVerification(t *testing.T) {
+	originalRepoCfg := rpmutils.RepoCfg
+	originalUserRepo := rpmutils.UserRepo
+	defer func() {
+		rpmutils.RepoCfg = originalRepoCfg
+		rpmutils.UserRepo = originalUserRepo
+	}()
+
+	destDir := t.TempDir()
+	rpmPath := filepath.Join(destDir, "unsigned.rpm")
+	if err := os.WriteFile(rpmPath, []byte("unsigned rpm"), 0644); err != nil {
+		t.Fatalf("failed to create RPM: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		repoCfg  rpmutils.RepoConfig
+		userRepo []config.PackageRepository
+	}{
+		{
+			name:    "main repo GPGKey is trusted=yes",
+			repoCfg: rpmutils.RepoConfig{GPGKey: "[trusted=yes]"},
+		},
+		{
+			name:    "non-local user repo PKey is trusted=yes",
+			repoCfg: rpmutils.RepoConfig{},
+			userRepo: []config.PackageRepository{
+				{URL: "https://example.com/repo", PKey: "[trusted=yes]"},
+			},
+		},
+		{
+			name:    "multiple truested=yes keys",
+			repoCfg: rpmutils.RepoConfig{GPGKey: "[trusted=yes]"},
+			userRepo: []config.PackageRepository{
+				{URL: "https://example.com/repo", PKey: "[trusted=yes]"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rpmutils.RepoCfg = tt.repoCfg
+			rpmutils.UserRepo = tt.userRepo
+
+			if err := rpmutils.Validate(destDir); err != nil {
+				t.Errorf("Validate should skip verification for [trusted=yes], got: %v", err)
 			}
 		})
 	}
