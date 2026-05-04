@@ -1245,6 +1245,12 @@ func TestResolveInstallDiskPath(t *testing.T) {
 			expectPath: "/dev/sdz",
 		},
 		{
+			name:        "empty_path_without_strategy_errors",
+			diskConfig:  config.DiskConfig{},
+			lsblkOutput: `{"blockdevices":[{"name":"sda","size":21474836480,"model":"Disk","serial":"A","tran":"sata","rm":0,"rota":1}]}`,
+			expectError: true,
+		},
+		{
 			name: "largest_strategy_default",
 			diskConfig: config.DiskConfig{
 				SelectionPolicy: config.DiskSelectionPolicy{Strategy: "largest"},

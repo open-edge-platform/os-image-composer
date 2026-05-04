@@ -992,7 +992,7 @@ func ResolveInstallDiskPath(diskConfig config.DiskConfig) (string, error) {
 
 	strategy := strings.TrimSpace(strings.ToLower(diskConfig.SelectionPolicy.Strategy))
 	if strategy == "" {
-		strategy = DiskSelectStrategyLargest
+		return "", fmt.Errorf("disk path is not set and no selection policy strategy was provided")
 	}
 
 	switch strategy {
