@@ -1349,6 +1349,40 @@ func TestDiskPartitionsCreate_GPTLabelFailureWithOutput(t *testing.T) {
 			expectedErrMsg:   "failed to create GPT partition table",
 			checkOutputInErr: true,
 		},
+		{
+			name:     "gpt_label_failure_empty_output",
+			diskPath: "/dev/sdc",
+			partitionsList: []config.PartitionInfo{
+				{
+					ID:     "boot",
+					Start:  "0",
+					End:    "1GiB",
+					FsType: "fat32",
+					Type:   "esp",
+				},
+			},
+			commandOutput:    "",
+			expectError:      true,
+			expectedErrMsg:   "failed to create GPT partition table",
+			checkOutputInErr: false,
+		},
+		{
+			name:     "gpt_label_failure_whitespace_output",
+			diskPath: "/dev/sdd",
+			partitionsList: []config.PartitionInfo{
+				{
+					ID:     "root",
+					Start:  "0",
+					End:    "50GiB",
+					FsType: "ext4",
+					Type:   "linux",
+				},
+			},
+			commandOutput:    "   \n   ",
+			expectError:      true,
+			expectedErrMsg:   "failed to create GPT partition table",
+			checkOutputInErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1459,6 +1493,40 @@ func TestDiskPartitionCreate_SGDiskFailureWithOutput(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to create GPT partition 1",
 			checkOutputErr: true,
+		},
+		{
+			name:         "sgdisk_failure_empty_output",
+			diskPath:     "/dev/sdc",
+			partitionNum: 1,
+			partitionInfo: config.PartitionInfo{
+				ID:       "boot",
+				Start:    "0",
+				End:      "1GiB",
+				FsType:   "fat32",
+				Type:     "esp",
+				TypeGUID: "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+			},
+			sgdiskOutput:   "",
+			expectError:    true,
+			expectedErrMsg: "failed to create GPT partition 1",
+			checkOutputErr: false,
+		},
+		{
+			name:         "sgdisk_failure_whitespace_only_output",
+			diskPath:     "/dev/sdd",
+			partitionNum: 2,
+			partitionInfo: config.PartitionInfo{
+				ID:       "root",
+				Start:    "1GiB",
+				End:      "50GiB",
+				FsType:   "ext4",
+				Type:     "linux",
+				TypeGUID: "0FC63DAF-8483-4772-8E79-3D69D8477DE4",
+			},
+			sgdiskOutput:   "  \t  ",
+			expectError:    true,
+			expectedErrMsg: "failed to create GPT partition 2",
+			checkOutputErr: false,
 		},
 	}
 
